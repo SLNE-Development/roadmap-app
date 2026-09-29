@@ -1,0 +1,30 @@
+# Local development: a lean Postgres. Part of the full stack in docker-compose.coolify.yml.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: roadmap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-roadmap}
+      POSTGRES_DB: roadmap
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - effective_cache_size=64MB
+    ports:
+      - "5432:5432"
+    volumes:
+      - roadmap-db:/var/lib/postgresql/data
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+
+volumes:
+  roadmap-db:
