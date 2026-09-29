@@ -1,6 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { NOT_PROVISIONED } from "@/lib/auth/server";
 import { SignInButton } from "./sign-in-button";
 
 /**
@@ -22,7 +21,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <Alert variant="destructive">
               <AlertTitle>Sign-in failed</AlertTitle>
               <AlertDescription>
-                {NOT_PROVISIONED} <span className="font-mono text-xs">({error})</span>
+                If your Discord account has not been added yet, ask an admin. Otherwise try again.{" "}
+                <span className="font-mono text-xs">({error})</span>
               </AlertDescription>
             </Alert>
           )}
