@@ -21,14 +21,15 @@ export const updateTaskInput = z.object({
   ownerUserId: z.string().nullable().optional(),
 });
 
-/** Loads a task with its system and checks the actor's role in its project. */
+/** Loads a task with its system, locking both rows, and checks the actor's role in its project. */
 async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
   const [row] = await tx
     .select({ task, system })
     .from(task)
     .innerJoin(system, eq(system.id, task.systemId))
     .where(eq(task.id, taskId))
-    .limit(1);
+    .limit(1)
+    .for("update");
   if (!row) throw new NotFoundError(`Unknown task ${taskId}.`);
   try {
     await projectAccessById(tx, actor, row.system.projectId, "editor");

@@ -119,7 +119,12 @@ export function planningGateMessage(systemSlug: string, gaps: string[]): string 
  */
 export async function claimSystem(tx: Executor, actor: Actor, parent: SystemRow): Promise<void> {
   if (parent.ownerUserId !== null) return;
-  await tx.update(system).set({ ownerUserId: actor.userId }).where(eq(system.id, parent.id));
+  const claimed = await tx
+    .update(system)
+    .set({ ownerUserId: actor.userId })
+    .where(and(eq(system.id, parent.id), isNull(system.ownerUserId)))
+    .returning({ id: system.id });
+  if (claimed.length === 0) return;
   await logChange(tx, actor, {
     projectId: parent.projectId,
     systemId: parent.id,

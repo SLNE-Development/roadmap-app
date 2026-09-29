@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
+import { listActivity } from "./activity";
 import { withAgent } from "./actor";
 import { createSystem, getSystem, updateSystem } from "./systems";
 import { addTask, deleteTask, updateTask } from "./tasks";
@@ -77,5 +78,26 @@ describe("tasks", () => {
     await updateSystem(db, owner, slug, "s", { notes: "keep" });
     await deleteTask(db, owner, id);
     expect((await getSystem(db, owner, slug, "s")).tasks).toEqual([]);
+  });
+
+  it("keeps a single owner when two members start the same task at once", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const a = await addMemberFixture(db, owner, slug, "editor");
+    const b = await addMemberFixture(db, owner, slug, "editor");
+    const s = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, s.id);
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+
+    const results = await Promise.allSettled([updateTask(db, a, id, { state: "doing" }), updateTask(db, b, id, { state: "doing" })]);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+
+    const detail = await getSystem(db, owner, slug, "s");
+    const names = [a, b].map((m) => m.name);
+    expect(names).toContain(detail.ownerName);
+    expect(names).toContain(detail.tasks[0].ownerName);
+    expect(detail.tasks[0].ownerName).toBe(detail.ownerName);
+    const owners = (await listActivity(db, owner, slug)).filter((h) => h.entity === "system" && h.field === "owner");
+    expect(owners).toHaveLength(1);
   });
 });
