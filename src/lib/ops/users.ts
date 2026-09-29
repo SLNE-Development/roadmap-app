@@ -29,9 +29,13 @@ function requireAdmin(actor: Actor): void {
   if (!actor.isAdmin) throw new ForbiddenError("Only admins can manage accounts.");
 }
 
-/** Returns how many users carry the admin flag. */
+/** Returns how many provisioned users carry the admin flag. */
 async function adminCount(db: Executor): Promise<number> {
-  const [row] = await db.select({ n: count() }).from(user).where(eq(user.isAdmin, true));
+  const [row] = await db
+    .select({ n: count() })
+    .from(user)
+    .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
+    .where(eq(user.isAdmin, true));
   return row.n;
 }
 
@@ -117,6 +121,7 @@ export async function removeAllowedAccount(db: Db, actor: Actor, discordId: stri
   await db.transaction(async (tx) => {
     const [row] = await tx.select().from(allowedAccount).where(eq(allowedAccount.discordId, discordId)).limit(1);
     if (!row) throw new NotFoundError(`Unknown Discord id ${discordId}.`);
+    await tx.select({ id: user.id }).from(user).where(eq(user.isAdmin, true)).for("update");
     const [target] = await tx.select().from(user).where(eq(user.discordId, discordId)).limit(1);
     if (target) {
       if (target.isAdmin && (await adminCount(tx)) === 1) throw new ConflictError("You cannot remove the last admin.");
@@ -137,7 +142,13 @@ export async function removeAllowedAccount(db: Db, actor: Actor, discordId: stri
 export async function setAdmin(db: Db, actor: Actor, userId: string, isAdmin: boolean): Promise<void> {
   requireAdmin(actor);
   await db.transaction(async (tx) => {
-    const [target] = await tx.select().from(user).where(eq(user.id, userId)).limit(1);
+    await tx.select({ id: user.id }).from(user).where(eq(user.isAdmin, true)).for("update");
+    const [target] = await tx
+      .select({ id: user.id, name: user.name, isAdmin: user.isAdmin })
+      .from(user)
+      .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
+      .where(eq(user.id, userId))
+      .limit(1);
     if (!target) throw new NotFoundError(`Unknown user ${userId}.`);
     if (target.isAdmin === isAdmin) return;
     if (!isAdmin && (await adminCount(tx)) === 1) throw new ConflictError("The last admin cannot drop the admin flag.");

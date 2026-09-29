@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { apikey, session, user } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { apikey, allowedAccount, session, user } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { insertUser } from "@/test/fixtures";
 import {
@@ -99,6 +100,39 @@ describe("setAdmin", () => {
     expect((await loadActor(db, sam.userId))?.isAdmin).toBe(true);
     await setAdmin(db, admin, sam.userId, false);
     await expect(setAdmin(db, admin, admin.userId, false)).rejects.toThrow("The last admin cannot drop the admin flag.");
+  });
+
+  it("rejects setAdmin on a removed (unprovisioned) user with 404", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const sam = await insertUser(db, { name: "Sam", discordId: "223456789012345678" });
+    await removeAllowedAccount(db, admin, "223456789012345678");
+    await expect(setAdmin(db, admin, sam.userId, false)).rejects.toThrow("Unknown user");
+  });
+
+  it("does not count unprovisioned admins toward last-admin check", async () => {
+    const db = await createTestDb();
+    const admin1 = await insertUser(db, { isAdmin: true, discordId: "123456789012345678" });
+    await insertUser(db, { name: "Admin2", isAdmin: true, discordId: "223456789012345678" });
+    await db.delete(allowedAccount).where(eq(allowedAccount.discordId, "223456789012345678"));
+    await expect(setAdmin(db, admin1, admin1.userId, false)).rejects.toThrow("The last admin cannot drop the admin flag.");
+  });
+
+  it("rejects setAdmin on unknown user with 404", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    await expect(setAdmin(db, admin, "unknown-id", false)).rejects.toThrow("Unknown user");
+  });
+});
+
+describe("removing a non-last admin", () => {
+  it("works and demotes the admin", async () => {
+    const db = await createTestDb();
+    const admin1 = await insertUser(db, { isAdmin: true, discordId: "123456789012345678" });
+    const admin2 = await insertUser(db, { isAdmin: true, name: "Admin2", discordId: "223456789012345678" });
+    await removeAllowedAccount(db, admin1, "223456789012345678");
+    const demoted = await loadActor(db, admin2.userId);
+    expect(demoted).toBeNull();
   });
 });
 
