@@ -49,8 +49,10 @@ The new app is copied from `S:\Workspaces\surf-roleplay\roadmap-app` without
 
 The stack is upgraded to the latest stable versions: Next.js (App Router), React,
 Tailwind 4, Drizzle ORM with `drizzle-kit` migrations, the `postgres` (postgres-js)
-driver, Better Auth, `@modelcontextprotocol/sdk`, zod, vitest. The existing visual
-style (CSS variables, `card`, `btn`, `eyebrow`) is kept.
+driver, Better Auth, `@modelcontextprotocol/sdk`, zod, vitest. The UI is built on
+shadcn/ui (Radix base, Nova preset, lucide icons) with every component installed
+under `src/components/ui/`; the old hand-written CSS classes are not carried over.
+Column categories get their own colour tokens.
 
 Every data access becomes async, because the SQLite layer was synchronous.
 
@@ -127,7 +129,7 @@ A project is created with one board named "Development".
   `phaseDependency(phaseId, dependsOnId)` within one project.
 - `system`: `id`, `projectId`, `boardId`, `columnId`, `domainId?`, `phaseId?`,
   `slug` (unique per project, used in URLs and tools), `title`, `summary`,
-  `priority` (`P0`–`P3`, as today), `ownerUserId?`, `notes`, `sortOrder`,
+  `priority` (`MVP` | `Later` | `Nice to have`, as today), `ownerUserId?`, `notes`, `sortOrder`,
   `planningCompletedAt?`, `planningConfirmation?` (the user's verbatim
   confirmation), `createdAt`.
   - `columnId` must belong to `boardId`. Moving a system to another board requires
@@ -135,6 +137,11 @@ A project is created with one board named "Development".
 - `task`: `id` (serial integer, readable for agents), `systemId`, `title`,
   `state` (`todo` | `doing` | `blocked` | `done`), `priority`, `ownerUserId?`,
   `planStep?` (integer), `sortOrder`.
+- **Ownership on start**: setting a task to `doing` makes the acting user owner
+  of the task if it has none, and owner of its system if that has none. Moving a
+  system into an `active` column does the same for the system. Existing owners are
+  never replaced, and admins who are not project members are not assigned. This
+  lives in the ops layer, so UI, MCP and REST behave the same.
 - `systemDocument`: `id`, `systemId`, `kind` (`spec` | `plan`), `version`
   (1, 2, …, per system and kind), `body` (markdown), `authorUserId`, `agent?`,
   `createdAt`. Append-only: an edit writes a new version.
@@ -269,7 +276,7 @@ The server instructions tell agents: every new system goes through
 Routes mirror the tools, for example `GET /projects`, `GET /projects/{p}/systems`,
 `PATCH /projects/{p}/systems/{s}`, `POST /projects/{p}/systems/{s}/updates`,
 `POST /projects/{p}/adrs`. Status codes: 400 invalid input (message names the
-field), 401 no or invalid key, 404 unknown or invisible entity, 409 planning gate
+field), 401 no or invalid key, 403 role too low, 404 unknown or invisible entity, 409 planning gate
 or ADR immutability violation (message lists what is missing).
 
 ## 10. The `surf-roadmap` plugin
@@ -425,9 +432,7 @@ Linux.
 ### 10.8 Subagents
 
 Shipped in `plugin/agents/*.md`. Each pins its `model` and its `tools` in the
-frontmatter, and sets a reasoning effort where the frontmatter supports it; whether
-it does is checked against the current Claude Code docs during implementation, and
-where it does not, the effort line is left out rather than guessed. Every agent
+frontmatter, and sets `effort` (supported by plugin subagents: `low` to `max`). Every agent
 prompt carries the conventions from 10.4, and the rule that a subagent never makes a
 decision that needs a human: it stops and reports the question to its parent.
 
@@ -476,8 +481,9 @@ subagents, for example `subagent-driven-development` uses `implementer`, then
 - vitest with PGlite (in-process Postgres) and the same migrations, so tests need no
   Docker. Covered: the ops layer per area, the planning gate (every failing
   condition), ADR immutability and superseding, permissions per role, board column
-  invariants, `write_plan` task syncing, the sign-in allowlist rule, and each MCP
-  tool through an in-memory MCP client.
+  invariants, `write_plan` task syncing, the sign-in allowlist rule, the tool registry (every tool of section 8 exists
+  once with a unique REST route), and the MCP server through an in-memory MCP
+  client (tool list, errors, and the full planning-to-progress flow).
 - Plugin hooks: Node's built-in test runner, feeding hook JSON on stdin and checking
   the decision for linked and unlinked repositories.
 - Before any milestone is called done: `npm run lint`, `npm run typecheck`,
