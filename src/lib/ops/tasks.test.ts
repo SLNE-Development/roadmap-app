@@ -27,7 +27,7 @@ describe("tasks", () => {
     const { id } = await addTask(db, owner, slug, "s", { title: "T" });
     await expect(updateTask(db, owner, id, { state: "doing" })).rejects.toMatchObject({
       status: 409,
-      message: `Task ${id} cannot be doing while system s is still in planning.`,
+      message: expect.stringContaining(`Task ${id} cannot be doing while system s is still in planning. Missing:`),
     });
     await updateTask(db, owner, id, { state: "blocked" });
     await completePlanningFixture(db, s.id);

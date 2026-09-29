@@ -8,6 +8,7 @@ import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { systemAccess, userName } from "./lookup";
 import { isMember } from "./members";
+import { planningGaps } from "./planning";
 import { claimSystem } from "./systems";
 
 /** Input of {@link addTask}. */
@@ -74,7 +75,9 @@ export async function updateTask(db: Db, actor: Actor, taskId: number, raw: z.in
   await db.transaction(async (tx) => {
     const { task: current, system: parent } = await taskAccess(tx, actor, taskId);
     if ((patch.state === "doing" || patch.state === "done") && !parent.planningCompletedAt) {
-      throw new ConflictError(`Task ${taskId} cannot be ${patch.state} while system ${parent.slug} is still in planning.`);
+      throw new ConflictError(
+        `Task ${taskId} cannot be ${patch.state} while system ${parent.slug} is still in planning. Missing: ${(await planningGaps(tx, parent.id)).join(" ")}`,
+      );
     }
     if (patch.ownerUserId && !(await isMember(tx, parent.projectId, patch.ownerUserId))) {
       throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);

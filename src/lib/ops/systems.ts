@@ -22,6 +22,7 @@ import { ConflictError, InvalidError, isUniqueViolation, NotFoundError } from ".
 import { logChange } from "./log";
 import { findBoard, findSystem, loadBoards, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
+import { planningGaps } from "./planning";
 import type { DomainRow, PhaseRow } from "./structure";
 
 /** Input of {@link createSystem}. */
@@ -365,7 +366,7 @@ export async function moveSystem(
       throw new InvalidError(`Board ${to.slug} has no column "${input.column}". Columns: ${to.columns.map((c) => c.name).join(", ")}.`);
     }
     if (column.category !== "planning" && !current.planningCompletedAt) {
-      throw new ConflictError(planningGateMessage(current.slug, []));
+      throw new ConflictError(planningGateMessage(current.slug, await planningGaps(tx, current.id)));
     }
     if (column.id === current.columnId) return current;
     if (column.category === "active" && (await isMember(tx, project.id, actor.userId))) {
