@@ -133,10 +133,14 @@ export async function setBoardColumns(
   if (violation) throw new ConflictError(violation);
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "owner");
-    const current = await findBoard(tx, project.id, boardSlug);
+    const current = await findBoard(tx, project.id, boardSlug, true);
     const byId = new Map(current.columns.map((c) => [c.id, c]));
+    const seen = new Set<string>();
     for (const c of columns) {
-      if (c.id && !byId.has(c.id)) throw new InvalidError(`Column ${c.id} is not on board ${boardSlug}.`);
+      if (!c.id) continue;
+      if (!byId.has(c.id)) throw new InvalidError(`Column ${c.id} is not on board ${boardSlug}.`);
+      if (seen.has(c.id)) throw new InvalidError(`Column ${c.id} is listed twice.`);
+      seen.add(c.id);
     }
     const keptIds = new Set(columns.flatMap((c) => (c.id ? [c.id] : [])));
     const removed = current.columns.filter((c) => !keptIds.has(c.id));

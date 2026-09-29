@@ -84,7 +84,8 @@ export async function listPhases(db: Executor, actor: Actor, slug: string): Prom
  * @throws InvalidError if a dependency is not a phase of this project
  */
 export async function createPhase(db: Db, actor: Actor, slug: string, raw: z.input<typeof phaseInput>): Promise<PhaseItem> {
-  const input = phaseInput.parse(raw);
+  const parsed = phaseInput.parse(raw);
+  const input = { ...parsed, dependsOn: [...new Set(parsed.dependsOn)] };
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "editor");
     if (input.dependsOn.length > 0) {

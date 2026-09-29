@@ -54,16 +54,18 @@ export async function loadBoards(db: Executor, projectId: string): Promise<Board
 }
 
 /**
- * Returns the board with `slug` in the project, with its columns.
+ * Returns the board with `slug` in the project, with its columns, optionally
+ * locking the board row until the surrounding transaction ends.
  *
  * @throws NotFoundError if there is none
  */
-export async function findBoard(db: Executor, projectId: string, slug: string): Promise<BoardWithColumns> {
-  const [row] = await db
+export async function findBoard(db: Executor, projectId: string, slug: string, lock = false): Promise<BoardWithColumns> {
+  const query = db
     .select()
     .from(board)
     .where(and(eq(board.projectId, projectId), eq(board.slug, slug)))
     .limit(1);
+  const [row] = lock ? await query.for("update") : await query;
   if (!row) throw new NotFoundError(`Unknown board ${slug}.`);
   const columns = await db.select().from(boardColumn).where(eq(boardColumn.boardId, row.id)).orderBy(asc(boardColumn.sortOrder));
   return { ...row, columns };

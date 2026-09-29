@@ -115,4 +115,33 @@ describe("setBoardColumns", () => {
       }),
     ).rejects.toMatchObject({ status: 400, message: `Column ${other.columns[0].id} is not on board development.` });
   });
+
+  it("rejects a column id listed twice", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const dev = await findBoard(db, projectId, "development");
+    await expect(
+      setBoardColumns(db, owner, slug, "development", {
+        columns: [
+          { id: dev.columns[0].id, name: "Planning", category: "planning" },
+          { id: dev.columns[0].id, name: "Again", category: "todo" },
+          { id: dev.columns[5].id, name: "Done", category: "done" },
+        ],
+      }),
+    ).rejects.toMatchObject({ status: 400, message: `Column ${dev.columns[0].id} is listed twice.` });
+  });
+
+  it("keeps exactly one planning column under concurrent edits", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const dev = await findBoard(db, projectId, "development");
+    const done = { id: dev.columns[5].id, name: "Done", category: "done" as const };
+    const replace = (name: string) =>
+      setBoardColumns(db, owner, slug, "development", {
+        columns: [{ name, category: "planning" }, done],
+      });
+    await Promise.allSettled([replace("First"), replace("Second")]);
+    const after = await findBoard(db, projectId, "development");
+    expect(after.columns.filter((c) => c.category === "planning")).toHaveLength(1);
+  });
 });

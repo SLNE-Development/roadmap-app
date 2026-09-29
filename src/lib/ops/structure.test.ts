@@ -30,4 +30,13 @@ describe("domains and phases", () => {
     await deletePhase(db, owner, slug, p0.id);
     expect((await listPhases(db, owner, slug)).map((p) => [p.name, p.dependsOn])).toEqual([["P1", []]]);
   });
+
+  it("stores a repeated dependency once", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const p0 = await createPhase(db, owner, slug, { name: "P0" });
+    const p1 = await createPhase(db, owner, slug, { name: "P1", dependsOn: [p0.id, p0.id] });
+    expect(p1.dependsOn).toEqual([p0.id]);
+    expect((await listPhases(db, owner, slug)).find((p) => p.id === p1.id)?.dependsOn).toEqual([p0.id]);
+  });
 });
