@@ -1,0 +1,81 @@
+import { describe, expect, it } from "vitest";
+import { createTestDb } from "@/test/db";
+import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
+import { withAgent } from "./actor";
+import { createSystem, getSystem, updateSystem } from "./systems";
+import { addTask, deleteTask, updateTask } from "./tasks";
+
+describe("tasks", () => {
+  it("adds tasks at the end with the system's priority", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S", priority: "MVP" });
+    await addTask(db, owner, slug, "s", { title: "First" });
+    await addTask(db, owner, slug, "s", { title: "Second", priority: "Later" });
+    const { tasks } = await getSystem(db, owner, slug, "s");
+    expect(tasks.map((t) => [t.title, t.priority, t.state])).toEqual([
+      ["First", "MVP", "todo"],
+      ["Second", "Later", "todo"],
+    ]);
+  });
+
+  it("blocks doing and done while the system is in planning", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const s = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+    await expect(updateTask(db, owner, id, { state: "doing" })).rejects.toMatchObject({
+      status: 409,
+      message: `Task ${id} cannot be doing while system s is still in planning.`,
+    });
+    await updateTask(db, owner, id, { state: "blocked" });
+    await completePlanningFixture(db, s.id);
+    await updateTask(db, owner, id, { state: "done", title: "Renamed" });
+    expect((await getSystem(db, owner, slug, "s")).tasks[0]).toMatchObject({ state: "done", title: "Renamed" });
+  });
+
+  it("assigns the task and the system to whoever starts the task, keeping existing owners", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    const s = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, s.id);
+    const first = await addTask(db, owner, slug, "s", { title: "First" });
+    const second = await addTask(db, owner, slug, "s", { title: "Second" });
+    await updateTask(db, owner, second.id, { ownerUserId: owner.userId });
+
+    await updateTask(db, withAgent(editor, "Claude Code"), first.id, { state: "doing" });
+    await updateTask(db, editor, second.id, { state: "doing" });
+
+    const detail = await getSystem(db, owner, slug, "s");
+    expect(detail.tasks.map((t) => [t.title, t.ownerName])).toEqual([
+      ["First", "editor member"],
+      ["Second", "Owner"],
+    ]);
+    expect(detail.ownerName).toBe("editor member");
+  });
+
+  it("does not assign admins who are not project members", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const admin = await insertUser(db, { isAdmin: true });
+    const s = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, s.id);
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+    await updateTask(db, admin, id, { state: "doing" });
+    const detail = await getSystem(db, owner, slug, "s");
+    expect([detail.tasks[0].ownerName, detail.ownerName]).toEqual([null, null]);
+  });
+
+  it("hides tasks of projects the actor cannot see and deletes tasks", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const other = await createProjectFixture(db, "other");
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+    await expect(updateTask(db, other.owner, id, { title: "x" })).rejects.toMatchObject({ status: 404, message: `Unknown task ${id}.` });
+    await updateSystem(db, owner, slug, "s", { notes: "keep" });
+    await deleteTask(db, owner, id);
+    expect((await getSystem(db, owner, slug, "s")).tasks).toEqual([]);
+  });
+});
