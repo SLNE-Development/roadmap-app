@@ -1,6 +1,6 @@
 import { and, asc, count, eq, ne } from "drizzle-orm";
 import { z } from "zod";
-import { PROJECT_ROLES, projectMember, user, type ProjectRole } from "@/db/schema";
+import { PROJECT_ROLES, project as projectTable, projectMember, user, type ProjectRole } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
@@ -59,6 +59,7 @@ export async function setMember(db: Db, actor: Actor, slug: string, raw: z.input
   const input = setMemberInput.parse(raw);
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "owner");
+    await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("update");
     const target = await loadActor(tx, input.userId);
     if (!target) throw new NotFoundError(`Unknown user ${input.userId}.`);
     const [current] = await tx
@@ -91,6 +92,7 @@ export async function setMember(db: Db, actor: Actor, slug: string, raw: z.input
 export async function removeMember(db: Db, actor: Actor, slug: string, userId: string): Promise<void> {
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "owner");
+    await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("update");
     const [current] = await tx
       .select({ role: projectMember.role, name: user.name })
       .from(projectMember)

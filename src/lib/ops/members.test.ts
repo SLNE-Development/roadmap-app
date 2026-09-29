@@ -45,4 +45,16 @@ describe("members", () => {
     await removeMember(db, second, slug, owner.userId);
     expect((await listMembers(db, second, slug)).map((m) => m.role)).toEqual(["owner"]);
   });
+
+  it("never ends up without an owner when two owners demote each other concurrently", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const second = await addMemberFixture(db, owner, slug, "owner");
+    const results = await Promise.allSettled([
+      setMember(db, owner, slug, { userId: second.userId, role: "editor" }),
+      setMember(db, second, slug, { userId: owner.userId, role: "editor" }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((await listMembers(db, owner, slug).catch(() => listMembers(db, second, slug))).filter((m) => m.role === "owner")).toHaveLength(1);
+  });
 });
