@@ -8,6 +8,7 @@ import type { Actor } from "./actor";
 import { InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { lockProject } from "./lookup";
+import { entityId } from "./params";
 
 /** A domain row. */
 export type DomainRow = typeof domain.$inferSelect;
@@ -30,7 +31,7 @@ export const domainInput = z.object({
 export const phaseInput = z.object({
   name: z.string().trim().min(1).max(60),
   goal: z.string().trim().max(2000).default(""),
-  dependsOn: z.array(z.string()).max(20).default([]),
+  dependsOn: z.array(entityId).max(20).default([]),
 });
 
 /** Lists the project's domains in order. */
@@ -135,7 +136,7 @@ export const updateDomainInput = z.object({
 export const updatePhaseInput = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   goal: z.string().trim().max(2000).optional(),
-  dependsOn: z.array(z.string()).max(20).optional(),
+  dependsOn: z.array(entityId).max(20).optional(),
 });
 
 /** Input of {@link reorderDomains} and {@link reorderPhases}: every id of the project, in the new order. */

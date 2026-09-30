@@ -3,6 +3,7 @@ import { z } from "zod";
 import { DOCUMENT_KINDS } from "@/db/schema";
 import { activityFilter, listActivity } from "@/lib/ops/activity";
 import { getDocument } from "@/lib/ops/documents";
+import { dbInt } from "@/lib/ops/params";
 import { listUpdates, listUpdatesInput } from "@/lib/ops/updates";
 import { protectedProcedure, router } from "../init";
 import { P, S } from "./shared";
@@ -21,6 +22,6 @@ export const historyRouter = router({
 
   /** A version of a system's spec or plan, the latest without `version`; `null` when none exists. */
   document: protectedProcedure
-    .input(z.object({ ...S, kind: z.enum(DOCUMENT_KINDS), version: z.number().int().positive().optional() }))
+    .input(z.object({ ...S, kind: z.enum(DOCUMENT_KINDS), version: dbInt.optional() }))
     .query(({ ctx, input }) => getDocument(ctx.db, ctx.actor, input.project, input.system, input.kind, input.version)),
 });

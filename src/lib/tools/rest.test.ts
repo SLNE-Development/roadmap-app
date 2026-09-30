@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Db } from "@/db/types";
 import { ApiKeyRateLimitedError } from "@/lib/auth/rate-limit";
 import type { Actor } from "@/lib/ops/actor";
+import { writeSpec } from "@/lib/ops/documents";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
 import { coerceQuery, handleRest } from "./rest";
@@ -38,6 +39,15 @@ describe("REST", () => {
     expect(gate.json.error).toContain("still in planning");
     expect((await send(db, owner, "GET", `/projects/${slug}/questions?resolved=false`)).status).toBe(200);
     expect((await send(db, owner, "GET", `/projects/${slug}/updates?limit=5`)).status).toBe(200);
+  });
+
+  it("validates the document version query", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await send(db, owner, "POST", `/projects/${slug}/systems`, { slug: "s", title: "S" });
+    await writeSpec(db, owner, slug, "s", { body: "# v1" });
+    expect((await send(db, owner, "GET", `/projects/${slug}/systems/s/documents/spec?version=abc`)).status).toBe(400);
+    expect((await send(db, owner, "GET", `/projects/${slug}/systems/s/documents/spec?version=1`)).status).toBe(200);
   });
 
   it("accepts boolean query values for GET tools", async () => {

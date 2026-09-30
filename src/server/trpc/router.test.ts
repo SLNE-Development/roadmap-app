@@ -33,6 +33,12 @@ describe("appRouter", () => {
     expect((await api.projects.cards())[0]).toMatchObject({ slug: "demo", summary: { systems: 1 } });
   });
 
+  it("rejects out-of-range integers as bad requests", async () => {
+    const db = await createTestDb();
+    const owner = await insertUser(db);
+    await expect(caller(db, owner).tasks.update({ id: 3e9, patch: { title: "x" } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("maps op errors to tRPC codes with the op's message", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

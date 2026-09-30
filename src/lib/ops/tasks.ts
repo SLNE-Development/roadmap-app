@@ -8,6 +8,7 @@ import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, userName } from "./lookup";
 import { isMember } from "./members";
+import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
 import { claimSystem } from "./systems";
 
@@ -19,7 +20,7 @@ export const updateTaskInput = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   state: z.enum(TASK_STATES).optional(),
   priority: z.enum(PRIORITIES).optional(),
-  ownerUserId: z.string().nullable().optional(),
+  ownerUserId: nullableEntityId.optional(),
 });
 
 /** Loads a task with its system, locking both rows, and checks the actor's role in its project. */

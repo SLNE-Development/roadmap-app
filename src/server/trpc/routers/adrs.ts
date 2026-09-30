@@ -1,11 +1,12 @@
 import "server-only";
 import { z } from "zod";
 import { acceptAdr, adrFilter, getAdr, listAdrs } from "@/lib/ops/adrs";
+import { dbInt } from "@/lib/ops/params";
 import { protectedProcedure, router } from "../init";
 import { P } from "./shared";
 
 /** An ADR by its number within the project. */
-const ADR = { ...P, number: z.number().int().positive() };
+const ADR = { ...P, number: dbInt };
 
 /** Architecture decision records. */
 export const adrsRouter = router({

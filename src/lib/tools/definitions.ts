@@ -17,6 +17,7 @@ import { createBoard, createBoardInput, listBoards, setBoardColumns, setColumnsI
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
 import { listMembers } from "@/lib/ops/members";
 import { getSystemOverview } from "@/lib/ops/overview";
+import { MAX_INT } from "@/lib/ops/params";
 import {
   addPlanningRound,
   addRoundInput,
@@ -79,7 +80,7 @@ const fromNumericString = (value: unknown): unknown =>
 const positiveInt = (max: number) => z.preprocess(fromNumericString, z.number().int().min(1).max(max));
 
 /** A required numeric path parameter (a positive 32-bit integer) accepted as a number (MCP) or a numeric string (REST). */
-const intParam = (what: string) => positiveInt(2147483647).describe(what);
+const intParam = (what: string) => positiveInt(MAX_INT).describe(what);
 
 /** An optional result limit accepted as a number or a numeric string. */
 const limit = positiveInt(500).optional().describe("Maximum number of entries.");
@@ -349,7 +350,7 @@ register(
   defineTool({
     name: "get_document",
     description: "Get a system's spec or plan: the latest version, or a given version, with the list of all versions.",
-    input: { ...S, kind: z.enum(DOCUMENT_KINDS), version: z.coerce.number().int().min(1).optional() },
+    input: { ...S, kind: z.enum(DOCUMENT_KINDS), version: positiveInt(MAX_INT).optional() },
     write: false,
     method: "GET",
     path: "/projects/:project/systems/:system/documents/:kind",

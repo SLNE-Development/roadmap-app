@@ -1,11 +1,12 @@
 import "server-only";
 import { z } from "zod";
+import { dbInt } from "@/lib/ops/params";
 import { addTask, addTaskInput, deleteTask, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { protectedProcedure, router } from "../init";
 import { S } from "./shared";
 
 /** A task by its id. */
-const TASK = { id: z.number().int().positive() };
+const TASK = { id: dbInt };
 
 /** Tasks of a system; they are read through `systems.overview`. */
 export const tasksRouter = router({

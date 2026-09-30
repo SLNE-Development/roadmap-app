@@ -3,6 +3,7 @@ import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createBoard } from "./boards";
+import { statusOf } from "./errors";
 import { addPlanningRound, answerPlanningItems } from "./planning";
 import { createDomain } from "./structure";
 import { createSystem, getSystem, listSystems, moveSystem, updateSystem } from "./systems";
@@ -32,6 +33,15 @@ describe("createSystem", () => {
       status: 400,
       message: `Unknown domain ${foreignDomain.id}.`,
     });
+  });
+
+  it("rejects empty domain and owner ids as invalid input", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const statusOfFailure = (run: Promise<unknown>) => run.then(() => 0, statusOf);
+    expect(await statusOfFailure(createSystem(db, owner, slug, { slug: "s", title: "S", domainId: "" }))).toBe(400);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    expect(await statusOfFailure(updateSystem(db, owner, slug, "s", { ownerUserId: "" }))).toBe(400);
   });
 
   it("needs the editor role", async () => {

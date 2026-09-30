@@ -24,6 +24,7 @@ import { ConflictError, InvalidError, isUniqueViolation, NotFoundError } from ".
 import { logChange } from "./log";
 import { findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
+import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
 import type { DomainRow, PhaseRow } from "./structure";
 
@@ -33,8 +34,8 @@ export const createSystemInput = z.object({
   title: z.string().trim().min(1).max(120),
   summary: z.string().trim().max(2000).default(""),
   board: slugSchema.optional(),
-  domainId: z.string().nullable().default(null),
-  phaseId: z.string().nullable().default(null),
+  domainId: nullableEntityId.default(null),
+  phaseId: nullableEntityId.default(null),
   priority: z.enum(PRIORITIES).default("Later"),
 });
 
@@ -53,10 +54,10 @@ export const updateSystemInput = z.object({
   title: z.string().trim().min(1).max(120).optional(),
   summary: z.string().trim().max(2000).optional(),
   priority: z.enum(PRIORITIES).optional(),
-  ownerUserId: z.string().nullable().optional(),
+  ownerUserId: nullableEntityId.optional(),
   notes: z.string().max(20000).optional(),
-  domainId: z.string().nullable().optional(),
-  phaseId: z.string().nullable().optional(),
+  domainId: nullableEntityId.optional(),
+  phaseId: nullableEntityId.optional(),
 });
 
 /** Input of {@link moveSystem}: a column id or name, on `board` or the current board. */
