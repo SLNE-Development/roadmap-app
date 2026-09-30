@@ -26,8 +26,13 @@ async function handle(request: Request): Promise<Response> {
 /** MCP requests (initialize, tool calls). */
 export const POST = handle;
 
-/** MCP server-to-client stream requests. */
-export const GET = handle;
+/** The stateless server never pushes messages, so the server-to-client stream is not offered. */
+export async function GET(): Promise<Response> {
+  return Response.json(
+    { jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null },
+    { status: 405, headers: { Allow: "POST" } },
+  );
+}
 
 /** MCP session termination requests. */
 export const DELETE = handle;

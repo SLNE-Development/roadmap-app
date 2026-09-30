@@ -59,6 +59,21 @@ describe("REST", () => {
     expect(inOther.json).toEqual([]);
   });
 
+  it("rejects malformed and non-object bodies with 400", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    for (const raw of ["{not json", "[1,2]", "null", '"text"']) {
+      const request = new Request(`http://test/api/v1/projects/${slug}/systems`, { method: "POST", body: raw });
+      const response = await handleRest(request, ["projects", slug, "systems"], { db, resolveActor: async () => owner });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "Request body must be a JSON object." });
+    }
+    const blank = new Request(`http://test/api/v1/projects/${slug}/systems`, { method: "POST", body: "  " });
+    const response = await handleRest(blank, ["projects", slug, "systems"], { db, resolveActor: async () => owner });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).not.toContain("JSON object");
+  });
+
   it("rejects missing keys, unknown routes and invisible projects", async () => {
     const db = await createTestDb();
     const { slug } = await createProjectFixture(db);

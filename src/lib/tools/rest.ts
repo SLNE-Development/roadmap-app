@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
-import { messageOf, statusOf } from "@/lib/ops/errors";
+import { InvalidError, messageOf, statusOf } from "@/lib/ops/errors";
 import "./definitions";
 import { inputSchema, matchRoute, runTool } from "./registry";
 
@@ -32,14 +32,22 @@ export function coerceQuery(shape: z.ZodRawShape, params: URLSearchParams): Reco
   return out;
 }
 
-/** Reads a JSON object body, or an empty object when there is none or it is not an object. */
+/**
+ * Reads a JSON object body, or an empty object when the body is blank.
+ *
+ * @throws InvalidError when the body is not valid JSON or not a plain object
+ */
 async function readBody(request: Request): Promise<Record<string, unknown>> {
+  const text = await request.text();
+  if (!text.trim()) return {};
+  let body: unknown;
   try {
-    const body: unknown = await request.json();
-    return body && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+    body = JSON.parse(text);
   } catch {
-    return {};
+    throw new InvalidError("Request body must be a JSON object.");
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new InvalidError("Request body must be a JSON object.");
+  return body as Record<string, unknown>;
 }
 
 /**
@@ -54,11 +62,11 @@ export async function handleRest(request: Request, segments: string[], deps: Res
   if (!match) return Response.json({ error: `No route ${method} /api/v1/${segments.join("/")}.` }, { status: 404 });
   const actor = await deps.resolveActor(request);
   if (!actor) return Response.json({ error: "Missing or invalid API key. Send Authorization: Bearer <key>." }, { status: 401 });
-  const raw =
-    method === "GET" || method === "DELETE"
-      ? coerceQuery(inputSchema(match.def).shape, new URL(request.url).searchParams)
-      : await readBody(request);
   try {
+    const raw =
+      method === "GET" || method === "DELETE"
+        ? coerceQuery(inputSchema(match.def).shape, new URL(request.url).searchParams)
+        : await readBody(request);
     const result = await runTool(deps.db, actor, match.def, { ...raw, ...match.params });
     return Response.json(result ?? { ok: true });
   } catch (error) {
