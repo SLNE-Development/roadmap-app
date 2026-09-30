@@ -15,7 +15,7 @@ export function SettingsMembersView({ slug }: { slug: string }) {
   const [{ data: me }, { data: users }, { data: detail }, { data: members }] = useSuspenseQueries({
     queries: [
       trpc.account.me.queryOptions(),
-      trpc.account.users.queryOptions(),
+      trpc.account.users.queryOptions({ project: slug }),
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.members.list.queryOptions({ project: slug }),
     ],

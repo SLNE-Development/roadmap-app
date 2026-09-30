@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { KeyRound, LogOut, Monitor, Moon, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,6 +24,7 @@ import { authClient } from "@/lib/auth/client";
  */
 export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { theme, resolvedTheme, setTheme } = useTheme();
   return (
     <div className="flex items-center gap-2.5 px-2 py-1.5">
@@ -66,6 +68,7 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
             variant="destructive"
             onSelect={async () => {
               await authClient.signOut();
+              queryClient.clear();
               router.push("/login");
               router.refresh();
             }}

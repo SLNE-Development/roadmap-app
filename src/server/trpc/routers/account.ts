@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { getAuth } from "@/lib/auth/server";
+import { slugSchema } from "@/lib/ops/access";
 import { createApiKeyInput, listApiKeys, revokeApiKey } from "@/lib/ops/api-keys";
 import { addAllowedAccount, addAllowedAccountInput, listAllowedAccounts, listUsers, removeAllowedAccount, setAdmin } from "@/lib/ops/users";
 import { protectedProcedure, router } from "../init";
@@ -10,8 +11,8 @@ export const accountRouter = router({
   /** The signed-in actor. */
   me: protectedProcedure.query(({ ctx }) => ({ userId: ctx.actor.userId, name: ctx.actor.name, isAdmin: ctx.actor.isAdmin })),
 
-  /** Every provisioned user, for member pickers. */
-  users: protectedProcedure.query(({ ctx }) => listUsers(ctx.db)),
+  /** Every provisioned user, for the member picker. Project owners only. */
+  users: protectedProcedure.input(z.object({ project: slugSchema })).query(({ ctx, input }) => listUsers(ctx.db, ctx.actor, input.project)),
 
   /** The actor's API keys, newest first; never the keys themselves. */
   apiKeys: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.db, ctx.actor)),

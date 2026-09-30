@@ -17,6 +17,7 @@ import {
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
 import type { updateSystemInput } from "@/lib/ops/systems";
 import { useTRPC } from "@/trpc/client";
+import { moveErrorKind } from "./move-error";
 import { describeGaps } from "./text";
 
 /** A column of the system's board as the controls need it. */
@@ -93,7 +94,7 @@ export function useMoveSystem(data: SystemControlsData) {
       { ...ref, to: { column: target.id } },
       {
         onError: (error) => {
-          if (!data.planningComplete && target.category !== "planning") planningGateToast(data.gaps);
+          if (moveErrorKind(error) === "planning-gate") planningGateToast(data.gaps);
           else toast.error(error.message);
         },
         onSuccess: () =>

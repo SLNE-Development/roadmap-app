@@ -3,6 +3,7 @@ import { z } from "zod";
 import { FIRST_ADMIN_LOCK } from "@/db/locks";
 import { allowedAccount, apikey, session, user } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
+import { projectAccess } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, ForbiddenError, isUniqueViolation, NotFoundError } from "./errors";
 
@@ -166,8 +167,22 @@ export async function setAdmin(db: Db, actor: Actor, userId: string, isAdmin: bo
   });
 }
 
-/** Lists users whose Discord account is still provisioned, sorted by name. */
-export async function listUsers(db: Executor): Promise<{ id: string; name: string; image: string | null }[]> {
+/** A provisioned user as offered in member pickers. */
+export interface UserItem {
+  id: string;
+  name: string;
+  image: string | null;
+}
+
+/**
+ * Lists users whose Discord account is still provisioned, sorted by name. Only
+ * owners of the project (and admins) may list them, to add members.
+ *
+ * @throws NotFoundError if the project is unknown or hidden from the actor
+ * @throws ForbiddenError if the actor is not an owner
+ */
+export async function listUsers(db: Executor, actor: Actor, projectSlug: string): Promise<UserItem[]> {
+  await projectAccess(db, actor, projectSlug, "owner");
   return db
     .select({ id: user.id, name: user.name, image: user.image })
     .from(user)

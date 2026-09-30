@@ -2,7 +2,7 @@ import "server-only";
 import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
@@ -52,6 +52,18 @@ async function discordIdOf(db: Db, userId: string): Promise<string | null> {
   return after?.discordId ?? null;
 }
 
+/** Better Auth's own API key endpoints; keys are managed through the app's tRPC procedures instead. */
+export const BLOCKED_AUTH_PATH = /^\/api-key\//;
+
+/**
+ * Returns whether an auth endpoint call must be refused: the API key endpoints
+ * are closed to HTTP requests, while server-side `auth.api.*` calls (which carry
+ * no request) keep working.
+ */
+export function isBlockedAuthRequest(path: string, hasRequest: boolean): boolean {
+  return hasRequest && BLOCKED_AUTH_PATH.test(path);
+}
+
 /**
  * Builds the Better Auth instance: Discord sign-in for provisioned accounts,
  * the first account as admin, and per-user API keys with the `rmk_` prefix.
@@ -73,6 +85,11 @@ function createAuth() {
         discordId: { type: "string", required: false, input: false },
         isAdmin: { type: "boolean", required: false, defaultValue: false, input: false },
       },
+    },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (isBlockedAuthRequest(ctx.path, !!ctx.request)) throw new APIError("NOT_FOUND");
+      }),
     },
     databaseHooks: {
       session: {

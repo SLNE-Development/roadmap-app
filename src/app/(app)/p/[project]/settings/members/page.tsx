@@ -6,7 +6,7 @@ export default async function SettingsMembersPage({ params }: { params: Promise<
   const { project: slug } = await params;
   await prefetch(
     trpc.account.me.queryOptions(),
-    trpc.account.users.queryOptions(),
+    trpc.account.users.queryOptions({ project: slug }),
     trpc.projects.get.queryOptions({ project: slug }),
     trpc.members.list.queryOptions({ project: slug }),
   );

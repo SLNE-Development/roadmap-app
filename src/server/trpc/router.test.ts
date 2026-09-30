@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
 import { createTestDb } from "@/test/db";
-import { createProjectFixture, insertUser } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createCallerFactory } from "./init";
 import { appRouter } from "./router";
 
@@ -70,5 +70,14 @@ describe("appRouter", () => {
     await expect(
       api.boards.setColumns({ project: slug, board: "development", columns: [{ name: "", category: "todo" }, { name: "Done", category: "done" }] }),
     ).rejects.toMatchObject({ message: expect.stringMatching(/^columns\.0\.name: /) });
+  });
+
+  it("lists users to project owners only", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    await expect(caller(db, editor).account.users({ project: slug })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const users = await caller(db, owner).account.users({ project: slug });
+    expect(users.map((u) => u.id)).toContain(editor.userId);
   });
 });

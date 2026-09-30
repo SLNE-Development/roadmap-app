@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { apikey, allowedAccount, session, user } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { insertUser } from "@/test/fixtures";
+import { createProject } from "./projects";
 import {
   addAllowedAccount,
   isAllowed,
@@ -193,6 +194,7 @@ describe("listUsers", () => {
     await insertUser(db, { name: "Amy", discordId: "223456789012345678" });
     await removeAllowedAccount(db, admin, "223456789012345678");
     await insertUser(db, { name: "Bob" });
-    expect((await listUsers(db)).map((u) => u.name)).toEqual(["Bob", "Zed"]);
+    await createProject(db, admin, { slug: "demo", name: "Demo" });
+    expect((await listUsers(db, admin, "demo")).map((u) => u.name)).toEqual(["Bob", "Zed"]);
   });
 });
