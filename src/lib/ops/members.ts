@@ -59,7 +59,7 @@ export async function setMember(db: Db, actor: Actor, slug: string, raw: z.input
   const input = setMemberInput.parse(raw);
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "owner");
-    await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("update");
+    await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("no key update");
     const target = await loadActor(tx, input.userId);
     if (!target) throw new NotFoundError(`Unknown user ${input.userId}.`);
     const [current] = await tx
@@ -92,7 +92,7 @@ export async function setMember(db: Db, actor: Actor, slug: string, raw: z.input
 export async function removeMember(db: Db, actor: Actor, slug: string, userId: string): Promise<void> {
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "owner");
-    await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("update");
+    await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("no key update");
     const [current] = await tx
       .select({ role: projectMember.role, name: user.name })
       .from(projectMember)

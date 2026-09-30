@@ -68,7 +68,7 @@ async function findAdr(tx: Executor, projectId: string, number: number, lock = f
     .from(adr)
     .where(and(eq(adr.projectId, projectId), eq(adr.number, number)))
     .limit(1);
-  const [row] = lock ? await query.for("update") : await query;
+  const [row] = lock ? await query.for("no key update") : await query;
   if (!row) throw new NotFoundError(`Unknown ADR ${formatAdrNumber(number)}.`);
   return row;
 }
@@ -125,7 +125,7 @@ export async function createAdr(db: Db, actor: Actor, projectSlug: string, raw: 
   const { systems, ...input } = createAdrInput.parse(raw);
   return db.transaction(async (tx) => {
     const found = await projectAccess(tx, actor, projectSlug, "editor");
-    await tx.select({ id: project.id }).from(project).where(eq(project.id, found.project.id)).for("update");
+    await tx.select({ id: project.id }).from(project).where(eq(project.id, found.project.id)).for("no key update");
     const [{ last }] = await tx.select({ last: max(adr.number) }).from(adr).where(eq(adr.projectId, found.project.id));
     const number = (last ?? 0) + 1;
     const id = newId();

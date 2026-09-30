@@ -121,7 +121,7 @@ export async function removeAllowedAccount(db: Db, actor: Actor, discordId: stri
   await db.transaction(async (tx) => {
     const [row] = await tx.select().from(allowedAccount).where(eq(allowedAccount.discordId, discordId)).limit(1);
     if (!row) throw new NotFoundError(`Unknown Discord id ${discordId}.`);
-    await tx.select({ id: user.id }).from(user).where(eq(user.isAdmin, true)).for("update");
+    await tx.select({ id: user.id }).from(user).where(eq(user.isAdmin, true)).for("no key update");
     const [target] = await tx.select().from(user).where(eq(user.discordId, discordId)).limit(1);
     if (target) {
       if (target.isAdmin && (await adminCount(tx)) === 1) throw new ConflictError("You cannot remove the last admin.");
@@ -142,7 +142,7 @@ export async function removeAllowedAccount(db: Db, actor: Actor, discordId: stri
 export async function setAdmin(db: Db, actor: Actor, userId: string, isAdmin: boolean): Promise<void> {
   requireAdmin(actor);
   await db.transaction(async (tx) => {
-    await tx.select({ id: user.id }).from(user).where(eq(user.isAdmin, true)).for("update");
+    await tx.select({ id: user.id }).from(user).where(eq(user.isAdmin, true)).for("no key update");
     const [target] = await tx
       .select({ id: user.id, name: user.name, isAdmin: user.isAdmin })
       .from(user)

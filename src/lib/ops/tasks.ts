@@ -30,7 +30,7 @@ async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
     .innerJoin(system, eq(system.id, task.systemId))
     .where(eq(task.id, taskId))
     .limit(1)
-    .for("update");
+    .for("no key update");
   if (!row) throw new NotFoundError(`Unknown task ${taskId}.`);
   try {
     await projectAccessById(tx, actor, row.system.projectId, "editor");

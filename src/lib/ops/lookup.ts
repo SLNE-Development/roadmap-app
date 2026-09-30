@@ -31,7 +31,7 @@ export async function findSystem(db: Executor, projectId: string, slug: string, 
     .from(system)
     .where(and(eq(system.projectId, projectId), eq(system.slug, slug)))
     .limit(1);
-  const [row] = lock ? await query.for("update") : await query;
+  const [row] = lock ? await query.for("no key update") : await query;
   if (!row) throw new NotFoundError(`Unknown system ${slug}.`);
   return row;
 }
@@ -65,7 +65,7 @@ export async function findBoard(db: Executor, projectId: string, slug: string, l
     .from(board)
     .where(and(eq(board.projectId, projectId), eq(board.slug, slug)))
     .limit(1);
-  const [row] = lock ? await query.for("update") : await query;
+  const [row] = lock ? await query.for("no key update") : await query;
   if (!row) throw new NotFoundError(`Unknown board ${slug}.`);
   const columns = await db.select().from(boardColumn).where(eq(boardColumn.boardId, row.id)).orderBy(asc(boardColumn.sortOrder));
   return { ...row, columns };
