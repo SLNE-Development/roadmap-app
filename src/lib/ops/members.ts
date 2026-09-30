@@ -1,6 +1,6 @@
 import { and, asc, count, eq, ne } from "drizzle-orm";
 import { z } from "zod";
-import { PROJECT_ROLES, project as projectTable, projectMember, user, type ProjectRole } from "@/db/schema";
+import { allowedAccount, PROJECT_ROLES, project as projectTable, projectMember, user, type ProjectRole } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
@@ -19,11 +19,13 @@ export interface MemberItem {
 /** Input of {@link setMember}. */
 export const setMemberInput = z.object({ userId: z.string().min(1), role: z.enum(PROJECT_ROLES) });
 
-/** Returns whether the user is a member of the project, in any role. */
+/** Returns whether the user is a member of the project, in any role; removed (non-provisioned) accounts never are. */
 export async function isMember(db: Executor, projectId: string, userId: string): Promise<boolean> {
   const rows = await db
     .select({ userId: projectMember.userId })
     .from(projectMember)
+    .innerJoin(user, eq(user.id, projectMember.userId))
+    .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
     .where(and(eq(projectMember.projectId, projectId), eq(projectMember.userId, userId)))
     .limit(1);
   return rows.length > 0;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
-import { listMembers, removeMember, setMember } from "./members";
+import { isMember, listMembers, removeMember, setMember } from "./members";
 import { removeAllowedAccount } from "./users";
 
 describe("members", () => {
@@ -31,6 +31,18 @@ describe("members", () => {
     const gone = await insertUser(db, { discordId: "323456789012345678" });
     await removeAllowedAccount(db, admin, "323456789012345678");
     await expect(setMember(db, owner, slug, { userId: gone.userId, role: "viewer" })).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("does not count memberships of removed accounts", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const admin = await insertUser(db, { isAdmin: true });
+    const member = await insertUser(db, { discordId: "423456789012345678" });
+    await setMember(db, owner, slug, { userId: member.userId, role: "editor" });
+    expect(await isMember(db, projectId, member.userId)).toBe(true);
+    await removeAllowedAccount(db, admin, "423456789012345678");
+    expect(await isMember(db, projectId, member.userId)).toBe(false);
+    expect(await isMember(db, projectId, owner.userId)).toBe(true);
   });
 
   it("always keeps one owner", async () => {
