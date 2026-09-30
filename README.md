@@ -51,15 +51,17 @@ Set `APP_PORT` and `POSTGRES_PORT` to override default ports 3000 and 5432.
 `.github/workflows/image.yml` publishes `ghcr.io/slne-development/roadmap-app`
 (`latest`, `sha-<commit>`) after CI passes on `main`.
 
-You set `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
-Coolify generates the database password (`SERVICE_PASSWORD_POSTGRES`) and the public
-URL (`SERVICE_URL_APP`, derived from the domain you assign), so neither is entered by hand.
+You set `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and
+`DISCORD_CLIENT_SECRET`. Coolify generates the database password
+(`SERVICE_PASSWORD_POSTGRES`). `BETTER_AUTH_URL` must be the exact public origin with
+`https://`: Better Auth rejects sign-ins from any other origin with "Invalid origin".
 
 1. Make the GHCR package `roadmap-app` public, or add registry credentials in Coolify,
    before the first pull.
 2. In Coolify, create a Docker Compose resource from `docker-compose.coolify.yml`.
-3. Set `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
-4. Assign the domain to the `app` service on port 3000.
+3. Set `BETTER_AUTH_URL` (e.g. `https://roadmap.example.com`), `BETTER_AUTH_SECRET`,
+   `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
+4. Assign the same domain to the `app` service on port 3000, with `https://`.
 5. Add `https://<domain>/api/auth/callback/discord` as a redirect in the Discord application.
 6. Deploy, then sign in with Discord right away: the first account to sign in becomes admin.
 
