@@ -22,7 +22,7 @@ import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./a
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, isUniqueViolation, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { findBoard, findSystem, loadBoards, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
+import { findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
 import { planningGaps } from "./planning";
 import type { DomainRow, PhaseRow } from "./structure";
@@ -174,6 +174,7 @@ export async function createSystem(db: Db, actor: Actor, projectSlug: string, ra
       const planning = target.columns.find((c) => c.category === "planning");
       if (!planning) throw new ConflictError(`Board ${target.slug} has no planning column.`);
       await checkStructure(tx, project.id, input.domainId, input.phaseId);
+      await lockProject(tx, project.id);
       const [{ last }] = await tx.select({ last: max(system.sortOrder) }).from(system).where(eq(system.projectId, project.id));
       const [row] = await tx
         .insert(system)

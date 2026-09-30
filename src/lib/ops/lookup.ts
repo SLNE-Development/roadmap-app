@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { board, boardColumn, system, user, type ProjectRole } from "@/db/schema";
+import { board, boardColumn, project, system, user, type ProjectRole } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectAccess, type ProjectAccess } from "./access";
 import type { Actor } from "./actor";
@@ -69,6 +69,11 @@ export async function findBoard(db: Executor, projectId: string, slug: string, l
   if (!row) throw new NotFoundError(`Unknown board ${slug}.`);
   const columns = await db.select().from(boardColumn).where(eq(boardColumn.boardId, row.id)).orderBy(asc(boardColumn.sortOrder));
   return { ...row, columns };
+}
+
+/** Locks the project row until the surrounding transaction ends, so writers allocating numbers or sort orders under it run one at a time. */
+export async function lockProject(tx: Executor, projectId: string): Promise<void> {
+  await tx.select({ id: project.id }).from(project).where(eq(project.id, projectId)).for("no key update");
 }
 
 /** Checks project access with `need` and returns the access together with the system. */

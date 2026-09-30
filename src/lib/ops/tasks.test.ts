@@ -22,6 +22,19 @@ describe("tasks", () => {
     ]);
   });
 
+  it("appends after the last task even after deletes", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await addTask(db, owner, slug, "s", { title: "1" });
+    const middle = await addTask(db, owner, slug, "s", { title: "2" });
+    await addTask(db, owner, slug, "s", { title: "3" });
+    await deleteTask(db, owner, middle.id);
+    await addTask(db, owner, slug, "s", { title: "4" });
+    const { tasks } = await getSystem(db, owner, slug, "s");
+    expect(tasks.map((t) => t.title)).toEqual(["1", "3", "4"]);
+  });
+
   it("blocks doing and done while the system is in planning", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

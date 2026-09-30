@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, max, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { adr, ADR_STATUSES, adrSystem, project, system, user, type AdrStatus } from "@/db/schema";
+import { adr, ADR_STATUSES, adrSystem, system, user, type AdrStatus } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { formatAdrNumber } from "@/lib/adr-number";
 import { newId } from "@/lib/id";
@@ -8,7 +8,7 @@ import { projectAccess, slugSchema } from "./access";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { findSystem } from "./lookup";
+import { findSystem, lockProject } from "./lookup";
 
 /** A required ADR section. */
 const section = z.string().trim().min(1).max(20000);
@@ -123,7 +123,7 @@ export async function createAdr(db: Db, actor: Actor, projectSlug: string, raw: 
   const { systems, ...input } = createAdrInput.parse(raw);
   return db.transaction(async (tx) => {
     const found = await projectAccess(tx, actor, projectSlug, "editor");
-    await tx.select({ id: project.id }).from(project).where(eq(project.id, found.project.id)).for("no key update");
+    await lockProject(tx, found.project.id);
     const [{ last }] = await tx.select({ last: max(adr.number) }).from(adr).where(eq(adr.projectId, found.project.id));
     const number = (last ?? 0) + 1;
     const id = newId();

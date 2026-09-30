@@ -7,6 +7,7 @@ import { projectAccess } from "./access";
 import type { Actor } from "./actor";
 import { InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
+import { lockProject } from "./lookup";
 
 /** A domain row. */
 export type DomainRow = typeof domain.$inferSelect;
@@ -35,7 +36,7 @@ export const phaseInput = z.object({
 /** Lists the project's domains in order. */
 export async function listDomains(db: Executor, actor: Actor, slug: string): Promise<DomainRow[]> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
-  return db.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder));
+  return db.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder), asc(domain.id));
 }
 
 /** Adds a domain after the existing ones. Editor or higher. */
@@ -43,6 +44,7 @@ export async function createDomain(db: Db, actor: Actor, slug: string, raw: z.in
   const input = domainInput.parse(raw);
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "editor");
+    await lockProject(tx, project.id);
     const [{ last }] = await tx.select({ last: max(domain.sortOrder) }).from(domain).where(eq(domain.projectId, project.id));
     const [row] = await tx
       .insert(domain)
@@ -69,7 +71,7 @@ export async function deleteDomain(db: Db, actor: Actor, slug: string, id: strin
 /** Lists the project's phases in order with their dependencies. */
 export async function listPhases(db: Executor, actor: Actor, slug: string): Promise<PhaseItem[]> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
-  const phases = await db.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder));
+  const phases = await db.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder), asc(phase.id));
   if (phases.length === 0) return [];
   const deps = await db
     .select()
@@ -96,6 +98,7 @@ export async function createPhase(db: Db, actor: Actor, slug: string, raw: z.inp
       const missing = input.dependsOn.find((id) => !found.some((f) => f.id === id));
       if (missing) throw new InvalidError(`Unknown phase ${missing}.`);
     }
+    await lockProject(tx, project.id);
     const [{ last }] = await tx.select({ last: max(phase.sortOrder) }).from(phase).where(eq(phase.projectId, project.id));
     const [row] = await tx
       .insert(phase)
@@ -198,11 +201,11 @@ export async function reorderDomains(db: Db, actor: Actor, slug: string, ordered
   const { orderedIds: ids } = reorderInput.parse({ orderedIds });
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "editor");
-    const current = await tx.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder)).for("update");
+    const current = await tx.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder), asc(domain.id)).for("update");
     checkPermutation("domain", current, ids);
     for (const [index, id] of ids.entries()) {
       const before = current.findIndex((c) => c.id === id);
-      if (before === index) continue;
+      if (current[before].sortOrder === index) continue;
       await tx.update(domain).set({ sortOrder: index }).where(eq(domain.id, id));
       await logChange(tx, actor, {
         projectId: project.id,
@@ -213,7 +216,7 @@ export async function reorderDomains(db: Db, actor: Actor, slug: string, ordered
         newValue: String(index + 1),
       });
     }
-    return tx.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder));
+    return tx.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder), asc(domain.id));
   });
 }
 
@@ -261,7 +264,7 @@ export async function updatePhase(
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "editor");
     // Lock every phase of the project so concurrent dependency edits cannot form a cycle together.
-    const phases = await tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder)).for("update");
+    const phases = await tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder), asc(phase.id)).for("update");
     const current = phases.find((p) => p.id === id);
     if (!current) throw new NotFoundError(`Unknown phase ${id}.`);
     const edges = await tx
@@ -314,11 +317,11 @@ export async function reorderPhases(db: Db, actor: Actor, slug: string, orderedI
   const { orderedIds: ids } = reorderInput.parse({ orderedIds });
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "editor");
-    const current = await tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder)).for("update");
+    const current = await tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder), asc(phase.id)).for("update");
     checkPermutation("phase", current, ids);
     for (const [index, id] of ids.entries()) {
       const before = current.findIndex((c) => c.id === id);
-      if (before === index) continue;
+      if (current[before].sortOrder === index) continue;
       await tx.update(phase).set({ sortOrder: index }).where(eq(phase.id, id));
       await logChange(tx, actor, {
         projectId: project.id,
@@ -329,6 +332,6 @@ export async function reorderPhases(db: Db, actor: Actor, slug: string, orderedI
         newValue: String(index + 1),
       });
     }
-    return tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder));
+    return tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder), asc(phase.id));
   });
 }

@@ -2,11 +2,11 @@ import { eq, max } from "drizzle-orm";
 import { z } from "zod";
 import { PRIORITIES, system, task, TASK_STATES } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
-import { projectAccessById } from "./access";
+import { projectAccess, projectAccessById } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { systemAccess, userName } from "./lookup";
+import { findSystem, userName } from "./lookup";
 import { isMember } from "./members";
 import { planningGaps } from "./planning";
 import { claimSystem } from "./systems";
@@ -51,7 +51,9 @@ export async function addTask(
 ): Promise<{ id: number }> {
   const input = addTaskInput.parse(raw);
   return db.transaction(async (tx) => {
-    const { project, system: parent } = await systemAccess(tx, actor, projectSlug, systemSlug, "editor");
+    const { project } = await projectAccess(tx, actor, projectSlug, "editor");
+    // Lock the system row so concurrent adds get distinct sort orders.
+    const parent = await findSystem(tx, project.id, systemSlug, true);
     const [{ last }] = await tx.select({ last: max(task.sortOrder) }).from(task).where(eq(task.systemId, parent.id));
     const [row] = await tx
       .insert(task)

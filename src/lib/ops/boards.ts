@@ -7,7 +7,7 @@ import { projectAccess, slugSchema } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, isUniqueViolation } from "./errors";
 import { logChange } from "./log";
-import { findBoard, loadBoards, type BoardWithColumns } from "./lookup";
+import { findBoard, loadBoards, lockProject, type BoardWithColumns } from "./lookup";
 
 /** Columns every new board starts with. */
 export const DEFAULT_COLUMNS: readonly { name: string; category: ColumnCategory }[] = [
@@ -80,6 +80,7 @@ export async function createBoard(db: Db, actor: Actor, projectSlug: string, raw
   try {
     return await db.transaction(async (tx) => {
       const { project } = await projectAccess(tx, actor, projectSlug, "owner");
+      await lockProject(tx, project.id);
       const [{ last }] = await tx.select({ last: max(board.sortOrder) }).from(board).where(eq(board.projectId, project.id));
       const created = await insertBoard(tx, project.id, input, (last ?? -1) + 1);
       await logChange(tx, actor, { projectId: project.id, entity: "board", entityId: created.id, field: "created", newValue: created.name });

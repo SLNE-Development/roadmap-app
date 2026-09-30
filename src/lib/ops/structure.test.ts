@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { changeLog } from "@/db/schema";
+import { changeLog, domain, phase } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import {
@@ -119,6 +119,31 @@ describe("reorderDomains", () => {
     const viewer = await addMemberFixture(db, owner, slug, "viewer");
     await expect(reorderDomains(db, viewer, slug, [b.id, a.id])).rejects.toMatchObject({ status: 403 });
   });
+
+  it("reorders correctly after a delete left gaps", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const rows = [];
+    for (const name of ["A", "B", "C", "D", "E"]) rows.push(await createDomain(db, owner, slug, { name }));
+    const [a, b, c, d, e] = rows;
+    await deleteDomain(db, owner, slug, a.id);
+    await deleteDomain(db, owner, slug, b.id);
+    await reorderDomains(db, owner, slug, [e.id, d.id, c.id]);
+    expect((await listDomains(db, owner, slug)).map((x) => x.name)).toEqual(["E", "D", "C"]);
+  });
+
+  it("reorders correctly when sort orders tie", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const x = await createDomain(db, owner, slug, { name: "X" });
+    const y = await createDomain(db, owner, slug, { name: "Y" });
+    await db.update(domain).set({ sortOrder: 0 });
+    await reorderDomains(db, owner, slug, [y.id, x.id]);
+    expect((await listDomains(db, owner, slug)).map((d) => d.name)).toEqual(["Y", "X"]);
+    await db.update(domain).set({ sortOrder: 0 });
+    await reorderDomains(db, owner, slug, [x.id, y.id]);
+    expect((await listDomains(db, owner, slug)).map((d) => d.name)).toEqual(["X", "Y"]);
+  });
 });
 
 describe("updatePhase", () => {
@@ -187,5 +212,30 @@ describe("reorderPhases", () => {
     await reorderPhases(db, owner, slug, [p2.id, p0.id, p1.id]);
     expect((await listPhases(db, owner, slug)).map((p) => p.name)).toEqual(["P2", "P0", "P1"]);
     await expect(reorderPhases(db, owner, slug, [p2.id, p0.id])).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("reorders correctly after a delete left gaps", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const rows = [];
+    for (const name of ["A", "B", "C", "D", "E"]) rows.push(await createPhase(db, owner, slug, { name }));
+    const [a, b, c, d, e] = rows;
+    await deletePhase(db, owner, slug, a.id);
+    await deletePhase(db, owner, slug, b.id);
+    await reorderPhases(db, owner, slug, [e.id, d.id, c.id]);
+    expect((await listPhases(db, owner, slug)).map((x) => x.name)).toEqual(["E", "D", "C"]);
+  });
+
+  it("reorders correctly when sort orders tie", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const x = await createPhase(db, owner, slug, { name: "X" });
+    const y = await createPhase(db, owner, slug, { name: "Y" });
+    await db.update(phase).set({ sortOrder: 0 });
+    await reorderPhases(db, owner, slug, [y.id, x.id]);
+    expect((await listPhases(db, owner, slug)).map((d) => d.name)).toEqual(["Y", "X"]);
+    await db.update(phase).set({ sortOrder: 0 });
+    await reorderPhases(db, owner, slug, [x.id, y.id]);
+    expect((await listPhases(db, owner, slug)).map((d) => d.name)).toEqual(["X", "Y"]);
   });
 });
