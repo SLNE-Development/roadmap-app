@@ -354,7 +354,7 @@ register(
     write: false,
     method: "GET",
     path: "/projects/:project/systems/:system/documents/:kind",
-    run: (db, actor, i) => getDocument(db, actor, i.project, i.system, i.kind, i.version),
+    run: async (db, actor, i) => (await getDocument(db, actor, i.project, i.system, i.kind, i.version)) ?? { document: null },
   }),
   defineTool({
     name: "write_spec",

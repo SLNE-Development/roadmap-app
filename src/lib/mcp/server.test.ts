@@ -67,6 +67,14 @@ describe("MCP server", () => {
     expect(system.json.updates[0].author).toBe("Claude Code (for Owner)");
   });
 
+  it("reports a system without a spec as a null document", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const client = await connect(db, owner);
+    await call(client, "create_system", { project: slug, slug: "shop", title: "Shop" });
+    expect((await call(client, "get_document", { project: slug, system: "shop", kind: "spec" })).json).toEqual({ document: null });
+  });
+
   it("returns validation and permission errors as tool errors", async () => {
     const db = await createTestDb();
     const { slug } = await createProjectFixture(db);

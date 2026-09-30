@@ -19,7 +19,8 @@ export const MCP_INSTRUCTIONS = [
 /** Wraps a tool result, or an error message, as MCP text content. */
 async function toResult(fn: () => Promise<unknown>): Promise<CallToolResult> {
   try {
-    return { content: [{ type: "text", text: JSON.stringify((await fn()) ?? { ok: true }, null, 2) }] };
+    const result = await fn();
+    return { content: [{ type: "text", text: JSON.stringify(result === undefined ? { ok: true } : result, null, 2) }] };
   } catch (error) {
     if (statusOf(error) === 500) console.error(error);
     return { content: [{ type: "text", text: messageOf(error) }], isError: true };

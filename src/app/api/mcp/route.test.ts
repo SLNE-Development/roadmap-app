@@ -51,6 +51,13 @@ describe("MCP route", () => {
     expect(await response.json()).toEqual({ error: "API key rate limit exceeded: at most 600 requests per minute. Retry in 42 s." });
   });
 
+  it("answers a failing key check with a JSON 500", async () => {
+    verifyApiKey.mockRejectedValueOnce(new Error("db down"));
+    const response = await post();
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Something went wrong." });
+  });
+
   it("omits Retry-After when the plugin gives no retry time", async () => {
     verifyApiKey.mockResolvedValueOnce(failure("RATE_LIMITED", "Rate limit exceeded."));
     const response = await post();

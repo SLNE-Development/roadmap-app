@@ -25,10 +25,14 @@ function isBoolean(schema: z.ZodType | undefined): boolean {
 /**
  * Converts query parameters into tool input: `true`/`false` become booleans for
  * boolean inputs; everything else stays a string (numbers are coerced by their schemas).
+ * A repeated key keeps the last value.
+ *
+ * @throws InvalidError for a key the tool does not declare
  */
 export function coerceQuery(shape: z.ZodRawShape, params: URLSearchParams): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of params) {
+    if (!(key in shape)) throw new InvalidError(`Unknown query parameter "${key}". Allowed: ${Object.keys(shape).join(", ")}.`);
     out[key] = isBoolean(shape[key] as z.ZodType | undefined) && (value === "true" || value === "false") ? value === "true" : value;
   }
   return out;
@@ -57,28 +61,24 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
  * the API key, merges query or body with the path parameters (path parameters
  * win), and runs it.
  * Responds 404 for unknown routes, 401 without a valid key, 429 (with
- * `Retry-After` when known) for a rate-limited key, and the op's status on errors.
+ * `Retry-After` when known) for a rate-limited key, and the op's status on errors
+ * (including errors from the key check itself).
  */
 export async function handleRest(request: Request, segments: string[], deps: RestDeps): Promise<Response> {
   const method = request.method.toUpperCase();
   const match = matchRoute(method, segments.filter(Boolean));
   if (!match) return Response.json({ error: `No route ${method} /api/v1/${segments.join("/")}.` }, { status: 404 });
-  let actor: Actor | null;
   try {
-    actor = await deps.resolveActor(request);
-  } catch (error) {
-    if (error instanceof ApiKeyRateLimitedError) return rateLimitedResponse(error);
-    throw error;
-  }
-  if (!actor) return Response.json({ error: "Missing or invalid API key. Send Authorization: Bearer <key>." }, { status: 401 });
-  try {
+    const actor = await deps.resolveActor(request);
+    if (!actor) return Response.json({ error: "Missing or invalid API key. Send Authorization: Bearer <key>." }, { status: 401 });
     const raw =
       method === "GET" || method === "DELETE"
         ? coerceQuery(inputSchema(match.def).shape, new URL(request.url).searchParams)
         : await readBody(request);
     const result = await runTool(deps.db, actor, match.def, { ...raw, ...match.params });
-    return Response.json(result ?? { ok: true });
+    return Response.json(result === undefined ? { ok: true } : result);
   } catch (error) {
+    if (error instanceof ApiKeyRateLimitedError) return rateLimitedResponse(error);
     const status = statusOf(error);
     if (status === 500) console.error(error);
     return Response.json({ error: messageOf(error) }, { status });

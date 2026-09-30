@@ -84,6 +84,8 @@ you belong to.
   example `GET /projects`, `GET /projects/{p}/systems/{s}`,
   `POST /projects/{p}/systems/{s}/updates`. Errors: 400 invalid input, 401 key,
   403 role, 404 unknown or invisible, 409 planning gate or ADR immutability.
+  Unknown query parameters are rejected with 400. MCP writes default to the agent
+  name "Claude Code"; REST writes carry no agent unless the body sets `agent`.
 
 ## The surf-roadmap plugin
 

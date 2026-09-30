@@ -28,6 +28,35 @@ describe("coerceQuery", () => {
 });
 
 describe("REST", () => {
+  it("rejects unknown query parameters with 400", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const result = await send(db, owner, "GET", `/projects/${slug}/questions?resolve=true`);
+    expect(result.status).toBe(400);
+    expect(result.json.error).toContain('Unknown query parameter "resolve"');
+    expect(result.json.error).toContain("resolved");
+  });
+
+  it("answers a missing document with a null document", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await send(db, owner, "POST", `/projects/${slug}/systems`, { slug: "s", title: "S" });
+    expect(await send(db, owner, "GET", `/projects/${slug}/systems/s/documents/spec`)).toEqual({ status: 200, json: { document: null } });
+  });
+
+  it("answers a failing key check with a JSON 500", async () => {
+    const db = await createTestDb();
+    const request = new Request("http://test/api/v1/projects", { method: "GET" });
+    const response = await handleRest(request, ["projects"], {
+      db,
+      resolveActor: async () => {
+        throw new Error("db down");
+      },
+    });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Something went wrong." });
+  });
+
   it("serves reads and writes with the documented status codes", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);
