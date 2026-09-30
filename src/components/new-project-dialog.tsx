@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -29,7 +30,17 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const trpc = useTRPC();
-  const create = useMutation(trpc.projects.create.mutationOptions());
+  // The follow-up sits on the mutation, not on `mutate`: the first project replaces an empty state
+  // that holds this dialog, which unmounts before the mutation settles.
+  const create = useMutation(
+    trpc.projects.create.mutationOptions({
+      onSuccess: ({ slug: created }, { name: createdName }) => {
+        setOpen(false);
+        toast.success(`Project ${createdName.trim()} created`);
+        router.push(`/p/${created}`);
+      },
+    }),
+  );
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -59,15 +70,7 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            create.mutate(
-              { name, slug, description, repoUrl: repoUrl.trim() || null },
-              {
-                onSuccess: ({ slug }) => {
-                  setOpen(false);
-                  router.push(`/p/${slug}`);
-                },
-              },
-            );
+            create.mutate({ name, slug, description, repoUrl: repoUrl.trim() || null });
           }}
         >
           <DialogHeader>

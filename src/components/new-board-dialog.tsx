@@ -29,6 +29,7 @@ export function NewBoardDialog({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
   const trpc = useTRPC();
   // The follow-up sits on the mutation, not on `mutate`: the first board replaces an empty state
   // that holds this dialog, which unmounts before the mutation settles.
@@ -38,6 +39,7 @@ export function NewBoardDialog({
         setOpen(false);
         setName("");
         setSlug("");
+        setSlugTouched(false);
         toast.success(`Board ${board.name.trim()} created`);
         router.push(openIn === "settings" ? `/p/${projectSlug}/settings/boards?board=${created}` : `/p/${projectSlug}/boards/${created}`);
       },
@@ -67,17 +69,28 @@ export function NewBoardDialog({
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
-                  setSlug(slugify(e.target.value));
+                  if (!slugTouched) setSlug(slugify(e.target.value));
                 }}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="board-slug">Slug</FieldLabel>
-              <Input id="board-slug" className="font-mono text-[13px]" value={slug} onChange={(e) => setSlug(e.target.value)} />
+              <Input
+                id="board-slug"
+                className="font-mono text-[13px]"
+                value={slug}
+                onChange={(e) => {
+                  setSlugTouched(true);
+                  setSlug(e.target.value);
+                }}
+              />
               <FieldDescription>Used in the board&apos;s address; lowercase letters, digits and dashes.</FieldDescription>
             </Field>
           </FieldGroup>
           <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button type="submit" disabled={create.isPending || !name.trim() || !slug.trim()}>
               Create board
             </Button>
