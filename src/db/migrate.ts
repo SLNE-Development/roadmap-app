@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { MIGRATION_LOCK } from "./locks";
 
 /**
  * Applies every pending migration in `folder` to the database at `url` over a
@@ -12,7 +13,13 @@ import postgres from "postgres";
 export async function runMigrations(url: string, folder = "./drizzle"): Promise<void> {
   const client = postgres(url, { max: 1 });
   try {
-    await migrate(drizzle({ client }), { migrationsFolder: folder });
+    // `max: 1` keeps every statement on one session, so lock and unlock match.
+    await client`select pg_advisory_lock(${MIGRATION_LOCK})`;
+    try {
+      await migrate(drizzle({ client }), { migrationsFolder: folder });
+    } finally {
+      await client`select pg_advisory_unlock(${MIGRATION_LOCK})`;
+    }
   } finally {
     await client.end();
   }

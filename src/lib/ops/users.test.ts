@@ -46,6 +46,29 @@ describe("linkDiscordAccount", () => {
     expect(await isAllowed(db, "999999999999999999")).toBe(false);
   });
 
+  it("the first provisioned account becomes admin even if a refused sign-in left a user row", async () => {
+    const db = await createTestDb();
+    await insertBareUser(db, "Refused");
+    const first = await insertBareUser(db, "Ammo");
+    await linkDiscordAccount(db, first, "123");
+    const [row] = await db.select().from(user).where(eq(user.id, first));
+    expect(row.isAdmin).toBe(true);
+    const allowed = await db.select().from(allowedAccount).where(eq(allowedAccount.discordId, "123"));
+    expect(allowed).toHaveLength(1);
+  });
+
+  it("a second account does not become admin", async () => {
+    const db = await createTestDb();
+    await insertBareUser(db, "Refused");
+    const first = await insertBareUser(db, "Ammo");
+    await linkDiscordAccount(db, first, "123");
+    const second = await insertBareUser(db, "Sam");
+    await linkDiscordAccount(db, second, "456");
+    const [row] = await db.select().from(user).where(eq(user.id, second));
+    expect(row.isAdmin).toBe(false);
+    expect(await isAllowed(db, "456")).toBe(false);
+  });
+
   it("never changes a Discord id that is already linked", async () => {
     const db = await createTestDb();
     const id = await insertBareUser(db, "Ammo");

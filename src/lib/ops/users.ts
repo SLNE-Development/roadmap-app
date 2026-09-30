@@ -1,5 +1,6 @@
-import { and, asc, count, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
+import { FIRST_ADMIN_LOCK } from "@/db/locks";
 import { allowedAccount, apikey, session, user } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import type { Actor } from "./actor";
@@ -54,13 +55,15 @@ export async function isAllowed(db: Executor, discordId: string): Promise<boolea
  */
 export async function linkDiscordAccount(db: Db, userId: string, discordId: string): Promise<void> {
   await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${FIRST_ADMIN_LOCK})`);
     const [linked] = await tx
       .update(user)
       .set({ discordId })
       .where(and(eq(user.id, userId), isNull(user.discordId)))
       .returning({ name: user.name });
     if (!linked) return;
-    const [others] = await tx.select({ n: count() }).from(user).where(ne(user.id, userId));
+    const [others] = await tx.select({ n: count() }).from(user)
+      .where(and(ne(user.id, userId), isNotNull(user.discordId)));
     if (others.n > 0) return;
     await tx.update(user).set({ isAdmin: true }).where(eq(user.id, userId));
     await tx.insert(allowedAccount).values({ discordId, displayName: linked.name }).onConflictDoNothing();
