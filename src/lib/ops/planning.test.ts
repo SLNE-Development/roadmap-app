@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
 import { writeSpec } from "./documents";
@@ -120,5 +121,21 @@ describe("reopenPlanning", () => {
     const detail = await getSystem(db, owner, slug, "s");
     expect([detail.column.category, detail.system.planningCompletedAt]).toEqual(["planning", null]);
     expect((await addPlanningRound(db, owner, slug, "s", { items: [{ area: "scope", question: "more?" }] })).round).toBe(2);
+  });
+
+  it("logs the column change and the reopening", async () => {
+    const { db, owner, slug } = await setup();
+    const { itemIds } = await addPlanningRound(db, owner, slug, "s", {
+      items: (["failure-modes", "dependencies", "scope", "ops-testing"] as const).map((area) => ({ area, question: area })),
+    });
+    await answerPlanningItems(db, owner, slug, "s", { answers: itemIds.map((itemId) => ({ itemId, answer: "ok" })) });
+    await writeSpec(db, owner, slug, "s", { body: "# Spec" });
+    await completePlanning(db, owner, slug, "s", { userConfirmation: "yes" });
+    await moveSystem(db, owner, slug, "s", { column: "Review" });
+    await reopenPlanning(db, owner, slug, "s");
+    const rows = (await db.select().from(changeLog)).filter((c) => (c.field === "column" || c.field === "reopened") && c.entityId);
+    const entries = rows.map((c) => [c.field, c.oldValue, c.newValue]);
+    expect(entries.at(-2)).toEqual(["column", expect.stringMatching(/ \/ Review$/), expect.stringMatching(/ \/ Planning$/)]);
+    expect(entries.at(-1)?.[0]).toBe("reopened");
   });
 });

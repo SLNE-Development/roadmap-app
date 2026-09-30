@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, max } from "drizzle-orm";
 import { z } from "zod";
 import {
+  board,
   PLANNING_AREAS,
   planningItem,
   planningRound,
@@ -238,13 +239,28 @@ export async function completePlanning(
 export async function reopenPlanning(db: Db, actor: Actor, projectSlug: string, systemSlug: string): Promise<void> {
   await db.transaction(async (tx) => {
     const parent = await lockForPlanning(tx, actor, projectSlug, systemSlug);
+    // Share-lock the board so a concurrent column edit cannot remove the planning column used below.
+    await tx.select({ id: board.id }).from(board).where(eq(board.id, parent.boardId)).for("share");
     const boards = await loadBoards(tx, parent.projectId);
-    const planningColumn = boards.find((b) => b.id === parent.boardId)?.columns.find((c) => c.category === "planning");
-    if (!planningColumn) throw new ConflictError(`The board of system ${parent.slug} has no planning column.`);
+    const currentBoard = boards.find((b) => b.id === parent.boardId);
+    const planningColumn = currentBoard?.columns.find((c) => c.category === "planning");
+    if (!currentBoard || !planningColumn) throw new ConflictError(`The board of system ${parent.slug} has no planning column.`);
     await tx
       .update(system)
       .set({ planningCompletedAt: null, planningConfirmation: null, columnId: planningColumn.id })
       .where(eq(system.id, parent.id));
+    if (planningColumn.id !== parent.columnId) {
+      const fromColumn = currentBoard.columns.find((c) => c.id === parent.columnId);
+      await logChange(tx, actor, {
+        projectId: parent.projectId,
+        systemId: parent.id,
+        entity: "system",
+        entityId: parent.id,
+        field: "column",
+        oldValue: `${currentBoard.name} / ${fromColumn?.name}`,
+        newValue: `${currentBoard.name} / ${planningColumn.name}`,
+      });
+    }
     await logChange(tx, actor, { projectId: parent.projectId, systemId: parent.id, entity: "planning", entityId: parent.id, field: "reopened" });
   });
 }

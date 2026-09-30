@@ -75,9 +75,9 @@ export async function updateTask(db: Db, actor: Actor, taskId: number, raw: z.in
   await db.transaction(async (tx) => {
     const { task: current, system: parent } = await taskAccess(tx, actor, taskId);
     if ((patch.state === "doing" || patch.state === "done") && !parent.planningCompletedAt) {
-      throw new ConflictError(
-        `Task ${taskId} cannot be ${patch.state} while system ${parent.slug} is still in planning. Missing: ${(await planningGaps(tx, parent.id)).join(" ")}`,
-      );
+      const gaps = await planningGaps(tx, parent.id);
+      const head = `Task ${taskId} cannot be ${patch.state} while system ${parent.slug} is still in planning.`;
+      throw new ConflictError(gaps.length ? `${head} Missing: ${gaps.join(" ")}` : `${head} Call complete_planning first.`);
     }
     if (patch.ownerUserId && !(await isMember(tx, parent.projectId, patch.ownerUserId))) {
       throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);

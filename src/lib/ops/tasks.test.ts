@@ -3,6 +3,8 @@ import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { listActivity } from "./activity";
 import { withAgent } from "./actor";
+import { writeSpec } from "./documents";
+import { addPlanningRound, answerPlanningItems } from "./planning";
 import { createSystem, getSystem, updateSystem } from "./systems";
 import { addTask, deleteTask, updateTask } from "./tasks";
 
@@ -33,6 +35,22 @@ describe("tasks", () => {
     await completePlanningFixture(db, s.id);
     await updateTask(db, owner, id, { state: "done", title: "Renamed" });
     expect((await getSystem(db, owner, slug, "s")).tasks[0]).toMatchObject({ state: "done", title: "Renamed" });
+  });
+
+  it("points at complete_planning when no gaps are left", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const { itemIds } = await addPlanningRound(db, owner, slug, "s", {
+      items: (["failure-modes", "dependencies", "scope", "ops-testing"] as const).map((area) => ({ area, question: area })),
+    });
+    await answerPlanningItems(db, owner, slug, "s", { answers: itemIds.map((itemId) => ({ itemId, answer: "ok" })) });
+    await writeSpec(db, owner, slug, "s", { body: "# Spec" });
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+    await expect(updateTask(db, owner, id, { state: "doing" })).rejects.toMatchObject({
+      status: 409,
+      message: `Task ${id} cannot be doing while system s is still in planning. Call complete_planning first.`,
+    });
   });
 
   it("assigns the task and the system to whoever starts the task, keeping existing owners", async () => {
