@@ -64,7 +64,8 @@ export function registeredTools(): readonly ToolDef[] {
 
 /**
  * Finds the tool whose REST route matches `method` and the URL `segments`
- * after `/api/v1`, with the decoded `:param` values.
+ * after `/api/v1`, with the decoded `:param` values. A malformed percent
+ * escape in a parameter segment matches nothing.
  */
 export function matchRoute(method: string, segments: string[]): { def: ToolDef; params: Record<string, string> } | null {
   for (const def of registry) {
@@ -72,14 +73,19 @@ export function matchRoute(method: string, segments: string[]): { def: ToolDef; 
     const pattern = def.path.split("/").filter(Boolean);
     if (pattern.length !== segments.length) continue;
     const params: Record<string, string> = {};
-    const ok = pattern.every((part, i) => {
-      if (part.startsWith(":")) {
-        params[part.slice(1)] = decodeURIComponent(segments[i]);
-        return true;
-      }
-      return part === segments[i];
-    });
-    if (ok) return { def, params };
+    try {
+      const ok = pattern.every((part, i) => {
+        if (part.startsWith(":")) {
+          params[part.slice(1)] = decodeURIComponent(segments[i]);
+          return true;
+        }
+        return part === segments[i];
+      });
+      if (ok) return { def, params };
+    } catch (error) {
+      if (error instanceof URIError) return null;
+      throw error;
+    }
   }
   return null;
 }

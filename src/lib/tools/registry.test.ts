@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
-import { createProjectFixture } from "@/test/fixtures";
+import { ForbiddenError } from "@/lib/ops/errors";
+import { ZodError } from "zod";
+import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { TOOLS } from "./definitions";
 import { inputSchema, matchRoute, runTool } from "./registry";
 
@@ -62,5 +64,36 @@ describe("tool registry", () => {
     const updates = (await runTool(db, owner, list, { project: slug })) as { author: string }[];
     expect(updates[0].author).toBe("Claude Code (for Owner)");
     await expect(runTool(db, owner, create, { project: slug })).rejects.toThrow(/slug/);
+  });
+
+  it("returns null for a malformed percent-encoded segment", () => {
+    expect(matchRoute("GET", ["projects", "%"])).toBeNull();
+    expect(matchRoute("GET", ["projects", "%E0%A4%A"])).toBeNull();
+  });
+
+  it("lets an explicit agent override the default and keeps it out of the op input", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await runTool(db, owner, TOOLS.find((t) => t.name === "create_system")!, { project: slug, slug: "s", title: "S" });
+    const post = TOOLS.find((t) => t.name === "post_update")!;
+    await runTool(db, owner, post, { project: slug, system: "s", summary: "hi", agent: "Other Bot" }, "Claude Code");
+    const list = TOOLS.find((t) => t.name === "list_updates")!;
+    const updates = (await runTool(db, owner, list, { project: slug })) as { author: string }[];
+    expect(updates[0].author).toBe("Other Bot (for Owner)");
+  });
+
+  it("rejects a write tool called by a viewer with ForbiddenError", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const viewer = await addMemberFixture(db, owner, slug, "viewer");
+    const create = TOOLS.find((t) => t.name === "create_system")!;
+    await expect(runTool(db, viewer, create, { project: slug, slug: "s", title: "S" })).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects invalid input with a ZodError", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const create = TOOLS.find((t) => t.name === "create_system")!;
+    await expect(runTool(db, owner, create, { project: slug })).rejects.toBeInstanceOf(ZodError);
   });
 });
