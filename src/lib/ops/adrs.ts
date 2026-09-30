@@ -1,0 +1,226 @@
+import { and, asc, eq, inArray, max, type SQL } from "drizzle-orm";
+import { z } from "zod";
+import { adr, ADR_STATUSES, adrSystem, project, system, user, type AdrStatus } from "@/db/schema";
+import type { Db, Executor, Tx } from "@/db/types";
+import { newId } from "@/lib/id";
+import { projectAccess, slugSchema } from "./access";
+import { authorLabel, type Actor } from "./actor";
+import { ConflictError, InvalidError, NotFoundError } from "./errors";
+import { logChange } from "./log";
+import { findSystem } from "./lookup";
+
+/** A required ADR section. */
+const section = z.string().trim().min(1).max(20000);
+
+/** Input of {@link createAdr}. */
+export const createAdrInput = z.object({
+  title: z.string().trim().min(1).max(200),
+  context: section,
+  decision: section,
+  alternatives: section,
+  consequences: section,
+  systems: z.array(slugSchema).max(50).default([]),
+});
+
+/** Input of {@link updateAdr}; omitted fields stay unchanged. */
+export const updateAdrInput = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  context: section.optional(),
+  decision: section.optional(),
+  alternatives: section.optional(),
+  consequences: section.optional(),
+  systems: z.array(slugSchema).max(50).optional(),
+});
+
+/** Filters of {@link listAdrs}. */
+export const adrFilter = z.object({ status: z.enum(ADR_STATUSES).optional(), system: z.string().optional() });
+
+/** An ADR as listed. */
+export interface AdrSummary {
+  number: number;
+  title: string;
+  status: AdrStatus;
+  author: string;
+  createdAt: Date;
+  acceptedAt: Date | null;
+  supersedes: number | null;
+  supersededBy: number | null;
+  systems: string[];
+}
+
+/** An ADR with its sections. */
+export interface AdrDetail extends AdrSummary {
+  context: string;
+  decision: string;
+  alternatives: string;
+  consequences: string;
+}
+
+/** Returns an ADR number zero-padded to four digits. */
+export function formatAdrNumber(n: number): string {
+  return String(n).padStart(4, "0");
+}
+
+/** Loads the ADR with `number` in the project, optionally locked, or throws `NotFoundError`. */
+async function findAdr(tx: Executor, projectId: string, number: number, lock = false) {
+  const query = tx
+    .select()
+    .from(adr)
+    .where(and(eq(adr.projectId, projectId), eq(adr.number, number)))
+    .limit(1);
+  const [row] = lock ? await query.for("update") : await query;
+  if (!row) throw new NotFoundError(`Unknown ADR ${formatAdrNumber(number)}.`);
+  return row;
+}
+
+/** Replaces the systems linked to an ADR with the systems named by slug. */
+async function linkSystems(tx: Tx, projectId: string, adrId: string, slugs: string[]): Promise<void> {
+  await tx.delete(adrSystem).where(eq(adrSystem.adrId, adrId));
+  for (const slug of new Set(slugs)) {
+    const linked = await findSystem(tx, projectId, slug);
+    await tx.insert(adrSystem).values({ adrId, systemId: linked.id });
+  }
+}
+
+/** Loads summaries (and sections) of ADRs matching `where`, ordered by number. */
+async function loadAdrs(db: Executor, projectId: string, where?: SQL): Promise<AdrDetail[]> {
+  const rows = await db
+    .select({ adr, authorName: user.name })
+    .from(adr)
+    .leftJoin(user, eq(user.id, adr.authorUserId))
+    .where(where ? and(eq(adr.projectId, projectId), where) : eq(adr.projectId, projectId))
+    .orderBy(asc(adr.number));
+  if (rows.length === 0) return [];
+  const numbers = new Map(
+    (await db.select({ id: adr.id, number: adr.number }).from(adr).where(eq(adr.projectId, projectId))).map((r) => [r.id, r.number]),
+  );
+  const links = await db
+    .select({ adrId: adrSystem.adrId, slug: system.slug })
+    .from(adrSystem)
+    .innerJoin(system, eq(system.id, adrSystem.systemId))
+    .where(inArray(adrSystem.adrId, rows.map((r) => r.adr.id)))
+    .orderBy(asc(system.slug));
+  return rows.map(({ adr: a, authorName }) => ({
+    number: a.number,
+    title: a.title,
+    status: a.status,
+    author: authorLabel(authorName, a.agent),
+    createdAt: a.createdAt,
+    acceptedAt: a.acceptedAt,
+    supersedes: a.supersedesId ? (numbers.get(a.supersedesId) ?? null) : null,
+    supersededBy: a.supersededById ? (numbers.get(a.supersededById) ?? null) : null,
+    systems: links.filter((l) => l.adrId === a.id).map((l) => l.slug),
+    context: a.context,
+    decision: a.decision,
+    alternatives: a.alternatives,
+    consequences: a.consequences,
+  }));
+}
+
+/**
+ * Creates a proposed ADR with the next number of the project. The project row is
+ * locked so parallel writers get consecutive numbers. Editor or higher.
+ */
+export async function createAdr(db: Db, actor: Actor, projectSlug: string, raw: z.input<typeof createAdrInput>): Promise<{ number: number }> {
+  const { systems, ...input } = createAdrInput.parse(raw);
+  return db.transaction(async (tx) => {
+    const found = await projectAccess(tx, actor, projectSlug, "editor");
+    await tx.select({ id: project.id }).from(project).where(eq(project.id, found.project.id)).for("update");
+    const [{ last }] = await tx.select({ last: max(adr.number) }).from(adr).where(eq(adr.projectId, found.project.id));
+    const number = (last ?? 0) + 1;
+    const id = newId();
+    await tx.insert(adr).values({ id, projectId: found.project.id, number, ...input, authorUserId: actor.userId, agent: actor.agent ?? null });
+    await linkSystems(tx, found.project.id, id, systems);
+    await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: id, field: "created", newValue: `ADR ${formatAdrNumber(number)}: ${input.title}` });
+    return { number };
+  });
+}
+
+/** Lists the project's ADRs by number, optionally by status or linked system. */
+export async function listAdrs(db: Executor, actor: Actor, projectSlug: string, raw: z.input<typeof adrFilter> = {}): Promise<AdrSummary[]> {
+  const filter = adrFilter.parse(raw);
+  const { project: found } = await projectAccess(db, actor, projectSlug, "viewer");
+  const all = await loadAdrs(db, found.id, filter.status ? eq(adr.status, filter.status) : undefined);
+  const matching = filter.system ? all.filter((a) => a.systems.includes(filter.system as string)) : all;
+  return matching.map((a) => ({
+    number: a.number,
+    title: a.title,
+    status: a.status,
+    author: a.author,
+    createdAt: a.createdAt,
+    acceptedAt: a.acceptedAt,
+    supersedes: a.supersedes,
+    supersededBy: a.supersededBy,
+    systems: a.systems,
+  }));
+}
+
+/** Returns one ADR with its sections. */
+export async function getAdr(db: Executor, actor: Actor, projectSlug: string, number: number): Promise<AdrDetail> {
+  const { project: found } = await projectAccess(db, actor, projectSlug, "viewer");
+  const [row] = await loadAdrs(db, found.id, eq(adr.number, number));
+  if (!row) throw new NotFoundError(`Unknown ADR ${formatAdrNumber(number)}.`);
+  return row;
+}
+
+/**
+ * Edits a proposed ADR. The ADR row is locked so a concurrent acceptance cannot
+ * slip between the status check and the write. Editor or higher.
+ *
+ * @throws ConflictError if the ADR is accepted or superseded
+ */
+export async function updateAdr(db: Db, actor: Actor, projectSlug: string, number: number, raw: z.input<typeof updateAdrInput>): Promise<void> {
+  const { systems, ...patch } = updateAdrInput.parse(raw);
+  await db.transaction(async (tx) => {
+    const found = await projectAccess(tx, actor, projectSlug, "editor");
+    const current = await findAdr(tx, found.project.id, number, true);
+    if (current.status !== "proposed") {
+      throw new ConflictError(`ADR ${formatAdrNumber(number)} is ${current.status} and can no longer be edited; write a new ADR that supersedes it.`);
+    }
+    if (Object.keys(patch).length > 0) await tx.update(adr).set(patch).where(eq(adr.id, current.id));
+    if (systems) await linkSystems(tx, found.project.id, current.id, systems);
+    await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: current.id, field: "edited", newValue: Object.keys({ ...patch, ...(systems ? { systems } : {}) }).join(", ") });
+  });
+}
+
+/**
+ * Accepts a proposed ADR; from then on it is immutable. The ADR row is locked so
+ * two writers cannot both pass the status check. Editor or higher.
+ *
+ * @throws ConflictError if it is not proposed
+ */
+export async function acceptAdr(db: Db, actor: Actor, projectSlug: string, number: number): Promise<void> {
+  await db.transaction(async (tx) => {
+    const found = await projectAccess(tx, actor, projectSlug, "editor");
+    const current = await findAdr(tx, found.project.id, number, true);
+    if (current.status !== "proposed") throw new ConflictError(`ADR ${formatAdrNumber(number)} is already ${current.status}.`);
+    await tx.update(adr).set({ status: "accepted", acceptedAt: new Date() }).where(eq(adr.id, current.id));
+    await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: current.id, field: "status", oldValue: "proposed", newValue: "accepted" });
+  });
+}
+
+/**
+ * Marks accepted ADR `number` as superseded by accepted ADR `by`, linking both.
+ * No section of either ADR changes. Both rows are locked in ascending number
+ * order so concurrent supersessions cannot deadlock or both pass the checks.
+ * Editor or higher.
+ *
+ * @throws InvalidError if both numbers are the same
+ * @throws ConflictError if either ADR is not accepted
+ */
+export async function supersedeAdr(db: Db, actor: Actor, projectSlug: string, input: { number: number; by: number }): Promise<void> {
+  if (input.number === input.by) throw new InvalidError("An ADR cannot supersede itself.");
+  await db.transaction(async (tx) => {
+    const found = await projectAccess(tx, actor, projectSlug, "editor");
+    const [first, second] = input.number < input.by ? [input.number, input.by] : [input.by, input.number];
+    const low = await findAdr(tx, found.project.id, first, true);
+    const high = await findAdr(tx, found.project.id, second, true);
+    const old = input.number === first ? low : high;
+    const next = input.by === first ? low : high;
+    if (old.status !== "accepted") throw new ConflictError(`ADR ${formatAdrNumber(input.number)} is ${old.status}; only accepted ADRs can be superseded.`);
+    if (next.status !== "accepted") throw new ConflictError(`ADR ${formatAdrNumber(input.by)} must be accepted before it can supersede another.`);
+    await tx.update(adr).set({ status: "superseded", supersededById: next.id }).where(eq(adr.id, old.id));
+    await tx.update(adr).set({ supersedesId: old.id }).where(eq(adr.id, next.id));
+    await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: old.id, field: "status", oldValue: "accepted", newValue: `superseded by ${formatAdrNumber(input.by)}` });
+  });
+}
