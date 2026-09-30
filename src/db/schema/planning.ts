@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { system } from "./content";
 
@@ -31,15 +31,19 @@ export const planningRound = pgTable(
 );
 
 /** Questions of a planning round with their area, risk flag, answer and state. */
-export const planningItem = pgTable("planning_item", {
-  id: text("id").primaryKey(),
-  roundId: text("round_id")
-    .notNull()
-    .references(() => planningRound.id, { onDelete: "cascade" }),
-  area: text("area", { enum: PLANNING_AREAS }).notNull(),
-  question: text("question").notNull(),
-  answer: text("answer"),
-  isRisk: boolean("is_risk").notNull().default(false),
-  status: text("status", { enum: PLANNING_ITEM_STATUSES }).notNull().default("open"),
-  sortOrder: integer("sort_order").notNull(),
-});
+export const planningItem = pgTable(
+  "planning_item",
+  {
+    id: text("id").primaryKey(),
+    roundId: text("round_id")
+      .notNull()
+      .references(() => planningRound.id, { onDelete: "cascade" }),
+    area: text("area", { enum: PLANNING_AREAS }).notNull(),
+    question: text("question").notNull(),
+    answer: text("answer"),
+    isRisk: boolean("is_risk").notNull().default(false),
+    status: text("status", { enum: PLANNING_ITEM_STATUSES }).notNull().default("open"),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (t) => [index("planning_item_round_id_idx").on(t.roundId)],
+);

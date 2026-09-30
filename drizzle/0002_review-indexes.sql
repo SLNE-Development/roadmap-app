@@ -1,0 +1,21 @@
+CREATE INDEX "account_user_id_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "apikey_reference_id_idx" ON "apikey" USING btree ("reference_id");--> statement-breakpoint
+CREATE INDEX "apikey_key_idx" ON "apikey" USING btree ("key");--> statement-breakpoint
+CREATE INDEX "session_user_id_idx" ON "session" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "board_column_board_id_idx" ON "board_column" USING btree ("board_id");--> statement-breakpoint
+CREATE INDEX "domain_project_id_idx" ON "domain" USING btree ("project_id","sort_order");--> statement-breakpoint
+CREATE INDEX "phase_project_id_idx" ON "phase" USING btree ("project_id","sort_order");--> statement-breakpoint
+CREATE INDEX "phase_dependency_depends_on_id_idx" ON "phase_dependency" USING btree ("depends_on_id");--> statement-breakpoint
+CREATE INDEX "project_member_user_id_idx" ON "project_member" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "adr_system_system_id_idx" ON "adr_system" USING btree ("system_id");--> statement-breakpoint
+CREATE INDEX "change_log_project_id_idx" ON "change_log" USING btree ("project_id","id");--> statement-breakpoint
+CREATE INDEX "change_log_system_id_idx" ON "change_log" USING btree ("system_id");--> statement-breakpoint
+CREATE INDEX "progress_update_system_id_idx" ON "progress_update" USING btree ("system_id","created_at");--> statement-breakpoint
+CREATE INDEX "question_project_id_idx" ON "question" USING btree ("project_id","resolved");--> statement-breakpoint
+CREATE INDEX "question_system_id_idx" ON "question" USING btree ("system_id");--> statement-breakpoint
+CREATE INDEX "system_board_id_idx" ON "system" USING btree ("board_id");--> statement-breakpoint
+CREATE INDEX "system_column_id_idx" ON "system" USING btree ("column_id");--> statement-breakpoint
+CREATE INDEX "system_owner_user_id_idx" ON "system" USING btree ("owner_user_id");--> statement-breakpoint
+CREATE INDEX "task_system_id_idx" ON "task" USING btree ("system_id","sort_order");--> statement-breakpoint
+CREATE INDEX "task_owner_user_id_idx" ON "task" USING btree ("owner_user_id");--> statement-breakpoint
+CREATE INDEX "planning_item_round_id_idx" ON "planning_item" USING btree ("round_id");

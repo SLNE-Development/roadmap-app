@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { board, project } from "@/db/schema";
 import { isUniqueViolation } from "@/lib/ops/errors";
@@ -23,6 +24,36 @@ describe("schema", () => {
       .values({ id: "b2", projectId: "p1", slug: "dev", name: "Dev 2", sortOrder: 1 })
       .catch((e: unknown) => e);
     expect(isUniqueViolation(error)).toBe(true);
+  });
+
+  it("creates the lookup indexes", async () => {
+    const db = await createTestDb();
+    const result = (await db.execute(sql`select indexname from pg_indexes where schemaname = 'public'`)) as { rows: { indexname: string }[] };
+    expect(result.rows.map((row) => row.indexname)).toEqual(
+      expect.arrayContaining([
+        "change_log_project_id_idx",
+        "change_log_system_id_idx",
+        "question_project_id_idx",
+        "question_system_id_idx",
+        "progress_update_system_id_idx",
+        "board_column_board_id_idx",
+        "system_board_id_idx",
+        "system_column_id_idx",
+        "system_owner_user_id_idx",
+        "task_system_id_idx",
+        "task_owner_user_id_idx",
+        "adr_system_system_id_idx",
+        "planning_item_round_id_idx",
+        "project_member_user_id_idx",
+        "domain_project_id_idx",
+        "phase_project_id_idx",
+        "phase_dependency_depends_on_id_idx",
+        "session_user_id_idx",
+        "account_user_id_idx",
+        "apikey_reference_id_idx",
+        "apikey_key_idx",
+      ]),
+    );
   });
 
   it("gives every test its own database", async () => {

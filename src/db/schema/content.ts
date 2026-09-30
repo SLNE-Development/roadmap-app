@@ -1,4 +1,4 @@
-import { bigserial, boolean, integer, pgTable, primaryKey, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { board, boardColumn, domain, phase, project } from "./projects";
 
@@ -53,7 +53,12 @@ export const system = pgTable(
     planningConfirmation: text("planning_confirmation"),
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
   },
-  (t) => [unique("system_project_slug").on(t.projectId, t.slug)],
+  (t) => [
+    unique("system_project_slug").on(t.projectId, t.slug),
+    index("system_board_id_idx").on(t.boardId),
+    index("system_column_id_idx").on(t.columnId),
+    index("system_owner_user_id_idx").on(t.ownerUserId),
+  ],
 );
 
 /** Checklist items of a system; `planStep` links a task to a step of the system's plan. */
@@ -71,7 +76,11 @@ export const task = pgTable(
     planStep: integer("plan_step"),
     sortOrder: integer("sort_order").notNull(),
   },
-  (t) => [unique("task_system_plan_step").on(t.systemId, t.planStep)],
+  (t) => [
+    unique("task_system_plan_step").on(t.systemId, t.planStep),
+    index("task_system_id_idx").on(t.systemId, t.sortOrder),
+    index("task_owner_user_id_idx").on(t.ownerUserId),
+  ],
 );
 
 /** Append-only versions of a system's spec and plan. */
@@ -128,57 +137,69 @@ export const adrSystem = pgTable(
       .notNull()
       .references(() => system.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.adrId, t.systemId] })],
+  (t) => [primaryKey({ columns: [t.adrId, t.systemId] }), index("adr_system_system_id_idx").on(t.systemId)],
 );
 
 /** Open questions of a project, optionally tied to a system, with their answer and who gave it. */
-export const question = pgTable("question", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => project.id, { onDelete: "cascade" }),
-  systemId: text("system_id").references(() => system.id, { onDelete: "set null" }),
-  title: text("title").notNull(),
-  text: text("text").notNull().default(""),
-  answer: text("answer"),
-  resolved: boolean("resolved").notNull().default(false),
-  authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
-  agent: text("agent"),
-  createdAt: timestamp("created_at", tz).notNull().defaultNow(),
-  resolvedAt: timestamp("resolved_at", tz),
-  answeredByUserId: text("answered_by_user_id").references(() => user.id, { onDelete: "set null" }),
-  answeredAgent: text("answered_agent"),
-  answeredAt: timestamp("answered_at", tz),
-});
+export const question = pgTable(
+  "question",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    systemId: text("system_id").references(() => system.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    text: text("text").notNull().default(""),
+    answer: text("answer"),
+    resolved: boolean("resolved").notNull().default(false),
+    authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
+    agent: text("agent"),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", tz),
+    answeredByUserId: text("answered_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    answeredAgent: text("answered_agent"),
+    answeredAt: timestamp("answered_at", tz),
+  },
+  (t) => [index("question_project_id_idx").on(t.projectId, t.resolved), index("question_system_id_idx").on(t.systemId)],
+);
 
 /** Progress reports by people or agents about their work on a system. */
-export const progressUpdate = pgTable("progress_update", {
-  id: text("id").primaryKey(),
-  systemId: text("system_id")
-    .notNull()
-    .references(() => system.id, { onDelete: "cascade" }),
-  taskId: integer("task_id").references(() => task.id, { onDelete: "set null" }),
-  summary: text("summary").notNull(),
-  nextStep: text("next_step"),
-  commitHash: text("commit_hash"),
-  authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
-  agent: text("agent"),
-  createdAt: timestamp("created_at", tz).notNull().defaultNow(),
-});
+export const progressUpdate = pgTable(
+  "progress_update",
+  {
+    id: text("id").primaryKey(),
+    systemId: text("system_id")
+      .notNull()
+      .references(() => system.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").references(() => task.id, { onDelete: "set null" }),
+    summary: text("summary").notNull(),
+    nextStep: text("next_step"),
+    commitHash: text("commit_hash"),
+    authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
+    agent: text("agent"),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [index("progress_update_system_id_idx").on(t.systemId, t.createdAt)],
+);
 
 /** Append-only record of every change; `systemId` groups entries for a system's history. */
-export const changeLog = pgTable("change_log", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => project.id, { onDelete: "cascade" }),
-  systemId: text("system_id").references(() => system.id, { onDelete: "set null" }),
-  entity: text("entity").notNull(),
-  entityId: text("entity_id").notNull(),
-  field: text("field").notNull(),
-  oldValue: text("old_value"),
-  newValue: text("new_value"),
-  authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
-  agent: text("agent"),
-  createdAt: timestamp("created_at", tz).notNull().defaultNow(),
-});
+export const changeLog = pgTable(
+  "change_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    systemId: text("system_id").references(() => system.id, { onDelete: "set null" }),
+    entity: text("entity").notNull(),
+    entityId: text("entity_id").notNull(),
+    field: text("field").notNull(),
+    oldValue: text("old_value"),
+    newValue: text("new_value"),
+    authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
+    agent: text("agent"),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [index("change_log_project_id_idx").on(t.projectId, t.id), index("change_log_system_id_idx").on(t.systemId)],
+);
