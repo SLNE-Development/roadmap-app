@@ -1,5 +1,25 @@
-# Local development: a lean Postgres. Part of the full stack in docker-compose.coolify.yml.
+# Local stack: the app built from source plus a lean Postgres. Values come from .env.
+# Only Postgres: `docker compose up -d postgres` (for `npm run dev`).
+name: roadmap-v2
+
 services:
+  app:
+    build: .
+    image: roadmap-app:local
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://roadmap:${POSTGRES_PASSWORD:-roadmap}@postgres:5432/roadmap
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?Set DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?Set DISCORD_CLIENT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles: ["app"]
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -19,9 +39,14 @@ services:
       - -c
       - effective_cache_size=64MB
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - roadmap-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U roadmap -d roadmap"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     mem_limit: 256m
     cpus: 0.5
     restart: unless-stopped

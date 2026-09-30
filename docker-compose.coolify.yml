@@ -1,0 +1,58 @@
+# Deployment on Coolify from the GHCR image built by .github/workflows/image.yml.
+# In Coolify: New Resource -> Docker Compose -> this file. Set POSTGRES_PASSWORD,
+# BETTER_AUTH_SECRET, BETTER_AUTH_URL (the public https URL), DISCORD_CLIENT_ID and
+# DISCORD_CLIENT_SECRET, and assign the domain to the "app" service on port 3000.
+name: roadmap-v2
+
+services:
+  app:
+    image: ghcr.io/slne-development/roadmap-app:latest
+    environment:
+      - SERVICE_FQDN_APP_3000
+      - DATABASE_URL=postgres://roadmap:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/roadmap
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:?Set BETTER_AUTH_URL}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:?Set DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:?Set DISCORD_CLIENT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=roadmap
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      - POSTGRES_DB=roadmap
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - effective_cache_size=64MB
+    volumes:
+      - roadmap-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U roadmap -d roadmap"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+
+volumes:
+  roadmap-db:
