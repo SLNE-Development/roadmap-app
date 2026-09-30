@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "blocks": [
+    { "id": "header", "file": "claude-md/00-header.md" },
+    { "id": "roadmap", "file": "claude-md/05-roadmap.md" },
+    { "id": "language", "file": "claude-md/10-language.md" },
+    { "id": "never-assume", "file": "claude-md/20-never-assume.md" },
+    { "id": "adr", "file": "claude-md/30-adr.md" },
+    { "id": "workflow", "file": "claude-md/40-workflow.md" },
+    { "id": "commits", "file": "claude-md/50-commits.md" },
+    { "id": "doc-comments", "file": "claude-md/60-doc-comments.md" },
+    {
+      "id": "worktrees",
+      "question": "worktrees",
+      "variants": { "allowed": "claude-md/70-worktrees.allowed.md", "forbidden": "claude-md/70-worktrees.forbidden.md" }
+    },
+    {
+      "id": "execution-mode",
+      "question": "execution",
+      "variants": { "subagent": "claude-md/80-execution-mode.subagent.md", "inline": "claude-md/80-execution-mode.inline.md" }
+    }
+  ],
+  "gitignore": [
+    { "entry": ".superpowers/", "always": true },
+    { "entry": ".claude/settings.local.json", "always": true },
+    { "entry": ".worktrees/", "when": { "worktrees": "allowed" } }
+  ],
+  "forbiddenPaths": ["docs/superpowers", "docs/specs", "docs/spec", "docs/plans", "docs/adr", "SPEC.md", "docs/SPEC.md"],
+  "commits": {
+    "subjectPattern": "^(feat|fix|docs|refactor|chore|test|build|ci|perf|style)(\\([a-z0-9._/-]+\\))?!?: [A-Z].*$",
+    "maxSubjectLength": 72,
+    "sampleSize": 40,
+    "forbiddenBodyPatterns": ["Co-Authored-By:", "Generated with \\[?Claude", "https?://claude\\.ai/"]
+  }
+}
