@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -100,4 +101,126 @@ test("audits a repository for link, blocks, gitignore, legacy docs and commits",
   assert.ok(ids.includes("legacy:docs/adr"));
   assert.ok(ids.includes("commits:format"));
   assert.ok(ids.includes("commits:attribution"));
+});
+
+test("planClaudeMd round-trips CRLF files and a second run changes nothing", () => {
+  const blocks = expectedBlocks(conv, { worktrees: "allowed", execution: "inline" });
+  const existing = "# Mine\r\nnotes\r\n\r\n## Keep\r\nthis\r\n";
+  const first = planClaudeMd(existing, blocks, []);
+  assert.ok(first.content.startsWith(existing));
+  assert.ok(!/(^|[^\r])\n/.test(first.content), "every line ending stays CRLF");
+  assert.deepEqual(first.problems, []);
+  const second = planClaudeMd(first.content, blocks, []);
+  assert.deepEqual([second.added, second.updated, second.divergent, second.problems], [[], [], [], []]);
+  assert.equal(second.content, first.content);
+  const edited = first.content.replace("All output is **English**", "All output is **German**");
+  const fixed = planClaudeMd(edited, blocks, ["language"]);
+  assert.deepEqual(fixed.updated, ["language"]);
+  assert.equal(fixed.content, first.content);
+});
+
+test("an unterminated start marker is reported and never appended to or replaced", () => {
+  const blocks = expectedBlocks(conv, { worktrees: "none", execution: "none" });
+  const orphan = "<!-- surf-roadmap:block id=language v=1 -->\nMy own text after a broken marker.\n";
+  const plan = planClaudeMd(orphan, blocks, ["language"]);
+  assert.ok(plan.problems.some((p) => p.id === "language" && p.kind === "unterminated"));
+  assert.ok(!plan.added.includes("language") && !plan.updated.includes("language"));
+  assert.ok(plan.content.includes("My own text after a broken marker."));
+  assert.ok(plan.content.startsWith(orphan));
+  const again = planClaudeMd(plan.content, blocks, ["language"]);
+  assert.ok(again.content.includes("My own text after a broken marker."));
+  assert.equal(again.content, plan.content);
+  assert.ok(auditRepoClaude(plan.content).some((f) => f.id === "claude-md:language" && f.kind === "divergent"));
+});
+
+test("duplicate block ids are reported and left alone", () => {
+  const blocks = expectedBlocks(conv, { worktrees: "none", execution: "none" });
+  const once = planClaudeMd("", blocks, []).content;
+  const language = blocks.find((b) => b.id === "language");
+  const doubled = `${once}\n${renderBlock("language", language.text, null)}\n`;
+  const plan = planClaudeMd(doubled, blocks, ["language"]);
+  assert.ok(plan.problems.some((p) => p.id === "language" && p.kind === "duplicate"));
+  assert.deepEqual(plan.updated, []);
+  assert.equal(plan.content, doubled);
+});
+
+test("markers inside a code fence are not blocks", () => {
+  const md = "```\n<!-- surf-roadmap:block id=x v=1 -->\nq\n<!-- surf-roadmap:end id=x -->\n```\n";
+  assert.equal(parseBlocks(md).size, 0);
+});
+
+test("reports the innermost restriction section, not its parent", () => {
+  const md = "# Rules\nGeneral.\n\n## No worktrees\nNever create a git worktree.\n\n## Style\nTabs.\n";
+  const found = detectRestrictions(md);
+  assert.equal(found.worktrees.heading, "No worktrees");
+  const cleaned = removeSection(md, found.worktrees);
+  assert.ok(cleaned.includes("# Rules") && cleaned.includes("General.") && cleaned.includes("## Style"));
+  assert.ok(!cleaned.includes("worktree"));
+});
+
+test("a section matching both topics is reported for both", () => {
+  const found = detectRestrictions("# Limits\nNever use worktrees and never spawn a subagent.\n");
+  assert.ok(found.worktrees);
+  assert.equal(found.worktrees, found.subagents);
+});
+
+/** Audits a CLAUDE.md text by writing it to a temporary repository. */
+function auditRepoClaude(text) {
+  const repo = mkdtempSync(join(tmpdir(), "audit-claude-"));
+  writeFileSync(join(repo, "CLAUDE.md"), text);
+  return auditRepo(repo, conv, []);
+}
+
+const cli = fileURLToPath(new URL("./surf-roadmap.mjs", import.meta.url));
+
+/** Runs the CLI and returns its exit status and parsed JSON stdout. */
+function run(...args) {
+  const r = spawnSync(process.execPath, [cli, ...args], { encoding: "utf8" });
+  return { status: r.status, json: JSON.parse(r.stdout), stderr: r.stderr };
+}
+
+test("CLI prints JSON and exits 0 on success", () => {
+  const repo = mkdtempSync(join(tmpdir(), "cli-"));
+  const out = run("apply", "--repo", repo, "--project", "demo", "--worktrees", "allowed", "--execution", "inline");
+  assert.equal(out.status, 0);
+  assert.equal(out.json.ok, true);
+  assert.equal(out.json.claudeMd.added.length, 10);
+  const audit = run("audit", "--repo", repo);
+  assert.equal(audit.status, 0);
+  assert.ok(audit.json.findings.every((f) => f.kind === "conforming"));
+});
+
+test("CLI reports failures as JSON with a non-zero exit", () => {
+  const missing = join(tmpdir(), "surf-roadmap-does-not-exist");
+  for (const args of [
+    ["audit", "--repo", missing],
+    ["apply", "--repo", missing, "--project", "demo"],
+    ["apply", "--project"],
+    ["apply", "--repo", missing, "--project", "demo", "--worktrees", "sometimes"],
+    ["bogus"],
+  ]) {
+    const out = run(...args);
+    assert.notEqual(out.status, 0, args.join(" "));
+    assert.equal(out.json.ok, false);
+    assert.equal(typeof out.json.error, "string");
+    assert.equal(out.stderr, "");
+  }
+});
+
+test("CLI apply merges into an existing link file", () => {
+  const repo = mkdtempSync(join(tmpdir(), "cli-merge-"));
+  writeFileSync(join(repo, "surf-roadmap.json"), JSON.stringify({ project: "old", board: "b1", extra: 1 }));
+  assert.equal(run("apply", "--repo", repo, "--project", "new").status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(repo, "surf-roadmap.json"), "utf8")), { project: "new", board: "b1", extra: 1 });
+  writeFileSync(join(repo, "surf-roadmap.json"), "{ not json");
+  assert.notEqual(run("apply", "--repo", repo, "--project", "new").status, 0);
+});
+
+test("CLI remove-global removes only the requested section", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cli-global-"));
+  const file = join(dir, "CLAUDE.md");
+  writeFileSync(file, "# Keep\r\nme\r\n\r\n# No worktrees\r\nNever use git worktree.\r\n");
+  const out = run("remove-global", "--kind", "worktrees", "--file", file);
+  assert.equal(out.json.ok, true);
+  assert.equal(readFileSync(file, "utf8"), "# Keep\r\nme\r\n");
 });

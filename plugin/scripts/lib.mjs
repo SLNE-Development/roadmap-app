@@ -39,10 +39,19 @@ export function findSections(md) {
   });
 }
 
-/** Finds the sections of a global CLAUDE.md that forbid worktrees or subagents, if any. */
+/**
+ * Finds the sections of a global CLAUDE.md that forbid worktrees or subagents, if
+ * any. The innermost matching section wins, so a parent heading that merely
+ * contains a matching child is never reported. A section matching both topics is
+ * reported for both.
+ */
 export function detectRestrictions(md) {
   const sections = findSections(md);
-  const pick = (topic) => sections.find((s) => TOPICS[topic].test(s.text) && RESTRICTIVE.test(s.text)) ?? null;
+  const pick = (topic) => {
+    const matches = sections.filter((s) => TOPICS[topic].test(s.text) && RESTRICTIVE.test(s.text));
+    const innermost = matches.filter((s) => !matches.some((o) => o !== s && o.start >= s.start && o.end <= s.end));
+    return innermost[0] ?? null;
+  };
   return { worktrees: pick("worktrees"), subagents: pick("subagents") };
 }
 
@@ -55,6 +64,10 @@ export function removeSection(md, section) {
   lines.splice(section.start, section.end - section.start);
   const blank = (i) => i >= 0 && i < lines.length && lines[i].trim() === "";
   while (section.start < lines.length && blank(section.start) && blank(section.start - 1)) lines.splice(section.start, 1);
+  if (section.start >= lines.length) {
+    while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+    if (lines.length) lines.push("");
+  }
   return lines.join("\n");
 }
 
@@ -64,14 +77,53 @@ export function renderBlock(id, text, variant) {
   return `<!-- surf-roadmap:block id=${id}${v} v=1 -->\n${text.trim()}\n<!-- surf-roadmap:end id=${id} -->`;
 }
 
-/** Parses every marked block of a CLAUDE.md by id, with its variant, body and character range. */
-export function parseBlocks(md) {
+const START_MARKER = /^<!-- surf-roadmap:block id=([a-z-]+)(?: variant=([a-z]+))? v=\d+ -->\s*$/;
+const END_MARKER = /^<!-- surf-roadmap:end id=([a-z-]+) -->\s*$/;
+
+/**
+ * Scans a CLAUDE.md for marked blocks. Markers must sit on their own line and are
+ * ignored inside code fences. A block body never contains another start marker.
+ * Start markers without an end (`unterminated`), end markers without a start
+ * (`orphan-end`) and ids defined twice (`duplicate`) are reported as problems and
+ * never as blocks, so callers can leave those ids alone.
+ *
+ * @return `blocks` by id with variant, body and character range, and `problems`
+ */
+export function scanBlocks(md) {
   const blocks = new Map();
-  const re = /<!-- surf-roadmap:block id=([a-z-]+)(?: variant=([a-z]+))? v=\d+ -->\r?\n([\s\S]*?)\r?\n<!-- surf-roadmap:end id=\1 -->/g;
-  for (const m of md.matchAll(re)) {
-    blocks.set(m[1], { variant: m[2] ?? null, text: m[3].replace(/\r\n/g, "\n").trim(), start: m.index, end: m.index + m[0].length });
+  const problems = [];
+  let offset = 0;
+  let fence = false;
+  let open = null;
+  for (const raw of md.split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    const lineStart = offset;
+    offset += raw.length + 1;
+    if (/^```/.test(line)) fence = !fence;
+    const start = !fence && START_MARKER.exec(line);
+    const end = !fence && END_MARKER.exec(line);
+    if (start) {
+      if (open) problems.push({ id: open.id, kind: "unterminated" });
+      open = { id: start[1], variant: start[2] ?? null, start: lineStart, body: [] };
+    } else if (end) {
+      if (open && open.id === end[1]) {
+        if (blocks.has(open.id)) problems.push({ id: open.id, kind: "duplicate" });
+        else blocks.set(open.id, { variant: open.variant, text: open.body.join("\n").trim(), start: open.start, end: lineStart + line.length });
+        open = null;
+      } else {
+        problems.push({ id: end[1], kind: "orphan-end" });
+      }
+    } else if (open) {
+      open.body.push(line);
+    }
   }
-  return blocks;
+  if (open) problems.push({ id: open.id, kind: "unterminated" });
+  return { blocks, problems };
+}
+
+/** Parses every well-formed marked block of a CLAUDE.md by id, with its variant, body and character range. */
+export function parseBlocks(md) {
+  return scanBlocks(md).blocks;
 }
 
 /** Loads the conventions directory: the manifest plus the text of every block file. */
@@ -113,8 +165,15 @@ export function planClaudeMd(existing, blocks, update) {
   const added = [];
   const updated = [];
   const divergent = [];
+  const problems = [];
   for (const b of blocks) {
-    const current = parseBlocks(content).get(b.id);
+    const scan = scanBlocks(content);
+    const broken = scan.problems.filter((p) => p.id === b.id);
+    if (broken.length) {
+      for (const p of broken) if (!problems.some((q) => q.id === p.id && q.kind === p.kind)) problems.push(p);
+      continue;
+    }
+    const current = scan.blocks.get(b.id);
     const rendered = renderBlock(b.id, b.text, b.variant).replace(/\n/g, eol);
     if (!current) {
       content = `${content.replace(/\s*$/, "")}${content.trim() ? eol + eol : ""}${rendered}${eol}`;
@@ -128,7 +187,7 @@ export function planClaudeMd(existing, blocks, update) {
       }
     }
   }
-  return { content, added, updated, divergent };
+  return { content, added, updated, divergent, problems };
 }
 
 /** Appends gitignore entries that are missing; existing lines are never touched. */
@@ -161,13 +220,18 @@ export function auditRepo(repo, conv, gitLog = []) {
   else add("link", "conforming", `Linked to project ${link.project}.`);
 
   const claude = existsSync(join(repo, "CLAUDE.md")) ? readFileSync(join(repo, "CLAUDE.md"), "utf8") : "";
-  const present = parseBlocks(claude);
+  const { blocks: present, problems } = scanBlocks(claude);
   const answers = {
     worktrees: present.get("worktrees")?.variant ?? "none",
     execution: present.get("execution-mode")?.variant ?? "none",
   };
+  for (const p of problems) {
+    add(`claude-md:${p.id}`, "divergent", `CLAUDE.md has a malformed ${p.id} block (${p.kind}).`, "Fix the markers by hand; the block is left untouched.");
+  }
+  const broken = new Set(problems.map((p) => p.id));
   for (const b of expectedBlocks(conv, answers)) {
     const current = present.get(b.id);
+    if (broken.has(b.id)) continue;
     if (!current) add(`claude-md:${b.id}`, "missing", `CLAUDE.md has no ${b.id} block.`, "Append the block.");
     else if (current.text !== b.text) add(`claude-md:${b.id}`, "divergent", `The ${b.id} block differs from the current convention.`, "Replace the block body.");
     else add(`claude-md:${b.id}`, "conforming", `${b.id} block is current.`);

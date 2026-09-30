@@ -1,18 +1,26 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { auditRepo, detectRestrictions, expectedBlocks, loadConventions, planClaudeMd, planGitignore, removeSection } from "./lib.mjs";
 
-const conv = loadConventions(fileURLToPath(new URL("../conventions/", import.meta.url)));
+/** Raised for invalid input; its message is reported to the caller as the error. */
+class UsageError extends Error {}
 
-/** Parses `--name value` flags into an object. */
+/** Accepted values of the setup answers. */
+const CHOICES = { worktrees: ["allowed", "forbidden", "none"], execution: ["subagent", "inline", "none"] };
+
+/** Parses `--name value` flags into an object; a flag without a value or a stray argument is an error. */
 function flags(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith("--")) out[argv[i].slice(2)] = argv[i + 1]?.startsWith("--") || argv[i + 1] === undefined ? "true" : argv[++i];
+    if (!argv[i].startsWith("--")) throw new UsageError(`Unexpected argument ${argv[i]}.`);
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith("--")) throw new UsageError(`${argv[i]} needs a value.`);
+    out[argv[i].slice(2)] = value;
+    i++;
   }
   return out;
 }
@@ -26,6 +34,29 @@ function done(result, code = 0) {
 /** Reads a text file, or returns an empty string when it does not exist. */
 function readOr(path) {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
+}
+
+/** Returns the git top level of the working directory, or the working directory outside git. */
+function defaultRepo() {
+  try {
+    return execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || process.cwd();
+  } catch {
+    return process.cwd();
+  }
+}
+
+/** Resolves the `--repo` flag (default: git top level) and checks that it is a directory. */
+function repoOf(f) {
+  const repo = f.repo ?? defaultRepo();
+  if (!existsSync(repo) || !statSync(repo).isDirectory()) throw new UsageError(`${repo} is not a directory.`);
+  return repo;
+}
+
+/** Validates a setup answer flag against its allowed values. */
+function choice(f, name) {
+  const value = f[name] ?? "none";
+  if (!CHOICES[name].includes(value)) throw new UsageError(`--${name} must be one of ${CHOICES[name].join(", ")}.`);
+  return value;
 }
 
 /** Returns recent commits of `repo` as `{ subject, body }`, or an empty list outside git. */
@@ -45,62 +76,87 @@ function gitLog(repo) {
   }
 }
 
-const [command, ...rest] = process.argv.slice(2);
-const f = flags(rest);
-const globalFile = f.file ?? join(homedir(), ".claude", "CLAUDE.md");
+/** Reads the existing link file as an object; an unreadable or non-object file is an error so it is never overwritten. */
+function readLink(path) {
+  if (!existsSync(path)) return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    throw new UsageError(`${path} is not valid JSON; fix or remove it first.`);
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new UsageError(`${path} is not a JSON object.`);
+  return parsed;
+}
 
-switch (command) {
-  case "whoami": {
-    const url = process.env.ROADMAP_URL;
-    const key = process.env.ROADMAP_API_KEY;
-    if (!url || !key) done({ ok: false, error: `Missing ${!url ? "ROADMAP_URL" : "ROADMAP_API_KEY"}. Set both, then restart Claude Code.` }, 1);
-    try {
-      const response = await fetch(`${url.replace(/\/+$/, "")}/api/v1/whoami`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(5000) });
+/** Runs the requested command and prints its JSON result. */
+async function main() {
+  const conv = loadConventions(fileURLToPath(new URL("../conventions/", import.meta.url)));
+  const [command, ...rest] = process.argv.slice(2);
+  const f = flags(rest);
+  const globalFile = f.file ?? join(homedir(), ".claude", "CLAUDE.md");
+
+  switch (command) {
+    case "whoami": {
+      const url = process.env.ROADMAP_URL;
+      const key = process.env.ROADMAP_API_KEY;
+      if (!url || !key) done({ ok: false, error: `Missing ${!url ? "ROADMAP_URL" : "ROADMAP_API_KEY"}. Set both, then restart Claude Code.` }, 1);
+      const response = await fetch(`${url.replace(/\/+$/, "")}/api/v1/whoami`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(5000) }).catch((error) => {
+        done({ ok: false, error: `Could not reach ${url}: ${error.message}` }, 1);
+      });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) done({ ok: false, status: response.status, error: body.error ?? response.statusText }, 1);
       done({ ok: true, ...body });
-    } catch (error) {
-      done({ ok: false, error: `Could not reach ${url}: ${error.message}` }, 1);
+      break;
     }
-    break;
+    case "detect-global": {
+      const found = detectRestrictions(readOr(globalFile));
+      const view = (s) => (s ? { heading: s.heading, text: s.text } : null);
+      done({ file: globalFile, worktrees: view(found.worktrees), subagents: view(found.subagents) });
+      break;
+    }
+    case "remove-global": {
+      const kind = f.kind;
+      if (kind !== "worktrees" && kind !== "subagents") throw new UsageError("--kind must be worktrees or subagents.");
+      const text = readOr(globalFile);
+      const found = detectRestrictions(text);
+      const section = found[kind];
+      if (!section) done({ ok: true, removed: null });
+      const other = kind === "worktrees" ? "subagents" : "worktrees";
+      writeFileSync(globalFile, removeSection(text, section));
+      done({ ok: true, file: globalFile, removed: section.text, ...(found[other] === section ? { alsoCovers: other } : {}) });
+      break;
+    }
+    case "apply": {
+      const repo = repoOf(f);
+      if (!f.project) throw new UsageError("--project is required.");
+      const answers = { worktrees: choice(f, "worktrees"), execution: choice(f, "execution") };
+      const linkPath = join(repo, "surf-roadmap.json");
+      const link = { ...readLink(linkPath), project: f.project, ...(f.board ? { board: f.board } : {}) };
+      writeFileSync(linkPath, `${JSON.stringify(link, null, 2)}\n`);
+      const claudePath = join(repo, "CLAUDE.md");
+      const claude = planClaudeMd(readOr(claudePath), expectedBlocks(conv, answers), (f.update ?? "").split(",").filter(Boolean));
+      if (claude.added.length || claude.updated.length) writeFileSync(claudePath, claude.content);
+      const entries = conv.manifest.gitignore.filter((g) => g.always || (g.when && answers.worktrees === g.when.worktrees)).map((g) => g.entry);
+      const ignorePath = join(repo, ".gitignore");
+      const ignore = planGitignore(readOr(ignorePath), entries);
+      if (ignore.added.length) writeFileSync(ignorePath, ignore.content);
+      done({ ok: true, link, claudeMd: { added: claude.added, updated: claude.updated, divergent: claude.divergent, problems: claude.problems }, gitignore: ignore.added });
+      break;
+    }
+    case "audit": {
+      const repo = repoOf(f);
+      const order = { missing: 0, divergent: 1, conforming: 2 };
+      done({ findings: auditRepo(repo, conv, gitLog(repo)).sort((a, b) => order[a.kind] - order[b.kind]) });
+      break;
+    }
+    default:
+      throw new UsageError("usage: surf-roadmap.mjs <whoami|detect-global|remove-global|apply|audit> [flags]");
   }
-  case "detect-global": {
-    const found = detectRestrictions(readOr(globalFile));
-    const view = (s) => (s ? { heading: s.heading, text: s.text } : null);
-    done({ file: globalFile, worktrees: view(found.worktrees), subagents: view(found.subagents) });
-    break;
-  }
-  case "remove-global": {
-    const kind = f.kind;
-    if (kind !== "worktrees" && kind !== "subagents") done({ ok: false, error: "--kind must be worktrees or subagents" }, 1);
-    const text = readOr(globalFile);
-    const section = detectRestrictions(text)[kind];
-    if (!section) done({ ok: true, removed: null });
-    writeFileSync(globalFile, removeSection(text, section));
-    done({ ok: true, file: globalFile, removed: section.text });
-    break;
-  }
-  case "apply": {
-    const repo = f.repo ?? process.cwd();
-    if (!f.project) done({ ok: false, error: "--project is required" }, 1);
-    const answers = { worktrees: f.worktrees ?? "none", execution: f.execution ?? "none" };
-    writeFileSync(join(repo, "surf-roadmap.json"), `${JSON.stringify({ project: f.project, ...(f.board ? { board: f.board } : {}) }, null, 2)}\n`);
-    const claudePath = join(repo, "CLAUDE.md");
-    const claude = planClaudeMd(readOr(claudePath), expectedBlocks(conv, answers), (f.update ?? "").split(",").filter(Boolean));
-    if (claude.added.length || claude.updated.length) writeFileSync(claudePath, claude.content);
-    const entries = conv.manifest.gitignore.filter((g) => g.always || (g.when && answers.worktrees === g.when.worktrees)).map((g) => g.entry);
-    const ignorePath = join(repo, ".gitignore");
-    const ignore = planGitignore(readOr(ignorePath), entries);
-    if (ignore.added.length) writeFileSync(ignorePath, ignore.content);
-    done({ ok: true, link: { project: f.project, board: f.board ?? null }, claudeMd: { added: claude.added, updated: claude.updated, divergent: claude.divergent }, gitignore: ignore.added });
-    break;
-  }
-  case "audit": {
-    const repo = f.repo ?? process.cwd();
-    const order = { missing: 0, divergent: 1, conforming: 2 };
-    done({ findings: auditRepo(repo, conv, gitLog(repo)).sort((a, b) => order[a.kind] - order[b.kind]) });
-    break;
-  }
-  default:
-    done({ ok: false, error: "usage: surf-roadmap.mjs <whoami|detect-global|remove-global|apply|audit> [flags]" }, 1);
+}
+
+try {
+  await main();
+} catch (error) {
+  done({ ok: false, error: error instanceof Error ? error.message : String(error) }, 1);
 }
