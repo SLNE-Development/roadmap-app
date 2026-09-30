@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
-import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createAdr } from "./adrs";
+import { setMember } from "./members";
 import { listProjects } from "./projects";
 import { addQuestion, answerQuestion } from "./questions";
 import { projectNav, projectSummaries } from "./summaries";
 import { createSystem } from "./systems";
+import { removeAllowedAccount } from "./users";
 
 describe("projectSummaries", () => {
   it("counts systems by category, open questions and the latest change per project", async () => {
@@ -48,6 +50,16 @@ describe("projectNav", () => {
     expect(nav.systems.map((s) => s.title)).toEqual(["Beta", "Alpha"]);
     expect(nav.systems[0].boardSlug).toBe("development");
     expect(nav).toMatchObject({ adrCount: 1, openQuestionCount: 1, memberCount: 2 });
+  });
+
+  it("does not count removed accounts as members", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const admin = await insertUser(db, { isAdmin: true });
+    const gone = await insertUser(db, { discordId: "723456789012345678" });
+    await setMember(db, owner, slug, { userId: gone.userId, role: "viewer" });
+    await removeAllowedAccount(db, admin, "723456789012345678");
+    expect((await projectNav(db, owner, slug)).memberCount).toBe(1);
   });
 
   it("hides projects the actor cannot see", async () => {

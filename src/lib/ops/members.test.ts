@@ -55,6 +55,29 @@ describe("members", () => {
     expect(await isMember(db, projectId, owner.userId)).toBe(true);
   });
 
+  it("an owner whose account was removed does not count as an owner", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const admin = await insertUser(db, { isAdmin: true });
+    const second = await insertUser(db, { discordId: "523456789012345678" });
+    await setMember(db, owner, slug, { userId: second.userId, role: "owner" });
+    await removeAllowedAccount(db, admin, "523456789012345678");
+    await expect(setMember(db, owner, slug, { userId: owner.userId, role: "viewer" })).rejects.toMatchObject({
+      status: 409,
+      message: "A project needs at least one owner.",
+    });
+  });
+
+  it("listMembers leaves out removed accounts", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const admin = await insertUser(db, { isAdmin: true });
+    const second = await insertUser(db, { discordId: "623456789012345678" });
+    await setMember(db, owner, slug, { userId: second.userId, role: "owner" });
+    await removeAllowedAccount(db, admin, "623456789012345678");
+    expect((await listMembers(db, owner, slug)).map((m) => m.userId)).toEqual([owner.userId]);
+  });
+
   it("always keeps one owner", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

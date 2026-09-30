@@ -1,5 +1,5 @@
 import { and, asc, count, eq, inArray, max } from "drizzle-orm";
-import { adr, board, boardColumn, changeLog, projectMember, question, system, user, type ColumnCategory } from "@/db/schema";
+import { adr, allowedAccount, board, boardColumn, changeLog, projectMember, question, system, user, type ColumnCategory } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
@@ -89,6 +89,7 @@ export async function projectNav(db: Executor, actor: Actor, slug: string): Prom
       .select({ n: count() })
       .from(projectMember)
       .innerJoin(user, eq(user.id, projectMember.userId))
+      .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
       .where(eq(projectMember.projectId, project.id)),
   ]);
   return { systems, adrCount: adrs.n, openQuestionCount: questions.n, memberCount: members.n };

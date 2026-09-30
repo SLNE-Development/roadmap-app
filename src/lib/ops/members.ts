@@ -38,17 +38,20 @@ async function keepAnOwner(tx: Executor, projectId: string, userId: string): Pro
   const [row] = await tx
     .select({ n: count() })
     .from(projectMember)
+    .innerJoin(user, eq(user.id, projectMember.userId))
+    .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
     .where(and(eq(projectMember.projectId, projectId), eq(projectMember.role, "owner"), ne(projectMember.userId, userId)));
   if (row.n === 0) throw new ConflictError("A project needs at least one owner.");
 }
 
-/** Lists the members of a project, by name. */
+/** Lists the members of a project, by name; removed accounts are left out. */
 export async function listMembers(db: Executor, actor: Actor, slug: string): Promise<MemberItem[]> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
   return db
     .select({ userId: user.id, name: user.name, image: user.image, role: projectMember.role, joinedAt: projectMember.createdAt })
     .from(projectMember)
     .innerJoin(user, eq(user.id, projectMember.userId))
+    .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
     .where(eq(projectMember.projectId, project.id))
     .orderBy(asc(user.name));
 }
