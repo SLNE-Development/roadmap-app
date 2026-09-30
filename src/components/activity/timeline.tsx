@@ -6,14 +6,19 @@ import { PersonAvatar } from "@/components/person-avatar";
 import type { ColumnCategory } from "@/db/schema";
 import { dayLabel, formatDate, formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { describeChange, splitAuthor, type ChangeFacts, type ChangeSentence } from "./change-sentence";
+import { describeChange, type ChangeFacts, type ChangeSentence } from "./change-sentence";
+
+/** Who made a timeline entry: the person and, when one acted for them, the agent. */
+export interface TimelineAuthor {
+  authorName: string;
+  agent: string | null;
+}
 
 /** A progress update in the timeline. */
-export interface UpdateTimelineItem {
+export interface UpdateTimelineItem extends TimelineAuthor {
   kind: "update";
   key: string;
   createdAt: string;
-  author: string;
   systemSlug: string;
   systemTitle: string;
   taskTitle: string | null;
@@ -24,11 +29,10 @@ export interface UpdateTimelineItem {
 }
 
 /** A change log entry in the timeline, already turned into a sentence. */
-export interface ChangeTimelineItem {
+export interface ChangeTimelineItem extends TimelineAuthor {
   kind: "change";
   key: string;
   createdAt: string;
-  author: string;
   sentence: ChangeSentence;
   systemSlug: string | null;
   toCategory: ColumnCategory | null;
@@ -38,10 +42,9 @@ export interface ChangeTimelineItem {
 export type TimelineItem = UpdateTimelineItem | ChangeTimelineItem;
 
 /** A progress update as the ops layer returns it, with an ISO timestamp. */
-export interface UpdateLike {
+export interface UpdateLike extends TimelineAuthor {
   id: string;
   createdAt: string;
-  author: string;
   systemSlug: string;
   systemTitle: string;
   taskTitle: string | null;
@@ -52,10 +55,9 @@ export interface UpdateLike {
 }
 
 /** A change log entry as the ops layer returns it, with an ISO timestamp. */
-export interface ChangeLike extends ChangeFacts {
+export interface ChangeLike extends ChangeFacts, TimelineAuthor {
   id: number;
   systemId: string | null;
-  author: string;
   createdAt: string;
 }
 
@@ -88,7 +90,16 @@ export function changeItems(
       const system = e.systemId ? systems.get(e.systemId) : undefined;
       const sentence = describeChange(e, { systemTitle: system?.title ?? null, adrLabel: adrLabels.get(e.entityId) ?? null });
       const toCategory = e.entity === "system" && e.field === "column" && e.newValue ? (columns.get(e.newValue) ?? null) : null;
-      return { kind: "change", key: `c-${e.id}`, createdAt: e.createdAt, author: e.author, sentence, systemSlug: system?.slug ?? null, toCategory };
+      return {
+        kind: "change",
+        key: `c-${e.id}`,
+        createdAt: e.createdAt,
+        authorName: e.authorName,
+        agent: e.agent,
+        sentence,
+        systemSlug: system?.slug ?? null,
+        toCategory,
+      };
     });
 }
 
@@ -117,7 +128,7 @@ function SystemLink({ projectSlug, slug, title }: { projectSlug: string; slug: s
 
 /** One row of the timeline: avatar, sentence, details and time. */
 function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; projectSlug: string; hideSystem: boolean }) {
-  const { name, agent } = splitAuthor(item.author);
+  const { authorName: name, agent } = item;
   return (
     <li className="flex gap-3 border-b px-4 py-3 last:border-b-0">
       <PersonAvatar name={name} size="md" />

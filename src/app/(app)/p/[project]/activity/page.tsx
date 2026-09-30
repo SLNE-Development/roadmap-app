@@ -1,6 +1,5 @@
 import { Activity } from "lucide-react";
 import Link from "next/link";
-import { splitAuthor } from "@/components/activity/change-sentence";
 import { FilterChip, ToggleChip } from "@/components/activity/filter-chip";
 import { changeItems, Timeline, updateItems, type TimelineItem } from "@/components/activity/timeline";
 import { SegmentedLinks, withQuery } from "@/components/activity/url-tabs";
@@ -59,12 +58,9 @@ export default async function ActivityPage({
   const systemsById = new Map(data.systems.map((s) => [s.id, { slug: s.slug, title: s.title }]));
   const columns = new Map<string, ColumnCategory>(data.detail.boards.flatMap((b) => b.columns.map((c) => [`${b.name} / ${c.name}`, c.category] as const)));
   const all: TimelineItem[] = [...updateItems(data.updates.map(toIso)), ...changeItems(data.changes.map(toIso), systemsById, columns)];
-  const people = [...new Set(all.map((i) => splitAuthor(i.author).name))].sort((a, b) => a.localeCompare(b));
+  const people = [...new Set(all.map((i) => i.authorName))].sort((a, b) => a.localeCompare(b));
   const items = all
-    .filter((i) => {
-      const who = splitAuthor(i.author);
-      return (!person || who.name === person) && (!agentsOnly || who.agent !== null);
-    })
+    .filter((i) => (!person || i.authorName === person) && (!agentsOnly || i.agent !== null))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, LIMIT);
 

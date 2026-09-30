@@ -4,7 +4,7 @@ import { progressUpdate, system, task, user } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess } from "./access";
-import { authorLabel, type Actor } from "./actor";
+import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { InvalidError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, systemAccess } from "./lookup";
@@ -25,8 +25,8 @@ export const postUpdateInput = z.object({
 /** Filters of {@link listUpdates}. */
 export const listUpdatesInput = z.object({ system: z.string().optional(), limit: z.number().int().min(1).max(500).default(50) });
 
-/** A progress update as shown in feeds and on systems. */
-export interface UpdateItem {
+/** A progress update as shown in feeds and on systems, with its author split into person and agent. */
+export interface UpdateItem extends AuthorFields {
   id: string;
   systemSlug: string;
   systemTitle: string;
@@ -36,7 +36,7 @@ export interface UpdateItem {
   nextStep: string | null;
   commitHash: string | null;
   commitUrl: string | null;
-  author: string;
+  /** Whether an agent posted it; the same as `agent !== null`. */
   isAgent: boolean;
   createdAt: Date;
 }
@@ -117,7 +117,7 @@ export async function listUpdates(
   return rows.map(({ authorName, agent, ...r }) => ({
     ...r,
     commitUrl: commitUrl(project.repoUrl, r.commitHash),
-    author: authorLabel(authorName, agent),
+    ...authorFields(authorName, agent),
     isAgent: agent !== null,
   }));
 }

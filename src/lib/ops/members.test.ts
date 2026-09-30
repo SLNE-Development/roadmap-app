@@ -16,6 +16,16 @@ describe("members", () => {
     ]);
   });
 
+  it("lists when each member joined and keeps it across role changes", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    const joined = (await listMembers(db, owner, slug)).find((m) => m.userId === editor.userId)?.joinedAt;
+    expect(joined).toBeInstanceOf(Date);
+    await setMember(db, owner, slug, { userId: editor.userId, role: "viewer" });
+    expect((await listMembers(db, owner, slug)).find((m) => m.userId === editor.userId)?.joinedAt).toEqual(joined);
+  });
+
   it("only lets owners manage members", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

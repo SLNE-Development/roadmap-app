@@ -4,7 +4,7 @@ import { systemDocument, task, user, type DocumentKind } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess } from "./access";
-import { authorLabel, type Actor } from "./actor";
+import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, systemAccess, type SystemRow } from "./lookup";
@@ -26,11 +26,10 @@ export const writePlanInput = z.object({
 });
 
 /** A version of a system document with the list of all its versions, newest first. */
-export interface DocumentView {
+export interface DocumentView extends AuthorFields {
   kind: DocumentKind;
   version: number;
   body: string;
-  author: string;
   createdAt: Date;
   versions: number[];
 }
@@ -61,7 +60,7 @@ async function loadDocument(db: Executor, systemId: string, kind: DocumentKind, 
     .where(and(eq(systemDocument.systemId, systemId), eq(systemDocument.kind, kind), eq(systemDocument.version, wanted)))
     .limit(1);
   if (!row) return null;
-  return { kind, version: wanted, body: row.body, author: authorLabel(row.authorName, row.agent), createdAt: row.createdAt, versions };
+  return { kind, version: wanted, body: row.body, ...authorFields(row.authorName, row.agent), createdAt: row.createdAt, versions };
 }
 
 /** Returns the latest version of a system document, or `null`. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeChange, splitAuthor, type ChangeFacts } from "./change-sentence";
+import { describeChange, type ChangeFacts } from "./change-sentence";
 
 /** A change log entry with defaults for the fields a case does not care about. */
 function entry(entity: string, field: string, oldValue: string | null = null, newValue: string | null = null, entityId = "11"): ChangeFacts {
@@ -67,12 +67,5 @@ describe("describeChange", () => {
   it("falls back to the field and entity", () => {
     expect(text(entry("widget", "colour", "red", "blue"), null)).toBe("changed colour of widget");
     expect(text(entry("board", "sortOrder"), null)).toBe("changed sortOrder of a board");
-  });
-});
-
-describe("splitAuthor", () => {
-  it("separates the agent from the person", () => {
-    expect(splitAuthor("claude-code (for Aiko Tanaka)")).toEqual({ name: "Aiko Tanaka", agent: "claude-code" });
-    expect(splitAuthor("Aiko Tanaka")).toEqual({ name: "Aiko Tanaka", agent: null });
   });
 });

@@ -3,14 +3,14 @@ import { z } from "zod";
 import { changeLog, user } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectAccess } from "./access";
-import { authorLabel, type Actor } from "./actor";
+import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { findSystem } from "./lookup";
 
 /** Filters of {@link listActivity}. */
 export const activityFilter = z.object({ system: z.string().optional(), limit: z.number().int().min(1).max(500).default(100) });
 
-/** A change log entry as shown in history lists. */
-export interface HistoryEntry {
+/** A change log entry as shown in history lists, with its author split into person and agent. */
+export interface HistoryEntry extends AuthorFields {
   id: number;
   entity: string;
   entityId: string;
@@ -19,7 +19,6 @@ export interface HistoryEntry {
   field: string;
   oldValue: string | null;
   newValue: string | null;
-  author: string;
   createdAt: Date;
 }
 
@@ -52,5 +51,5 @@ export async function listActivity(
     .where(and(...conditions))
     .orderBy(desc(changeLog.id))
     .limit(filter.limit);
-  return rows.map(({ authorName, agent, ...r }) => ({ ...r, author: authorLabel(authorName, agent) }));
+  return rows.map(({ authorName, agent, ...r }) => ({ ...r, ...authorFields(authorName, agent) }));
 }

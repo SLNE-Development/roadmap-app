@@ -1,11 +1,9 @@
 import { AgentTag } from "@/components/chips";
 import { PersonName } from "@/components/person-avatar";
 import { cn } from "@/lib/utils";
-import { parseAuthor } from "./text";
 
 /** "Aiko Tanaka via claude-code" as inline text, the agent in mono. */
-export function AuthorText({ label, className }: { label: string; className?: string }) {
-  const { name, agent } = parseAuthor(label);
+export function AuthorText({ name, agent, className }: { name: string; agent: string | null; className?: string }) {
   return (
     <span className={className}>
       {name}
@@ -20,8 +18,7 @@ export function AuthorText({ label, className }: { label: string; className?: st
 }
 
 /** A person with avatar and, when an agent acted for them, the agent's tag. */
-export function AuthorBadge({ label, className }: { label: string; className?: string }) {
-  const { name, agent } = parseAuthor(label);
+export function AuthorBadge({ name, agent, className }: { name: string; agent: string | null; className?: string }) {
   return (
     <span className={cn("inline-flex flex-wrap items-center gap-1.5", className)}>
       <PersonName name={name} className="font-medium" />

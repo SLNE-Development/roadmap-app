@@ -22,6 +22,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PROJECT_ROLES, type ProjectRole } from "@/db/schema";
+import { formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { useAction } from "./use-action";
 
@@ -120,7 +121,8 @@ function UserPicker({
 
 /**
  * The members settings: a row adding an allowlisted user with a role, and the
- * member list with role menus and removal. Owners edit; everyone else sees role tags.
+ * member list with join dates, role menus and removal. Owners edit; everyone
+ * else sees role tags.
  */
 export function MemberManager({
   projectSlug,
@@ -130,7 +132,8 @@ export function MemberManager({
   canOwn,
 }: {
   projectSlug: string;
-  members: { userId: string; name: string; role: ProjectRole }[];
+  /** The members, each with when they joined (ISO). */
+  members: { userId: string; name: string; role: ProjectRole; joinedAt: string }[];
   users: { id: string; name: string }[];
   currentUserId: string;
   canOwn: boolean;
@@ -188,8 +191,15 @@ export function MemberManager({
             >
               <span className="flex min-w-0 items-center gap-2.5">
                 <PersonAvatar name={m.name} size="md" />
-                <span className="truncate font-medium">{m.name}</span>
-                {you && <span className="text-xs text-muted-foreground">you</span>}
+                <span className="flex min-w-0 flex-col">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="truncate font-medium">{m.name}</span>
+                    {you && <span className="text-xs text-muted-foreground">you</span>}
+                  </span>
+                  <time dateTime={m.joinedAt} className="text-xs text-muted-foreground">
+                    Since {formatDate(m.joinedAt)}
+                  </time>
+                </span>
               </span>
               {canOwn ? (
                 <span className="flex items-center gap-1 sm:contents">

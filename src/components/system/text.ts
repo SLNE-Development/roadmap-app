@@ -68,15 +68,3 @@ export function gapLine(gap: string): string {
   if (gap.startsWith("No spec")) return "No spec has been written yet";
   return gap;
 }
-
-/** An author label split into the person and, when an agent acted for them, the agent. */
-export interface Author {
-  name: string;
-  agent: string | null;
-}
-
-/** Splits an author label of the ops layer ("claude-code (for Aiko Tanaka)") into person and agent. */
-export function parseAuthor(label: string): Author {
-  const m = /^(.+) \(for (.+)\)$/.exec(label);
-  return m ? { name: m[2], agent: m[1] } : { name: label, agent: null };
-}

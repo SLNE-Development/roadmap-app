@@ -14,7 +14,7 @@ import { getProject } from "@/lib/ops/projects";
 import { listQuestions } from "@/lib/ops/questions";
 import { listPhases } from "@/lib/ops/structure";
 import { listSystems } from "@/lib/ops/systems";
-import { latestUpdates, listUpdates, type UpdateItem } from "@/lib/ops/updates";
+import { latestUpdates, listUpdates } from "@/lib/ops/updates";
 import { pageData } from "@/lib/page";
 import { relativeAge } from "@/lib/time";
 
@@ -45,12 +45,6 @@ function planningDetail(gaps: string[]): string {
   if (parts.length === 0) return "Everything is answered; planning can be completed.";
   const text = parts.join("; ");
   return `${text[0].toUpperCase()}${text.slice(1)}.`;
-}
-
-/** Splits an update's author label into the person and, for agent writes, the agent. */
-function splitAuthor(u: UpdateItem): { name: string; agent: string | null } {
-  const match = u.isAgent ? /^(.+) \(for (.+)\)$/.exec(u.author) : null;
-  return match ? { name: match[2], agent: match[1] } : { name: u.author, agent: null };
 }
 
 /** Returns a repository URL without its scheme and host, for display ("org/repo"). */
@@ -266,7 +260,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
           ) : (
             <ol className="flex flex-col">
               {data.updates.map((u) => {
-                const { name, agent } = splitAuthor(u);
+                const { authorName: name, agent } = u;
                 return (
                   <li key={u.id}>
                     <article className="flex gap-3 border-t px-4 py-3 sm:px-5">

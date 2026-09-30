@@ -53,7 +53,7 @@ export function PlanningRounds({
           <header className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-4 pb-3 sm:px-5">
             <h2 className="font-display text-[19px] font-semibold">Round {r.number}</h2>
             <span className="text-[12.5px] text-muted-foreground">
-              <AuthorText label={r.author} /> · {formatDate(r.createdAt.toISOString())} · {r.items.length}{" "}
+              <AuthorText name={r.authorName} agent={r.agent} /> · {formatDate(r.createdAt.toISOString())} · {r.items.length}{" "}
               {r.items.length === 1 ? "question" : "questions"}
             </span>
           </header>

@@ -2,7 +2,6 @@ import { Clock } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AcceptAdrButton } from "@/components/accept-adr-button";
-import { splitAuthor } from "@/components/activity/change-sentence";
 import { AdrStatusChip, AgentTag, CategoryDot } from "@/components/chips";
 import { Markdown } from "@/components/markdown";
 import { Page, PageHeader } from "@/components/page";
@@ -24,7 +23,6 @@ export default async function AdrPage({ params }: { params: Promise<{ project: s
     return { adr, role: detail.role, systems };
   });
   const label = `ADR-${formatAdrNumber(adr.number)}`;
-  const author = splitAuthor(adr.author);
   const concerns = adr.systems.map((s) => systems.find((x) => x.slug === s) ?? { slug: s, title: s, columnCategory: null });
   const sections = [
     { title: "Context", body: adr.context, highlight: false },
@@ -47,11 +45,11 @@ export default async function AdrPage({ params }: { params: Promise<{ project: s
           <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px]">
             <AdrStatusChip status={adr.status} />
             <span className="inline-flex flex-wrap items-center gap-1.5">
-              <PersonName name={author.name} />
-              {author.agent && (
+              <PersonName name={adr.authorName} />
+              {adr.agent && (
                 <>
                   <span className="text-muted-foreground">via</span>
-                  <AgentTag agent={author.agent} />
+                  <AgentTag agent={adr.agent} />
                 </>
               )}
             </span>

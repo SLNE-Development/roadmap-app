@@ -238,12 +238,3 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
   if (e.entity === "system" && system) return { verb: `changed ${field} of`, target: system, targetIsSystem: true };
   return plain(`changed ${field} of ${ENTITY_LABEL[e.entity] ?? e.entity}`);
 }
-
-/**
- * Splits an author label from the ops layer ("claude-code (for Aiko Tanaka)"
- * or "Aiko Tanaka") into the person and the agent that acted for them.
- */
-export function splitAuthor(label: string): { name: string; agent: string | null } {
-  const match = /^(.+) \(for (.+)\)$/.exec(label);
-  return match ? { name: match[2], agent: match[1] } : { name: label, agent: null };
-}

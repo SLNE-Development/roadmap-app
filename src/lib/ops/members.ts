@@ -14,6 +14,8 @@ export interface MemberItem {
   name: string;
   image: string | null;
   role: ProjectRole;
+  /** When the user was added to the project; role changes keep it. */
+  joinedAt: Date;
 }
 
 /** Input of {@link setMember}. */
@@ -44,7 +46,7 @@ async function keepAnOwner(tx: Executor, projectId: string, userId: string): Pro
 export async function listMembers(db: Executor, actor: Actor, slug: string): Promise<MemberItem[]> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
   return db
-    .select({ userId: user.id, name: user.name, image: user.image, role: projectMember.role })
+    .select({ userId: user.id, name: user.name, image: user.image, role: projectMember.role, joinedAt: projectMember.createdAt })
     .from(projectMember)
     .innerJoin(user, eq(user.id, projectMember.userId))
     .where(eq(projectMember.projectId, project.id))

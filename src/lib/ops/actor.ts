@@ -23,3 +23,18 @@ export function authorLabel(name: string | null | undefined, agent: string | nul
   const who = name?.trim() || "unknown";
   return agent ? `${agent} (for ${who})` : who;
 }
+
+/** How views return an author: the display label, the person, and the agent that acted for them. */
+export interface AuthorFields {
+  /** The display label, `<agent> (for <name>)` for agent writes; kept for older tool clients. */
+  author: string;
+  /** The person, `unknown` when their account is gone. */
+  authorName: string;
+  /** The agent that acted for the person, or `null` for their own writes. */
+  agent: string | null;
+}
+
+/** Returns an author as {@link AuthorFields}: the {@link authorLabel}, the person's name and the agent. */
+export function authorFields(name: string | null | undefined, agent: string | null | undefined): AuthorFields {
+  return { author: authorLabel(name, agent), authorName: name?.trim() || "unknown", agent: agent ?? null };
+}

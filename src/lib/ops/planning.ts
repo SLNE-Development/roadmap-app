@@ -14,7 +14,7 @@ import {
 import type { Db, Executor, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess } from "./access";
-import { authorLabel, type Actor } from "./actor";
+import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, loadBoards, systemAccess, type SystemRow } from "./lookup";
@@ -56,11 +56,10 @@ export interface PlanningItemView {
   status: PlanningItemStatus;
 }
 
-/** A planning round with its questions. */
-export interface PlanningRoundView {
+/** A planning round with its questions and its author split into person and agent. */
+export interface PlanningRoundView extends AuthorFields {
   number: number;
   createdAt: Date;
-  author: string;
   items: PlanningItemView[];
 }
 
@@ -94,7 +93,7 @@ async function loadRounds(db: Executor, systemId: string): Promise<PlanningRound
   return rounds.map((r) => ({
     number: r.number,
     createdAt: r.createdAt,
-    author: authorLabel(r.authorName, r.agent),
+    ...authorFields(r.authorName, r.agent),
     items: items
       .filter((i) => i.roundId === r.id)
       .map((i) => ({ id: i.id, area: i.area, question: i.question, answer: i.answer, isRisk: i.isRisk, status: i.status })),

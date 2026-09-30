@@ -23,7 +23,7 @@ export const project = pgTable("project", {
   createdAt: timestamp("created_at", tz).notNull().defaultNow(),
 });
 
-/** Membership of a user in a project, with their role. */
+/** Membership of a user in a project, with their role and when they joined. */
 export const projectMember = pgTable(
   "project_member",
   {
@@ -34,6 +34,7 @@ export const projectMember = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     role: text("role", { enum: PROJECT_ROLES }).notNull(),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.userId] })],
 );

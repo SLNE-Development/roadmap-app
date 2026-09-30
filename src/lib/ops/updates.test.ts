@@ -26,9 +26,9 @@ describe("progress updates", () => {
     const posted = await postUpdate(db, withAgent(owner, "Claude Code"), slug, "s", { summary: "Second", taskId, commit: "ABCDEF1" });
     expect(posted.commitUrl).toBe("https://github.com/x/y/commit/abcdef1");
     const updates = await listUpdates(db, owner, slug, { system: "s" });
-    expect(updates.map((u) => [u.summary, u.author, u.isAgent, u.taskTitle])).toEqual([
-      ["Second", "Claude Code (for Owner)", true, "T"],
-      ["First", "Owner", false, null],
+    expect(updates.map((u) => [u.summary, u.author, u.authorName, u.agent, u.isAgent, u.taskTitle])).toEqual([
+      ["Second", "Claude Code (for Owner)", "Owner", "Claude Code", true, "T"],
+      ["First", "Owner", "Owner", null, false, null],
     ]);
     expect([...(await latestUpdates(db, projectId)).values()].map((u) => u.summary)).toEqual(["Second"]);
   });

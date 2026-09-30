@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { splitAuthor } from "./activity/change-sentence";
 import { AgentTag } from "./chips";
 import { Markdown } from "./markdown";
 import { PersonAvatar } from "./person-avatar";
@@ -23,11 +22,14 @@ export interface QuestionView {
   resolved: boolean;
   systemSlug: string | null;
   systemTitle: string | null;
-  author: string;
+  /** The person who asked. */
+  authorName: string;
+  /** The agent that asked for them, or `null`. */
+  agent: string | null;
   /** When the question was asked (ISO). */
   createdAt?: string;
-  /** Who last answered it and when (ISO), when known from the change log. */
-  answeredBy?: { author: string; createdAt: string } | null;
+  /** Who last answered it, with the agent that answered for them, and when (ISO); `null` while unanswered. */
+  answeredBy?: { name: string; agent: string | null; at: string } | null;
 }
 
 /**
@@ -38,7 +40,6 @@ export interface QuestionView {
 export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlug: string; question: QuestionView; canEdit: boolean }) {
   const { pending, act } = useAction();
   const [answer, setAnswer] = useState("");
-  const asker = splitAuthor(q.author);
   const answered = q.answer !== null && q.answer !== "";
   const needsAnswer = !q.resolved && !answered;
 
@@ -73,9 +74,9 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
         )}
       </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted-foreground">
-        <PersonAvatar name={asker.name} size="xs" />
-        <span>{asker.name}</span>
-        {asker.agent && <AgentTag agent={asker.agent} />}
+        <PersonAvatar name={q.authorName} size="xs" />
+        <span>{q.authorName}</span>
+        {q.agent && <AgentTag agent={q.agent} />}
         {q.systemSlug && (
           <>
             <span aria-hidden>·</span>
@@ -90,8 +91,11 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
       {answered && (
         <div className="flex flex-col gap-1 bg-secondary px-3.5 py-3">
           {q.answeredBy && (
-            <span className="text-xs text-muted-foreground">
-              {splitAuthor(q.answeredBy.author).name} · {relativeAge(q.answeredBy.createdAt)}
+            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+              <span>{q.answeredBy.name}</span>
+              {q.answeredBy.agent && <AgentTag agent={q.answeredBy.agent} />}
+              <span aria-hidden>·</span>
+              <time dateTime={q.answeredBy.at}>{relativeAge(q.answeredBy.at)}</time>
             </span>
           )}
           <Markdown className="max-w-none! text-sm! leading-[1.55]!">{q.answer ?? ""}</Markdown>

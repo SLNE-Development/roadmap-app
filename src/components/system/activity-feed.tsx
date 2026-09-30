@@ -100,7 +100,7 @@ function UpdateEntry({ update: u }: { update: UpdateItem }) {
   return (
     <div className="flex flex-col gap-2 border bg-card px-4 py-3.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-        <AuthorBadge label={u.author} />
+        <AuthorBadge name={u.authorName} agent={u.agent} />
         <span className="text-muted-foreground">posted an update</span>
         <time className="ml-auto text-xs text-muted-foreground tabular-nums" dateTime={u.createdAt.toISOString()}>
           {formatTime(u.createdAt.toISOString())}
@@ -143,7 +143,7 @@ function UpdateEntry({ update: u }: { update: UpdateItem }) {
 function ChangeEntry({ change: e, names }: { change: HistoryEntry; names: ActivityNames }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 text-[13px]">
-      <AuthorBadge label={e.author} />
+      <AuthorBadge name={e.authorName} agent={e.agent} />
       <span className="min-w-0 flex-1 text-fg-2">{describeChange(e, names)}</span>
       <time className="text-xs text-muted-foreground tabular-nums" dateTime={e.createdAt.toISOString()}>
         {formatTime(e.createdAt.toISOString())}

@@ -131,7 +131,7 @@ export const adrSystem = pgTable(
   (t) => [primaryKey({ columns: [t.adrId, t.systemId] })],
 );
 
-/** Open questions of a project, optionally tied to a system, with their answer. */
+/** Open questions of a project, optionally tied to a system, with their answer and who gave it. */
 export const question = pgTable("question", {
   id: text("id").primaryKey(),
   projectId: text("project_id")
@@ -146,6 +146,9 @@ export const question = pgTable("question", {
   agent: text("agent"),
   createdAt: timestamp("created_at", tz).notNull().defaultNow(),
   resolvedAt: timestamp("resolved_at", tz),
+  answeredByUserId: text("answered_by_user_id").references(() => user.id, { onDelete: "set null" }),
+  answeredAgent: text("answered_agent"),
+  answeredAt: timestamp("answered_at", tz),
 });
 
 /** Progress reports by people or agents about their work on a system. */

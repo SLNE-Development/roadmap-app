@@ -14,7 +14,7 @@ describe("specs", () => {
     await writeSpec(db, owner, slug, "s", { body: "# v1" });
     await writeSpec(db, withAgent(owner, "Claude Code"), slug, "s", { body: "# v2" });
     const latest = await getDocument(db, owner, slug, "s", "spec");
-    expect(latest).toMatchObject({ version: 2, body: "# v2", author: "Claude Code (for Owner)", versions: [2, 1] });
+    expect(latest).toMatchObject({ version: 2, body: "# v2", author: "Claude Code (for Owner)", authorName: "Owner", agent: "Claude Code", versions: [2, 1] });
     expect((await getDocument(db, owner, slug, "s", "spec", 1))?.body).toBe("# v1");
     await expect(getDocument(db, owner, slug, "s", "spec", 9)).rejects.toMatchObject({ status: 404, message: "System s has no spec version 9." });
   });

@@ -4,7 +4,7 @@ import { adr, ADR_STATUSES, adrSystem, project, system, user, type AdrStatus } f
 import type { Db, Executor, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema } from "./access";
-import { authorLabel, type Actor } from "./actor";
+import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem } from "./lookup";
@@ -35,12 +35,11 @@ export const updateAdrInput = z.object({
 /** Filters of {@link listAdrs}. */
 export const adrFilter = z.object({ status: z.enum(ADR_STATUSES).optional(), system: z.string().optional() });
 
-/** An ADR as listed. */
-export interface AdrSummary {
+/** An ADR as listed, with its author split into person and agent. */
+export interface AdrSummary extends AuthorFields {
   number: number;
   title: string;
   status: AdrStatus;
-  author: string;
   createdAt: Date;
   acceptedAt: Date | null;
   supersedes: number | null;
@@ -104,7 +103,7 @@ async function loadAdrs(db: Executor, projectId: string, where?: SQL): Promise<A
     number: a.number,
     title: a.title,
     status: a.status,
-    author: authorLabel(authorName, a.agent),
+    ...authorFields(authorName, a.agent),
     createdAt: a.createdAt,
     acceptedAt: a.acceptedAt,
     supersedes: a.supersedesId ? (numbers.get(a.supersedesId) ?? null) : null,
@@ -147,6 +146,8 @@ export async function listAdrs(db: Executor, actor: Actor, projectSlug: string, 
     title: a.title,
     status: a.status,
     author: a.author,
+    authorName: a.authorName,
+    agent: a.agent,
     createdAt: a.createdAt,
     acceptedAt: a.acceptedAt,
     supersedes: a.supersedes,

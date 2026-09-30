@@ -9,7 +9,7 @@ export default async function SettingsMembersPage({ params }: { params: Promise<
   const { project: slug } = await params;
   const data = await pageData(async (db, actor) => {
     const [detail, members, users] = await Promise.all([getProject(db, actor, slug), listMembers(db, actor, slug), listUsers(db)]);
-    return { role: detail.role, members, users, userId: actor.userId };
+    return { role: detail.role, members: members.map(({ joinedAt, ...m }) => ({ ...m, joinedAt: joinedAt.toISOString() })), users, userId: actor.userId };
   });
   return (
     <MemberManager

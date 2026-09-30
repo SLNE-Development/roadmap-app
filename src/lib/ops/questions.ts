@@ -1,10 +1,11 @@
 import { and, asc, desc, eq, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { question, system, user } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema } from "./access";
-import { authorLabel, type Actor } from "./actor";
+import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem } from "./lookup";
@@ -26,8 +27,8 @@ export const answerQuestionInput = z.object({
 /** Filters of {@link listQuestions}. */
 export const questionFilter = z.object({ system: z.string().optional(), resolved: z.boolean().optional() });
 
-/** An open question as listed. */
-export interface QuestionItem {
+/** An open question as listed, with who asked it and who last answered it. */
+export interface QuestionItem extends AuthorFields {
   id: string;
   title: string;
   text: string;
@@ -35,10 +36,20 @@ export interface QuestionItem {
   resolved: boolean;
   systemSlug: string | null;
   systemTitle: string | null;
-  author: string;
   createdAt: Date;
   resolvedAt: Date | null;
+  /** Who last answered, labelled like `author`; `null` while unanswered. */
+  answeredBy: string | null;
+  /** The person who last answered (`unknown` when their account is gone); `null` while unanswered. */
+  answeredByName: string | null;
+  /** The agent that answered for that person, or `null`. */
+  answeredAgent: string | null;
+  /** When the question was last answered; `null` while unanswered. */
+  answeredAt: Date | null;
 }
+
+/** The user who answered a question, joined next to the asking user. */
+const answeringUser = alias(user, "answerer");
 
 /** Loads a question of the project for update or throws `NotFoundError`. */
 async function findQuestion(tx: Executor, projectId: string, id: string) {
@@ -72,15 +83,26 @@ export async function addQuestion(db: Db, actor: Actor, projectSlug: string, raw
   });
 }
 
-/** Records the answer to a question and, by default, resolves it. Editor or higher. */
+/**
+ * Records the answer to a question, who gave it (with their agent) and when,
+ * and by default resolves it. Editor or higher.
+ */
 export async function answerQuestion(db: Db, actor: Actor, projectSlug: string, raw: z.input<typeof answerQuestionInput>): Promise<void> {
   const input = answerQuestionInput.parse(raw);
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     const current = await findQuestion(tx, project.id, input.id);
+    const now = new Date();
     await tx
       .update(question)
-      .set({ answer: input.answer, resolved: input.resolved, resolvedAt: input.resolved ? new Date() : null })
+      .set({
+        answer: input.answer,
+        resolved: input.resolved,
+        resolvedAt: input.resolved ? now : null,
+        answeredByUserId: actor.userId,
+        answeredAgent: actor.agent ?? null,
+        answeredAt: now,
+      })
       .where(eq(question.id, current.id));
     await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "answer", oldValue: current.answer, newValue: input.answer });
   });
@@ -122,11 +144,18 @@ export async function listQuestions(
       agent: question.agent,
       createdAt: question.createdAt,
       resolvedAt: question.resolvedAt,
+      answererName: answeringUser.name,
+      answeredAgent: question.answeredAgent,
+      answeredAt: question.answeredAt,
     })
     .from(question)
     .leftJoin(system, eq(system.id, question.systemId))
     .leftJoin(user, eq(user.id, question.authorUserId))
+    .leftJoin(answeringUser, eq(answeringUser.id, question.answeredByUserId))
     .where(and(...conditions))
     .orderBy(asc(question.resolved), desc(question.createdAt), desc(question.id));
-  return rows.map(({ authorName, agent, ...r }) => ({ ...r, author: authorLabel(authorName, agent) }));
+  return rows.map(({ authorName, agent, answererName, ...r }) => {
+    const answerer = r.answeredAt ? authorFields(answererName, r.answeredAgent) : null;
+    return { ...r, ...authorFields(authorName, agent), answeredBy: answerer?.author ?? null, answeredByName: answerer?.authorName ?? null };
+  });
 }

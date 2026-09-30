@@ -15,7 +15,7 @@ const PREVIEW_CHARS = 900;
 function DocumentMeta({ doc }: { doc: DocumentView }) {
   return (
     <span className="text-[12.5px] text-muted-foreground">
-      v{doc.version} · <AuthorText label={doc.author} /> · {formatDate(doc.createdAt.toISOString())}
+      v{doc.version} · <AuthorText name={doc.authorName} agent={doc.agent} /> · {formatDate(doc.createdAt.toISOString())}
     </span>
   );
 }

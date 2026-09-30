@@ -4,7 +4,6 @@ import { UnderlineTabs, withQuery } from "@/components/activity/url-tabs";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { QuestionCard } from "@/components/question-card";
 import { AskQuestionDialog } from "@/components/questions/ask-question-dialog";
-import { listActivity } from "@/lib/ops/activity";
 import { getProject } from "@/lib/ops/projects";
 import { listQuestions } from "@/lib/ops/questions";
 import { listSystems } from "@/lib/ops/systems";
@@ -25,21 +24,9 @@ export default async function QuestionsPage({
   const { project: slug } = await params;
   const sp = await searchParams;
   const tab = sp.tab === "resolved" ? "resolved" : "open";
-  const { questions, systems, detail, answers } = await pageData(async (db, actor) => {
-    const [questions, systems, detail, log] = await Promise.all([
-      listQuestions(db, actor, slug),
-      listSystems(db, actor, slug),
-      getProject(db, actor, slug),
-      listActivity(db, actor, slug, { limit: 500 }),
-    ]);
-    // The newest "answer" entry of each question names who answered it and when.
-    const answers = new Map<string, { author: string; createdAt: string }>();
-    for (const e of log) {
-      if (e.entity === "question" && e.field === "answer" && !answers.has(e.entityId)) {
-        answers.set(e.entityId, { author: e.author, createdAt: e.createdAt.toISOString() });
-      }
-    }
-    return { questions, systems, detail, answers };
+  const { questions, systems, detail } = await pageData(async (db, actor) => {
+    const [questions, systems, detail] = await Promise.all([listQuestions(db, actor, slug), listSystems(db, actor, slug), getProject(db, actor, slug)]);
+    return { questions, systems, detail };
   });
   const canEdit = detail.role !== "viewer";
   const system = systems.find((s) => s.slug === sp.system);
@@ -97,9 +84,10 @@ export default async function QuestionsPage({
                 resolved: q.resolved,
                 systemSlug: q.systemSlug,
                 systemTitle: q.systemTitle,
-                author: q.author,
+                authorName: q.authorName,
+                agent: q.agent,
                 createdAt: q.createdAt.toISOString(),
-                answeredBy: answers.get(q.id) ?? null,
+                answeredBy: q.answeredAt ? { name: q.answeredByName ?? "unknown", agent: q.answeredAgent, at: q.answeredAt.toISOString() } : null,
               }}
             />
           ))}
