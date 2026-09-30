@@ -9,9 +9,18 @@ import { getDb } from "@/db/client";
 import { account, apikey, session, user, verification } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { isAllowed, linkDiscordAccount } from "@/lib/ops/users";
+import { API_KEY_RATE_LIMIT } from "./rate-limit";
 
 /** Message shown when a Discord account that was not provisioned tries to sign in. */
 export const NOT_PROVISIONED = "Your Discord account has not been added. Ask an admin.";
+
+/**
+ * Error code of a sign-in refused by the allowlist. The OAuth callback turns an
+ * `APIError` carrying a `code` into a redirect to the error URL with
+ * `?error=<code>&error_description=<message>`; without a code the error would
+ * surface as a bare 403 JSON response.
+ */
+export const NOT_PROVISIONED_CODE = "NOT_PROVISIONED";
 
 /**
  * Returns the value of a required environment variable.
@@ -71,13 +80,13 @@ function createAuth() {
           before: async (data) => {
             const discordId = await discordIdOf(db, data.userId);
             if (!discordId || !(await isAllowed(db, discordId))) {
-              throw new APIError("FORBIDDEN", { message: NOT_PROVISIONED });
+              throw new APIError("FORBIDDEN", { code: NOT_PROVISIONED_CODE, message: NOT_PROVISIONED });
             }
           },
         },
       },
     },
-    plugins: [apiKey({ defaultPrefix: "rmk_", rateLimit: { enabled: true, timeWindow: 60_000, maxRequests: 600 } }), nextCookies()],
+    plugins: [apiKey({ defaultPrefix: "rmk_", rateLimit: { enabled: true, ...API_KEY_RATE_LIMIT } }), nextCookies()],
   });
 }
 

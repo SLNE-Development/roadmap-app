@@ -1,15 +1,26 @@
 import { CircleAlert } from "lucide-react";
 import { SignInButton } from "./sign-in-button";
 
-/** Human messages for the error codes Better Auth and the sign-in button put in `?error=`. */
+/** The message for a Discord account that is not on the allowlist. */
+const NOT_ON_ALLOWLIST = "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.";
+
+/** The message for an expired or foreign OAuth state. */
+const RESTART = "The sign-in took too long or was started in another tab. Please try again.";
+
+/**
+ * Human messages for the lower-cased `?error=` codes the Better Auth OAuth callback
+ * redirects with. `not_provisioned` is the code our session hook throws for accounts
+ * missing from the allowlist; `unable_to_create_session` is what Better Auth sends when a
+ * hook vetoes the session without a code.
+ */
 const ERROR_MESSAGES: Record<string, string> = {
-  not_provisioned: "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.",
-  forbidden: "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.",
-  unable_to_create_session: "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.",
-  signin: "Sign-in failed. If your Discord account hasn’t been added yet, ask an admin. Otherwise try again.",
+  not_provisioned: NOT_ON_ALLOWLIST,
+  unable_to_create_session: NOT_ON_ALLOWLIST,
   access_denied: "Discord sign-in was cancelled. Try again when you’re ready.",
-  state_mismatch: "The sign-in took too long or was started in another tab. Please try again.",
-  please_restart_the_process: "The sign-in took too long or was started in another tab. Please try again.",
+  state_mismatch: RESTART,
+  state_not_found: RESTART,
+  state_invalid: RESTART,
+  please_restart_the_process: RESTART,
   unable_to_get_user_info: "Discord didn’t send your account details. Please try again.",
 };
 
@@ -17,7 +28,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 function messageFor(code: string): { text: string; known: boolean } {
   const key = code.toLowerCase();
   const provisioning = key.includes("not_been_added") || key.includes("allowlist") || key.includes("provision");
-  const text = provisioning ? ERROR_MESSAGES.not_provisioned : ERROR_MESSAGES[key];
+  const text = provisioning ? NOT_ON_ALLOWLIST : ERROR_MESSAGES[key];
   return text ? { text, known: true } : { text: "Sign-in failed. Please try again, or ask an admin if it keeps happening.", known: false };
 }
 
@@ -52,8 +63,10 @@ function Logo() {
  *
  * @param props.searchParams carries `error` after a rejected sign-in
  */
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string | string[] }> }) {
+  const params = await searchParams;
+  // A repeated `error` arrives as an array; the last one is the most specific.
+  const error = Array.isArray(params.error) ? params.error.at(-1) : params.error;
   const message = error ? messageFor(error) : null;
   return (
     <main className="grid min-h-dvh grid-rows-[auto_1fr] bg-background text-foreground lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:grid-rows-none">

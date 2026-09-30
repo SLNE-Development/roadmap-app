@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { Db } from "@/db/types";
+import { ApiKeyRateLimitedError } from "@/lib/auth/rate-limit";
 import type { Actor } from "@/lib/ops/actor";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
@@ -90,5 +91,34 @@ describe("REST", () => {
     expect((await send(db, stranger, "GET", "/nope")).status).toBe(404);
     const hidden = await send(db, stranger, "GET", `/projects/${slug}/systems`);
     expect(hidden).toEqual({ status: 404, json: { error: `Unknown project ${slug}.` } });
+  });
+
+  it("coerces numeric path parameters and reports a missing id as required", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await send(db, owner, "POST", `/projects/${slug}/systems`, { slug: "s", title: "S" });
+    const task = await send(db, owner, "POST", `/projects/${slug}/systems/s/tasks`, { title: "First" });
+    expect(task.status).toBe(200);
+    const renamed = await send(db, owner, "PATCH", `/tasks/${task.json.id}`, { title: "Renamed" });
+    expect(renamed.status).toBe(200);
+    const system = await send(db, owner, "GET", `/projects/${slug}/systems/s`);
+    expect(system.json.tasks.map((t: { title: string }) => t.title)).toEqual(["Renamed"]);
+    expect((await send(db, owner, "PATCH", "/tasks/abc", { title: "x" })).json.error).toContain("expected number");
+  });
+
+  it("answers a rate-limited key with 429 and Retry-After", async () => {
+    const db = await createTestDb();
+    const request = new Request("http://test/api/v1/projects", { method: "GET" });
+    const response = await handleRest(request, ["projects"], {
+      db,
+      resolveActor: async () => {
+        throw new ApiKeyRateLimitedError(42);
+      },
+    });
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("42");
+    expect(await response.json()).toEqual({
+      error: "API key rate limit exceeded: at most 600 requests per minute. Retry in 42 s.",
+    });
   });
 });

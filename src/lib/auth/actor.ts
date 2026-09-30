@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import type { Actor } from "@/lib/ops/actor";
 import { loadActor } from "@/lib/ops/users";
 import { bearerToken } from "./bearer";
+import { rateLimitOf } from "./rate-limit";
 import { getAuth } from "./server";
 
 /** Returns the signed-in actor of the current request, or `null` without a valid, provisioned session. */
@@ -22,12 +23,18 @@ export async function requireActor(): Promise<Actor> {
 
 /**
  * Returns the actor owning the API key in the request's bearer header, or `null`
- * when the key is missing, invalid, expired, rate limited, or its owner is no longer provisioned.
+ * when the key is missing, invalid, expired, disabled, or its owner is no longer provisioned.
+ *
+ * @throws ApiKeyRateLimitedError when the key is valid but over its rate limit
  */
 export async function bearerActor(request: Request): Promise<Actor | null> {
   const key = bearerToken(request.headers.get("authorization"));
   if (!key) return null;
   const result = await getAuth().api.verifyApiKey({ body: { key } });
-  if (!result.valid || !result.key) return null;
+  if (!result.valid || !result.key) {
+    const limited = rateLimitOf(result.error);
+    if (limited) throw limited;
+    return null;
+  }
   return loadActor(getDb(), result.key.referenceId);
 }
