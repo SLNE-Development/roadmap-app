@@ -1,5 +1,6 @@
 {
   "name": "surf-roadmap",
+  "description": "Roadmap-driven workflow for Claude Code: planning interviews, specs, plans, ADRs and questions in the roadmap app instead of repository files, plus the surf conventions and model-pinned subagents.",
   "owner": { "name": "SLNE Development", "url": "https://github.com/SLNE-Development" },
   "plugins": [
     {
