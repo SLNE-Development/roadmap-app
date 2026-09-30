@@ -13,3 +13,4 @@ npm-debug.log*
 next-env.d.ts
 .superpowers/
 .claude/settings.local.json
+/dist
