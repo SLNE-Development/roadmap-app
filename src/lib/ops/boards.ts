@@ -21,9 +21,16 @@ export const DEFAULT_COLUMNS: readonly { name: string; category: ColumnCategory 
 
 /**
  * Returns why a column set is not a valid board, or `null` when it is: a board
- * has exactly one planning column and at least one done column.
+ * has exactly one planning column, at least one done column and unique names
+ * (ignoring case and surrounding space).
  */
-export function columnRuleViolation(columns: { category: ColumnCategory }[]): string | null {
+export function columnRuleViolation(columns: { name: string; category: ColumnCategory }[]): string | null {
+  const names = new Set<string>();
+  for (const c of columns) {
+    const name = c.name.trim().toLowerCase();
+    if (names.has(name)) return `Column names must be unique on a board; "${name}" appears twice.`;
+    names.add(name);
+  }
   const planning = columns.filter((c) => c.category === "planning").length;
   if (planning !== 1) return `A board needs exactly one planning column; this has ${planning}.`;
   if (!columns.some((c) => c.category === "done")) return "A board needs at least one done column.";
@@ -107,6 +114,16 @@ export async function updateBoard(
     if (patch.name !== undefined && patch.name !== current.name) {
       await logChange(tx, actor, { projectId: project.id, entity: "board", entityId: current.id, field: "name", oldValue: current.name, newValue: patch.name });
     }
+    if (patch.sortOrder !== undefined && patch.sortOrder !== current.sortOrder) {
+      await logChange(tx, actor, {
+        projectId: project.id,
+        entity: "board",
+        entityId: current.id,
+        field: "position",
+        oldValue: String(current.sortOrder + 1),
+        newValue: String(patch.sortOrder + 1),
+      });
+    }
     if (patch.name !== undefined || patch.sortOrder !== undefined) {
       await tx.update(board).set(patch).where(eq(board.id, current.id));
     }
@@ -143,6 +160,10 @@ export async function setBoardColumns(
       if (seen.has(c.id)) throw new InvalidError(`Column ${c.id} is listed twice.`);
       seen.add(c.id);
     }
+    const unchanged =
+      columns.length === current.columns.length &&
+      columns.every((c, i) => c.id === current.columns[i].id && c.name === current.columns[i].name && c.category === current.columns[i].category);
+    if (unchanged) return current;
     const keptIds = new Set(columns.flatMap((c) => (c.id ? [c.id] : [])));
     const removed = current.columns.filter((c) => !keptIds.has(c.id));
     if (removed.length > 0) {

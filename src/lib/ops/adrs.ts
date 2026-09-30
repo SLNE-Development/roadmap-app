@@ -184,10 +184,17 @@ export async function updateAdr(db: Db, actor: Actor, projectSlug: string, numbe
     if (current.status !== "proposed") {
       throw new ConflictError(`ADR ${formatAdrNumber(number)} is ${current.status} and can no longer be edited; write a new ADR that supersedes it.`);
     }
-    const fields = Object.keys({ ...patch, ...(systems ? { systems } : {}) });
+    const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) => value !== current[key as keyof typeof patch]));
+    const linked = systems
+      ? (await tx.select({ slug: system.slug }).from(adrSystem).innerJoin(system, eq(system.id, adrSystem.systemId)).where(eq(adrSystem.adrId, current.id)))
+          .map((l) => l.slug)
+          .sort()
+      : [];
+    const systemsChanged = systems !== undefined && [...new Set(systems)].sort().join(",") !== linked.join(",");
+    const fields = [...Object.keys(changed), ...(systemsChanged ? ["systems"] : [])];
     if (fields.length === 0) return;
-    if (Object.keys(patch).length > 0) await tx.update(adr).set(patch).where(eq(adr.id, current.id));
-    if (systems) await linkSystems(tx, found.project.id, current.id, systems);
+    if (Object.keys(changed).length > 0) await tx.update(adr).set(changed).where(eq(adr.id, current.id));
+    if (systemsChanged && systems) await linkSystems(tx, found.project.id, current.id, systems);
     await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: current.id, field: "edited", newValue: fields.join(", ") });
   });
 }

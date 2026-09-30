@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
@@ -94,6 +95,17 @@ describe("ADRs", () => {
     const before = await count();
     await updateAdr(db, owner, slug, number, {});
     expect(await count()).toBe(before);
+  });
+
+  it("logs only the fields an edit really changes", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const { number } = await createAdr(db, owner, slug, body("A"));
+    const edits = async () => (await db.select().from(changeLog).where(eq(changeLog.field, "edited"))).map((r) => r.newValue);
+    await updateAdr(db, owner, slug, number, { title: "A", decision: "Something else" });
+    expect(await edits()).toEqual(["decision"]);
+    await updateAdr(db, owner, slug, number, { ...body("A"), decision: "Something else", systems: [] });
+    expect(await edits()).toEqual(["decision"]);
   });
 
   it("reports unknown numbers", async () => {

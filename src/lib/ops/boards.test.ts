@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { system } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
+import { changeLog, system, type ColumnCategory } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { columnRuleViolation, createBoard, listBoards, setBoardColumns, updateBoard } from "./boards";
@@ -7,12 +8,17 @@ import { findBoard } from "./lookup";
 
 describe("columnRuleViolation", () => {
   it("demands exactly one planning column and at least one done column", () => {
-    expect(columnRuleViolation([{ category: "planning" }, { category: "done" }])).toBeNull();
-    expect(columnRuleViolation([{ category: "todo" }, { category: "done" }])).toBe(
-      "A board needs exactly one planning column; this has 0.",
+    const col = (name: string, category: ColumnCategory) => ({ name, category });
+    expect(columnRuleViolation([col("A", "planning"), col("B", "done")])).toBeNull();
+    expect(columnRuleViolation([col("A", "todo"), col("B", "done")])).toBe("A board needs exactly one planning column; this has 0.");
+    expect(columnRuleViolation([col("A", "planning"), col("B", "planning"), col("C", "done")])).toMatch(/has 2/);
+    expect(columnRuleViolation([col("A", "planning"), col("B", "todo")])).toBe("A board needs at least one done column.");
+  });
+
+  it("demands unique names, ignoring case and surrounding space", () => {
+    expect(columnRuleViolation([{ name: "Review", category: "planning" }, { name: " review ", category: "done" }])).toBe(
+      'Column names must be unique on a board; "review" appears twice.',
     );
-    expect(columnRuleViolation([{ category: "planning" }, { category: "planning" }, { category: "done" }])).toMatch(/has 2/);
-    expect(columnRuleViolation([{ category: "planning" }, { category: "todo" }])).toBe("A board needs at least one done column.");
   });
 });
 
@@ -32,6 +38,15 @@ describe("boards", () => {
     expect(boards[1].columns).toHaveLength(6);
     await updateBoard(db, owner, slug, "building", { name: "Map building" });
     expect((await listBoards(db, owner, slug))[1].name).toBe("Map building");
+  });
+
+  it("logs a position change when the sort order moves", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    await updateBoard(db, owner, slug, "development", { sortOrder: 3 });
+    const rows = await db.select().from(changeLog).where(and(eq(changeLog.projectId, projectId), eq(changeLog.field, "position")));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ entity: "board", field: "position", oldValue: "1", newValue: "4" });
   });
 });
 
@@ -54,6 +69,30 @@ describe("setBoardColumns", () => {
       ["Shipped", "done", 2],
     ]);
     expect(result.columns[0].id).toBe(planning.id);
+  });
+
+  it("rejects duplicate column names", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await expect(
+      setBoardColumns(db, owner, slug, "development", {
+        columns: [
+          { name: "Plan", category: "planning" },
+          { name: "Review", category: "active" },
+          { name: "review", category: "done" },
+        ],
+      }),
+    ).rejects.toMatchObject({ status: 409, message: 'Column names must be unique on a board; "review" appears twice.' });
+  });
+
+  it("writes no log row when the columns are unchanged", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const dev = await findBoard(db, projectId, "development");
+    const count = async () => (await db.select().from(changeLog)).length;
+    const before = await count();
+    await setBoardColumns(db, owner, slug, "development", { columns: dev.columns.map((c) => ({ id: c.id, name: c.name, category: c.category })) });
+    expect(await count()).toBe(before);
   });
 
   it("enforces the board rules", async () => {
