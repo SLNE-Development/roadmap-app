@@ -16,6 +16,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   projects: ["projects", "boards", "systems", "structure", "members", "history"],
   account: ["account", "members"],
   history: ["history"],
+  prefs: ["prefs"],
 };
 
 /**

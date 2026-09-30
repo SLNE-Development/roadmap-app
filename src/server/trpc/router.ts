@@ -6,6 +6,7 @@ import { boardsRouter } from "./routers/boards";
 import { historyRouter } from "./routers/history";
 import { membersRouter } from "./routers/members";
 import { planningRouter } from "./routers/planning";
+import { prefsRouter } from "./routers/prefs";
 import { projectsRouter } from "./routers/projects";
 import { questionsRouter } from "./routers/questions";
 import { structureRouter } from "./routers/structure";
@@ -28,6 +29,7 @@ export const appRouter = router({
   adrs: adrsRouter,
   planning: planningRouter,
   history: historyRouter,
+  prefs: prefsRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */
