@@ -113,7 +113,7 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
 function DangerZone({ slug }: { slug: string }) {
   const router = useRouter();
   const trpc = useTRPC();
-  const remove = useMutation(trpc.projects.delete.mutationOptions());
+  const remove = useMutation({ ...trpc.projects.delete.mutationOptions(), meta: { leavesProject: slug } });
   const pending = remove.isPending;
   const [confirm, setConfirm] = useState("");
   return (

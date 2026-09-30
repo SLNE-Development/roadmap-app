@@ -7,7 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import superjson from "superjson";
 import type { AppRouter } from "@/server/trpc/router";
-import { makeQueryClient } from "./query-client";
+import { makeQueryClient, queryProject } from "./query-client";
 
 /** The typed tRPC hooks: `useTRPC()` returns query and mutation options for every procedure. */
 export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
@@ -17,6 +17,8 @@ declare module "@tanstack/react-query" {
     mutationMeta: {
       /** Skip the automatic error toast; the caller shows the error itself. */
       quiet?: boolean;
+      /** Slug of a project the user no longer has access to once the mutation succeeds. */
+      leavesProject?: string;
     };
   }
 }
@@ -25,12 +27,21 @@ declare module "@tanstack/react-query" {
  * Creates the browser's query client. After every successful mutation all
  * queries are invalidated and refetched before the mutation settles, so the
  * page shows the change once `onSuccess` runs, as server actions with
- * `revalidatePath` did. Failed mutations toast their message.
+ * `revalidatePath` did. A mutation that leaves a project instead drops that
+ * project's queries, which could only fail now, and refetches the rest. Failed
+ * mutations toast their message.
  */
 function makeBrowserQueryClient(): QueryClient {
   const client: QueryClient = makeQueryClient({
     mutationCache: new MutationCache({
-      onSuccess: () => client.invalidateQueries(),
+      onSuccess: (_data, _variables, _context, mutation) => {
+        const slug = mutation.meta?.leavesProject;
+        if (slug) {
+          client.removeQueries({ predicate: (q) => queryProject(q.queryKey) === slug });
+          return client.invalidateQueries({ predicate: (q) => queryProject(q.queryKey) !== slug });
+        }
+        return client.invalidateQueries();
+      },
       onError: (error, _variables, _context, mutation) => {
         if (!mutation.meta?.quiet) toast.error(error.message);
       },

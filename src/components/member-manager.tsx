@@ -161,17 +161,20 @@ export function MemberManager({
   const remove = useMutation(
     trpc.members.remove.mutationOptions({
       onMutate: ({ userId: removed }) => members.find((m) => m.userId === removed)?.name,
-      onSuccess: (_data, { userId: removed }, name) => {
-        if (removed === currentUserId) {
-          toast.success("You left the project");
-          router.push("/");
-          return;
-        }
-        toast.success(`${name ?? "Member"} removed`);
-      },
+      onSuccess: (_data, _variables, name) => toast.success(`${name ?? "Member"} removed`),
     }),
   );
-  const pending = set.isPending || remove.isPending;
+  // Removing yourself drops the project's queries, which would only fail once access is gone.
+  const leave = useMutation({
+    ...trpc.members.remove.mutationOptions({
+      onSuccess: () => {
+        toast.success("You left the project");
+        router.push("/");
+      },
+    }),
+    meta: { leavesProject: projectSlug },
+  });
+  const pending = set.isPending || remove.isPending || leave.isPending;
   const candidates = users.filter((u) => !members.some((m) => m.userId === u.id));
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState<ProjectRole>("editor");
@@ -256,7 +259,7 @@ export function MemberManager({
                         <AlertDialogCancel>Keep</AlertDialogCancel>
                         <AlertDialogAction
                           variant="destructive"
-                          onClick={() => remove.mutate({ project: projectSlug, userId: m.userId })}
+                          onClick={() => (you ? leave : remove).mutate({ project: projectSlug, userId: m.userId })}
                         >
                           Remove
                         </AlertDialogAction>
