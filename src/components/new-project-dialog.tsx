@@ -1,15 +1,15 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { createProjectAction } from "@/app/(app)/(global)/actions";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useTRPC } from "@/trpc/client";
 
 /** Turns a name into a slug suggestion: lowercase words joined by dashes. */
 function slugify(name: string): string {
@@ -28,7 +28,8 @@ function slugify(name: string): string {
 export function NewProjectDialog({ variant = "button" }: { variant?: "button" | "tile" }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const trpc = useTRPC();
+  const create = useMutation(trpc.projects.create.mutationOptions());
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -58,12 +59,15 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            startTransition(async () => {
-              const result = await createProjectAction({ name, slug, description, repoUrl: repoUrl.trim() || null });
-              if (!result.ok) return void toast.error(result.error);
-              setOpen(false);
-              router.push(`/p/${result.value.slug}`);
-            });
+            create.mutate(
+              { name, slug, description, repoUrl: repoUrl.trim() || null },
+              {
+                onSuccess: ({ slug }) => {
+                  setOpen(false);
+                  router.push(`/p/${slug}`);
+                },
+              },
+            );
           }}
         >
           <DialogHeader>
@@ -106,7 +110,7 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button type="submit" disabled={pending || !name.trim() || !slug.trim()}>
+            <Button type="submit" disabled={create.isPending || !name.trim() || !slug.trim()}>
               Create project
             </Button>
           </DialogFooter>

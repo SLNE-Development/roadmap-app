@@ -1,18 +1,17 @@
-import { AppShell } from "@/components/shell/app-shell";
-import { listProjects } from "@/lib/ops/projects";
-import { pageData } from "@/lib/page";
+import { GlobalShell } from "@/components/shell/shells";
+import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 
 /**
- * Shell of the pages outside a project (home, API keys, accounts): the sidebar
- * lists the projects instead of a project's sections.
+ * Shell of the pages outside a project (home, API keys, accounts): prefetches
+ * the user and their projects for the sidebar.
  *
  * @param props.children the page content
  */
 export default async function GlobalLayout({ children }: { children: React.ReactNode }) {
-  const { actor, projects } = await pageData(async (db, actor) => ({ actor, projects: await listProjects(db, actor) }));
+  await prefetch(trpc.account.me.queryOptions(), trpc.projects.list.queryOptions());
   return (
-    <AppShell actor={{ name: actor.name, isAdmin: actor.isAdmin }} projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}>
-      {children}
-    </AppShell>
+    <HydrateClient>
+      <GlobalShell>{children}</GlobalShell>
+    </HydrateClient>
   );
 }

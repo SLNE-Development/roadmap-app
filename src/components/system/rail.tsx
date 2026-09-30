@@ -1,7 +1,8 @@
 import { Check, Lock } from "lucide-react";
 import Link from "next/link";
 import { ConfirmationQuote } from "@/components/planning-rounds";
-import { formatAdrNumber, type AdrSummary } from "@/lib/ops/adrs";
+import { formatAdrNumber } from "@/lib/adr-number";
+import type { AdrSummary } from "@/lib/ops/adrs";
 import type { PlanningView } from "@/lib/ops/planning";
 import type { QuestionItem } from "@/lib/ops/questions";
 import { gapLine } from "./text";

@@ -1,26 +1,8 @@
-import { Activity } from "lucide-react";
-import Link from "next/link";
-import { FilterChip, ToggleChip } from "@/components/activity/filter-chip";
-import { changeItems, Timeline, updateItems, type TimelineItem } from "@/components/activity/timeline";
-import { SegmentedLinks, withQuery } from "@/components/activity/url-tabs";
-import { EmptyState, Page, PageHeader } from "@/components/page";
-import { Button } from "@/components/ui/button";
-import type { ColumnCategory } from "@/db/schema";
-import { listActivity, type HistoryEntry } from "@/lib/ops/activity";
-import { getProject } from "@/lib/ops/projects";
-import { listSystems } from "@/lib/ops/systems";
-import { listUpdates, type UpdateItem } from "@/lib/ops/updates";
-import { pageData, toIso } from "@/lib/page";
+import { HydrateClient, prefetch, trpc } from "@/trpc/server";
+import { ActivityView, type ActivityKind } from "./activity-view";
 
 /** How many entries the timeline shows at most. */
 const LIMIT = 200;
-
-/** The kinds of the segmented control. */
-const KINDS = [
-  { value: null, label: "All" },
-  { value: "updates", label: "Updates" },
-  { value: "changes", label: "Changes" },
-] as const;
 
 /** Returns a search parameter's single value. */
 function one(value: string | string[] | undefined): string | undefined {
@@ -40,74 +22,21 @@ export default async function ActivityPage({
 }) {
   const { project: slug } = await params;
   const sp = await searchParams;
-  const kind = one(sp.kind) === "updates" || one(sp.kind) === "changes" ? (one(sp.kind) as "updates" | "changes") : undefined;
+  const kind = one(sp.kind) === "updates" || one(sp.kind) === "changes" ? (one(sp.kind) as ActivityKind) : undefined;
   const person = one(sp.person);
   const agentsOnly = one(sp.agents) === "1";
 
-  const data = await pageData(async (db, actor) => {
-    const [detail, systems] = await Promise.all([getProject(db, actor, slug), listSystems(db, actor, slug)]);
-    const system = systems.find((s) => s.slug === one(sp.system));
-    const filter = { system: system?.slug, limit: LIMIT };
-    const [updates, changes] = await Promise.all([
-      kind === "changes" ? ([] as UpdateItem[]) : listUpdates(db, actor, slug, filter),
-      kind === "updates" ? ([] as HistoryEntry[]) : listActivity(db, actor, slug, filter),
-    ]);
-    return { detail, systems, system, updates, changes };
-  });
-
-  const systemsById = new Map(data.systems.map((s) => [s.id, { slug: s.slug, title: s.title }]));
-  const columns = new Map<string, ColumnCategory>(data.detail.boards.flatMap((b) => b.columns.map((c) => [`${b.name} / ${c.name}`, c.category] as const)));
-  const all: TimelineItem[] = [...updateItems(data.updates.map(toIso)), ...changeItems(data.changes.map(toIso), systemsById, columns)];
-  const people = [...new Set(all.map((i) => i.authorName))].sort((a, b) => a.localeCompare(b));
-  const items = all
-    .filter((i) => (!person || i.authorName === person) && (!agentsOnly || i.agent !== null))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, LIMIT);
-
-  const path = `/p/${slug}/activity`;
-  const query = { kind, person, system: data.system?.slug, agents: agentsOnly ? "1" : undefined };
-  const filtered = Boolean(person || data.system || agentsOnly);
+  const [, systems] = await prefetch(trpc.projects.get.queryOptions({ project: slug }), trpc.systems.list.queryOptions({ project: slug }));
+  const system = systems.find((s) => s.slug === one(sp.system))?.slug;
+  const filter = { system, limit: LIMIT };
+  await prefetch(
+    ...(kind === "changes" ? [] : [trpc.history.updates.queryOptions({ project: slug, filter })]),
+    ...(kind === "updates" ? [] : [trpc.history.activity.queryOptions({ project: slug, filter })]),
+  );
 
   return (
-    <Page width="narrow">
-      <PageHeader crumbs={[{ label: data.detail.project.name, href: `/p/${slug}` }]} title="Activity" />
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedLinks
-          label="Kind"
-          items={KINDS.map((k) => ({ label: k.label, href: withQuery(path, query, { kind: k.value }), active: (kind ?? null) === k.value }))}
-        />
-        <FilterChip
-          label="Person"
-          clearHref={withQuery(path, query, { person: null })}
-          options={people.map((p) => ({ label: p, href: withQuery(path, query, { person: p }), selected: p === person }))}
-        />
-        <FilterChip
-          label="System"
-          clearHref={withQuery(path, query, { system: null })}
-          options={data.systems.map((s) => ({ label: s.title, href: withQuery(path, query, { system: s.slug }), selected: s.slug === data.system?.slug }))}
-        />
-        <ToggleChip label="Agents only" on={agentsOnly} href={withQuery(path, query, { agents: agentsOnly ? null : "1" })} />
-      </div>
-      {items.length === 0 ? (
-        <EmptyState
-          icon={<Activity />}
-          title={filtered ? "Nothing matches these filters" : "No activity yet"}
-          description={
-            filtered
-              ? "Try another person or system, or clear the filters."
-              : "Progress updates and every change to systems, tasks and decisions show up here."
-          }
-          action={
-            filtered && (
-              <Button asChild variant="outline" size="sm">
-                <Link href={withQuery(path, { kind }, {})}>Clear filters</Link>
-              </Button>
-            )
-          }
-        />
-      ) : (
-        <Timeline items={items} projectSlug={slug} />
-      )}
-    </Page>
+    <HydrateClient>
+      <ActivityView slug={slug} kind={kind} person={person} system={system} agentsOnly={agentsOnly} limit={LIMIT} />
+    </HydrateClient>
   );
 }

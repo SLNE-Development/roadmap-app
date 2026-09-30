@@ -1,9 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Check, Lock, Minus, Plus, TrashIcon, UserRound } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { addTaskAction, deleteTaskAction, updateTaskAction } from "@/app/(app)/p/[project]/actions";
 import { ProgressBar } from "@/components/page";
 import {
   AlertDialog,
@@ -32,9 +32,9 @@ import { Kbd } from "@/components/ui/kbd";
 import { TASK_STATES, type ColumnCategory, type TaskState } from "@/db/schema";
 import type { TaskItem } from "@/lib/ops/systems";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { CATEGORY_CLASS, CATEGORY_TEXT, CategoryDot, STATE_CATEGORY, STATE_LABEL } from "./chips";
 import { PersonAvatar } from "./person-avatar";
-import { useAction } from "./use-action";
 
 /** Above this many tasks, done tasks start hidden behind a "Show N done" toggle. */
 const COLLAPSE_AT = 8;
@@ -80,7 +80,11 @@ function TaskRow({
   canEdit: boolean;
   planningComplete: boolean;
 }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const update = useMutation(trpc.tasks.update.mutationOptions());
+  // A deleted task's row unmounts, so the toast lives on the mutation.
+  const remove = useMutation(trpc.tasks.delete.mutationOptions({ onSuccess: () => toast.success("Task deleted") }));
+  const pending = update.isPending || remove.isPending;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const locked = (s: TaskState) => !planningComplete && (s === "doing" || s === "done");
   const category = STATE_CATEGORY[task.state];
@@ -103,7 +107,7 @@ function TaskRow({
             <DropdownMenuLabel>State</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={task.state}
-              onValueChange={(v) => act(() => updateTaskAction(task.id, { state: v as TaskState }))}
+              onValueChange={(v) => update.mutate({ id: task.id, patch: { state: v as TaskState } })}
             >
               {TASK_STATES.map((s) => (
                 <DropdownMenuRadioItem key={s} value={s} disabled={locked(s)}>
@@ -129,9 +133,9 @@ function TaskRow({
                   value={task.ownerUserId ?? ""}
                   onValueChange={(v) => {
                     const name = members.find((m) => m.userId === v)?.name;
-                    act(
-                      () => updateTaskAction(task.id, { ownerUserId: v || null }),
-                      () => toast.success(name ? `${name} owns “${task.title}”` : `“${task.title}” has no owner`),
+                    update.mutate(
+                      { id: task.id, patch: { ownerUserId: v || null } },
+                      { onSuccess: () => toast.success(name ? `${name} owns “${task.title}”` : `“${task.title}” has no owner`) },
                     );
                   }}
                 >
@@ -171,7 +175,7 @@ function TaskRow({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => act(() => deleteTaskAction(task.id), () => toast.success("Task deleted"))}>
+            <AlertDialogAction variant="destructive" onClick={() => remove.mutate({ id: task.id })}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -205,7 +209,9 @@ export function TaskList({
   planningComplete: boolean;
   category: ColumnCategory;
 }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const add = useMutation(trpc.tasks.add.mutationOptions());
+  const pending = add.isPending;
   const [title, setTitle] = useState("");
   const done = tasks.filter((t) => t.state === "done").length;
   const collapsible = tasks.length > COLLAPSE_AT && done > 0;
@@ -258,10 +264,7 @@ export function TaskList({
           onSubmit={(e) => {
             e.preventDefault();
             if (!title.trim()) return;
-            act(
-              () => addTaskAction(projectSlug, systemSlug, { title: title.trim() }),
-              () => setTitle(""),
-            );
+            add.mutate({ project: projectSlug, system: systemSlug, task: { title: title.trim() } }, { onSuccess: () => setTitle("") });
           }}
         >
           <Plus aria-hidden className="size-[18px] shrink-0" />

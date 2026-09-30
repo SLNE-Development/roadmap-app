@@ -1,8 +1,5 @@
-import { Page, PageHeader } from "@/components/page";
-import { SettingsNav } from "@/components/settings/settings-nav";
-import { listMembers } from "@/lib/ops/members";
-import { getProject } from "@/lib/ops/projects";
-import { pageData } from "@/lib/page";
+import { HydrateClient, prefetch, trpc } from "@/trpc/server";
+import { SettingsFrame } from "./settings-frame";
 
 /**
  * Frame of the project settings pages: the header and a sub-navigation beside
@@ -12,17 +9,10 @@ import { pageData } from "@/lib/page";
  */
 export default async function SettingsLayout({ children, params }: { children: React.ReactNode; params: Promise<{ project: string }> }) {
   const { project: slug } = await params;
-  const { detail, members } = await pageData(async (db, actor) => {
-    const [detail, members] = await Promise.all([getProject(db, actor, slug), listMembers(db, actor, slug)]);
-    return { detail, members };
-  });
+  await prefetch(trpc.projects.get.queryOptions({ project: slug }), trpc.members.list.queryOptions({ project: slug }));
   return (
-    <Page width="wide">
-      <PageHeader crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]} title="Project settings" />
-      <div className="grid items-start gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
-        <SettingsNav projectSlug={slug} memberCount={members.length} boardCount={detail.boards.length} />
-        <div className="min-w-0">{children}</div>
-      </div>
-    </Page>
+    <HydrateClient>
+      <SettingsFrame slug={slug}>{children}</SettingsFrame>
+    </HydrateClient>
   );
 }

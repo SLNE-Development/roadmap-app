@@ -1,13 +1,14 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { deleteProjectAction, updateProjectAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useTRPC } from "@/trpc/client";
 
 /** Label style shared by the settings forms. */
 const LABEL = "text-[12.5px] font-semibold text-fg-2";
@@ -40,7 +41,9 @@ export function ProjectSettings({
 
 /** The editable General panel. */
 function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name: string; description: string; repoUrl: string | null }) {
-  const [pending, startTransition] = useTransition();
+  const trpc = useTRPC();
+  const update = useMutation(trpc.projects.update.mutationOptions());
+  const pending = update.isPending;
   const [draft, setDraft] = useState({ name, description, repoUrl: repoUrl ?? "" });
   const dirty = draft.name !== name || draft.description !== description || draft.repoUrl !== (repoUrl ?? "");
   return (
@@ -49,11 +52,10 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
       className="flex flex-col gap-4 border bg-card p-4 sm:p-5"
       onSubmit={(e) => {
         e.preventDefault();
-        startTransition(async () => {
-          const result = await updateProjectAction(slug, { ...draft, repoUrl: draft.repoUrl.trim() || null });
-          if (result.ok) toast.success("Settings saved");
-          else toast.error(result.error);
-        });
+        update.mutate(
+          { project: slug, patch: { ...draft, repoUrl: draft.repoUrl.trim() || null } },
+          { onSuccess: () => toast.success("Settings saved") },
+        );
       }}
     >
       <h2 className="font-display text-[19px] font-semibold">General</h2>
@@ -110,7 +112,9 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
 /** The danger zone: type the slug, then delete the project. */
 function DangerZone({ slug }: { slug: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const trpc = useTRPC();
+  const remove = useMutation(trpc.projects.delete.mutationOptions());
+  const pending = remove.isPending;
   const [confirm, setConfirm] = useState("");
   return (
     <section aria-busy={pending} className="flex flex-col gap-3 border border-destructive bg-card p-4 sm:p-5">
@@ -123,12 +127,15 @@ function DangerZone({ slug }: { slug: string }) {
         onSubmit={(e) => {
           e.preventDefault();
           if (confirm !== slug) return;
-          startTransition(async () => {
-            const result = await deleteProjectAction(slug);
-            if (!result.ok) return void toast.error(result.error);
-            toast.success("Project deleted");
-            router.push("/");
-          });
+          remove.mutate(
+            { project: slug },
+            {
+              onSuccess: () => {
+                toast.success("Project deleted");
+                router.push("/");
+              },
+            },
+          );
         }}
       >
         <div className="flex flex-1 flex-col gap-1.5">

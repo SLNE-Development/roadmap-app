@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SITE_DESCRIPTION, SITE_NAME, siteUrl } from "@/lib/site";
 import { cn } from "@/lib/utils";
+import { TRPCReactProvider } from "@/trpc/client";
 import "./globals.css";
 
 /** Sans-serif UI font. */
@@ -44,7 +45,7 @@ export const viewport: Viewport = {
 };
 
 /**
- * Root layout: fonts, theme (system light/dark), tooltips and toasts around every page.
+ * Root layout: fonts, theme (system light/dark), tRPC with React Query, tooltips and toasts around every page.
  *
  * @param props.children the page content
  */
@@ -53,10 +54,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" suppressHydrationWarning className={cn("antialiased font-sans", sans.variable, display.variable, mono.variable)}>
       <body className="min-h-dvh bg-background text-foreground">
         <ThemeProvider>
-          <TooltipProvider>
-            {children}
-            <Toaster richColors mobileOffset={{ bottom: 88 }} />
-          </TooltipProvider>
+          <TRPCReactProvider>
+            <TooltipProvider>
+              {children}
+              <Toaster richColors mobileOffset={{ bottom: 88 }} />
+            </TooltipProvider>
+          </TRPCReactProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,9 +1,10 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { ChevronDownIcon, SearchIcon, XIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { removeMemberAction, setMemberAction } from "@/app/(app)/p/[project]/actions";
 import { RoleTag, ROLE_LABEL } from "@/components/chips";
 import { PersonAvatar } from "@/components/person-avatar";
 import {
@@ -24,7 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { PROJECT_ROLES, type ProjectRole } from "@/db/schema";
 import { formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { useAction } from "./use-action";
+import { useTRPC } from "@/trpc/client";
 
 /** A button opening a menu of project roles; `onChange` gets the chosen one. */
 function RoleMenu({
@@ -138,7 +139,39 @@ export function MemberManager({
   currentUserId: string;
   canOwn: boolean;
 }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const router = useRouter();
+  // Follow-ups live on the hooks: adding the last candidate replaces the form, and the
+  // removed member's row (with its dialog) is gone once the refetch settles.
+  const set = useMutation(
+    trpc.members.set.mutationOptions({
+      // Captured before the refetch, which turns the added user into a member.
+      onMutate: ({ member }) => ({
+        existing: members.find((m) => m.userId === member.userId)?.name,
+        added: users.find((u) => u.id === member.userId)?.name,
+      }),
+      onSuccess: (_data, { member }, names) => {
+        const label = ROLE_LABEL[member.role].toLowerCase();
+        if (names?.existing) return void toast.success(`${names.existing} is now ${label}`);
+        setUserId("");
+        toast.success(`${names?.added ?? "Member"} added as ${label}`);
+      },
+    }),
+  );
+  const remove = useMutation(
+    trpc.members.remove.mutationOptions({
+      onMutate: ({ userId: removed }) => members.find((m) => m.userId === removed)?.name,
+      onSuccess: (_data, { userId: removed }, name) => {
+        if (removed === currentUserId) {
+          toast.success("You left the project");
+          router.push("/");
+          return;
+        }
+        toast.success(`${name ?? "Member"} removed`);
+      },
+    }),
+  );
+  const pending = set.isPending || remove.isPending;
   const candidates = users.filter((u) => !members.some((m) => m.userId === u.id));
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState<ProjectRole>("editor");
@@ -161,14 +194,7 @@ export function MemberManager({
             className="flex flex-col gap-2 border bg-card p-3.5 sm:flex-row"
             onSubmit={(e) => {
               e.preventDefault();
-              const name = candidates.find((c) => c.id === userId)?.name;
-              act(
-                () => setMemberAction(projectSlug, { userId, role }),
-                () => {
-                  setUserId("");
-                  toast.success(`${name ?? "Member"} added as ${ROLE_LABEL[role].toLowerCase()}`);
-                },
-              );
+              set.mutate({ project: projectSlug, member: { userId, role } });
             }}
           >
             <UserPicker candidates={candidates} value={userId} onChange={setUserId} />
@@ -210,10 +236,7 @@ export function MemberManager({
                     className="w-[110px] sm:w-full"
                     onChange={(r) => {
                       if (r === m.role) return;
-                      act(
-                        () => setMemberAction(projectSlug, { userId: m.userId, role: r }),
-                        () => toast.success(`${m.name} is now ${ROLE_LABEL[r].toLowerCase()}`),
-                      );
+                      set.mutate({ project: projectSlug, member: { userId: m.userId, role: r } });
                     }}
                   />
                   <AlertDialog>
@@ -233,7 +256,7 @@ export function MemberManager({
                         <AlertDialogCancel>Keep</AlertDialogCancel>
                         <AlertDialogAction
                           variant="destructive"
-                          onClick={() => act(() => removeMemberAction(projectSlug, m.userId), () => toast.success(`${m.name} removed`))}
+                          onClick={() => remove.mutate({ project: projectSlug, userId: m.userId })}
                         >
                           Remove
                         </AlertDialogAction>

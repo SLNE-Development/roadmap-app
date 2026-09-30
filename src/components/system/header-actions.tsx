@@ -1,9 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, Link2, MoreHorizontal, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { reopenPlanningAction } from "@/app/(app)/p/[project]/actions";
 import { CategoryDot, StatusChip } from "@/components/chips";
 import {
   AlertDialog,
@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useAction } from "@/components/use-action";
 import type { ColumnCategory } from "@/db/schema";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { currentColumn, nextColumn, StatusMenu, useMoveSystem, type SystemControlsData } from "./controls";
 
 /** Soft background and text of each category, for the status button (literal strings for Tailwind). */
@@ -143,7 +143,9 @@ function ReopenPlanningDialog({
   projectSlug: string;
   systemSlug: string;
 }) {
-  const { act } = useAction();
+  const trpc = useTRPC();
+  // Reopening hides the planning tab's button with this dialog, so the toast lives on the mutation.
+  const reopen = useMutation(trpc.planning.reopen.mutationOptions({ onSuccess: () => toast.success("Planning reopened") }));
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -155,7 +157,7 @@ function ReopenPlanningDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep it closed</AlertDialogCancel>
-          <AlertDialogAction onClick={() => act(() => reopenPlanningAction(projectSlug, systemSlug), () => toast.success("Planning reopened"))}>
+          <AlertDialogAction onClick={() => reopen.mutate({ project: projectSlug, system: systemSlug })}>
             Reopen planning
           </AlertDialogAction>
         </AlertDialogFooter>

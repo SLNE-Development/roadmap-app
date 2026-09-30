@@ -1,9 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Copy, KeyRound } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { createApiKeyAction, revokeApiKeyAction } from "@/app/(app)/(global)/settings/api-keys/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,10 +22,10 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { EmptyState, Panel } from "./page";
-import { useAction } from "./use-action";
 
-/** An API key row as the page passes it in, with dates already formatted on the server. */
+/** An API key row as the page view passes it in, with dates already formatted. */
 export interface ApiKeyItem {
   id: string;
   name: string | null;
@@ -58,7 +58,11 @@ const EXPIRY_CLASS: Record<ApiKeyItem["expiry"], string> = {
 
 /** Lists the user's keys, creates new ones (shown once with the env lines in a dialog) and revokes them. */
 export function ApiKeyManager({ keys, appUrl }: { keys: ApiKeyItem[]; appUrl: string }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const create = useMutation(trpc.account.createApiKey.mutationOptions());
+  // The toast lives on the hook: the revoked key's row (with its dialog) is gone once the refetch settles.
+  const revoke = useMutation(trpc.account.revokeApiKey.mutationOptions({ onSuccess: () => toast.success("Key revoked") }));
+  const pending = create.isPending || revoke.isPending;
   const [name, setName] = useState("");
   const [days, setDays] = useState("90");
   const [created, setCreated] = useState<string | null>(null);
@@ -72,16 +76,15 @@ export function ApiKeyManager({ keys, appUrl }: { keys: ApiKeyItem[]; appUrl: st
           className="flex flex-col gap-3 sm:flex-row sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            const input = { name, expiresInDays: days ? Number(days) : null };
-            // useAction's `after` gets no value, so the key is taken from the result here.
-            act(async () => {
-              const result = await createApiKeyAction(input);
-              if (result.ok) {
-                setCreated(result.value.key);
-                setName("");
-              }
-              return result;
-            });
+            create.mutate(
+              { name, expiresInDays: days ? Number(days) : null },
+              {
+                onSuccess: ({ key }) => {
+                  setCreated(key);
+                  setName("");
+                },
+              },
+            );
           }}
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -182,7 +185,7 @@ export function ApiKeyManager({ keys, appUrl }: { keys: ApiKeyItem[]; appUrl: st
                           <AlertDialogCancel>Keep</AlertDialogCancel>
                           <AlertDialogAction
                             variant="destructive"
-                            onClick={() => act(() => revokeApiKeyAction(k.id), () => toast.success("Key revoked"))}
+                            onClick={() => revoke.mutate({ id: k.id })}
                           >
                             Revoke
                           </AlertDialogAction>

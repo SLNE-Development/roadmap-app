@@ -1,9 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
-import { useTransition } from "react";
 import { toast } from "sonner";
-import { moveSystemAction, updateSystemAction } from "@/app/(app)/p/[project]/actions";
+import type { z } from "zod";
 import { CategoryDot } from "@/components/chips";
 import {
   DropdownMenu,
@@ -14,8 +14,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAction } from "@/components/use-action";
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
+import type { updateSystemInput } from "@/lib/ops/systems";
+import { useTRPC } from "@/trpc/client";
 import { describeGaps } from "./text";
 
 /** A column of the system's board as the controls need it. */
@@ -74,29 +75,35 @@ export function planningGateToast(gaps: string[]) {
  * when the gate refuses the move.
  */
 export function useMoveSystem(data: SystemControlsData) {
-  const [pending, startTransition] = useTransition();
+  const trpc = useTRPC();
+  // Quiet: a refused move shows the planning notice instead of the error.
+  const mutation = useMutation({ ...trpc.systems.move.mutationOptions(), meta: { quiet: true } });
+  const ref = { project: data.projectSlug, system: data.systemSlug };
   const move = (target: ColumnOption) => {
     const from = currentColumn(data);
     if (target.id === from.id) return;
-    startTransition(async () => {
-      const result = await moveSystemAction(data.projectSlug, data.systemSlug, { column: target.id });
-      if (!result.ok) {
-        if (!data.planningComplete && target.category !== "planning") planningGateToast(data.gaps);
-        else toast.error(result.error);
-        return;
-      }
-      toast.success(`Moved to ${target.name}`, {
-        action: {
-          label: "Undo",
-          onClick: () =>
-            void moveSystemAction(data.projectSlug, data.systemSlug, { column: from.id }).then((r) =>
-              r.ok ? toast.success(`Moved back to ${from.name}`) : toast.error(r.error),
-            ),
+    mutation.mutate(
+      { ...ref, to: { column: target.id } },
+      {
+        onError: (error) => {
+          if (!data.planningComplete && target.category !== "planning") planningGateToast(data.gaps);
+          else toast.error(error.message);
         },
-      });
-    });
+        onSuccess: () =>
+          toast.success(`Moved to ${target.name}`, {
+            action: {
+              label: "Undo",
+              onClick: () =>
+                mutation.mutate(
+                  { ...ref, to: { column: from.id } },
+                  { onError: (error) => toast.error(error.message), onSuccess: () => toast.success(`Moved back to ${from.name}`) },
+                ),
+            },
+          }),
+      },
+    );
   };
-  return { pending, move };
+  return { pending: mutation.isPending, move };
 }
 
 /**
@@ -153,13 +160,14 @@ function FieldMenu({
   label: string;
   value: string;
   options: { value: string; label: string }[];
-  onChoose: (value: string) => Parameters<typeof updateSystemAction>[2];
+  onChoose: (value: string) => z.input<typeof updateSystemInput>;
   children: React.ReactNode;
 }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const update = useMutation(trpc.systems.update.mutationOptions());
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={pending}>
+      <DropdownMenuTrigger asChild disabled={update.isPending}>
         {children}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
@@ -169,9 +177,9 @@ function FieldMenu({
           onValueChange={(v) => {
             if (v === value) return;
             const chosen = options.find((o) => o.value === v)?.label ?? v;
-            act(
-              () => updateSystemAction(data.projectSlug, data.systemSlug, onChoose(v)),
-              () => toast.success(`${label} set to ${chosen}`),
+            update.mutate(
+              { project: data.projectSlug, system: data.systemSlug, patch: onChoose(v) },
+              { onSuccess: () => toast.success(`${label} set to ${chosen}`) },
             );
           }}
         >

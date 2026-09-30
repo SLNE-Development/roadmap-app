@@ -1,18 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, PencilIcon, PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  createDomainAction,
-  createPhaseAction,
-  deleteDomainAction,
-  deletePhaseAction,
-  reorderDomainsAction,
-  reorderPhasesAction,
-  updateDomainAction,
-  updatePhaseAction,
-} from "@/app/(app)/p/[project]/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +20,7 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useAction } from "./use-action";
+import { useTRPC } from "@/trpc/client";
 
 /** A domain as the structure settings show it. */
 export interface StructureDomain {
@@ -58,7 +49,7 @@ function swapped(ids: string[], index: number, dir: -1 | 1): string[] {
 }
 
 /**
- * Up/down reordering of a list through a server action. Returns `move`, which
+ * Up/down reordering of a list through a mutation. Returns `move`, which
  * sends the new order, and restores keyboard focus to the moved row's arrow
  * once the list has re-rendered (the other arrow when the row reached an end).
  */
@@ -251,13 +242,24 @@ function DomainForm({
 
 /** Domains: name, description and system count per row; add, edit, reorder and delete. */
 function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; domains: StructureDomain[]; canEdit: boolean }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const create = useMutation(trpc.structure.createDomain.mutationOptions());
+  const update = useMutation(trpc.structure.updateDomain.mutationOptions());
+  // The toast lives on the hook: the deleted row is gone once the refetch settles.
+  const remove = useMutation(
+    trpc.structure.deleteDomain.mutationOptions({
+      onMutate: ({ id }) => domains.find((d) => d.id === id)?.name,
+      onSuccess: (_data, _input, name) => toast.success(`Domain ${name ?? ""} deleted`),
+    }),
+  );
+  const reorder = useMutation(trpc.structure.reorderDomains.mutationOptions());
+  const pending = create.isPending || update.isPending || remove.isPending || reorder.isPending;
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const move = useReorder(
     domains.map((d) => d.id),
     pending,
-    (orderedIds) => act(() => reorderDomainsAction(projectSlug, orderedIds)),
+    (orderedIds) => reorder.mutate({ project: projectSlug, orderedIds }),
   );
   return (
     <StructurePanel title="Domains" hint="Group systems by area">
@@ -271,11 +273,13 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
                 pending={pending}
                 onCancel={() => setEditing(null)}
                 onSubmit={(value) =>
-                  act(
-                    () => updateDomainAction(projectSlug, d.id, value),
-                    () => {
-                      toast.success(`Domain ${value.name.trim()} saved`);
-                      setEditing(null);
+                  update.mutate(
+                    { project: projectSlug, id: d.id, patch: value },
+                    {
+                      onSuccess: () => {
+                        toast.success(`Domain ${value.name.trim()} saved`);
+                        setEditing(null);
+                      },
                     },
                   )
                 }
@@ -302,7 +306,9 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
                         : "No systems use it."
                     }
                     disabled={pending}
-                    onConfirm={() => act(() => deleteDomainAction(projectSlug, d.id), () => toast.success(`Domain ${d.name} deleted`))}
+                    onConfirm={() =>
+                      remove.mutate({ project: projectSlug, id: d.id })
+                    }
                   />
                 </>
               )}
@@ -323,11 +329,13 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
             pending={pending}
             onCancel={() => setAdding(false)}
             onSubmit={(value) =>
-              act(
-                () => createDomainAction(projectSlug, value),
-                () => {
-                  toast.success(`Domain ${value.name.trim()} added`);
-                  setAdding(false);
+              create.mutate(
+                { project: projectSlug, domain: value },
+                {
+                  onSuccess: () => {
+                    toast.success(`Domain ${value.name.trim()} added`);
+                    setAdding(false);
+                  },
                 },
               )
             }
@@ -437,13 +445,24 @@ function PhaseForm({
 
 /** Phases: number, name, goal and dependencies per row; add (with dependencies), edit, reorder and delete. */
 function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; phases: StructurePhase[]; canEdit: boolean }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const create = useMutation(trpc.structure.createPhase.mutationOptions());
+  const update = useMutation(trpc.structure.updatePhase.mutationOptions());
+  // The toast lives on the hook: the deleted row is gone once the refetch settles.
+  const remove = useMutation(
+    trpc.structure.deletePhase.mutationOptions({
+      onMutate: ({ id }) => phases.find((p) => p.id === id)?.name,
+      onSuccess: (_data, _input, name) => toast.success(`Phase ${name ?? ""} deleted`),
+    }),
+  );
+  const reorder = useMutation(trpc.structure.reorderPhases.mutationOptions());
+  const pending = create.isPending || update.isPending || remove.isPending || reorder.isPending;
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const move = useReorder(
     phases.map((p) => p.id),
     pending,
-    (orderedIds) => act(() => reorderPhasesAction(projectSlug, orderedIds)),
+    (orderedIds) => reorder.mutate({ project: projectSlug, orderedIds }),
   );
   const numberOf = new Map(phases.map((p, i) => [p.id, phaseNumber(i)]));
   /** "After 03, 04" for a phase's dependencies, in phase order. */
@@ -467,11 +486,13 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
                 pending={pending}
                 onCancel={() => setEditing(null)}
                 onSubmit={(value) =>
-                  act(
-                    () => updatePhaseAction(projectSlug, p.id, value),
-                    () => {
-                      toast.success(`Phase ${value.name.trim()} saved`);
-                      setEditing(null);
+                  update.mutate(
+                    { project: projectSlug, id: p.id, patch: value },
+                    {
+                      onSuccess: () => {
+                        toast.success(`Phase ${value.name.trim()} saved`);
+                        setEditing(null);
+                      },
                     },
                   )
                 }
@@ -500,7 +521,9 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
                     title={`Delete phase ${p.name}?`}
                     description="Its systems keep existing without a phase, and phases that build on it lose that dependency."
                     disabled={pending}
-                    onConfirm={() => act(() => deletePhaseAction(projectSlug, p.id), () => toast.success(`Phase ${p.name} deleted`))}
+                    onConfirm={() =>
+                      remove.mutate({ project: projectSlug, id: p.id })
+                    }
                   />
                 </>
               )}
@@ -523,11 +546,13 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
             pending={pending}
             onCancel={() => setAdding(false)}
             onSubmit={(value) =>
-              act(
-                () => createPhaseAction(projectSlug, value),
-                () => {
-                  toast.success(`Phase ${value.name.trim()} added`);
-                  setAdding(false);
+              create.mutate(
+                { project: projectSlug, phase: value },
+                {
+                  onSuccess: () => {
+                    toast.success(`Phase ${value.name.trim()} added`);
+                    setAdding(false);
+                  },
                 },
               )
             }

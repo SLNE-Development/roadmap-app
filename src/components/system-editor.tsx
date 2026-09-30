@@ -1,13 +1,13 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { updateSystemAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { Markdown } from "./markdown";
-import { useAction } from "./use-action";
 
 /** Above this many characters, notes start clipped with a "Show all" toggle. */
 const LONG_NOTES = 400;
@@ -18,7 +18,10 @@ const LONG_NOTES = 400;
  * Hidden for viewers when there are no notes.
  */
 export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { projectSlug: string; systemSlug: string; notes: string; canEdit: boolean }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  // Saved notes remount this panel (keyed by the notes), so the toast lives on the mutation.
+  const update = useMutation(trpc.systems.update.mutationOptions({ onSuccess: () => toast.success("Notes saved") }));
+  const pending = update.isPending;
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(notes);
@@ -47,12 +50,9 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
           className="flex flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            act(
-              () => updateSystemAction(projectSlug, systemSlug, { notes: draft }),
-              () => {
-                setEditing(false);
-                toast.success("Notes saved");
-              },
+            update.mutate(
+              { project: projectSlug, system: systemSlug, patch: { notes: draft } },
+              { onSuccess: () => setEditing(false) },
             );
           }}
         >

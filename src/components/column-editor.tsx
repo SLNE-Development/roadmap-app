@@ -1,13 +1,14 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { setBoardColumnsAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { COLUMN_CATEGORIES, type ColumnCategory } from "@/db/schema";
+import { useTRPC } from "@/trpc/client";
 import { CATEGORY_LABEL, CategoryDot } from "./chips";
 
 /** A column being edited; `id` is absent for new columns. */
@@ -67,7 +68,10 @@ export function ColumnEditor({
 }) {
   const initial = () => columns.map((c) => ({ key: c.id, ...c }));
   const [draft, setDraft] = useState<DraftColumn[]>(initial);
-  const [pending, startTransition] = useTransition();
+  const trpc = useTRPC();
+  // The toast sits on the mutation, not on `mutate`: the refetched columns re-key and remount this editor before the mutation settles.
+  const save = useMutation(trpc.boards.setColumns.mutationOptions({ onSuccess: () => toast.success("Columns saved") }));
+  const pending = save.isPending;
   const dirty =
     draft.length !== columns.length ||
     draft.some((d, i) => d.id !== columns[i].id || d.name !== columns[i].name || d.category !== columns[i].category);
@@ -179,13 +183,7 @@ export function ColumnEditor({
           size="sm"
           disabled={pending || !dirty}
           onClick={() =>
-            startTransition(async () => {
-              const result = await setBoardColumnsAction(projectSlug, boardSlug, {
-                columns: draft.map(({ id, name, category }) => ({ id, name, category })),
-              });
-              if (!result.ok) return void toast.error(result.error);
-              toast.success("Columns saved");
-            })
+            save.mutate({ project: projectSlug, board: boardSlug, columns: draft.map(({ id, name, category }) => ({ id, name, category })) })
           }
         >
           Save columns

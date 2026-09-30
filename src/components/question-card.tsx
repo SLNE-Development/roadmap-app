@@ -1,17 +1,17 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { answerQuestionAction, setQuestionResolvedAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { AgentTag } from "./chips";
 import { Markdown } from "./markdown";
 import { PersonAvatar } from "./person-avatar";
-import { useAction } from "./use-action";
 
 /** A question as the questions page passes it in. */
 export interface QuestionView {
@@ -38,24 +38,28 @@ export interface QuestionView {
  * open: the answer and "Mark resolved". Resolved: the answer and "Reopen".
  */
 export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlug: string; question: QuestionView; canEdit: boolean }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
   const [answer, setAnswer] = useState("");
-  const answered = q.answer !== null && q.answer !== "";
-  const needsAnswer = !q.resolved && !answered;
-
-  const save = (resolved: boolean) =>
-    act(
-      () => answerQuestionAction(projectSlug, { id: q.id, answer, resolved }),
-      () => {
+  // Follow-ups sit on the hooks, not on `mutate`: resolving or reopening moves the card to the other tab, unmounting it.
+  const answerQuestion = useMutation(
+    trpc.questions.answer.mutationOptions({
+      onSuccess: (_data, { answer: { resolved } }) => {
         setAnswer("");
         toast.success(resolved ? "Question resolved" : "Answer saved");
       },
-    );
-  const setResolved = (resolved: boolean) =>
-    act(
-      () => setQuestionResolvedAction(projectSlug, q.id, resolved),
-      () => toast.success(resolved ? "Question resolved" : "Question reopened"),
-    );
+    }),
+  );
+  const resolve = useMutation(
+    trpc.questions.setResolved.mutationOptions({
+      onSuccess: (_data, { resolved }) => toast.success(resolved ? "Question resolved" : "Question reopened"),
+    }),
+  );
+  const pending = answerQuestion.isPending || resolve.isPending;
+  const answered = q.answer !== null && q.answer !== "";
+  const needsAnswer = !q.resolved && !answered;
+
+  const save = (resolved: boolean) => answerQuestion.mutate({ project: projectSlug, answer: { id: q.id, answer, resolved } });
+  const setResolved = (resolved: boolean) => resolve.mutate({ project: projectSlug, id: q.id, resolved });
 
   return (
     <article

@@ -1,10 +1,10 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { createSystemAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/slug";
-import { useAction } from "./use-action";
+import { useTRPC } from "@/trpc/client";
 
 /**
  * Button and dialog creating a system in a board's planning column, then
@@ -38,7 +38,18 @@ export function NewSystemDialog({
   onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  // The follow-up lives in the options, not in `mutate`: the empty state holding this dialog unmounts
+  // once the first system arrives, and per-call callbacks are dropped on unmount.
+  const create = useMutation(
+    trpc.systems.create.mutationOptions({
+      onSuccess: ({ slug }, { system }) => {
+        setOpen(false);
+        toast.success(`Created ${system.title.trim()}`);
+        router.push(`/p/${projectSlug}/systems/${slug}`);
+      },
+    }),
+  );
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
   const setOpen = (next: boolean) => {
@@ -75,15 +86,7 @@ export function NewSystemDialog({
           className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            act(async () => {
-              const result = await createSystemAction(projectSlug, { title, slug, summary, board });
-              if (result.ok) {
-                setOpen(false);
-                toast.success(`Created ${title.trim()}`);
-                router.push(`/p/${projectSlug}/systems/${result.value.slug}`);
-              }
-              return result;
-            });
+            create.mutate({ project: projectSlug, system: { title, slug, summary, board } });
           }}
         >
           <DialogHeader>
@@ -147,7 +150,7 @@ export function NewSystemDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={pending || !title.trim() || !slug.trim()}>
+            <Button type="submit" disabled={create.isPending || !title.trim() || !slug.trim()}>
               Create system
             </Button>
           </DialogFooter>

@@ -1,7 +1,7 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { acceptAdrAction } from "@/app/(app)/p/[project]/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,15 +14,17 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { useAction } from "./use-action";
+import { useTRPC } from "@/trpc/client";
 
 /** Accepts a proposed ADR after a confirmation, since accepting freezes it. */
 export function AcceptAdrButton({ projectSlug, number, label }: { projectSlug: string; number: number; label: string }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  // The toast sits on the hook, not on `mutate`: this button unmounts once the refetch shows the ADR accepted.
+  const accept = useMutation(trpc.adrs.accept.mutationOptions({ onSuccess: () => toast.success(`${label} accepted`) }));
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" disabled={pending}>
+        <Button size="sm" disabled={accept.isPending}>
           Accept decision
         </Button>
       </AlertDialogTrigger>
@@ -35,7 +37,7 @@ export function AcceptAdrButton({ projectSlug, number, label }: { projectSlug: s
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => act(() => acceptAdrAction(projectSlug, number), () => toast.success(`${label} accepted`))}>
+          <AlertDialogAction onClick={() => accept.mutate({ project: projectSlug, number })}>
             Accept decision
           </AlertDialogAction>
         </AlertDialogFooter>

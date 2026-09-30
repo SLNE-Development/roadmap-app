@@ -1,10 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { ArrowRightLeft, Ban, ChevronDown, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Search, SquareKanban, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useOptimistic, useState, useTransition } from "react";
-import { toast } from "sonner";
-import { moveSystemAction } from "@/app/(app)/p/[project]/actions";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { PageHeader, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { CATEGORY_CLASS, CategoryDot, PriorityTag } from "./chips";
 
 /** A column of the board. */
@@ -101,6 +101,8 @@ export function BoardView({
   cards: BoardCardView[];
 }) {
   const [newSystemOpen, setNewSystemOpen] = useState(false);
+  const trpc = useTRPC();
+  const moveSystem = useMutation(trpc.systems.move.mutationOptions());
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<BoardFilters>(NO_FILTERS);
@@ -120,8 +122,8 @@ export function BoardView({
     if (!card || card.columnId === columnId || !canEdit) return;
     startTransition(async () => {
       moveOptimistic({ slug, columnId });
-      const result = await moveSystemAction(projectSlug, slug, { column: columnId });
-      if (!result.ok) toast.error(result.error);
+      // A refusal is toasted by the mutation cache; the card falls back once the transition ends.
+      await moveSystem.mutateAsync({ project: projectSlug, system: slug, to: { column: columnId } }).catch(() => undefined);
     });
   };
 

@@ -1,16 +1,16 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { addQuestionAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAction } from "@/components/use-action";
+import { useTRPC } from "@/trpc/client";
 
 /** The "Ask a question" button and its dialog: title, optional details and an optional system. */
 export function AskQuestionDialog({
@@ -22,7 +22,8 @@ export function AskQuestionDialog({
   systems: { slug: string; title: string }[];
   defaultSystem?: string;
 }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const add = useMutation(trpc.questions.add.mutationOptions());
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
@@ -47,13 +48,15 @@ export function AskQuestionDialog({
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            act(
-              () => addQuestionAction(projectSlug, { title, text, system: system || undefined }),
-              () => {
-                setOpen(false);
-                setTitle("");
-                setText("");
-                toast.success("Question added");
+            add.mutate(
+              { project: projectSlug, question: { title, text, system: system || undefined } },
+              {
+                onSuccess: () => {
+                  setOpen(false);
+                  setTitle("");
+                  setText("");
+                  toast.success("Question added");
+                },
               },
             );
           }}
@@ -85,7 +88,7 @@ export function AskQuestionDialog({
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button type="submit" disabled={pending || !title.trim()}>
+            <Button type="submit" disabled={add.isPending || !title.trim()}>
               Ask question
             </Button>
           </DialogFooter>

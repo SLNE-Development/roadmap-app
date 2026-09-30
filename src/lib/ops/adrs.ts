@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, max, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { adr, ADR_STATUSES, adrSystem, project, system, user, type AdrStatus } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
+import { formatAdrNumber } from "@/lib/adr-number";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema } from "./access";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
@@ -55,10 +56,8 @@ export interface AdrDetail extends AdrSummary {
   consequences: string;
 }
 
-/** Returns an ADR number zero-padded to four digits. */
-export function formatAdrNumber(n: number): string {
-  return String(n).padStart(4, "0");
-}
+/** Re-exported for the ops' callers; client code imports it from `@/lib/adr-number`. */
+export { formatAdrNumber };
 
 /** Loads the ADR with `number` in the project, optionally locked, or throws `NotFoundError`. */
 async function findAdr(tx: Executor, projectId: string, number: number, lock = false) {

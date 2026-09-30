@@ -1,14 +1,15 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { createBoardAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { slugify } from "@/lib/slug";
+import { useTRPC } from "@/trpc/client";
 
 /**
  * Button and dialog adding a board with the default columns. On success it opens
@@ -26,9 +27,22 @@ export function NewBoardDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const trpc = useTRPC();
+  // The follow-up sits on the mutation, not on `mutate`: the first board replaces an empty state
+  // that holds this dialog, which unmounts before the mutation settles.
+  const create = useMutation(
+    trpc.boards.create.mutationOptions({
+      onSuccess: ({ slug: created }, { board }) => {
+        setOpen(false);
+        setName("");
+        setSlug("");
+        toast.success(`Board ${board.name.trim()} created`);
+        router.push(openIn === "settings" ? `/p/${projectSlug}/settings/boards?board=${created}` : `/p/${projectSlug}/boards/${created}`);
+      },
+    }),
+  );
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger ?? <Button variant="outline">New board</Button>}</DialogTrigger>
@@ -37,19 +51,7 @@ export function NewBoardDialog({
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            startTransition(async () => {
-              const result = await createBoardAction(projectSlug, { name, slug });
-              if (!result.ok) return void toast.error(result.error);
-              setOpen(false);
-              setName("");
-              setSlug("");
-              toast.success(`Board ${name.trim()} created`);
-              router.push(
-                openIn === "settings"
-                  ? `/p/${projectSlug}/settings/boards?board=${result.value.slug}`
-                  : `/p/${projectSlug}/boards/${result.value.slug}`,
-              );
-            });
+            create.mutate({ project: projectSlug, board: { name, slug } });
           }}
         >
           <DialogHeader>
@@ -76,7 +78,7 @@ export function NewBoardDialog({
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button type="submit" disabled={pending || !name.trim() || !slug.trim()}>
+            <Button type="submit" disabled={create.isPending || !name.trim() || !slug.trim()}>
               Create board
             </Button>
           </DialogFooter>

@@ -1,9 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { addAccountAction, removeAccountAction, setAdminAction } from "@/app/(app)/(global)/admin/users/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,10 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { Tag } from "./chips";
 import { EmptyState, Panel } from "./page";
 import { PersonAvatar } from "./person-avatar";
-import { useAction } from "./use-action";
 
 /** A provisioned account row as the page passes it in. */
 export interface AccountItem {
@@ -40,7 +40,17 @@ const HEAD = "text-xs font-semibold text-muted-foreground";
 
 /** Lists provisioned Discord accounts with admin toggles, removal and a form to add one. */
 export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]; selfId: string }) {
-  const { pending, act } = useAction();
+  const trpc = useTRPC();
+  const add = useMutation(trpc.account.addAccount.mutationOptions());
+  // The toast lives on the hook: the removed account's row (with its dialog) is gone once the refetch settles.
+  const remove = useMutation(
+    trpc.account.removeAccount.mutationOptions({
+      onMutate: ({ discordId }) => accounts.find((a) => a.discordId === discordId)?.displayName,
+      onSuccess: (_data, _input, name) => toast.success(`Removed ${name ?? "account"}`),
+    }),
+  );
+  const setAdmin = useMutation(trpc.account.setAdmin.mutationOptions());
+  const pending = add.isPending || remove.isPending || setAdmin.isPending;
   const [discordId, setDiscordId] = useState("");
   const [displayName, setDisplayName] = useState("");
 
@@ -52,14 +62,13 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
           onSubmit={(e) => {
             e.preventDefault();
             const input = { discordId: discordId.trim(), displayName: displayName.trim() };
-            act(
-              () => addAccountAction(input),
-              () => {
+            add.mutate(input, {
+              onSuccess: () => {
                 toast.success(`Added ${input.displayName}`);
                 setDiscordId("");
                 setDisplayName("");
               },
-            );
+            });
           }}
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -138,9 +147,12 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                             checked={a.isAdmin}
                             disabled={pending || self}
                             onCheckedChange={(checked) =>
-                              act(
-                                () => setAdminAction(a.userId as string, checked === true),
-                                () => toast.success(checked === true ? `${a.displayName} is now an admin` : `${a.displayName} is no longer an admin`),
+                              setAdmin.mutate(
+                                { userId: a.userId as string, isAdmin: checked === true },
+                                {
+                                  onSuccess: () =>
+                                    toast.success(checked === true ? `${a.displayName} is now an admin` : `${a.displayName} is no longer an admin`),
+                                },
                               )
                             }
                           />
@@ -174,7 +186,9 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                             <AlertDialogCancel>Keep</AlertDialogCancel>
                             <AlertDialogAction
                               variant="destructive"
-                              onClick={() => act(() => removeAccountAction(a.discordId), () => toast.success(`Removed ${a.displayName}`))}
+                              onClick={() =>
+                                remove.mutate({ discordId: a.discordId })
+                              }
                             >
                               Remove
                             </AlertDialogAction>
