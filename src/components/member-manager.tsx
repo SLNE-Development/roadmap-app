@@ -1,14 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { removeMemberAction, setMemberAction } from "@/app/(app)/p/[project]/actions";
-import type { ActionResult } from "@/app/actions/run";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PROJECT_ROLES, type ProjectRole } from "@/db/schema";
+import { useAction } from "./use-action";
 
 /** Members with role menus and removal, and a form adding a provisioned user. Owners edit; others read. */
 export function MemberManager({
@@ -22,17 +32,10 @@ export function MemberManager({
   users: { id: string; name: string }[];
   canOwn: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, act } = useAction();
   const candidates = users.filter((u) => !members.some((m) => m.userId === u.id));
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState<ProjectRole>("editor");
-
-  /** Runs an action and toasts its error. */
-  const act = (fn: () => Promise<ActionResult<unknown>>) =>
-    startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) toast.error(result.error);
-    });
 
   return (
     <div className="flex flex-col gap-4" aria-busy={pending}>
@@ -43,8 +46,10 @@ export function MemberManager({
               className="flex flex-wrap gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                act(() => setMemberAction(projectSlug, { userId, role }));
-                setUserId("");
+                act(
+                  () => setMemberAction(projectSlug, { userId, role }),
+                  () => setUserId(""),
+                );
               }}
             >
               <NativeSelect aria-label="User" value={userId} onChange={(e) => setUserId(e.target.value)}>
@@ -90,7 +95,14 @@ export function MemberManager({
                         aria-label={`Role of ${m.name}`}
                         value={m.role}
                         disabled={pending}
-                        onChange={(e) => act(() => setMemberAction(projectSlug, { userId: m.userId, role: e.target.value as ProjectRole }))}
+                        onChange={(e) =>
+                          act(() =>
+                            setMemberAction(projectSlug, {
+                              userId: m.userId,
+                              role: e.target.value as ProjectRole,
+                            }),
+                          )
+                        }
                       >
                         {PROJECT_ROLES.map((r) => (
                           <NativeSelectOption key={r} value={r}>
@@ -104,9 +116,25 @@ export function MemberManager({
                   </TableCell>
                   {canOwn && (
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" disabled={pending} onClick={() => act(() => removeMemberAction(projectSlug, m.userId))}>
-                        Remove
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={pending}>
+                            Remove
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove {m.name} from the project?</AlertDialogTitle>
+                            <AlertDialogDescription>They lose access to this project unless they are added again.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep</AlertDialogCancel>
+                            <AlertDialogAction variant="destructive" onClick={() => act(() => removeMemberAction(projectSlug, m.userId))}>
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   )}
                 </TableRow>

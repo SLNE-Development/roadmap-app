@@ -1,10 +1,8 @@
 "use client";
 
 import { TrashIcon } from "lucide-react";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { addTaskAction, deleteTaskAction, updateTaskAction } from "@/app/(app)/p/[project]/actions";
-import type { ActionResult } from "@/app/actions/run";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +22,7 @@ import { TASK_STATES, type TaskState } from "@/db/schema";
 import type { TaskItem } from "@/lib/ops/systems";
 import { cn } from "@/lib/utils";
 import { TaskStateBadge } from "./chips";
+import { useAction } from "./use-action";
 
 /**
  * The system's tasks with state and owner menus, deletion and an add form. While
@@ -44,16 +43,8 @@ export function TaskList({
   canEdit: boolean;
   planningComplete: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, act } = useAction();
   const [title, setTitle] = useState("");
-
-  /** Runs an action and toasts its error. */
-  const act = (fn: () => Promise<ActionResult<unknown>>, after?: () => void) =>
-    startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) toast.error(result.error);
-      else after?.();
-    });
 
   const done = tasks.filter((t) => t.state === "done").length;
   const locked = (s: TaskState) => !planningComplete && (s === "doing" || s === "done");
@@ -80,7 +71,13 @@ export function TaskList({
                     aria-label={`State of ${t.title}`}
                     value={t.state}
                     disabled={pending}
-                    onChange={(e) => act(() => updateTaskAction(t.id, { state: e.target.value as TaskState }))}
+                    onChange={(e) =>
+                      act(() =>
+                        updateTaskAction(t.id, {
+                          state: e.target.value as TaskState,
+                        }),
+                      )
+                    }
                   >
                     {TASK_STATES.map((s) => (
                       <NativeSelectOption key={s} value={s} disabled={locked(s)}>
@@ -93,7 +90,13 @@ export function TaskList({
                     aria-label={`Owner of ${t.title}`}
                     value={t.ownerUserId ?? ""}
                     disabled={pending}
-                    onChange={(e) => act(() => updateTaskAction(t.id, { ownerUserId: e.target.value || null }))}
+                    onChange={(e) =>
+                      act(() =>
+                        updateTaskAction(t.id, {
+                          ownerUserId: e.target.value || null,
+                        }),
+                      )
+                    }
                   >
                     <NativeSelectOption value="">Unowned</NativeSelectOption>
                     {members.map((m) => (

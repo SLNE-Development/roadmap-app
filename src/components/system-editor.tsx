@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { moveSystemAction, reopenPlanningAction, updateSystemAction } from "@/app/(app)/p/[project]/actions";
-import type { ActionResult } from "@/app/actions/run";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
+import { useAction } from "./use-action";
 
 /** Sidebar editor for a system's column, priority, owner and notes, plus reopening planning. */
 export function SystemEditor({
@@ -35,15 +34,8 @@ export function SystemEditor({
   members: { userId: string; name: string }[];
   canEdit: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, act } = useAction();
   const [draft, setDraft] = useState(notes);
-
-  /** Runs an action and toasts its error. */
-  const act = (fn: () => Promise<ActionResult<unknown>>) =>
-    startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) toast.error(result.error);
-    });
 
   return (
     <Card aria-busy={pending}>
@@ -55,7 +47,13 @@ export function SystemEditor({
               id="system-column"
               value={columnId}
               disabled={!canEdit || pending}
-              onChange={(e) => act(() => moveSystemAction(projectSlug, systemSlug, { column: e.target.value }))}
+              onChange={(e) =>
+                act(() =>
+                  moveSystemAction(projectSlug, systemSlug, {
+                    column: e.target.value,
+                  }),
+                )
+              }
             >
               {columns.map((c) => (
                 <NativeSelectOption key={c.id} value={c.id} disabled={!planningComplete && c.category !== "planning"}>
@@ -71,7 +69,13 @@ export function SystemEditor({
               id="system-priority"
               value={priority}
               disabled={!canEdit || pending}
-              onChange={(e) => act(() => updateSystemAction(projectSlug, systemSlug, { priority: e.target.value as Priority }))}
+              onChange={(e) =>
+                act(() =>
+                  updateSystemAction(projectSlug, systemSlug, {
+                    priority: e.target.value as Priority,
+                  }),
+                )
+              }
             >
               {PRIORITIES.map((p) => (
                 <NativeSelectOption key={p} value={p}>
@@ -86,7 +90,13 @@ export function SystemEditor({
               id="system-owner"
               value={ownerUserId ?? ""}
               disabled={!canEdit || pending}
-              onChange={(e) => act(() => updateSystemAction(projectSlug, systemSlug, { ownerUserId: e.target.value || null }))}
+              onChange={(e) =>
+                act(() =>
+                  updateSystemAction(projectSlug, systemSlug, {
+                    ownerUserId: e.target.value || null,
+                  }),
+                )
+              }
             >
               <NativeSelectOption value="">Unowned</NativeSelectOption>
               {members.map((m) => (
@@ -100,7 +110,18 @@ export function SystemEditor({
             <FieldLabel htmlFor="system-notes">Notes</FieldLabel>
             <Textarea id="system-notes" className="min-h-28" value={draft} disabled={!canEdit} onChange={(e) => setDraft(e.target.value)} />
             {canEdit && (
-              <Button variant="outline" className="self-start" disabled={pending || draft === notes} onClick={() => act(() => updateSystemAction(projectSlug, systemSlug, { notes: draft }))}>
+              <Button
+                variant="outline"
+                className="self-start"
+                disabled={pending || draft === notes}
+                onClick={() =>
+                  act(() =>
+                    updateSystemAction(projectSlug, systemSlug, {
+                      notes: draft,
+                    }),
+                  )
+                }
+              >
                 Save notes
               </Button>
             )}

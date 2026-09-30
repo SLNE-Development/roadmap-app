@@ -1,13 +1,23 @@
 "use client";
 
 import { TrashIcon } from "lucide-react";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { createDomainAction, createPhaseAction, deleteDomainAction, deletePhaseAction } from "@/app/(app)/p/[project]/actions";
-import type { ActionResult } from "@/app/actions/run";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useAction } from "./use-action";
 
 /** Lists domains and phases with delete buttons and forms to add them. Editors and above. */
 export function StructureManager({
@@ -19,17 +29,10 @@ export function StructureManager({
   domains: { id: string; name: string; description: string }[];
   phases: { id: string; name: string; goal: string }[];
 }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, act } = useAction();
   const [domain, setDomain] = useState("");
   const [phase, setPhase] = useState("");
   const [goal, setGoal] = useState("");
-
-  /** Runs an action and toasts its error. */
-  const act = (fn: () => Promise<ActionResult<unknown>>) =>
-    startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) toast.error(result.error);
-    });
 
   return (
     <div className="grid gap-4 md:grid-cols-2" aria-busy={pending}>
@@ -43,9 +46,25 @@ export function StructureManager({
             {domains.map((d) => (
               <li key={d.id} className="flex items-center gap-2 px-3 py-2 text-sm">
                 <span className="flex-1">{d.name}</span>
-                <Button variant="ghost" size="icon" aria-label={`Delete ${d.name}`} onClick={() => act(() => deleteDomainAction(projectSlug, d.id))}>
-                  <TrashIcon />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={`Delete ${d.name}`} disabled={pending}>
+                      <TrashIcon />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete domain {d.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>Systems in this domain lose their domain.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep</AlertDialogCancel>
+                      <AlertDialogAction variant="destructive" onClick={() => act(() => deleteDomainAction(projectSlug, d.id))}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </li>
             ))}
             {domains.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">No domains.</li>}
@@ -54,8 +73,10 @@ export function StructureManager({
             className="flex gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              act(() => createDomainAction(projectSlug, { name: domain }));
-              setDomain("");
+              act(
+                () => createDomainAction(projectSlug, { name: domain }),
+                () => setDomain(""),
+              );
             }}
           >
             <Input aria-label="New domain" placeholder="New domain" value={domain} onChange={(e) => setDomain(e.target.value)} />
@@ -78,9 +99,25 @@ export function StructureManager({
                   {p.name}
                   {p.goal && <span className="text-muted-foreground"> · {p.goal}</span>}
                 </span>
-                <Button variant="ghost" size="icon" aria-label={`Delete ${p.name}`} onClick={() => act(() => deletePhaseAction(projectSlug, p.id))}>
-                  <TrashIcon />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={`Delete ${p.name}`} disabled={pending}>
+                      <TrashIcon />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete phase {p.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>Systems in this phase lose their phase.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep</AlertDialogCancel>
+                      <AlertDialogAction variant="destructive" onClick={() => act(() => deletePhaseAction(projectSlug, p.id))}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </li>
             ))}
             {phases.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">No phases.</li>}
@@ -89,9 +126,13 @@ export function StructureManager({
             className="flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              act(() => createPhaseAction(projectSlug, { name: phase, goal }));
-              setPhase("");
-              setGoal("");
+              act(
+                () => createPhaseAction(projectSlug, { name: phase, goal }),
+                () => {
+                  setPhase("");
+                  setGoal("");
+                },
+              );
             }}
           >
             <Input aria-label="New phase" placeholder="New phase" value={phase} onChange={(e) => setPhase(e.target.value)} />
