@@ -44,9 +44,9 @@ export function AdrsView({ slug, status }: { slug: string; status: AdrStatus | u
       status: a.status,
       systems: a.systems.map((s) => titles.get(s) ?? s),
       note: a.supersededBy
-        ? `Superseded by ${formatAdrNumber(a.supersededBy)}`
+        ? `Superseded by ADR-${formatAdrNumber(a.supersededBy)}`
         : a.supersedes
-          ? `Supersedes ${formatAdrNumber(a.supersedes)}`
+          ? `Supersedes ADR-${formatAdrNumber(a.supersedes)}`
           : null,
       date: formatDate((a.acceptedAt ?? a.createdAt).toISOString()),
     }));

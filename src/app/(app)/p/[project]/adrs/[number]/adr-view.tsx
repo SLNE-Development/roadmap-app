@@ -42,7 +42,7 @@ export function AdrView({ slug, number }: { slug: string; number: number }) {
   return (
     <Page width="reading" className="gap-[22px]">
       <PageHeader
-        crumbs={[{ label: "Decisions", href: `/p/${slug}/adrs` }, { label }]}
+        crumbs={[{ label: detail.project.name, href: `/p/${slug}` }, { label: "Decisions", href: `/p/${slug}/adrs` }, { label }]}
         title={
           <>
             <span className="mb-2.5 block font-mono text-[13px] font-normal tracking-normal text-muted-foreground">{label}</span>

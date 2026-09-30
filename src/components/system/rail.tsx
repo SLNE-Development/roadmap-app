@@ -64,7 +64,7 @@ export function PlanningPanel({ planning, href }: { planning: PlanningView; href
 }
 
 /** The Decisions panel: linked ADRs as mono number and title, then this system's open questions. */
-export function DecisionsPanel({ projectSlug, adrs, questions }: { projectSlug: string; adrs: AdrSummary[]; questions: QuestionItem[] }) {
+export function DecisionsPanel({ projectSlug, systemSlug, adrs, questions }: { projectSlug: string; systemSlug: string; adrs: AdrSummary[]; questions: QuestionItem[] }) {
   return (
     <section className="flex flex-col gap-2 border bg-card p-4">
       <h2 className="text-sm font-semibold">Decisions</h2>
@@ -87,7 +87,7 @@ export function DecisionsPanel({ projectSlug, adrs, questions }: { projectSlug: 
         <ul className="flex flex-col gap-1.5">
           {questions.map((q) => (
             <li key={q.id}>
-              <Link href={`/p/${projectSlug}/questions`} className="text-[13px] leading-[1.45] text-fg-2 hover:text-foreground hover:underline">
+              <Link href={`/p/${projectSlug}/questions?system=${systemSlug}`} className="text-[13px] leading-[1.45] text-fg-2 hover:text-foreground hover:underline">
                 {q.title}
               </Link>
             </li>

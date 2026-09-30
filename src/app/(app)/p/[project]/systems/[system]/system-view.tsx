@@ -189,7 +189,7 @@ export function SystemView({
               phaseName={o.phase?.name ?? null}
             />
             <PlanningPanel planning={planning} href={tabHref(base, "planning")} />
-            <DecisionsPanel projectSlug={slug} adrs={o.adrs} questions={openQuestions} />
+            <DecisionsPanel projectSlug={slug} systemSlug={systemSlug} adrs={o.adrs} questions={openQuestions} />
             <SystemNotes key={systemSlug} projectSlug={slug} systemSlug={systemSlug} notes={o.system.notes} canEdit={canEdit} />
           </aside>
         </div>
@@ -242,7 +242,7 @@ export function SystemView({
         />
       )}
 
-      {canEdit && <div aria-hidden className="h-16 lg:hidden" />}
+      {canEdit && <div aria-hidden className="h-[calc(5rem+env(safe-area-inset-bottom))] lg:hidden" />}
       <SystemActionBar data={controls} />
     </Page>
   );

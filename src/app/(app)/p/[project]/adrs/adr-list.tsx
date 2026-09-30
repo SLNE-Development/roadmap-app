@@ -20,11 +20,20 @@ export interface AdrRow {
   date: string;
 }
 
-/** The status tabs, a search box filtering titles, and the list of decisions. */
+/** True when the trimmed, lower-cased query is in the title or label, is the number, or reads as `ADR-3` or `adr0003`. */
+export function adrMatches(row: { title: string; label: string; number: number }, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  if (row.title.toLowerCase().includes(q) || row.label.includes(q) || q === String(row.number)) return true;
+  const m = /^adr-?0*(\d+)$/.exec(q);
+  return m !== null && Number(m[1]) === row.number;
+}
+
+/** The status tabs, a search box filtering titles and numbers, and the list of decisions. */
 export function AdrList({ projectSlug, tabs, rows }: { projectSlug: string; tabs: UrlTab[]; rows: AdrRow[] }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
-  const shown = needle ? rows.filter((r) => r.title.toLowerCase().includes(needle) || r.label.includes(needle)) : rows;
+  const shown = needle ? rows.filter((r) => adrMatches(r, needle)) : rows;
   return (
     <>
       <UnderlineTabs label="Status" tabs={tabs}>
@@ -41,7 +50,7 @@ export function AdrList({ projectSlug, tabs, rows }: { projectSlug: string; tabs
         </label>
       </UnderlineTabs>
       {shown.length === 0 ? (
-        <EmptyState title="No matching decisions" description={needle ? `Nothing here has “${query.trim()}” in its title.` : "No decisions have this status."} />
+        <EmptyState title="No matching decisions" description={needle ? `Nothing here has “${query.trim()}” in its title or number.` : "No decisions have this status."} />
       ) : (
         <ol className="flex flex-col border bg-card">
           {shown.map((a) => (

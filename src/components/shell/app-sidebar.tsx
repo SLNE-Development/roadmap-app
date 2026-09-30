@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ROLE_LABEL } from "@/components/chips";
 import { ProjectMark } from "@/components/person-avatar";
+import { plural } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import { openCommandMenu } from "./command-menu";
 import { UserArea } from "./user-area";
@@ -92,7 +93,7 @@ export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; 
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-[13px] font-semibold">{project ? project.name : "All projects"}</span>
             <span className="text-[11px] text-muted-foreground">
-              {project ? `${ROLE_LABEL[project.role] ?? project.role} · ${project.memberCount} members` : `${projects.length} projects`}
+              {project ? `${ROLE_LABEL[project.role] ?? project.role} · ${plural(project.memberCount, "member")}` : plural(projects.length, "project")}
             </span>
           </span>
           <ChevronsUpDown className="size-3.5 text-muted-foreground" aria-hidden />

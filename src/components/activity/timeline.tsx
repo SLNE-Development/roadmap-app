@@ -178,6 +178,7 @@ function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; pr
       </div>
       <time dateTime={item.createdAt} title={`${formatDate(item.createdAt)} ${formatTime(item.createdAt)} UTC`} className="text-xs whitespace-nowrap text-muted-foreground">
         {formatTime(item.createdAt)}
+        <span className="text-muted-foreground/70"> UTC</span>
       </time>
     </li>
   );
@@ -222,7 +223,7 @@ export function Timeline({ items, projectSlug, hideSystem = false }: { items: Ti
     <div className="flex flex-col gap-5">
       {groupByDay(items, now).map((day) => (
         <section key={day.label} className="flex flex-col gap-2">
-          <h2 className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">{day.label}</h2>
+          <h2 title="Days in UTC" className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">{day.label}</h2>
           <ol className="flex flex-col border bg-card">
             {day.items.map((item) => (
               <TimelineRow key={item.key} item={item} projectSlug={projectSlug} hideSystem={hideSystem} />
