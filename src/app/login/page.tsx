@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import { CircleAlert } from "lucide-react";
 import { SignInButton } from "./sign-in-button";
+
+/** The public entry page. */
+export const metadata: Metadata = { title: "Sign in", alternates: { canonical: "/login" } };
 
 /** The message for a Discord account that is not on the allowlist. */
 const NOT_ON_ALLOWLIST = "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.";
