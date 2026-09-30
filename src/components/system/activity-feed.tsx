@@ -1,5 +1,6 @@
 import { GitCommitHorizontal, History } from "lucide-react";
 import { STATE_LABEL } from "@/components/chips";
+import { useNow } from "@/components/clock";
 import { Markdown } from "@/components/markdown";
 import { EmptyState } from "@/components/page";
 import type { TaskState } from "@/db/schema";
@@ -158,6 +159,7 @@ function ChangeEntry({ change: e, names }: { change: HistoryEntry; names: Activi
  * out because the updates themselves are shown.
  */
 export function ActivityFeed({ updates, changes, names }: { updates: UpdateItem[]; changes: HistoryEntry[]; names: ActivityNames }) {
+  const now = useNow();
   const items: FeedItem[] = [
     ...updates.map((u) => ({ kind: "update" as const, at: u.createdAt, update: u })),
     ...changes.map((c) => ({ kind: "change" as const, at: c.createdAt, change: c })),
@@ -167,7 +169,7 @@ export function ActivityFeed({ updates, changes, names }: { updates: UpdateItem[
   }
   const days: { label: string; items: FeedItem[] }[] = [];
   for (const item of items) {
-    const label = dayLabel(item.at.toISOString());
+    const label = dayLabel(item.at.toISOString(), now);
     if (days.at(-1)?.label !== label) days.push({ label, items: [] });
     days[days.length - 1].items.push(item);
   }

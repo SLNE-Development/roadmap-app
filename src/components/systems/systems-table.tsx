@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CATEGORY_CLASS, PriorityTag, StatusChip } from "@/components/chips";
+import { useNow } from "@/components/clock";
 import { ProgressBar } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
 import type { SystemListItem } from "@/lib/ops/systems";
@@ -33,6 +34,7 @@ export function SystemsTable({
   phaseName: Record<string, string>;
   updatedAt: Record<string, string>;
 }) {
+  const now = useNow();
   return (
     <div className="overflow-x-auto border bg-card">
       <div role="table" aria-label="Systems" className="flex min-w-[1040px] flex-col">
@@ -89,7 +91,7 @@ export function SystemsTable({
                   </span>
                 </span>
                 <span role="cell" className="text-right text-[12.5px] text-muted-foreground">
-                  {updatedAt[s.id] ? relativeAge(updatedAt[s.id]) : "—"}
+                  {updatedAt[s.id] ? relativeAge(updatedAt[s.id], now) : "—"}
                 </span>
               </div>
             ))}

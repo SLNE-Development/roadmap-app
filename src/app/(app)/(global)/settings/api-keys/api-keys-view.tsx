@@ -2,6 +2,7 @@
 
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { ApiKeyManager, type ApiKeyItem } from "@/components/api-key-manager";
+import { useNow } from "@/components/clock";
 import { Page, PageHeader } from "@/components/page";
 import { formatDate, relativeAge } from "@/lib/time";
 import { useTRPC } from "@/trpc/client";
@@ -17,7 +18,7 @@ const SOON_MS = 7 * 86_400_000;
 export function ApiKeysView({ appUrl }: { appUrl: string }) {
   const trpc = useTRPC();
   const { data } = useSuspenseQuery(trpc.account.apiKeys.queryOptions());
-  const now = new Date();
+  const now = useNow();
   const keys = data.map((k): ApiKeyItem => {
     const left = k.expiresAt ? k.expiresAt.getTime() - now.getTime() : null;
     const expiry = left === null ? "none" : left <= 0 ? "expired" : left <= SOON_MS ? "soon" : "later";

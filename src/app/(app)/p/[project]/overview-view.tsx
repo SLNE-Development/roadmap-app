@@ -4,6 +4,7 @@ import { useSuspenseQueries } from "@tanstack/react-query";
 import { CircleCheck, GitBranch, Milestone, Newspaper } from "lucide-react";
 import Link from "next/link";
 import { AgentTag, CATEGORY_CLASS, CATEGORY_LABEL } from "@/components/chips";
+import { useNow } from "@/components/clock";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { AttentionList, type AttentionItem } from "@/components/overview/attention-list";
 import { EmptyState, Page, PageHeader, Panel, ProgressBar } from "@/components/page";
@@ -21,8 +22,8 @@ const SEGMENTS: ColumnCategory[] = ["done", "review", "active", "todo", "blocked
 const QUESTION_AGE_MS = 3 * 86_400_000;
 
 /** Whether an open question was asked more than {@link QUESTION_AGE_MS} ago. */
-function isStale(createdAt: Date): boolean {
-  return Date.now() - createdAt.getTime() > QUESTION_AGE_MS;
+function isStale(createdAt: Date, now: Date): boolean {
+  return now.getTime() - createdAt.getTime() > QUESTION_AGE_MS;
 }
 
 /** Joins words as "a", "a and b" or "a, b and c". */
@@ -61,6 +62,7 @@ function repoLabel(url: string): string {
  */
 export function OverviewView({ slug }: { slug: string }) {
   const trpc = useTRPC();
+  const now = useNow();
   const [
     { data: detail },
     { data: systems },
@@ -85,7 +87,7 @@ export function OverviewView({ slug }: { slug: string }) {
     ],
   });
   const planning = systems.filter((s) => s.columnCategory === "planning");
-  const staleQuestions = questions.filter((q) => isStale(q.createdAt));
+  const staleQuestions = questions.filter((q) => isStale(q.createdAt, now));
   const data = { detail, systems, phases, adrs, staleQuestions, updates, latest, activity, planning, gaps };
   const { project } = data.detail;
   const canEdit = data.detail.role !== "viewer";
@@ -106,7 +108,7 @@ export function OverviewView({ slug }: { slug: string }) {
           key: `blocked-${s.id}`,
           kind: "blocked",
           title: `${s.title} is blocked`,
-          detail: latest ? `${latest.summary} · ${relativeAge(latest.createdAt.toISOString())}` : "No update explains why yet.",
+          detail: latest ? `${latest.summary} · ${relativeAge(latest.createdAt.toISOString(), now)}` : "No update explains why yet.",
           href: `${base}/systems/${s.slug}`,
         };
       }),
@@ -133,7 +135,7 @@ export function OverviewView({ slug }: { slug: string }) {
         key: `question-${q.id}`,
         kind: "question",
         title: q.title,
-        detail: `Asked by ${q.author} ${relativeAge(q.createdAt.toISOString())}${q.answer ? ", answered but not resolved." : ", no answer yet."}`,
+        detail: `Asked by ${q.author} ${relativeAge(q.createdAt.toISOString(), now)}${q.answer ? ", answered but not resolved." : ", no answer yet."}`,
         href: `${base}/questions`,
       }),
     ),
@@ -172,7 +174,7 @@ export function OverviewView({ slug }: { slug: string }) {
           </h2>
           <span className="text-[13px] text-muted-foreground">
             {tasksDone} of {tasksTotal} tasks done
-            {lastChange && ` · last change ${relativeAge(lastChange.toISOString())}`}
+            {lastChange && ` · last change ${relativeAge(lastChange.toISOString(), now)}`}
           </span>
         </div>
         <div className="flex h-2.5 gap-[3px]" aria-hidden>
@@ -282,7 +284,7 @@ export function OverviewView({ slug }: { slug: string }) {
                             {u.systemTitle}
                           </Link>
                           <time className="ml-auto whitespace-nowrap" dateTime={u.createdAt.toISOString()}>
-                            {relativeAge(u.createdAt.toISOString())}
+                            {relativeAge(u.createdAt.toISOString(), now)}
                           </time>
                         </div>
                         <p className="line-clamp-3 text-[13.5px] leading-normal break-words">{u.summary}</p>

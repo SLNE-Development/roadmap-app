@@ -78,6 +78,13 @@ export function useMoveSystem(data: SystemControlsData) {
   const trpc = useTRPC();
   // Quiet: a refused move shows the planning notice instead of the error.
   const mutation = useMutation({ ...trpc.systems.move.mutationOptions(), meta: { quiet: true } });
+  // Undo starts from the toast, possibly after leaving this page; the hook's `onSuccess`
+  // still runs then, unlike a callback passed to `mutate`. Errors toast globally.
+  const undo = useMutation(
+    trpc.systems.move.mutationOptions({
+      onSuccess: (_data, { to }) => toast.success(`Moved back to ${data.columns.find((c) => c.id === to.column)?.name ?? to.column}`),
+    }),
+  );
   const ref = { project: data.projectSlug, system: data.systemSlug };
   const move = (target: ColumnOption) => {
     const from = currentColumn(data);
@@ -93,17 +100,13 @@ export function useMoveSystem(data: SystemControlsData) {
           toast.success(`Moved to ${target.name}`, {
             action: {
               label: "Undo",
-              onClick: () =>
-                mutation.mutate(
-                  { ...ref, to: { column: from.id } },
-                  { onError: (error) => toast.error(error.message), onSuccess: () => toast.success(`Moved back to ${from.name}`) },
-                ),
+              onClick: () => undo.mutate({ ...ref, to: { column: from.id } }),
             },
           }),
       },
     );
   };
-  return { pending: mutation.isPending, move };
+  return { pending: mutation.isPending || undo.isPending, move };
 }
 
 /**

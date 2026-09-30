@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ClockProvider } from "@/components/clock";
 import { requireActor } from "@/lib/auth/actor";
 
 /** Every signed-in page reads live data. */
@@ -8,12 +9,21 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
- * Gate of every signed-in page: checks the session. The `(global)` and project
+ * Returns the time of this request in epoch milliseconds. The layout renders
+ * once per request on the server, so reading the clock there is stable.
+ */
+function requestTime(): number {
+  return Date.now();
+}
+
+/**
+ * Gate of every signed-in page: checks the session and starts the render clock
+ * relative dates are measured against. The `(global)` and project
  * layouts below render the shell with the sidebar that fits them.
  *
  * @param props.children the page content
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireActor();
-  return children;
+  return <ClockProvider serverNow={requestTime()}>{children}</ClockProvider>;
 }

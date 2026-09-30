@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useNow } from "@/components/clock";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { relativeAge } from "@/lib/time";
@@ -40,6 +41,7 @@ export interface QuestionView {
 export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlug: string; question: QuestionView; canEdit: boolean }) {
   const trpc = useTRPC();
   const [answer, setAnswer] = useState("");
+  const now = useNow();
   // Follow-ups sit on the hooks, not on `mutate`: resolving or reopening moves the card to the other tab, unmounting it.
   const answerQuestion = useMutation(
     trpc.questions.answer.mutationOptions({
@@ -73,7 +75,7 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
         )}
         {q.createdAt && (
           <time dateTime={q.createdAt} className="text-[12.5px] whitespace-nowrap text-muted-foreground">
-            {relativeAge(q.createdAt)}
+            {relativeAge(q.createdAt, now)}
           </time>
         )}
       </div>
@@ -99,7 +101,7 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
               <span>{q.answeredBy.name}</span>
               {q.answeredBy.agent && <AgentTag agent={q.answeredBy.agent} />}
               <span aria-hidden>·</span>
-              <time dateTime={q.answeredBy.at}>{relativeAge(q.answeredBy.at)}</time>
+              <time dateTime={q.answeredBy.at}>{relativeAge(q.answeredBy.at, now)}</time>
             </span>
           )}
           <Markdown className="max-w-none! text-sm! leading-[1.55]!">{q.answer ?? ""}</Markdown>

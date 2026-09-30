@@ -33,6 +33,15 @@ const CODE_OF: Record<number, TRPC_ERROR_CODE_KEY> = {
 const t = initTRPC.context<Context>().create({ transformer: superjson });
 
 /**
+ * Drops the wrapper key of a nested procedure input from issue paths
+ * (`task.title` → `title`), so messages read like the ops' own. Array
+ * fields such as `columns.0.name` keep their full path.
+ */
+function unwrapInputIssues(error: ZodError): ZodError {
+  return new ZodError(error.issues.map((issue) => (issue.path.length > 1 && typeof issue.path[1] === "string" ? { ...issue, path: issue.path.slice(1) } : issue)));
+}
+
+/**
  * Turns what an op throws into a tRPC error carrying the op's status and
  * user-facing message, the same text the server actions used to show.
  * Unexpected failures are logged and read "Something went wrong.".
@@ -41,8 +50,10 @@ const opErrors = t.middleware(async ({ next }) => {
   const result = await next();
   if (result.ok) return result;
   const { error } = result;
-  const cause = error.cause instanceof OpError || error.cause instanceof ZodError ? error.cause : error.code === "INTERNAL_SERVER_ERROR" ? error.cause : null;
+  let cause = error.cause instanceof OpError || error.cause instanceof ZodError ? error.cause : error.code === "INTERNAL_SERVER_ERROR" ? error.cause : null;
   if (!cause) return result;
+  // tRPC reports a failed input parse as BAD_REQUEST; a ZodError thrown by an op arrives as INTERNAL_SERVER_ERROR.
+  if (error.code === "BAD_REQUEST" && cause instanceof ZodError) cause = unwrapInputIssues(cause);
   const status = statusOf(cause);
   if (status === 500) console.error(cause);
   throw new TRPCError({ code: CODE_OF[status] ?? "INTERNAL_SERVER_ERROR", message: messageOf(cause), cause });

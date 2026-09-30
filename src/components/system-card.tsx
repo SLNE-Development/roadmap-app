@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useNow } from "@/components/clock";
 import type { SystemListItem } from "@/lib/ops/systems";
 import { relativeAge } from "@/lib/time";
 import { CATEGORY_CLASS, PriorityTag, StatusChip } from "./chips";
@@ -23,6 +24,7 @@ export function SystemCard({
   projectSlug: string;
   domainName?: string | null;
 }) {
+  const now = useNow();
   return (
     <Link
       href={`/p/${projectSlug}/systems/${system.slug}`}
@@ -35,7 +37,7 @@ export function SystemCard({
       <span className="text-[13.5px] leading-[1.35] font-semibold">{system.title}</span>
       <div className="flex flex-wrap items-center gap-2">
         <StatusChip category={system.columnCategory} name={system.columnName} />
-        {latest && <span className="text-[11.5px] text-muted-foreground">Updated {relativeAge(latest.createdAt)}</span>}
+        {latest && <span className="text-[11.5px] text-muted-foreground">Updated {relativeAge(latest.createdAt, now)}</span>}
       </div>
       <div className="mt-auto flex items-center gap-2">
         <ProgressBar value={system.tasksDone} total={system.tasksTotal} colorClass={CATEGORY_CLASS[system.columnCategory]} />

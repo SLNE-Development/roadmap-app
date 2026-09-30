@@ -2,6 +2,7 @@
 
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { FolderKanban } from "lucide-react";
+import { useNow } from "@/components/clock";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { relativeAge } from "@/lib/time";
@@ -17,6 +18,7 @@ function plural(n: number, one: string, many: string): string {
 export function HomeView() {
   const trpc = useTRPC();
   const { data: cards } = useSuspenseQuery(trpc.projects.cards.queryOptions());
+  const now = useNow();
   const projects = cards.map((p): ProjectCardItem => {
     const s = p.summary;
     const last = (s?.lastChange ?? p.createdAt).toISOString();
@@ -30,7 +32,7 @@ export function HomeView() {
       openQuestions: s?.openQuestions ?? 0,
       byCategory: s?.byCategory ?? {},
       lastActivity: last,
-      lastActivityLabel: relativeAge(last),
+      lastActivityLabel: relativeAge(last, now),
     };
   });
 

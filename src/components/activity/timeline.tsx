@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { AgentTag, CATEGORY_TEXT } from "@/components/chips";
+import { useNow } from "@/components/clock";
 import { Markdown } from "@/components/markdown";
 import { PersonAvatar } from "@/components/person-avatar";
 import type { ColumnCategory } from "@/db/schema";
@@ -216,9 +217,10 @@ function ChangeText({ item, projectSlug }: { item: ChangeTimelineItem; projectSl
  * @param props.hideSystem say "posted an update" without naming the system (on a system's own page)
  */
 export function Timeline({ items, projectSlug, hideSystem = false }: { items: TimelineItem[]; projectSlug: string; hideSystem?: boolean }) {
+  const now = useNow();
   return (
     <div className="flex flex-col gap-5">
-      {groupByDay(items).map((day) => (
+      {groupByDay(items, now).map((day) => (
         <section key={day.label} className="flex flex-col gap-2">
           <h2 className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">{day.label}</h2>
           <ol className="flex flex-col border bg-card">

@@ -53,4 +53,16 @@ describe("appRouter", () => {
       .catch((e: unknown) => e);
     expect(error).toMatchObject({ code: "BAD_REQUEST", message: expect.stringMatching(/^slug: /) });
   });
+
+  it("names fields of nested inputs without their wrapper key, but keeps array paths", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const api = caller(db, owner);
+    await expect(api.systems.create({ project: slug, system: { slug: "login", title: "" } })).rejects.toMatchObject({
+      message: expect.stringMatching(/^title: /),
+    });
+    await expect(
+      api.boards.setColumns({ project: slug, board: "development", columns: [{ name: "", category: "todo" }, { name: "Done", category: "done" }] }),
+    ).rejects.toMatchObject({ message: expect.stringMatching(/^columns\.0\.name: /) });
+  });
 });
