@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import superjson from "superjson";
 import type { AppRouter } from "@/server/trpc/router";
+import { affectedRouters, queryRouter } from "./invalidation";
 import { makeQueryClient, queryProject } from "./query-client";
 
 /** The typed tRPC hooks: `useTRPC()` returns query and mutation options for every procedure. */
@@ -24,23 +25,23 @@ declare module "@tanstack/react-query" {
 }
 
 /**
- * Creates the browser's query client. After every successful mutation all
- * queries are invalidated and refetched before the mutation settles, so the
- * page shows the change once `onSuccess` runs, as server actions with
- * `revalidatePath` did. A mutation that leaves a project instead drops that
- * project's queries, which could only fail now, and refetches the rest. Failed
- * mutations toast their message.
+ * Creates the browser's query client. After every successful mutation the
+ * queries of the routers it can affect (see `INVALIDATES`) are invalidated and
+ * refetched before the mutation settles, so the page shows the change once
+ * `onSuccess` runs; a mutation without a known router refetches everything. A
+ * mutation that leaves a project first drops that project's queries, which could
+ * only fail now, and refetches the rest. Failed mutations toast their message.
  */
 function makeBrowserQueryClient(): QueryClient {
   const client: QueryClient = makeQueryClient({
     mutationCache: new MutationCache({
       onSuccess: (_data, _variables, _context, mutation) => {
         const slug = mutation.meta?.leavesProject;
-        if (slug) {
-          client.removeQueries({ predicate: (q) => queryProject(q.queryKey) === slug });
-          return client.invalidateQueries({ predicate: (q) => queryProject(q.queryKey) !== slug });
-        }
-        return client.invalidateQueries();
+        if (slug) client.removeQueries({ predicate: (q) => queryProject(q.queryKey) === slug });
+        const routers = affectedRouters(mutation.options.mutationKey);
+        return client.invalidateQueries({
+          predicate: (q) => queryProject(q.queryKey) !== slug && (routers === "all" || routers.includes(queryRouter(q.queryKey) ?? "")),
+        });
       },
       onError: (error, _variables, _context, mutation) => {
         if (!mutation.meta?.quiet) toast.error(error.message);

@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { getPlanning, planningGaps, reopenPlanning } from "@/lib/ops/planning";
+import { getPlanning, planningGapsFor, reopenPlanning } from "@/lib/ops/planning";
 import { listSystems } from "@/lib/ops/systems";
 import { protectedProcedure, router } from "../init";
 import { P, S } from "./shared";
@@ -13,8 +13,7 @@ export const planningRouter = router({
   /** What still blocks planning of every system in a planning column, keyed by system id. */
   gaps: protectedProcedure.input(z.object(P)).query(async ({ ctx, input }) => {
     const planning = (await listSystems(ctx.db, ctx.actor, input.project)).filter((s) => s.columnCategory === "planning");
-    const gaps = await Promise.all(planning.map((s) => planningGaps(ctx.db, s.id)));
-    return Object.fromEntries(planning.map((s, i) => [s.id, gaps[i]]));
+    return Object.fromEntries(await planningGapsFor(ctx.db, planning.map((s) => s.id)));
   }),
 
   /** Reopens a system's planning. */

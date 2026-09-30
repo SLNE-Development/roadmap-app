@@ -101,23 +101,54 @@ async function loadRounds(db: Executor, systemId: string): Promise<PlanningRound
 }
 
 /**
+ * Returns what still prevents completing each system's planning, in this order:
+ * areas without an answered or accepted item, open items, and a missing spec.
+ * Uses one query for rounds, one for items and one for specs however many systems.
+ *
+ * @param systemIds the systems to check
+ * @returns the gaps keyed by system id, an empty list for a system with none
+ */
+export async function planningGapsFor(db: Executor, systemIds: string[]): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  if (systemIds.length === 0) return result;
+  const rounds = await db
+    .select({ id: planningRound.id, systemId: planningRound.systemId })
+    .from(planningRound)
+    .where(inArray(planningRound.systemId, systemIds))
+    .orderBy(asc(planningRound.number));
+  const items =
+    rounds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(planningItem)
+          .where(inArray(planningItem.roundId, rounds.map((r) => r.id)))
+          .orderBy(asc(planningItem.sortOrder));
+  const specs = await db
+    .select({ systemId: systemDocument.systemId })
+    .from(systemDocument)
+    .where(and(inArray(systemDocument.systemId, systemIds), eq(systemDocument.kind, "spec")));
+  const withSpec = new Set(specs.map((d) => d.systemId));
+  for (const systemId of systemIds) {
+    const roundIds = rounds.filter((r) => r.systemId === systemId).map((r) => r.id);
+    const own = roundIds.flatMap((id) => items.filter((i) => i.roundId === id));
+    const gaps: string[] = [];
+    for (const area of PLANNING_AREAS) {
+      if (!own.some((i) => i.area === area && i.status !== "open")) gaps.push(`Area ${area} has no answered item.`);
+    }
+    for (const item of own.filter((i) => i.status === "open")) gaps.push(`Item ${item.id} is still open: "${short(item.question)}".`);
+    if (!withSpec.has(systemId)) gaps.push("No spec has been written; call write_spec.");
+    result.set(systemId, gaps);
+  }
+  return result;
+}
+
+/**
  * Returns what still prevents completing a system's planning, in this order:
  * areas without an answered or accepted item, open items, and a missing spec.
  */
 export async function planningGaps(db: Executor, systemId: string): Promise<string[]> {
-  const items = (await loadRounds(db, systemId)).flatMap((r) => r.items);
-  const gaps: string[] = [];
-  for (const area of PLANNING_AREAS) {
-    if (!items.some((i) => i.area === area && i.status !== "open")) gaps.push(`Area ${area} has no answered item.`);
-  }
-  for (const item of items.filter((i) => i.status === "open")) gaps.push(`Item ${item.id} is still open: "${short(item.question)}".`);
-  const spec = await db
-    .select({ id: systemDocument.id })
-    .from(systemDocument)
-    .where(and(eq(systemDocument.systemId, systemId), eq(systemDocument.kind, "spec")))
-    .limit(1);
-  if (spec.length === 0) gaps.push("No spec has been written; call write_spec.");
-  return gaps;
+  return (await planningGapsFor(db, [systemId])).get(systemId) ?? [];
 }
 
 /** Throws when the system's planning is already complete. */

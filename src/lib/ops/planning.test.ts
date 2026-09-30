@@ -3,7 +3,7 @@ import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
 import { writeSpec } from "./documents";
-import { addPlanningRound, answerPlanningItems, completePlanning, getPlanning, reopenPlanning } from "./planning";
+import { addPlanningRound, answerPlanningItems, completePlanning, getPlanning, planningGaps, planningGapsFor, reopenPlanning } from "./planning";
 import { createSystem, getSystem, moveSystem } from "./systems";
 import { addTask, updateTask } from "./tasks";
 
@@ -33,6 +33,30 @@ describe("planning gaps", () => {
       `Item ${itemIds[0]} is still open: "What if two players buy the last car?".`,
       "No spec has been written; call write_spec.",
     ]);
+  });
+});
+
+describe("planningGapsFor", () => {
+  it("matches planningGaps for several systems", async () => {
+    const { db, owner, slug } = await setup();
+    const b = await createSystem(db, owner, slug, { slug: "b", title: "B" });
+    const c = await createSystem(db, owner, slug, { slug: "c", title: "C" });
+    const a = (await getSystem(db, owner, slug, "s")).system;
+    const full = await addPlanningRound(db, owner, slug, "s", {
+      items: (["failure-modes", "dependencies", "scope", "ops-testing"] as const).map((area) => ({ area, question: area })),
+    });
+    await answerPlanningItems(db, owner, slug, "s", { answers: full.itemIds.map((itemId) => ({ itemId, answer: "ok" })) });
+    await writeSpec(db, owner, slug, "s", { body: "# Spec" });
+    await addPlanningRound(db, owner, slug, "b", { items: [{ area: "scope", question: "Only one?" }] });
+    const ids = [a.id, b.id, c.id];
+    const expected = new Map(await Promise.all(ids.map(async (id) => [id, await planningGaps(db, id)] as const)));
+    expect(await planningGapsFor(db, ids)).toEqual(expected);
+    expect(expected.get(a.id)).toEqual([]);
+  });
+
+  it("returns an empty map for no systems", async () => {
+    const { db } = await setup();
+    expect((await planningGapsFor(db, [])).size).toBe(0);
   });
 });
 
