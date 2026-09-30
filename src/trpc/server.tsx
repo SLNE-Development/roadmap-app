@@ -25,7 +25,7 @@ export const trpc = createTRPCOptionsProxy({ ctx: createContext, router: appRout
 /**
  * Loads queries into this render's cache so client components find them on
  * first paint. Unknown or invisible entities render the 404 page, a lost
- * session goes to `/login`, and other errors reach the error boundary.
+ * session goes to `/login`, and other errors reach the nearest `error.tsx`.
  *
  * @returns the data of each query, in order
  */

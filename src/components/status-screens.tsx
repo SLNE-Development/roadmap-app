@@ -1,0 +1,47 @@
+import Link from "next/link";
+import { Page } from "@/components/page";
+import { Button } from "@/components/ui/button";
+
+/**
+ * The content of a "this does not exist" page.
+ *
+ * @param props.title the page heading
+ * @param props.text one line saying what is missing
+ * @param props.action the way out, usually a link button
+ */
+export function NotFoundScreen({ title, text, action }: { title: string; text: string; action: React.ReactNode }) {
+  return (
+    <Page width="reading">
+      <div className="flex flex-col items-start gap-3 py-8">
+        <h1 className="font-display text-[30px] leading-[1.15] font-semibold tracking-[-0.02em] text-balance">{title}</h1>
+        <p className="text-sm leading-normal text-fg-2">{text}</p>
+        <div className="mt-1">{action}</div>
+      </div>
+    </Page>
+  );
+}
+
+/**
+ * The content of an error boundary: what happened, a reference to quote, and a retry.
+ *
+ * @param props.digest the server-side error reference, when the error has one
+ * @param props.onRetry renders the failed segment again
+ * @param props.homeHref where the link out of the error goes
+ */
+export function ErrorScreen({ digest, onRetry, homeHref }: { digest?: string; onRetry: () => void; homeHref: string }) {
+  return (
+    <Page width="reading">
+      <div className="flex flex-col items-start gap-3 py-8">
+        <h1 className="font-display text-[30px] leading-[1.15] font-semibold tracking-[-0.02em] text-balance">Something went wrong</h1>
+        <p className="text-sm leading-normal text-fg-2">This page could not be shown. Try again, or go back.</p>
+        {digest && <p className="font-mono text-[12.5px] text-muted-foreground">Reference: {digest}</p>}
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <Button onClick={onRetry}>Try again</Button>
+          <Button asChild variant="outline">
+            <Link href={homeHref}>Go home</Link>
+          </Button>
+        </div>
+      </div>
+    </Page>
+  );
+}
