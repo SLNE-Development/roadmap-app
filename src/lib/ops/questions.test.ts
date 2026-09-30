@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { withAgent } from "./actor";
@@ -57,5 +58,32 @@ describe("questions", () => {
     const { owner, slug } = await createProjectFixture(db);
     await expect(addQuestion(db, owner, slug, { title: "A?", system: "nope" })).rejects.toMatchObject({ status: 404 });
     await expect(answerQuestion(db, owner, slug, { id: "q", answer: "x" })).rejects.toMatchObject({ status: 404, message: "Unknown question q." });
+  });
+
+  it("re-answering a resolved question keeps its resolvedAt", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const a = await addQuestion(db, owner, slug, { title: "A?" });
+    await answerQuestion(db, owner, slug, { id: a.id, answer: "Yes", resolved: true });
+    const first = (await listQuestions(db, owner, slug))[0].resolvedAt;
+    expect(first).not.toBeNull();
+    await answerQuestion(db, owner, slug, { id: a.id, answer: "Still yes", resolved: true });
+    expect((await listQuestions(db, owner, slug))[0].resolvedAt).toEqual(first);
+  });
+
+  it("answering with resolved false re-opens and logs it", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const a = await addQuestion(db, owner, slug, { title: "A?" });
+    await answerQuestion(db, owner, slug, { id: a.id, answer: "Yes", resolved: true });
+    await answerQuestion(db, owner, slug, { id: a.id, answer: "Maybe", resolved: false });
+    expect((await listQuestions(db, owner, slug))[0]).toMatchObject({ resolved: false, resolvedAt: null });
+    const rows = (await db.select().from(changeLog)).filter((c) => c.entity === "question" && c.field === "resolved");
+    expect(rows.map((c) => ({ entity: c.entity, field: c.field, oldValue: c.oldValue, newValue: c.newValue }))).toContainEqual({
+      entity: "question",
+      field: "resolved",
+      oldValue: "true",
+      newValue: "false",
+    });
   });
 });

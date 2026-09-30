@@ -51,13 +51,14 @@ export interface QuestionItem extends AuthorFields {
 /** The user who answered a question, joined next to the asking user. */
 const answeringUser = alias(user, "answerer");
 
-/** Loads a question of the project for update or throws `NotFoundError`. */
-async function findQuestion(tx: Executor, projectId: string, id: string) {
-  const [row] = await tx
+/** Loads a question of the project or throws `NotFoundError`; `lock` holds the row until the transaction ends. */
+async function findQuestion(tx: Executor, projectId: string, id: string, lock = false) {
+  const query = tx
     .select()
     .from(question)
     .where(and(eq(question.id, id), eq(question.projectId, projectId)))
     .limit(1);
+  const [row] = await (lock ? query.for("no key update") : query);
   if (!row) throw new NotFoundError(`Unknown question ${id}.`);
   return row;
 }
@@ -91,20 +92,23 @@ export async function answerQuestion(db: Db, actor: Actor, projectSlug: string, 
   const input = answerQuestionInput.parse(raw);
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
-    const current = await findQuestion(tx, project.id, input.id);
+    const current = await findQuestion(tx, project.id, input.id, true);
     const now = new Date();
     await tx
       .update(question)
       .set({
         answer: input.answer,
         resolved: input.resolved,
-        resolvedAt: input.resolved ? now : null,
+        resolvedAt: input.resolved ? (current.resolvedAt ?? now) : null,
         answeredByUserId: actor.userId,
         answeredAgent: actor.agent ?? null,
         answeredAt: now,
       })
       .where(eq(question.id, current.id));
     await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "answer", oldValue: current.answer, newValue: input.answer });
+    if (current.resolved !== input.resolved) {
+      await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "resolved", oldValue: String(current.resolved), newValue: String(input.resolved) });
+    }
   });
 }
 
@@ -112,7 +116,7 @@ export async function answerQuestion(db: Db, actor: Actor, projectSlug: string, 
 export async function setQuestionResolved(db: Db, actor: Actor, projectSlug: string, id: string, resolved: boolean): Promise<void> {
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
-    const current = await findQuestion(tx, project.id, id);
+    const current = await findQuestion(tx, project.id, id, true);
     if (current.resolved === resolved) return;
     await tx.update(question).set({ resolved, resolvedAt: resolved ? new Date() : null }).where(eq(question.id, id));
     await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: id, field: "resolved", oldValue: String(current.resolved), newValue: String(resolved) });

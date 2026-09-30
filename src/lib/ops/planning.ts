@@ -274,6 +274,7 @@ export async function completePlanning(
 export async function reopenPlanning(db: Db, actor: Actor, projectSlug: string, systemSlug: string): Promise<void> {
   await db.transaction(async (tx) => {
     const parent = await lockForPlanning(tx, actor, projectSlug, systemSlug);
+    if (!parent.planningCompletedAt) throw new ConflictError(`Planning of system ${parent.slug} is not complete; there is nothing to reopen.`);
     // Share-lock the board so a concurrent column edit cannot remove the planning column used below.
     await tx.select({ id: board.id }).from(board).where(eq(board.id, parent.boardId)).for("share");
     const boards = await loadBoards(tx, parent.projectId);

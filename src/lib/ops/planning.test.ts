@@ -162,4 +162,10 @@ describe("reopenPlanning", () => {
     expect(entries.at(-2)).toEqual(["column", expect.stringMatching(/ \/ Review$/), expect.stringMatching(/ \/ Planning$/)]);
     expect(entries.at(-1)?.[0]).toBe("reopened");
   });
+
+  it("reopening planning that is not complete is a conflict", async () => {
+    const { db, owner, slug } = await setup();
+    await expect(reopenPlanning(db, owner, slug, "s")).rejects.toMatchObject({ status: 409, message: expect.stringContaining("is not complete") });
+    expect((await db.select().from(changeLog)).filter((c) => c.field === "reopened")).toEqual([]);
+  });
 });
