@@ -7,9 +7,8 @@ import { SystemEditor } from "@/components/system-editor";
 import { TaskList } from "@/components/task-list";
 import { UpdateList } from "@/components/update-list";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listActivity } from "@/lib/ops/activity";
 import { formatAdrNumber } from "@/lib/ops/adrs";
 import { getDocument } from "@/lib/ops/documents";
@@ -83,18 +82,6 @@ export default async function SystemPage({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          {!o.planning.complete && (
-            <Alert>
-              <AlertTitle>Planning is not complete</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-4">
-                  {o.planning.gaps.map((g) => (
-                    <li key={g}>{g}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
           <DocumentSection title="Specification" doc={data.spec} param="spec" empty="No spec yet. It is written at the end of the planning interview." />
           {data.plan && <DocumentSection title="Implementation plan" doc={data.plan} param="plan" empty="" />}
           {openQuestions.length > 0 && (
@@ -148,6 +135,26 @@ export default async function SystemPage({
           </Accordion>
         </div>
         <aside className="flex flex-col gap-4">
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Planning status</CardTitle>
+              <CardAction>
+                <Badge variant={o.planning.complete ? "secondary" : "outline"}>{o.planning.complete ? "Planning complete" : "In planning"}</Badge>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2 text-sm">
+              <p className="text-muted-foreground">
+                {o.planning.rounds} {o.planning.rounds === 1 ? "round" : "rounds"} of questions
+              </p>
+              {!o.planning.complete && (
+                <ul className="list-disc pl-4">
+                  {o.planning.gaps.map((g) => (
+                    <li key={g}>{g}</li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
           <SystemEditor
             key={`${o.system.columnId}-${o.system.priority}-${o.system.ownerUserId}-${o.system.notes}`}
             projectSlug={slug}

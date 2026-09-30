@@ -48,10 +48,11 @@ export function TaskList({
   const [title, setTitle] = useState("");
 
   /** Runs an action and toasts its error. */
-  const act = (fn: () => Promise<ActionResult<unknown>>) =>
+  const act = (fn: () => Promise<ActionResult<unknown>>, after?: () => void) =>
     startTransition(async () => {
       const result = await fn();
       if (!result.ok) toast.error(result.error);
+      else after?.();
     });
 
   const done = tasks.filter((t) => t.state === "done").length;
@@ -136,9 +137,10 @@ export function TaskList({
             className="flex gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              const value = title;
-              setTitle("");
-              act(() => addTaskAction(projectSlug, systemSlug, { title: value }));
+              act(
+                () => addTaskAction(projectSlug, systemSlug, { title }),
+                () => setTitle(""),
+              );
             }}
           >
             <Input aria-label="New task" placeholder="Add a task" value={title} onChange={(e) => setTitle(e.target.value)} />
