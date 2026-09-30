@@ -80,12 +80,14 @@ async function linkSystems(tx: Tx, projectId: string, adrId: string, slugs: stri
   }
 }
 
-/** Loads summaries (and sections) of ADRs matching `where`, ordered by number. */
-async function loadAdrs(db: Executor, projectId: string, where?: SQL): Promise<AdrDetail[]> {
-  const rows = await db
-    .select({ adr, authorName: user.name })
-    .from(adr)
-    .leftJoin(user, eq(user.id, adr.authorUserId))
+/**
+ * Loads summaries (and sections) of ADRs matching `where`, ordered by number;
+ * `systemId` keeps only the ADRs linked to that system.
+ */
+async function loadAdrs(db: Executor, projectId: string, where?: SQL, systemId?: string): Promise<AdrDetail[]> {
+  const base = db.select({ adr, authorName: user.name }).from(adr).leftJoin(user, eq(user.id, adr.authorUserId));
+  const scoped = systemId ? base.innerJoin(adrSystem, and(eq(adrSystem.adrId, adr.id), eq(adrSystem.systemId, systemId))) : base;
+  const rows = await scoped
     .where(where ? and(eq(adr.projectId, projectId), where) : eq(adr.projectId, projectId))
     .orderBy(asc(adr.number));
   if (rows.length === 0) return [];
@@ -138,9 +140,14 @@ export async function createAdr(db: Db, actor: Actor, projectSlug: string, raw: 
 export async function listAdrs(db: Executor, actor: Actor, projectSlug: string, raw: z.input<typeof adrFilter> = {}): Promise<AdrSummary[]> {
   const filter = adrFilter.parse(raw);
   const { project: found } = await projectAccess(db, actor, projectSlug, "viewer");
-  const all = await loadAdrs(db, found.id, filter.status ? eq(adr.status, filter.status) : undefined);
-  const matching = filter.system ? all.filter((a) => a.systems.includes(filter.system as string)) : all;
-  return matching.map((a) => ({
+  const systemId = filter.system ? (await findSystem(db, found.id, filter.system)).id : undefined;
+  return adrsOf(db, found.id, { status: filter.status, systemId });
+}
+
+/** {@link listAdrs} for a project and system the caller already resolved; performs no access check. */
+export async function adrsOf(db: Executor, projectId: string, filter: { status?: AdrStatus; systemId?: string }): Promise<AdrSummary[]> {
+  const all = await loadAdrs(db, projectId, filter.status ? eq(adr.status, filter.status) : undefined, filter.systemId);
+  return all.map((a) => ({
     number: a.number,
     title: a.title,
     status: a.status,

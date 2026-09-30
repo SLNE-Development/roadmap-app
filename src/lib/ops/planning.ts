@@ -165,6 +165,11 @@ async function lockForPlanning(tx: Tx, actor: Actor, projectSlug: string, system
 /** Returns a system's planning interview, completion state and remaining gaps. */
 export async function getPlanning(db: Executor, actor: Actor, projectSlug: string, systemSlug: string): Promise<PlanningView> {
   const { system: parent } = await systemAccess(db, actor, projectSlug, systemSlug, "viewer");
+  return planningOf(db, parent);
+}
+
+/** {@link getPlanning} for a system the caller already resolved; performs no access check. */
+export async function planningOf(db: Executor, parent: SystemRow): Promise<PlanningView> {
   return {
     completedAt: parent.planningCompletedAt,
     confirmation: parent.planningConfirmation,

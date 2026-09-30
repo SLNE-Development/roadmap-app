@@ -79,7 +79,7 @@ export async function projectNav(db: Executor, actor: Actor, slug: string): Prom
       .from(system)
       .innerJoin(board, eq(board.id, system.boardId))
       .where(eq(system.projectId, project.id))
-      .orderBy(asc(system.sortOrder)),
+      .orderBy(asc(board.sortOrder), asc(system.sortOrder)),
     db.select({ n: count() }).from(adr).where(eq(adr.projectId, project.id)),
     db
       .select({ n: count() })

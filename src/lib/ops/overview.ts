@@ -1,11 +1,11 @@
 import type { Executor } from "@/db/types";
 import type { Actor } from "./actor";
-import { listAdrs, type AdrSummary } from "./adrs";
+import { adrsOf, type AdrSummary } from "./adrs";
 import { latestDocument, type DocumentView } from "./documents";
-import { getPlanning } from "./planning";
-import { listQuestions, type QuestionItem } from "./questions";
+import { planningOf } from "./planning";
+import { questionsOf, type QuestionItem } from "./questions";
 import { getSystem, type SystemDetail } from "./systems";
-import { listUpdates, type UpdateItem } from "./updates";
+import { updatesOf, type UpdateItem } from "./updates";
 
 /** Everything known about one system, as agents and the system page need it. */
 export interface SystemOverview extends SystemDetail {
@@ -34,10 +34,10 @@ export async function getSystemOverview(
   const [spec, plan, planning, questions, adrs, updates] = await Promise.all([
     latestDocument(db, detail.system.id, "spec"),
     latestDocument(db, detail.system.id, "plan"),
-    getPlanning(db, actor, projectSlug, systemSlug),
-    listQuestions(db, actor, projectSlug, { system: systemSlug }),
-    listAdrs(db, actor, projectSlug, { system: systemSlug }),
-    listUpdates(db, actor, projectSlug, { system: systemSlug, limit: updatesLimit }),
+    planningOf(db, detail.system),
+    questionsOf(db, detail.project.id, { systemId: detail.system.id }),
+    adrsOf(db, detail.project.id, { systemId: detail.system.id }),
+    updatesOf(db, detail.system.id, detail.project.id, updatesLimit),
   ]);
   return {
     ...detail,

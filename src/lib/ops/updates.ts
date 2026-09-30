@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { progressUpdate, system, task, user } from "@/db/schema";
+import { progressUpdate, project, system, task, user } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess } from "./access";
@@ -90,9 +90,13 @@ export async function listUpdates(
 ): Promise<UpdateItem[]> {
   const filter = listUpdatesInput.parse(raw);
   const { project } = await projectAccess(db, actor, projectSlug, "viewer");
-  const where = filter.system
-    ? eq(progressUpdate.systemId, (await findSystem(db, project.id, filter.system)).id)
-    : eq(system.projectId, project.id);
+  const systemId = filter.system ? (await findSystem(db, project.id, filter.system)).id : null;
+  return updatesOf(db, systemId, project.id, filter.limit);
+}
+
+/** {@link listUpdates} for a project and system the caller already resolved; performs no access check. */
+export async function updatesOf(db: Executor, systemId: string | null, projectId: string, limit: number): Promise<UpdateItem[]> {
+  const where = systemId ? eq(progressUpdate.systemId, systemId) : eq(system.projectId, projectId);
   const rows = await db
     .select({
       id: progressUpdate.id,
@@ -103,20 +107,22 @@ export async function listUpdates(
       summary: progressUpdate.summary,
       nextStep: progressUpdate.nextStep,
       commitHash: progressUpdate.commitHash,
+      repoUrl: project.repoUrl,
       authorName: user.name,
       agent: progressUpdate.agent,
       createdAt: progressUpdate.createdAt,
     })
     .from(progressUpdate)
     .innerJoin(system, eq(system.id, progressUpdate.systemId))
+    .innerJoin(project, eq(project.id, system.projectId))
     .leftJoin(task, eq(task.id, progressUpdate.taskId))
     .leftJoin(user, eq(user.id, progressUpdate.authorUserId))
     .where(where)
     .orderBy(desc(progressUpdate.createdAt), desc(progressUpdate.id))
-    .limit(filter.limit);
-  return rows.map(({ authorName, agent, ...r }) => ({
+    .limit(limit);
+  return rows.map(({ authorName, agent, repoUrl, ...r }) => ({
     ...r,
-    commitUrl: commitUrl(project.repoUrl, r.commitHash),
+    commitUrl: commitUrl(repoUrl, r.commitHash),
     ...authorFields(authorName, agent),
     isAgent: agent !== null,
   }));

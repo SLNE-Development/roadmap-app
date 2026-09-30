@@ -128,8 +128,14 @@ export async function listQuestions(
 ): Promise<QuestionItem[]> {
   const filter = questionFilter.parse(raw);
   const { project } = await projectAccess(db, actor, projectSlug, "viewer");
-  const conditions: SQL[] = [eq(question.projectId, project.id)];
-  if (filter.system) conditions.push(eq(question.systemId, (await findSystem(db, project.id, filter.system)).id));
+  const systemId = filter.system ? (await findSystem(db, project.id, filter.system)).id : undefined;
+  return questionsOf(db, project.id, { systemId, resolved: filter.resolved });
+}
+
+/** {@link listQuestions} for a project and system the caller already resolved; performs no access check. */
+export async function questionsOf(db: Executor, projectId: string, filter: { systemId?: string; resolved?: boolean }): Promise<QuestionItem[]> {
+  const conditions: SQL[] = [eq(question.projectId, projectId)];
+  if (filter.systemId) conditions.push(eq(question.systemId, filter.systemId));
   if (filter.resolved !== undefined) conditions.push(eq(question.resolved, filter.resolved));
   const rows = await db
     .select({

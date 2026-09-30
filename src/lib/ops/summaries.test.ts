@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createAdr } from "./adrs";
+import { createBoard, updateBoard } from "./boards";
 import { setMember } from "./members";
 import { listProjects } from "./projects";
 import { addQuestion, answerQuestion } from "./questions";
@@ -50,6 +51,17 @@ describe("projectNav", () => {
     expect(nav.systems.map((s) => s.title)).toEqual(["Beta", "Alpha"]);
     expect(nav.systems[0].boardSlug).toBe("development");
     expect(nav).toMatchObject({ adrCount: 1, openQuestionCount: 1, memberCount: 2 });
+  });
+
+  it("lists systems in board order", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db, "order");
+    await createBoard(db, owner, slug, { slug: "second", name: "Second" });
+    await createSystem(db, owner, slug, { slug: "late", title: "Late", board: "second" });
+    await createSystem(db, owner, slug, { slug: "early", title: "Early", board: "development" });
+    await updateBoard(db, owner, slug, "development", { sortOrder: 0 });
+    await updateBoard(db, owner, slug, "second", { sortOrder: 1 });
+    expect((await projectNav(db, owner, slug)).systems.map((s) => s.title)).toEqual(["Early", "Late"]);
   });
 
   it("does not count removed accounts as members", async () => {
