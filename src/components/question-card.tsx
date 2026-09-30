@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { answerQuestionAction, setQuestionResolvedAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { relativeAge } from "@/lib/time";
+import { cn } from "@/lib/utils";
+import { splitAuthor } from "./activity/change-sentence";
+import { AgentTag } from "./chips";
 import { Markdown } from "./markdown";
+import { PersonAvatar } from "./person-avatar";
+import { useAction } from "./use-action";
 
 /** A question as the questions page passes it in. */
 export interface QuestionView {
@@ -21,70 +24,116 @@ export interface QuestionView {
   systemSlug: string | null;
   systemTitle: string | null;
   author: string;
+  /** When the question was asked (ISO). */
+  createdAt?: string;
+  /** Who last answered it and when (ISO), when known from the change log. */
+  answeredBy?: { author: string; createdAt: string } | null;
 }
 
-/** One question with its answer, an answer form and the resolved toggle. */
+/**
+ * One question as a card. Open and unanswered: the text and, for editors, an
+ * answer form ("Save answer, keep open" or "Answer and resolve"). Answered but
+ * open: the answer and "Mark resolved". Resolved: the answer and "Reopen".
+ */
 export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlug: string; question: QuestionView; canEdit: boolean }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, act } = useAction();
   const [answer, setAnswer] = useState("");
+  const asker = splitAuthor(q.author);
+  const answered = q.answer !== null && q.answer !== "";
+  const needsAnswer = !q.resolved && !answered;
+
+  const save = (resolved: boolean) =>
+    act(
+      () => answerQuestionAction(projectSlug, { id: q.id, answer, resolved }),
+      () => {
+        setAnswer("");
+        toast.success(resolved ? "Question resolved" : "Answer saved");
+      },
+    );
+  const setResolved = (resolved: boolean) =>
+    act(
+      () => setQuestionResolvedAction(projectSlug, q.id, resolved),
+      () => toast.success(resolved ? "Question resolved" : "Question reopened"),
+    );
+
   return (
-    <Card aria-busy={pending}>
-      <CardHeader>
-        <CardTitle className={q.resolved ? "text-muted-foreground line-through" : ""}>{q.title}</CardTitle>
-        <CardDescription>
-          {q.author}
-          {q.systemSlug && (
-            <>
-              {" · "}
-              <Link href={`/p/${projectSlug}/systems/${q.systemSlug}`} className="underline">
-                {q.systemTitle}
-              </Link>
-            </>
+    <article
+      aria-busy={pending}
+      className={cn("flex flex-col border bg-card px-4 sm:px-5", needsAnswer ? "gap-3 py-[18px] focus-within:border-primary" : "gap-2.5 py-4")}
+    >
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <h2 className={cn("min-w-0 flex-1 font-semibold", needsAnswer ? "text-base" : "text-[15px]", q.resolved && "text-fg-2")}>{q.title}</h2>
+        {!q.resolved && answered && (
+          <span className="bg-cat-review-soft px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-cat-review">Answered, still open</span>
+        )}
+        {q.createdAt && (
+          <time dateTime={q.createdAt} className="text-[12.5px] whitespace-nowrap text-muted-foreground">
+            {relativeAge(q.createdAt)}
+          </time>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted-foreground">
+        <PersonAvatar name={asker.name} size="xs" />
+        <span>{asker.name}</span>
+        {asker.agent && <AgentTag agent={asker.agent} />}
+        {q.systemSlug && (
+          <>
+            <span aria-hidden>·</span>
+            <Link href={`/p/${projectSlug}/systems/${q.systemSlug}`} className="font-medium text-fg-2 hover:underline">
+              {q.systemTitle}
+            </Link>
+          </>
+        )}
+      </div>
+      {q.text && <Markdown className="max-w-none! text-[14.5px]! leading-[1.6]! text-fg-2">{q.text}</Markdown>}
+
+      {answered && (
+        <div className="flex flex-col gap-1 bg-secondary px-3.5 py-3">
+          {q.answeredBy && (
+            <span className="text-xs text-muted-foreground">
+              {splitAuthor(q.answeredBy.author).name} · {relativeAge(q.answeredBy.createdAt)}
+            </span>
           )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {q.text && <Markdown className="text-sm">{q.text}</Markdown>}
-        {q.answer && (
-          <div className="rounded-md bg-muted p-3 text-sm">
-            <span className="font-medium">Answer:</span> <Markdown>{q.answer}</Markdown>
-          </div>
-        )}
-        {canEdit && !q.resolved && (
-          <form
-            className="flex flex-col gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              startTransition(async () => {
-                const result = await answerQuestionAction(projectSlug, { id: q.id, answer });
-                if (!result.ok) return void toast.error(result.error);
-                setAnswer("");
-              });
-            }}
-          >
-            <Textarea aria-label={`Answer to ${q.title}`} placeholder="Answer and resolve" value={answer} onChange={(e) => setAnswer(e.target.value)} />
-            <Button type="submit" variant="outline" className="self-start" disabled={pending || !answer.trim()}>
-              Answer
-            </Button>
-          </form>
-        )}
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`resolved-${q.id}`}
-              checked={q.resolved}
-              disabled={pending}
-              onCheckedChange={(checked) =>
-                startTransition(async () => {
-                  const result = await setQuestionResolvedAction(projectSlug, q.id, checked === true);
-                  if (!result.ok) toast.error(result.error);
-                })
-              }
+          <Markdown className="max-w-none! text-sm! leading-[1.55]!">{q.answer ?? ""}</Markdown>
+        </div>
+      )}
+
+      {canEdit && needsAnswer && (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save(true);
+          }}
+        >
+          <label className="flex flex-col gap-1.5 text-[12.5px] font-semibold text-fg-2">
+            Your answer
+            <Textarea
+              rows={3}
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              className="bg-background text-sm font-normal text-foreground"
+              placeholder="Answer in a sentence or two; Markdown works."
             />
-            <Label htmlFor={`resolved-${q.id}`}>Resolved</Label>
+          </label>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={pending || !answer.trim()} onClick={() => save(false)}>
+              Save answer, keep open
+            </Button>
+            <Button type="submit" size="sm" disabled={pending || !answer.trim()}>
+              Answer and resolve
+            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </form>
+      )}
+
+      {canEdit && !needsAnswer && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" disabled={pending} onClick={() => setResolved(!q.resolved)}>
+            {q.resolved ? "Reopen" : "Mark resolved"}
+          </Button>
+        </div>
+      )}
+    </article>
   );
 }

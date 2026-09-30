@@ -1,73 +1,164 @@
+import { Check, Milestone } from "lucide-react";
 import Link from "next/link";
-import { CategoryBadge } from "@/components/chips";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Progress } from "@/components/ui/progress";
+import { CategoryDot } from "@/components/chips";
+import { EmptyState, Page, PageHeader, Panel, ProgressBar } from "@/components/page";
+import { Button } from "@/components/ui/button";
+import { getProject } from "@/lib/ops/projects";
 import { listPhases } from "@/lib/ops/structure";
-import { listSystems } from "@/lib/ops/systems";
+import { listSystems, type SystemListItem } from "@/lib/ops/systems";
 import { pageData } from "@/lib/page";
-import { categoryProgress } from "@/lib/progress";
+import { cn } from "@/lib/utils";
 
-/** Phase roadmap: each phase with its goal, dependencies, progress and systems. */
+/** Zero-pads a phase's position to two digits, "01". */
+function phaseNumber(index: number): string {
+  return String(index + 1).padStart(2, "0");
+}
+
+/** A square system chip with its category dot, linking to the system. */
+function SystemChip({ system, projectSlug }: { system: SystemListItem; projectSlug: string }) {
+  return (
+    <Link
+      href={`/p/${projectSlug}/systems/${system.slug}`}
+      className="flex h-7 items-center gap-[7px] border bg-background px-2.5 text-[13px] transition-colors hover:border-primary/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      <CategoryDot category={system.columnCategory} className="size-[7px]" />
+      <span className="sr-only">{system.columnName}:</span>
+      {system.title}
+    </Link>
+  );
+}
+
+/**
+ * Phase roadmap: a rail of phases in order with their goal, dependencies,
+ * systems and progress; the first phase not fully done is "now".
+ */
 export default async function RoadmapPage({ params }: { params: Promise<{ project: string }> }) {
   const { project: slug } = await params;
-  const { phases, systems } = await pageData(async (db, actor) => ({
-    phases: await listPhases(db, actor, slug),
-    systems: await listSystems(db, actor, slug),
-  }));
-  const name = new Map(phases.map((p) => [p.id, p.name]));
+  const { detail, phases, systems } = await pageData(async (db, actor) => {
+    const [detail, phases, systems] = await Promise.all([getProject(db, actor, slug), listPhases(db, actor, slug), listSystems(db, actor, slug)]);
+    return { detail, phases, systems };
+  });
+  const canEdit = detail.role !== "viewer";
+  const rows = phases.map((p, i) => {
+    const items = systems.filter((s) => s.phaseId === p.id);
+    const done = items.filter((s) => s.columnCategory === "done").length;
+    return { phase: p, n: phaseNumber(i), items, done, complete: items.length > 0 && done === items.length };
+  });
+  const nowIndex = rows.findIndex((r) => !r.complete);
+  const byId = new Map(rows.map((r) => [r.phase.id, r]));
+  const unphased = systems.filter((s) => !s.phaseId || !byId.has(s.phaseId));
+  const doneCount = systems.filter((s) => s.columnCategory === "done").length;
+  const editPhases = canEdit && (
+    <Button variant="outline" asChild>
+      <Link href={`/p/${slug}/settings/structure`}>Edit phases</Link>
+    </Button>
+  );
+
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader eyebrow="Roadmap" title="Delivery phases" />
-      {phases.length === 0 && (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No phases yet</EmptyTitle>
-            <EmptyDescription>Add phases in Settings, or let an agent create them with create_phase.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
-      <ol className="flex flex-col gap-3">
-        {phases.map((p) => {
-          const items = systems.filter((s) => s.phaseId === p.id);
-          const progress = categoryProgress(items);
-          return (
-            <li key={p.id}>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex flex-wrap items-baseline justify-between gap-2">
-                    {p.name}
-                    <span className="text-sm font-normal text-muted-foreground tabular-nums">
-                      {items.filter((s) => s.columnCategory === "done").length}/{items.length} done · {progress}%
-                    </span>
-                  </CardTitle>
-                  {p.goal && <CardDescription>{p.goal}</CardDescription>}
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  <Progress value={progress} aria-label={`${p.name} progress`} />
-                  {p.dependsOn.length > 0 && (
-                    <p className="text-xs text-muted-foreground">Builds on: {p.dependsOn.map((d) => name.get(d) ?? d).join(", ")}</p>
+    <Page width="full">
+      <PageHeader
+        crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]}
+        title="Roadmap"
+        actions={
+          (rows.length > 0 || editPhases) && (
+            <>
+              {rows.length > 0 && (
+                <span className="text-[13px] text-fg-2">
+                  {nowIndex >= 0 ? (
+                    <>
+                      Now in <b className="font-semibold text-foreground">{rows[nowIndex].phase.name}</b> ·{" "}
+                    </>
+                  ) : (
+                    "Every phase is done · "
                   )}
-                  <ul className="flex flex-wrap gap-2">
-                    {items.map((s) => (
-                      <li key={s.id}>
-                        <Link
-                          href={`/p/${slug}/systems/${s.slug}`}
-                          className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-sm hover:border-primary"
-                        >
-                          {s.title}
-                          <CategoryBadge category={s.columnCategory} name={s.columnName} />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
+                  {doneCount} of {systems.length} systems done
+                </span>
+              )}
+              {editPhases}
+            </>
+          )
+        }
+      />
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={<Milestone />}
+          title="No phases yet"
+          description="Phases order the work into milestones. Add them in settings, or let an agent create them with create_phase."
+          action={editPhases}
+        />
+      ) : (
+        <ol className="flex flex-col border bg-card">
+          {rows.map((r, i) => {
+            const now = i === nowIndex;
+            const past = nowIndex < 0 || i < nowIndex;
+            const deps = r.phase.dependsOn.map((id) => byId.get(id)).filter((d) => d !== undefined);
+            return (
+              <li
+                key={r.phase.id}
+                className="grid grid-cols-[44px_minmax(0,1fr)] gap-x-4 border-b pr-4 last:border-b-0 sm:pr-5 lg:grid-cols-[44px_minmax(0,290px)_minmax(0,1fr)_150px]"
+              >
+                <div className="relative row-span-3 flex justify-center lg:row-span-1">
+                  <span aria-hidden className={cn("absolute inset-y-0 left-[21px] w-0.5", past ? "bg-cat-done" : "bg-border")} />
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "relative mt-[18px] size-3 rounded-full",
+                      r.complete ? "bg-cat-done" : now ? "border-[3px] border-primary bg-card" : "border-2 border-border bg-card",
+                    )}
+                  />
+                </div>
+                <div className="flex flex-col gap-[3px] pt-3.5 lg:py-3.5">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="font-mono text-[11.5px] text-muted-foreground">{r.n}</span>
+                    <span className="text-[14.5px] font-semibold">{r.phase.name}</span>
+                    {now && <span className="bg-brand-soft px-1.5 py-px text-[11px] font-bold text-brand-strong">NOW</span>}
+                    {r.complete && <span className="sr-only">(done)</span>}
+                  </div>
+                  {r.phase.goal && <span className="text-[12.5px] leading-[1.45] text-fg-2">{r.phase.goal}</span>}
+                  {deps.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      Builds on {deps.map((d) => `${d.n} ${d.phase.name}`).join(", ").replace(/, ([^,]*)$/, " and $1")}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap content-center gap-1.5 py-3">
+                  {r.items.length > 0 ? (
+                    r.items.map((s) => <SystemChip key={s.id} system={s} projectSlug={slug} />)
+                  ) : (
+                    <span className="text-[12.5px] text-muted-foreground">No systems yet</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2.5 pb-3.5 lg:pb-0">
+                  <ProgressBar
+                    value={r.done}
+                    total={r.items.length}
+                    colorClass={r.complete ? "bg-cat-done" : "bg-primary"}
+                    className="h-1.5"
+                  />
+                  <span className="w-[30px] text-right font-mono text-xs text-fg-2">{r.items.length ? `${r.done}/${r.items.length}` : "–"}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {systems.length > 0 &&
+        (unphased.length > 0 ? (
+          <Panel title="Without a phase" meta={`${unphased.length} ${unphased.length === 1 ? "system" : "systems"}`} bodyClassName="px-4 pb-4 sm:px-5">
+            <div className="flex flex-wrap gap-1.5">
+              {unphased.map((s) => (
+                <SystemChip key={s.id} system={s} projectSlug={slug} />
+              ))}
+            </div>
+          </Panel>
+        ) : (
+          rows.length > 0 && (
+            <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+              <Check aria-hidden className="size-3.5" />
+              Every system has a phase.
+            </p>
+          )
+        ))}
+    </Page>
   );
 }

@@ -1,6 +1,40 @@
+/** Short English month names, January first. */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * Formats a date as "12 Sep", adding the year when it differs from `now`'s,
+ * in UTC so server and client render the same text.
+ *
+ * @param iso an ISO 8601 timestamp
+ * @param now the reference time, defaulting to the current time
+ */
+export function formatDate(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  const base = `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+  return d.getUTCFullYear() === now.getUTCFullYear() ? base : `${base} ${d.getUTCFullYear()}`;
+}
+
+/** Formats the UTC time of day of `iso` as "09:05". */
+export function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * Names the UTC day of `iso` for grouping a timeline: "Today", "Yesterday",
+ * or the date from {@link formatDate}.
+ */
+export function dayLabel(iso: string, now: Date = new Date()): string {
+  const day = (d: Date) => Math.floor(d.getTime() / 86_400_000);
+  const diff = day(now) - day(new Date(iso));
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return formatDate(iso, now);
+}
+
 /**
  * Formats how long ago `iso` was relative to `now`: "just now", minutes, hours,
- * days, or the plain date after 30 days.
+ * days, or the date from {@link formatDate} after 30 days.
  *
  * @param iso an ISO 8601 timestamp
  * @param now the reference time, defaulting to the current time
@@ -14,5 +48,5 @@ export function relativeAge(iso: string, now: Date = new Date()): string {
   if (hours < 24) return `${hours} h ago`;
   const days = Math.floor(hours / 24);
   if (days <= 30) return `${days} d ago`;
-  return iso.slice(0, 10);
+  return formatDate(iso, now);
 }

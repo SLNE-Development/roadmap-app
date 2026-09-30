@@ -4,103 +4,187 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { deleteProjectAction, updateProjectAction } from "@/app/(app)/p/[project]/actions";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-/** Owner form for the project's name, description and repository URL, and project deletion. */
-export function ProjectSettings({ slug, name, description, repoUrl }: { slug: string; name: string; description: string; repoUrl: string | null }) {
-  const router = useRouter();
+/** Label style shared by the settings forms. */
+const LABEL = "text-[12.5px] font-semibold text-fg-2";
+
+/**
+ * The General settings: name, slug, description and repository, and the danger
+ * zone deleting the project. Owners edit; everyone else sees the values as text.
+ */
+export function ProjectSettings({
+  slug,
+  name,
+  description,
+  repoUrl,
+  canEdit,
+}: {
+  slug: string;
+  name: string;
+  description: string;
+  repoUrl: string | null;
+  canEdit: boolean;
+}) {
+  if (!canEdit) return <ProjectSettingsReadOnly slug={slug} name={name} description={description} repoUrl={repoUrl} />;
+  return (
+    <div className="flex max-w-[720px] flex-col gap-5">
+      <GeneralForm slug={slug} name={name} description={description} repoUrl={repoUrl} />
+      <DangerZone slug={slug} />
+    </div>
+  );
+}
+
+/** The editable General panel. */
+function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name: string; description: string; repoUrl: string | null }) {
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState({ name, description, repoUrl: repoUrl ?? "" });
+  const dirty = draft.name !== name || draft.description !== description || draft.repoUrl !== (repoUrl ?? "");
+  return (
+    <form
+      aria-busy={pending}
+      className="flex flex-col gap-4 border bg-card p-4 sm:p-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        startTransition(async () => {
+          const result = await updateProjectAction(slug, { ...draft, repoUrl: draft.repoUrl.trim() || null });
+          if (result.ok) toast.success("Settings saved");
+          else toast.error(result.error);
+        });
+      }}
+    >
+      <h2 className="font-display text-[19px] font-semibold">General</h2>
+      <div className="grid gap-3.5 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="settings-name" className={LABEL}>
+            Name
+          </Label>
+          <Input id="settings-name" required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="settings-slug" className={LABEL}>
+            Slug
+          </Label>
+          <Input id="settings-slug" value={slug} disabled className="font-mono text-[13px]" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="settings-description" className={LABEL}>
+          Description
+        </Label>
+        <Textarea
+          id="settings-description"
+          rows={3}
+          value={draft.description}
+          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="settings-repo" className={LABEL}>
+          Repository
+        </Label>
+        <Input
+          id="settings-repo"
+          type="url"
+          placeholder="https://github.com/…"
+          aria-describedby="settings-repo-help"
+          value={draft.repoUrl}
+          onChange={(e) => setDraft({ ...draft, repoUrl: e.target.value })}
+        />
+        <p id="settings-repo-help" className="text-xs text-muted-foreground">
+          Commit hashes in updates link here.
+        </p>
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit" disabled={pending || !dirty || !draft.name.trim()}>
+          Save changes
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The danger zone: type the slug, then delete the project. */
+function DangerZone({ slug }: { slug: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const [confirm, setConfirm] = useState("");
   return (
-    <div className="flex flex-col gap-4" aria-busy={pending}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Project</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              startTransition(async () => {
-                const result = await updateProjectAction(slug, { ...draft, repoUrl: draft.repoUrl.trim() || null });
-                if (result.ok) toast.success("Saved");
-                else toast.error(result.error);
-              });
-            }}
-          >
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="settings-name">Name</FieldLabel>
-                <Input id="settings-name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="settings-description">Description</FieldLabel>
-                <Textarea id="settings-description" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="settings-repo">Repository URL</FieldLabel>
-                <Input id="settings-repo" value={draft.repoUrl} onChange={(e) => setDraft({ ...draft, repoUrl: e.target.value })} />
-              </Field>
-              <Button type="submit" className="self-start" disabled={pending}>
-                Save
-              </Button>
-            </FieldGroup>
-          </form>
-        </CardContent>
-      </Card>
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle>Delete project</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">Delete project</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {name} and everything in it?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Boards, systems, specs, plans, ADRs, questions and history are removed. Type the slug <code>{slug}</code> to confirm.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <Input aria-label="Project slug" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  disabled={confirm !== slug}
-                  onClick={() =>
-                    startTransition(async () => {
-                      const result = await deleteProjectAction(slug);
-                      if (!result.ok) return void toast.error(result.error);
-                      router.push("/");
-                    })
-                  }
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
-    </div>
+    <section aria-busy={pending} className="flex flex-col gap-3 border border-destructive bg-card p-4 sm:p-5">
+      <h2 className="font-display text-[19px] font-semibold text-destructive">Danger zone</h2>
+      <p className="text-[13.5px] leading-normal text-fg-2">
+        Deleting the project removes its boards, systems, documents, decisions, questions and history for everyone. This can’t be undone.
+      </p>
+      <form
+        className="flex flex-col gap-2 sm:flex-row sm:items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (confirm !== slug) return;
+          startTransition(async () => {
+            const result = await deleteProjectAction(slug);
+            if (!result.ok) return void toast.error(result.error);
+            toast.success("Project deleted");
+            router.push("/");
+          });
+        }}
+      >
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="settings-delete-confirm" className={LABEL}>
+            <span>
+              Type <span className="font-mono">{slug}</span> to confirm
+            </span>
+          </Label>
+          <Input
+            id="settings-delete-confirm"
+            className="font-mono text-[13px]"
+            placeholder={slug}
+            autoComplete="off"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+        </div>
+        <Button type="submit" variant="destructive" disabled={pending || confirm !== slug}>
+          Delete project
+        </Button>
+      </form>
+    </section>
+  );
+}
+
+/** The General settings as plain text, for editors and viewers. */
+function ProjectSettingsReadOnly({ slug, name, description, repoUrl }: { slug: string; name: string; description: string; repoUrl: string | null }) {
+  const rows: [string, React.ReactNode][] = [
+    ["Name", name],
+    ["Slug", <span key="slug" className="font-mono text-[13px]">{slug}</span>],
+    ["Description", description || <span key="d" className="text-muted-foreground">No description.</span>],
+    [
+      "Repository",
+      repoUrl ? (
+        <a key="r" href={repoUrl} target="_blank" rel="noreferrer" className="break-all text-brand-strong hover:underline">
+          {repoUrl}
+        </a>
+      ) : (
+        <span key="r" className="text-muted-foreground">Not linked.</span>
+      ),
+    ],
+  ];
+  return (
+    <section className="flex max-w-[720px] flex-col gap-4 border bg-card p-4 sm:p-5">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-[19px] font-semibold">General</h2>
+        <p className="text-[12.5px] text-muted-foreground">Only owners can change these settings.</p>
+      </div>
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className={LABEL}>{label}</dt>
+            <dd className="text-[13.5px] leading-normal whitespace-pre-line">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

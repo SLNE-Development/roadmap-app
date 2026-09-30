@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Copy, KeyRound } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { createApiKeyAction, revokeApiKeyAction } from "@/app/(app)/settings/api-keys/actions";
+import { createApiKeyAction, revokeApiKeyAction } from "@/app/(app)/(global)/settings/api-keys/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,90 +16,120 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { EmptyState, Panel } from "./page";
+import { useAction } from "./use-action";
 
-/** An API key row as the page passes it in, with dates as ISO strings. */
+/** An API key row as the page passes it in, with dates already formatted on the server. */
 export interface ApiKeyItem {
   id: string;
   name: string | null;
   start: string | null;
-  createdAt: string;
-  expiresAt: string | null;
-  lastRequest: string | null;
+  /** Creation date, e.g. "12 Sep". */
+  created: string;
+  /** Expiry date, "Expired 12 Sep", or "Never". */
+  expires: string;
+  /** How close the expiry is; `soon` is within seven days. */
+  expiry: "none" | "later" | "soon" | "expired";
+  /** Last use as a relative age, or "Never". */
+  lastUsed: string;
 }
 
-/** Lists the user's keys, creates new ones (shown once with the env lines) and revokes them. */
+/** Choices of the Expires select, in days; empty means the key never expires. */
+const EXPIRY_OPTIONS = [
+  { value: "", label: "Never" },
+  { value: "30", label: "In 30 days" },
+  { value: "90", label: "In 90 days" },
+  { value: "365", label: "In 365 days" },
+];
+
+/** Text class of an expiry cell by how close it is. */
+const EXPIRY_CLASS: Record<ApiKeyItem["expiry"], string> = {
+  none: "text-fg-2",
+  later: "text-fg-2",
+  soon: "font-semibold text-cat-review",
+  expired: "font-semibold text-destructive",
+};
+
+/** Lists the user's keys, creates new ones (shown once with the env lines in a dialog) and revokes them. */
 export function ApiKeyManager({ keys, appUrl }: { keys: ApiKeyItem[]; appUrl: string }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, act } = useAction();
   const [name, setName] = useState("");
-  const [days, setDays] = useState("");
+  const [days, setDays] = useState("90");
   const [created, setCreated] = useState<string | null>(null);
 
   const envLines = created ? `ROADMAP_URL=${appUrl}\nROADMAP_API_KEY=${created}` : "";
 
   return (
-    <div className="flex flex-col gap-4" aria-busy={pending}>
-      <Card>
-        <CardContent>
-          <form
-            className="flex flex-wrap gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              startTransition(async () => {
-                const result = await createApiKeyAction({ name, expiresInDays: days ? Number(days) : null });
-                if (!result.ok) return void toast.error(result.error);
+    <div className="flex flex-col gap-5" aria-busy={pending}>
+      <Panel title="Create a key" bodyClassName="px-4 pb-4 sm:px-5 sm:pb-5">
+        <form
+          className="flex flex-col gap-3 sm:flex-row sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = { name, expiresInDays: days ? Number(days) : null };
+            // useAction's `after` gets no value, so the key is taken from the result here.
+            act(async () => {
+              const result = await createApiKeyAction(input);
+              if (result.ok) {
                 setCreated(result.value.key);
                 setName("");
-                setDays("");
-              });
-            }}
-          >
-            <Input
-              id="key-name"
-              aria-label="Key name"
-              placeholder="Name, e.g. laptop"
-              maxLength={32}
-              className="min-w-40 flex-1"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Input
-              id="key-days"
-              aria-label="Expires after days (empty for never)"
-              placeholder="Expires in days (optional)"
-              type="number"
-              min={1}
-              max={365}
-              className="w-56"
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-            />
-            <Button type="submit" disabled={pending || !name.trim()}>
-              Create key
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              }
+              return result;
+            });
+          }}
+        >
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Label htmlFor="key-name" className="text-[12.5px] font-semibold text-fg-2">
+              Name
+            </Label>
+            <Input id="key-name" placeholder="e.g. work laptop" maxLength={32} value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:w-44">
+            <Label htmlFor="key-expires" className="text-[12.5px] font-semibold text-fg-2">
+              Expires
+            </Label>
+            <NativeSelect id="key-expires" className="w-full" value={days} onChange={(e) => setDays(e.target.value)}>
+              {EXPIRY_OPTIONS.map((o) => (
+                <NativeSelectOption key={o.value} value={o.value}>
+                  {o.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <Button type="submit" disabled={pending || !name.trim()}>
+            Create key
+          </Button>
+        </form>
+      </Panel>
 
       <Dialog open={created !== null} onOpenChange={(open) => !open && setCreated(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Your new API key</DialogTitle>
-            <DialogDescription>Copy these lines now. The key is not shown again.</DialogDescription>
+            <DialogTitle>Copy your new key</DialogTitle>
+            <DialogDescription>
+              This is the only time the key is shown. Set these two lines as environment variables for the surf-roadmap plugin.
+            </DialogDescription>
           </DialogHeader>
-          <pre className="rounded-md bg-muted p-3 font-mono text-xs break-all whitespace-pre-wrap">{envLines}</pre>
+          <pre className="bg-secondary p-3 font-mono text-[12.5px] leading-[1.7] break-all whitespace-pre-wrap">{envLines}</pre>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={async () => {
-                await navigator.clipboard.writeText(envLines);
-                toast.success("Copied");
+                try {
+                  await navigator.clipboard.writeText(envLines);
+                  toast.success("Copied");
+                } catch {
+                  toast.error("Copying failed. Select the lines and copy them by hand.");
+                }
               }}
             >
+              <Copy aria-hidden />
               Copy
             </Button>
             <Button onClick={() => setCreated(null)}>Done</Button>
@@ -106,72 +137,65 @@ export function ApiKeyManager({ keys, appUrl }: { keys: ApiKeyItem[]; appUrl: st
         </DialogContent>
       </Dialog>
 
-      <Card>
-        <CardContent>
-          {keys.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>No keys yet</EmptyTitle>
-                <EmptyDescription>Create one for the surf-roadmap plugin or a script.</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Starts with</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Last used</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {keys.map((k) => (
-                  <TableRow key={k.id}>
-                    <TableCell className="font-medium">{k.name ?? "unnamed"}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{k.start ? `${k.start}…` : ""}</TableCell>
-                    <TableCell>{k.createdAt.slice(0, 10)}</TableCell>
-                    <TableCell>{k.expiresAt ? k.expiresAt.slice(0, 10) : "never"}</TableCell>
-                    <TableCell>{k.lastRequest ? k.lastRequest.slice(0, 10) : "never"}</TableCell>
-                    <TableCell className="text-right">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm" disabled={pending}>
+      {keys.length === 0 ? (
+        <EmptyState
+          icon={<KeyRound />}
+          title="No API keys yet"
+          description="Agents such as the surf-roadmap plugin use a key to read and update your projects over MCP and REST. Create one above."
+        />
+      ) : (
+        <Panel title="Keys" meta={keys.length === 1 ? "1 key" : `${keys.length} keys`}>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4 text-xs font-semibold text-muted-foreground sm:pl-5">Name</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Key</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Created</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Expires</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Last used</TableHead>
+                <TableHead className="pr-4 sm:pr-5">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {keys.map((k) => (
+                <TableRow key={k.id}>
+                  <TableCell className="py-2.5 pl-4 font-semibold sm:pl-5">{k.name ?? "Unnamed key"}</TableCell>
+                  <TableCell className="font-mono text-[12.5px] text-fg-2">{k.start ? `${k.start}…` : ""}</TableCell>
+                  <TableCell className="text-fg-2">{k.created}</TableCell>
+                  <TableCell className={cn(EXPIRY_CLASS[k.expiry])}>{k.expires}</TableCell>
+                  <TableCell className="text-fg-2">{k.lastUsed}</TableCell>
+                  <TableCell className="pr-4 text-right sm:pr-5">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={pending}>
+                          Revoke
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Revoke {k.name ?? "this key"}?</AlertDialogTitle>
+                          <AlertDialogDescription>Anything using it stops working immediately.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => act(() => revokeApiKeyAction(k.id), () => toast.success("Key revoked"))}
+                          >
                             Revoke
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Revoke {k.name ?? "this key"}?</AlertDialogTitle>
-                            <AlertDialogDescription>Anything using it stops working immediately.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Keep</AlertDialogCancel>
-                            <AlertDialogAction
-                              variant="destructive"
-                              onClick={() =>
-                                startTransition(async () => {
-                                  const result = await revokeApiKeyAction(k.id);
-                                  if (result.ok) toast.success("Key revoked");
-                                  else toast.error(result.error);
-                                })
-                              }
-                            >
-                              Revoke
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Panel>
+      )}
     </div>
   );
 }

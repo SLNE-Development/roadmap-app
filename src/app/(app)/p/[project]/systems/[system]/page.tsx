@@ -1,22 +1,25 @@
-import Link from "next/link";
-import { DocumentSection } from "@/components/document-section";
-import { HistoryList } from "@/components/history-list";
-import { Markdown } from "@/components/markdown";
+import { Check, Lock } from "lucide-react";
+import { DocumentSection, SpecPreview } from "@/components/document-section";
+import { PriorityTag } from "@/components/chips";
+import { Page, PageHeader } from "@/components/page";
+import { PersonName } from "@/components/person-avatar";
 import { PlanningRounds } from "@/components/planning-rounds";
-import { SystemEditor } from "@/components/system-editor";
+import { SystemNotes } from "@/components/system-editor";
+import { ActivityFeed } from "@/components/system/activity-feed";
+import type { SystemControlsData } from "@/components/system/controls";
+import { ReopenPlanningButton, SystemActionBar, SystemHeaderActions } from "@/components/system/header-actions";
+import { PropertiesPanel, SystemFacts } from "@/components/system/properties";
+import { DecisionsPanel, PlanningPanel } from "@/components/system/rail";
+import { parseTab, SystemTabs, tabHref } from "@/components/system/tabs";
+import { describeGaps } from "@/components/system/text";
 import { TaskList } from "@/components/task-list";
-import { UpdateList } from "@/components/update-list";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listActivity } from "@/lib/ops/activity";
-import { formatAdrNumber } from "@/lib/ops/adrs";
 import { getDocument } from "@/lib/ops/documents";
 import { listMembers } from "@/lib/ops/members";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { getPlanning } from "@/lib/ops/planning";
-import { listUpdates } from "@/lib/ops/updates";
-import { pageData, toIso } from "@/lib/page";
+import { listDomains, listPhases } from "@/lib/ops/structure";
+import { pageData } from "@/lib/page";
 
 /** Parses a version search parameter, returning undefined unless it is a listed version. */
 function version(value: string | string[] | undefined, known: number[] | undefined): number | undefined {
@@ -24,9 +27,21 @@ function version(value: string | string[] | undefined, known: number[] | undefin
   return known?.includes(n) ? n : undefined;
 }
 
+/** A thin vertical separator of the meta line. */
+function Sep() {
+  return (
+    <span aria-hidden className="text-border">
+      |
+    </span>
+  );
+}
+
 /**
- * One system: header, spec and plan (with version pickers), open questions, the
- * task list, then Planning, Agent updates and History in accordions that start closed.
+ * One system: crumbs, title with status, primary move and overflow menu, the
+ * meta line and summary, then tabs (`?tab=`): Overview (tasks and spec preview
+ * with a rail of properties, planning, decisions and notes), Spec, Plan,
+ * Planning and Activity. Phones get a 2×2 fact grid, pill tabs and a fixed
+ * bottom bar with the status and the primary move.
  */
 export default async function SystemPage({
   params,
@@ -37,139 +52,178 @@ export default async function SystemPage({
 }) {
   const { project: slug, system: systemSlug } = await params;
   const sp = await searchParams;
+  const tab = parseTab(sp.tab);
   const data = await pageData(async (db, actor) => {
-    const overview = await getSystemOverview(db, actor, slug, systemSlug);
-    const specVersion = version(sp.spec, overview.spec?.versions);
-    const planVersion = version(sp.plan, overview.plan?.versions);
-    return {
-      overview,
-      spec: specVersion ? await getDocument(db, actor, slug, systemSlug, "spec", specVersion) : overview.spec,
-      plan: planVersion ? await getDocument(db, actor, slug, systemSlug, "plan", planVersion) : overview.plan,
-      planning: await getPlanning(db, actor, slug, systemSlug),
-      updates: await listUpdates(db, actor, slug, { system: systemSlug, limit: 200 }),
-      history: await listActivity(db, actor, slug, { system: systemSlug, limit: 300 }),
-      members: await listMembers(db, actor, slug),
-    };
+    const overview = await getSystemOverview(db, actor, slug, systemSlug, 200);
+    const specVersion = tab === "spec" ? version(sp.spec, overview.spec?.versions) : undefined;
+    const planVersion = tab === "plan" ? version(sp.plan, overview.plan?.versions) : undefined;
+    const [spec, plan, planning, history, members, domains, phases] = await Promise.all([
+      specVersion ? getDocument(db, actor, slug, systemSlug, "spec", specVersion) : overview.spec,
+      planVersion ? getDocument(db, actor, slug, systemSlug, "plan", planVersion) : overview.plan,
+      getPlanning(db, actor, slug, systemSlug),
+      listActivity(db, actor, slug, { system: systemSlug, limit: 300 }),
+      listMembers(db, actor, slug),
+      listDomains(db, actor, slug),
+      listPhases(db, actor, slug),
+    ]);
+    return { overview, spec, plan, planning, history, members, domains, phases };
   });
-  const { overview: o } = data;
+  const { overview: o, planning } = data;
   const canEdit = o.role !== "viewer";
-  const members = data.members.map((m) => ({ userId: m.userId, name: m.name }));
+  const base = `/p/${slug}/systems/${systemSlug}`;
+  const boardHref = `/p/${slug}/boards/${o.board.slug}`;
   const openQuestions = o.questions.filter((q) => !q.resolved);
+  // Update postings are shown as the updates themselves.
+  const changes = data.history.filter((h) => h.entity !== "update");
+
+  const controls: SystemControlsData = {
+    projectSlug: slug,
+    systemSlug,
+    canEdit,
+    planningComplete: o.planning.complete,
+    gaps: o.planning.gaps,
+    columnId: o.system.columnId,
+    columns: o.board.columns.map((c) => ({ id: c.id, name: c.name, category: c.category })),
+    priority: o.system.priority,
+    ownerUserId: o.system.ownerUserId,
+    ownerName: o.ownerName,
+    members: data.members.map((m) => ({ userId: m.userId, name: m.name })),
+    domainId: o.system.domainId,
+    domains: data.domains.map((d) => ({ id: d.id, name: d.name })),
+    phaseId: o.system.phaseId,
+    phases: data.phases.map((p) => ({ id: p.id, name: p.name })),
+  };
+
+  const meta = {
+    spec: o.spec ? `v${o.spec.version}` : undefined,
+    plan: o.plan ? `v${o.plan.version}` : undefined,
+    planning: `${planning.rounds.length} ${planning.rounds.length === 1 ? "round" : "rounds"}`,
+    activity: String(o.updates.length + changes.length),
+  };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <Link href={`/p/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← Catalogue
-        </Link>
-        <p className="mt-3 text-sm text-muted-foreground">
-          {[o.domain?.name, o.phase?.name, o.board.name].filter(Boolean).join(" · ")}
-        </p>
-        <h1 className="text-2xl font-semibold">{o.system.title}</h1>
-        {o.system.summary && <p className="mt-1 max-w-3xl text-muted-foreground">{o.system.summary}</p>}
-        {o.adrs.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {o.adrs.map((a) => (
-              <Badge key={a.number} variant="outline" asChild>
-                <Link href={`/p/${slug}/adrs/${a.number}`}>
-                  ADR {formatAdrNumber(a.number)}: {a.title}
-                </Link>
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
-        <div className="flex min-w-0 flex-col gap-6">
-          <DocumentSection title="Specification" doc={data.spec} param="spec" empty="No spec yet. It is written at the end of the planning interview." />
-          {data.plan && <DocumentSection title="Implementation plan" doc={data.plan} param="plan" empty="" />}
-          {openQuestions.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Open questions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="flex flex-col gap-2 text-sm">
-                  {openQuestions.map((q) => (
-                    <li key={q.id}>
-                      <span className="font-medium">{q.title}</span>
-                      {q.text && <Markdown className="text-muted-foreground">{q.text}</Markdown>}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+    <Page>
+      <PageHeader
+        crumbs={[{ label: o.project.name, href: `/p/${slug}` }, { label: o.board.name, href: boardHref }, { label: o.system.title }]}
+        title={o.system.title}
+        actions={<SystemHeaderActions data={controls} />}
+      >
+        <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-fg-2 lg:flex">
+          <PriorityTag priority={o.system.priority} />
+          {o.domain && (
+            <>
+              <span>{o.domain.name}</span>
+              <Sep />
+            </>
           )}
-
-          <TaskList
-            projectSlug={slug}
-            systemSlug={systemSlug}
-            tasks={o.tasks}
-            members={members}
-            canEdit={canEdit}
-            planningComplete={o.planning.complete}
-          />
-
-          <Accordion type="multiple" className="rounded-lg border px-4">
-            <AccordionItem value="planning">
-              <AccordionTrigger>
-                Planning ({data.planning.rounds.reduce((n, r) => n + r.items.length, 0)})
-              </AccordionTrigger>
-              <AccordionContent>
-                <PlanningRounds rounds={data.planning.rounds} confirmation={data.planning.confirmation} />
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="updates">
-              <AccordionTrigger>Agent updates ({data.updates.length})</AccordionTrigger>
-              <AccordionContent>
-                <UpdateList updates={data.updates.map(toIso)} projectSlug={slug} />
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="history">
-              <AccordionTrigger>History ({data.history.length})</AccordionTrigger>
-              <AccordionContent>
-                <HistoryList entries={data.history.map(toIso)} showEntity />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          {o.phase && (
+            <>
+              <span>{o.phase.name}</span>
+              <Sep />
+            </>
+          )}
+          {o.ownerName ? <PersonName name={o.ownerName} /> : <span className="text-muted-foreground">No owner</span>}
+          <Sep />
+          {o.planning.complete ? (
+            <span className="flex items-center gap-1.5 font-medium text-cat-done">
+              <Check aria-hidden className="size-3.5" strokeWidth={2.4} />
+              Planning complete
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 font-medium text-cat-planning" title={`Still in planning: ${describeGaps(o.planning.gaps)}.`}>
+              <Lock aria-hidden className="size-3.5" />
+              In planning
+            </span>
+          )}
         </div>
-        <aside className="flex flex-col gap-4">
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Planning status</CardTitle>
-              <CardAction>
-                <Badge variant={o.planning.complete ? "secondary" : "outline"}>{o.planning.complete ? "Planning complete" : "In planning"}</Badge>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-sm">
-              <p className="text-muted-foreground">
-                {o.planning.rounds} {o.planning.rounds === 1 ? "round" : "rounds"} of questions
+        <SystemFacts data={controls} planningHref={tabHref(base, "planning")} />
+        {o.system.summary && <p className="max-w-[720px] text-[14.5px] leading-[1.55] text-fg-2 lg:text-[15px]">{o.system.summary}</p>}
+      </PageHeader>
+
+      <SystemTabs base={base} current={tab} meta={meta} />
+
+      {tab === "overview" && (
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="flex min-w-0 flex-col gap-5">
+            <TaskList
+              projectSlug={slug}
+              systemSlug={systemSlug}
+              tasks={o.tasks}
+              members={controls.members}
+              canEdit={canEdit}
+              planningComplete={o.planning.complete}
+              category={o.column.category}
+            />
+            <SpecPreview doc={o.spec} href={tabHref(base, "spec")} />
+          </div>
+          <aside aria-label="About this system" className="flex min-w-0 flex-col gap-4">
+            <PropertiesPanel
+              data={controls}
+              boardName={o.board.name}
+              boardHref={boardHref}
+              domainName={o.domain?.name ?? null}
+              phaseName={o.phase?.name ?? null}
+            />
+            <PlanningPanel planning={planning} href={tabHref(base, "planning")} />
+            <DecisionsPanel projectSlug={slug} adrs={o.adrs} questions={openQuestions} />
+            <SystemNotes key={o.system.notes} projectSlug={slug} systemSlug={systemSlug} notes={o.system.notes} canEdit={canEdit} />
+          </aside>
+        </div>
+      )}
+
+      {tab === "spec" && (
+        <DocumentSection
+          title="Specification"
+          doc={data.spec}
+          param="spec"
+          empty={{ title: "No spec yet", description: "The spec is written at the end of the planning interview." }}
+        />
+      )}
+
+      {tab === "plan" && (
+        <DocumentSection
+          title="Implementation plan"
+          doc={data.plan}
+          param="plan"
+          empty={{ title: "No plan yet", description: "An agent writes the implementation plan once the spec is agreed; its steps become tasks." }}
+        />
+      )}
+
+      {tab === "planning" && (
+        <div className="flex flex-col gap-4">
+          {!o.planning.complete && planning.rounds.length > 0 && (
+            <p className="flex items-start gap-2.5 bg-cat-planning-soft px-3 py-2.5 text-[13px] leading-[1.45] text-cat-planning">
+              <Lock aria-hidden className="mt-0.5 size-[15px] shrink-0" />
+              Still in planning: {describeGaps(o.planning.gaps)}.
+            </p>
+          )}
+          {canEdit && o.planning.complete && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="flex flex-1 items-center gap-1.5 text-[13px] font-medium text-cat-done">
+                <Check aria-hidden className="size-3.5" strokeWidth={2.4} />
+                Planning complete
               </p>
-              {!o.planning.complete && (
-                <ul className="list-disc pl-4">
-                  {o.planning.gaps.map((g) => (
-                    <li key={g}>{g}</li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-          <SystemEditor
-            key={`${o.system.columnId}-${o.system.priority}-${o.system.ownerUserId}-${o.system.notes}`}
-            projectSlug={slug}
-            systemSlug={systemSlug}
-            columnId={o.system.columnId}
-            columns={o.board.columns.map((c) => ({ id: c.id, name: c.name, category: c.category }))}
-            planningComplete={o.planning.complete}
-            priority={o.system.priority}
-            ownerUserId={o.system.ownerUserId}
-            notes={o.system.notes}
-            members={members}
-            canEdit={canEdit}
-          />
-        </aside>
-      </div>
-    </div>
+              <ReopenPlanningButton projectSlug={slug} systemSlug={systemSlug} />
+            </div>
+          )}
+          <PlanningRounds rounds={planning.rounds} confirmation={planning.confirmation} completedAt={planning.completedAt?.toISOString() ?? null} />
+        </div>
+      )}
+
+      {tab === "activity" && (
+        <ActivityFeed
+          updates={o.updates}
+          changes={changes}
+          names={{
+            tasks: new Map(o.tasks.map((t) => [String(t.id), t.title])),
+            domains: new Map(data.domains.map((d) => [d.id, d.name])),
+            phases: new Map(data.phases.map((p) => [p.id, p.name])),
+          }}
+        />
+      )}
+
+      {canEdit && <div aria-hidden className="h-16 lg:hidden" />}
+      <SystemActionBar data={controls} />
+    </Page>
   );
 }

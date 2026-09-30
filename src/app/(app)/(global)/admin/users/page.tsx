@@ -1,26 +1,23 @@
 import { notFound } from "next/navigation";
 import { AllowlistManager } from "@/components/allowlist-manager";
-import { getDb } from "@/db/client";
-import { requireActor } from "@/lib/auth/actor";
+import { Page, PageHeader } from "@/components/page";
 import { listAllowedAccounts } from "@/lib/ops/users";
+import { pageData } from "@/lib/page";
 
 /** Admin page listing provisioned Discord accounts; non-admins get a 404. */
 export default async function AdminUsersPage() {
-  const actor = await requireActor();
-  if (!actor.isAdmin) notFound();
-  const accounts = await listAllowedAccounts(getDb(), actor);
+  const { accounts, selfId } = await pageData(async (db, actor) => {
+    if (!actor.isAdmin) notFound();
+    return { accounts: await listAllowedAccounts(db, actor), selfId: actor.userId };
+  });
   return (
-    <div className="mx-auto max-w-7xl py-6">
-      <div className="flex max-w-5xl flex-col gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Admin</p>
-          <h1 className="text-2xl font-semibold">Accounts</h1>
-          <p className="text-sm text-muted-foreground">
-            Only these Discord accounts can sign in. Find an id in Discord with Developer Mode on: right-click the user, Copy User ID.
-          </p>
-        </div>
-        <AllowlistManager accounts={accounts} selfId={actor.userId} />
-      </div>
-    </div>
+    <Page width="medium">
+      <PageHeader
+        crumbs={[{ label: "Admin" }]}
+        title="Accounts"
+        description="Only Discord accounts on this list can sign in. Admins see and manage every project."
+      />
+      <AllowlistManager accounts={accounts} selfId={selfId} />
+    </Page>
   );
 }

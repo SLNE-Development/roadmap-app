@@ -1,9 +1,10 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createProjectAction } from "@/app/(app)/actions";
+import { createProjectAction } from "@/app/(app)/(global)/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -19,8 +20,12 @@ function slugify(name: string): string {
     .slice(0, 64);
 }
 
-/** Button and dialog creating a project; opens the new project on success. */
-export function NewProjectDialog() {
+/**
+ * Button and dialog creating a project; opens the new project on success.
+ *
+ * @param props.variant `button` for the primary header button, `tile` for the dashed last cell of the project grid
+ */
+export function NewProjectDialog({ variant = "button" }: { variant?: "button" | "tile" }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -33,7 +38,20 @@ export function NewProjectDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>New project</Button>
+        {variant === "tile" ? (
+          <button
+            type="button"
+            className="flex min-h-[150px] flex-1 flex-col items-center justify-center gap-2 border border-dashed text-[13.5px] font-medium text-fg-2 outline-none transition-colors hover:border-primary hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Plus aria-hidden className="size-[18px]" />
+            New project
+          </button>
+        ) : (
+          <Button>
+            <Plus aria-hidden />
+            New project
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <form

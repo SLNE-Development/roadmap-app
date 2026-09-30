@@ -6,12 +6,24 @@ import { toast } from "sonner";
 import { createBoardAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { slugify } from "@/lib/slug";
 
-/** Button and dialog adding a board with the default columns; opens it on success. */
-export function NewBoardDialog({ projectSlug }: { projectSlug: string }) {
+/**
+ * Button and dialog adding a board with the default columns. On success it opens
+ * the board, or with `openIn="settings"` selects it in the board settings.
+ * `trigger` replaces the default outline button.
+ */
+export function NewBoardDialog({
+  projectSlug,
+  openIn = "board",
+  trigger,
+}: {
+  projectSlug: string;
+  openIn?: "board" | "settings";
+  trigger?: React.ReactNode;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -19,9 +31,7 @@ export function NewBoardDialog({ projectSlug }: { projectSlug: string }) {
   const [slug, setSlug] = useState("");
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">New board</Button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger ?? <Button variant="outline">New board</Button>}</DialogTrigger>
       <DialogContent>
         <form
           className="flex flex-col gap-4"
@@ -31,7 +41,14 @@ export function NewBoardDialog({ projectSlug }: { projectSlug: string }) {
               const result = await createBoardAction(projectSlug, { name, slug });
               if (!result.ok) return void toast.error(result.error);
               setOpen(false);
-              router.push(`/p/${projectSlug}/boards/${result.value.slug}`);
+              setName("");
+              setSlug("");
+              toast.success(`Board ${name.trim()} created`);
+              router.push(
+                openIn === "settings"
+                  ? `/p/${projectSlug}/settings/boards?board=${result.value.slug}`
+                  : `/p/${projectSlug}/boards/${result.value.slug}`,
+              );
             });
           }}
         >
@@ -44,6 +61,7 @@ export function NewBoardDialog({ projectSlug }: { projectSlug: string }) {
               <FieldLabel htmlFor="board-name">Name</FieldLabel>
               <Input
                 id="board-name"
+                placeholder="e.g. Operations"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
@@ -53,7 +71,8 @@ export function NewBoardDialog({ projectSlug }: { projectSlug: string }) {
             </Field>
             <Field>
               <FieldLabel htmlFor="board-slug">Slug</FieldLabel>
-              <Input id="board-slug" className="font-mono" value={slug} onChange={(e) => setSlug(e.target.value)} />
+              <Input id="board-slug" className="font-mono text-[13px]" value={slug} onChange={(e) => setSlug(e.target.value)} />
+              <FieldDescription>Used in the board&apos;s address; lowercase letters, digits and dashes.</FieldDescription>
             </Field>
           </FieldGroup>
           <DialogFooter>

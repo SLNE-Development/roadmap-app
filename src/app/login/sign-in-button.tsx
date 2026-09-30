@@ -1,5 +1,6 @@
 "use client";
 
+import { LogIn } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ export function SignInButton() {
   const [pending, setPending] = useState(false);
   return (
     <Button
-      className="w-full"
+      className="h-[46px] w-full gap-2.5 text-[15px] [&_svg:not([class*='size-'])]:size-[18px]"
       disabled={pending}
       onClick={async () => {
         setPending(true);
@@ -30,7 +31,8 @@ export function SignInButton() {
         }
       }}
     >
-      {pending ? "Redirecting…" : "Sign in with Discord"}
+      <LogIn aria-hidden />
+      {pending ? "Redirecting…" : "Continue with Discord"}
     </Button>
   );
 }

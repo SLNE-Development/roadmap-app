@@ -14,6 +14,8 @@ export interface HistoryEntry {
   id: number;
   entity: string;
   entityId: string;
+  /** The system the change belongs to, when it belongs to one. */
+  systemId: string | null;
   field: string;
   oldValue: string | null;
   newValue: string | null;
@@ -37,6 +39,7 @@ export async function listActivity(
       id: changeLog.id,
       entity: changeLog.entity,
       entityId: changeLog.entityId,
+      systemId: changeLog.systemId,
       field: changeLog.field,
       oldValue: changeLog.oldValue,
       newValue: changeLog.newValue,

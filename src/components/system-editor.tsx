@@ -1,138 +1,87 @@
 "use client";
 
 import { useState } from "react";
-import { moveSystemAction, reopenPlanningAction, updateSystemAction } from "@/app/(app)/p/[project]/actions";
+import { toast } from "sonner";
+import { updateSystemAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
+import { cn } from "@/lib/utils";
+import { Markdown } from "./markdown";
 import { useAction } from "./use-action";
 
-/** Sidebar editor for a system's column, priority, owner and notes, plus reopening planning. */
-export function SystemEditor({
-  projectSlug,
-  systemSlug,
-  columnId,
-  columns,
-  planningComplete,
-  priority,
-  ownerUserId,
-  notes,
-  members,
-  canEdit,
-}: {
-  projectSlug: string;
-  systemSlug: string;
-  columnId: string;
-  columns: { id: string; name: string; category: ColumnCategory }[];
-  planningComplete: boolean;
-  priority: Priority;
-  ownerUserId: string | null;
-  notes: string;
-  members: { userId: string; name: string }[];
-  canEdit: boolean;
-}) {
-  const { pending, act } = useAction();
-  const [draft, setDraft] = useState(notes);
+/** Above this many characters, notes start clipped with a "Show all" toggle. */
+const LONG_NOTES = 400;
 
+/**
+ * The Notes panel of the system's right rail: the notes rendered, clipped when
+ * long, and for editors an "Edit notes" button that opens the editor.
+ * Hidden for viewers when there are no notes.
+ */
+export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { projectSlug: string; systemSlug: string; notes: string; canEdit: boolean }) {
+  const { pending, act } = useAction();
+  const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState(notes);
+  const long = notes.length > LONG_NOTES;
+
+  if (!canEdit && !notes.trim()) return null;
   return (
-    <Card aria-busy={pending}>
-      <CardContent>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="system-column">Column</FieldLabel>
-            <NativeSelect
-              id="system-column"
-              value={columnId}
-              disabled={!canEdit || pending}
-              onChange={(e) =>
-                act(() =>
-                  moveSystemAction(projectSlug, systemSlug, {
-                    column: e.target.value,
-                  }),
-                )
-              }
-            >
-              {columns.map((c) => (
-                <NativeSelectOption key={c.id} value={c.id} disabled={!planningComplete && c.category !== "planning"}>
-                  {c.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            {!planningComplete && <FieldDescription>Other columns unlock when the planning interview is complete.</FieldDescription>}
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="system-priority">Priority</FieldLabel>
-            <NativeSelect
-              id="system-priority"
-              value={priority}
-              disabled={!canEdit || pending}
-              onChange={(e) =>
-                act(() =>
-                  updateSystemAction(projectSlug, systemSlug, {
-                    priority: e.target.value as Priority,
-                  }),
-                )
-              }
-            >
-              {PRIORITIES.map((p) => (
-                <NativeSelectOption key={p} value={p}>
-                  {p}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="system-owner">Owner</FieldLabel>
-            <NativeSelect
-              id="system-owner"
-              value={ownerUserId ?? ""}
-              disabled={!canEdit || pending}
-              onChange={(e) =>
-                act(() =>
-                  updateSystemAction(projectSlug, systemSlug, {
-                    ownerUserId: e.target.value || null,
-                  }),
-                )
-              }
-            >
-              <NativeSelectOption value="">Unowned</NativeSelectOption>
-              {members.map((m) => (
-                <NativeSelectOption key={m.userId} value={m.userId}>
-                  {m.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="system-notes">Notes</FieldLabel>
-            <Textarea id="system-notes" className="min-h-28" value={draft} disabled={!canEdit} onChange={(e) => setDraft(e.target.value)} />
-            {canEdit && (
-              <Button
-                variant="outline"
-                className="self-start"
-                disabled={pending || draft === notes}
-                onClick={() =>
-                  act(() =>
-                    updateSystemAction(projectSlug, systemSlug, {
-                      notes: draft,
-                    }),
-                  )
-                }
-              >
-                Save notes
-              </Button>
-            )}
-          </Field>
-          {canEdit && planningComplete && (
-            <Button variant="ghost" className="self-start" disabled={pending} onClick={() => act(() => reopenPlanningAction(projectSlug, systemSlug))}>
-              Reopen planning
+    <section className="flex flex-col gap-2.5 border bg-card p-4" aria-busy={pending}>
+      <div className="flex items-center gap-2">
+        <h2 className="flex-1 text-sm font-semibold">Notes</h2>
+        {canEdit && !editing && (
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              setDraft(notes);
+              setEditing(true);
+            }}
+          >
+            {notes.trim() ? "Edit notes" : "Add notes"}
+          </Button>
+        )}
+      </div>
+      {editing ? (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            act(
+              () => updateSystemAction(projectSlug, systemSlug, { notes: draft }),
+              () => {
+                setEditing(false);
+                toast.success("Notes saved");
+              },
+            );
+          }}
+        >
+          <Textarea aria-label="Notes" className="min-h-40 text-[13px]" value={draft} autoFocus onChange={(e) => setDraft(e.target.value)} />
+          <p className="text-xs text-muted-foreground">Markdown works here.</p>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={pending || draft === notes}>
+              Save notes
             </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : notes.trim() ? (
+        <>
+          <div className={cn("relative", long && !expanded && "max-h-40 overflow-hidden")}>
+            <Markdown className="text-[13px] leading-normal text-fg-2">{notes}</Markdown>
+            {long && !expanded && <div aria-hidden className="absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-card to-transparent" />}
+          </div>
+          {long && (
+            <button type="button" onClick={() => setExpanded((v) => !v)} className="self-start text-[12.5px] font-medium text-brand-strong hover:underline">
+              {expanded ? "Show less" : "Show all"}
+            </button>
           )}
-        </FieldGroup>
-      </CardContent>
-    </Card>
+        </>
+      ) : (
+        <p className="text-[12.5px] text-fg-2">Keep context for people and agents here: links, constraints, decisions in progress.</p>
+      )}
+    </section>
   );
 }

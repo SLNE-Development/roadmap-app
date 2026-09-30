@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +8,9 @@ import "./globals.css";
 
 /** Sans-serif UI font. */
 const sans = Geist({ subsets: ["latin"], variable: "--font-sans" });
+
+/** Display font for page titles and section headings. */
+const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-display" });
 
 /** Monospace font for ids, hashes and code. */
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
@@ -25,12 +28,12 @@ export const metadata: Metadata = {
  */
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("antialiased font-sans", sans.variable, mono.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("antialiased font-sans", sans.variable, display.variable, mono.variable)}>
       <body className="min-h-dvh bg-background text-foreground">
         <ThemeProvider>
           <TooltipProvider>
             {children}
-            <Toaster richColors />
+            <Toaster richColors mobileOffset={{ bottom: 88 }} />
           </TooltipProvider>
         </ThemeProvider>
       </body>

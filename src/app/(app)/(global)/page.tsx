@@ -1,47 +1,75 @@
-import Link from "next/link";
+import { FolderKanban } from "lucide-react";
 import { NewProjectDialog } from "@/components/new-project-dialog";
-import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { EmptyState, Page, PageHeader } from "@/components/page";
+import type { ColumnCategory } from "@/db/schema";
+import { listActivity } from "@/lib/ops/activity";
 import { listProjects } from "@/lib/ops/projects";
+import { listQuestions } from "@/lib/ops/questions";
+import { listSystems } from "@/lib/ops/systems";
 import { pageData } from "@/lib/page";
+import { relativeAge } from "@/lib/time";
+import { ProjectGrid, type ProjectCardItem } from "./project-grid";
 
-/** Start page: the projects the user belongs to, and project creation. */
+/** Formats a count with the singular or plural noun: "1 project", "3 projects". */
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** Start page: the projects the user belongs to with their state, and project creation. */
 export default async function HomePage() {
-  const projects = await pageData((db, actor) => listProjects(db, actor));
+  const projects = await pageData(async (db, actor) => {
+    const list = await listProjects(db, actor);
+    return Promise.all(
+      list.map(async (p): Promise<ProjectCardItem> => {
+        const [systems, questions, activity] = await Promise.all([
+          listSystems(db, actor, p.slug),
+          listQuestions(db, actor, p.slug, { resolved: false }),
+          listActivity(db, actor, p.slug, { limit: 1 }),
+        ]);
+        const byCategory: Partial<Record<ColumnCategory, number>> = {};
+        for (const s of systems) byCategory[s.columnCategory] = (byCategory[s.columnCategory] ?? 0) + 1;
+        const last = (activity[0]?.createdAt ?? p.createdAt).toISOString();
+        return {
+          slug: p.slug,
+          name: p.name,
+          description: p.description,
+          role: p.role,
+          systems: systems.length,
+          blocked: byCategory.blocked ?? 0,
+          openQuestions: questions.length,
+          byCategory,
+          lastActivity: last,
+          lastActivityLabel: relativeAge(last),
+        };
+      }),
+    );
+  });
+
+  const blocked = projects.reduce((n, p) => n + p.blocked, 0);
+  const open = projects.reduce((n, p) => n + p.openQuestions, 0);
+  const summary = [
+    plural(projects.length, "project", "projects"),
+    plural(blocked, "blocked system", "blocked systems"),
+    plural(open, "open question", "open questions"),
+  ].join(" · ");
+
+  if (projects.length === 0) {
+    return (
+      <Page>
+        <PageHeader title="Projects" actions={<NewProjectDialog />} />
+        <EmptyState
+          icon={<FolderKanban />}
+          title="No projects yet"
+          description="Create one, or ask a project owner to add you."
+          action={<NewProjectDialog />}
+        />
+      </Page>
+    );
+  }
+
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 py-6">
-      <PageHeader eyebrow="Projects" title="Your projects" actions={<NewProjectDialog />} />
-      {projects.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No projects yet</EmptyTitle>
-            <EmptyDescription>Create one, or ask a project owner to add you.</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <NewProjectDialog />
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
-            <li key={p.id}>
-              <Link href={`/p/${p.slug}`} className="block h-full">
-                <Card className="h-full transition-colors hover:border-primary">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between gap-2">
-                      {p.name}
-                      <Badge variant="secondary">{p.role}</Badge>
-                    </CardTitle>
-                    <CardDescription>{p.description || p.slug}</CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <Page>
+      <ProjectGrid projects={projects} summary={summary} />
+    </Page>
   );
 }

@@ -1,31 +1,110 @@
-import { PageHeader } from "@/components/page-header";
+import { CircleHelp } from "lucide-react";
+import { FilterChip } from "@/components/activity/filter-chip";
+import { UnderlineTabs, withQuery } from "@/components/activity/url-tabs";
+import { EmptyState, Page, PageHeader } from "@/components/page";
 import { QuestionCard } from "@/components/question-card";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { AskQuestionDialog } from "@/components/questions/ask-question-dialog";
+import { listActivity } from "@/lib/ops/activity";
 import { getProject } from "@/lib/ops/projects";
 import { listQuestions } from "@/lib/ops/questions";
+import { listSystems } from "@/lib/ops/systems";
 import { pageData } from "@/lib/page";
 
-/** Open questions of the project, unresolved first. */
-export default async function QuestionsPage({ params }: { params: Promise<{ project: string }> }) {
+/**
+ * The project's questions: Open and Resolved tabs (`?tab=`) with counts, a
+ * system filter (`?system=`), and for editors an "Ask a question" dialog and
+ * answer forms on the cards.
+ */
+export default async function QuestionsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ project: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { project: slug } = await params;
-  const { questions, role } = await pageData(async (db, actor) => ({
-    questions: await listQuestions(db, actor, slug),
-    role: (await getProject(db, actor, slug)).role,
-  }));
-  const open = questions.filter((q) => !q.resolved).length;
+  const sp = await searchParams;
+  const tab = sp.tab === "resolved" ? "resolved" : "open";
+  const { questions, systems, detail, answers } = await pageData(async (db, actor) => {
+    const [questions, systems, detail, log] = await Promise.all([
+      listQuestions(db, actor, slug),
+      listSystems(db, actor, slug),
+      getProject(db, actor, slug),
+      listActivity(db, actor, slug, { limit: 500 }),
+    ]);
+    // The newest "answer" entry of each question names who answered it and when.
+    const answers = new Map<string, { author: string; createdAt: string }>();
+    for (const e of log) {
+      if (e.entity === "question" && e.field === "answer" && !answers.has(e.entityId)) {
+        answers.set(e.entityId, { author: e.author, createdAt: e.createdAt.toISOString() });
+      }
+    }
+    return { questions, systems, detail, answers };
+  });
+  const canEdit = detail.role !== "viewer";
+  const system = systems.find((s) => s.slug === sp.system);
+  const inScope = questions.filter((q) => !system || q.systemSlug === system.slug);
+  const open = inScope.filter((q) => !q.resolved);
+  const resolved = inScope.filter((q) => q.resolved);
+  const shown = tab === "open" ? open : resolved;
+
+  const path = `/p/${slug}/questions`;
+  const query = { tab: tab === "resolved" ? "resolved" : undefined, system: system?.slug };
+  const withSystems = systems.filter((s) => questions.some((q) => q.systemSlug === s.slug));
+
   return (
-    <div className="flex max-w-4xl flex-col gap-4">
-      <PageHeader eyebrow="Questions" title={`${open} open`} />
-      {questions.length === 0 && (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No questions</EmptyTitle>
-          </EmptyHeader>
-        </Empty>
+    <Page width="narrow">
+      <PageHeader
+        crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]}
+        title="Questions"
+        actions={canEdit && <AskQuestionDialog projectSlug={slug} systems={systems.map((s) => ({ slug: s.slug, title: s.title }))} defaultSystem={system?.slug} />}
+      />
+      <UnderlineTabs
+        label="Questions"
+        tabs={[
+          { label: "Open", count: open.length, href: withQuery(path, query, { tab: null }), active: tab === "open" },
+          { label: "Resolved", count: resolved.length, href: withQuery(path, query, { tab: "resolved" }), active: tab === "resolved" },
+        ]}
+      >
+        <FilterChip
+          label="System"
+          clearHref={withQuery(path, query, { system: null })}
+          options={withSystems.map((s) => ({ label: s.title, href: withQuery(path, query, { system: s.slug }), selected: s.slug === system?.slug }))}
+        />
+      </UnderlineTabs>
+      {shown.length === 0 ? (
+        <EmptyState
+          icon={<CircleHelp />}
+          title={tab === "open" ? "No open questions" : "No resolved questions yet"}
+          description={
+            tab === "open"
+              ? "Questions that need a person's answer collect here, asked by people or by agents while they work."
+              : "Answered and resolved questions stay here for reference."
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {shown.map((q) => (
+            <QuestionCard
+              key={q.id}
+              projectSlug={slug}
+              canEdit={canEdit}
+              question={{
+                id: q.id,
+                title: q.title,
+                text: q.text,
+                answer: q.answer,
+                resolved: q.resolved,
+                systemSlug: q.systemSlug,
+                systemTitle: q.systemTitle,
+                author: q.author,
+                createdAt: q.createdAt.toISOString(),
+                answeredBy: answers.get(q.id) ?? null,
+              }}
+            />
+          ))}
+        </div>
       )}
-      {questions.map((q) => (
-        <QuestionCard key={q.id} projectSlug={slug} question={q} canEdit={role !== "viewer"} />
-      ))}
-    </div>
+    </Page>
   );
 }

@@ -1,63 +1,77 @@
-import Link from "next/link";
-import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Scale } from "lucide-react";
+import { EmptyState, Page, PageHeader } from "@/components/page";
+import { ADR_STATUSES, type AdrStatus } from "@/db/schema";
 import { formatAdrNumber, listAdrs } from "@/lib/ops/adrs";
+import { getProject } from "@/lib/ops/projects";
+import { listSystems } from "@/lib/ops/systems";
 import { pageData } from "@/lib/page";
+import { formatDate } from "@/lib/time";
+import { AdrList } from "./adr-list";
 
-/** The project's decision records by number. */
-export default async function AdrsPage({ params }: { params: Promise<{ project: string }> }) {
+/** Display names of the status tabs. */
+const STATUS_LABEL: Record<AdrStatus, string> = { proposed: "Proposed", accepted: "Accepted", superseded: "Superseded" };
+
+/**
+ * The project's decision records, newest first, with status tabs (`?status=`)
+ * and a title search. Agents propose decisions over MCP, so there is no create button.
+ */
+export default async function AdrsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ project: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { project: slug } = await params;
-  const adrs = await pageData((db, actor) => listAdrs(db, actor, slug));
+  const raw = (await searchParams).status;
+  const status = ADR_STATUSES.find((s) => s === raw);
+  const { adrs, systems, name } = await pageData(async (db, actor) => {
+    const [adrs, systems, detail] = await Promise.all([listAdrs(db, actor, slug), listSystems(db, actor, slug), getProject(db, actor, slug)]);
+    return { adrs, systems, name: detail.project.name };
+  });
+  const titles = new Map(systems.map((s) => [s.slug, s.title]));
+  const path = `/p/${slug}/adrs`;
+  const tabs = [
+    { label: "All", count: adrs.length, href: path, active: !status },
+    ...ADR_STATUSES.map((s) => ({ label: STATUS_LABEL[s], count: adrs.filter((a) => a.status === s).length, href: `${path}?status=${s}`, active: status === s })),
+  ];
+  const rows = adrs
+    .filter((a) => !status || a.status === status)
+    .sort((a, b) => b.number - a.number)
+    .map((a) => ({
+      number: a.number,
+      label: formatAdrNumber(a.number),
+      title: a.title,
+      status: a.status,
+      systems: a.systems.map((s) => titles.get(s) ?? s),
+      note: a.supersededBy
+        ? `Superseded by ${formatAdrNumber(a.supersededBy)}`
+        : a.supersedes
+          ? `Supersedes ${formatAdrNumber(a.supersedes)}`
+          : null,
+      date: formatDate((a.acceptedAt ?? a.createdAt).toISOString()),
+    }));
+
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader eyebrow="ADRs" title="Decisions" description="Accepted records are immutable; a changed decision is a new ADR that supersedes the old one." />
+    <Page width="medium">
+      <PageHeader
+        crumbs={[{ label: name, href: `/p/${slug}` }]}
+        title="Decisions"
+        description="Architecture decisions, numbered. Accepted ones never change; a new one supersedes them."
+      />
       {adrs.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No ADRs yet</EmptyTitle>
-            <EmptyDescription>Agents record decisions you make with surf-roadmap:new-adr.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState
+          icon={<Scale />}
+          title="No decisions yet"
+          description={
+            <>
+              Agents record the decisions you make with <code className="font-mono">surf-roadmap:new-adr</code>. Proposed ones show up here to accept.
+            </>
+          }
+        />
       ) : (
-        <Card>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Systems</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {adrs.map((a) => (
-                  <TableRow key={a.number}>
-                    <TableCell className="font-mono">{formatAdrNumber(a.number)}</TableCell>
-                    <TableCell>
-                      <Link href={`/p/${slug}/adrs/${a.number}`} className="font-medium hover:underline">
-                        {a.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={a.status === "accepted" ? "default" : a.status === "proposed" ? "outline" : "secondary"}>
-                        {a.status}
-                        {a.supersededBy ? ` by ${formatAdrNumber(a.supersededBy)}` : ""}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{a.systems.join(", ")}</TableCell>
-                    <TableCell className="text-muted-foreground">{(a.acceptedAt ?? a.createdAt).toISOString().slice(0, 10)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <AdrList projectSlug={slug} tabs={tabs} rows={rows} />
       )}
-    </div>
+    </Page>
   );
 }

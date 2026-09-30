@@ -3,7 +3,7 @@
 import type { z } from "zod";
 import { runAction } from "@/app/actions/run";
 import { acceptAdr } from "@/lib/ops/adrs";
-import { createBoard, setBoardColumns, type createBoardInput, type setColumnsInput } from "@/lib/ops/boards";
+import { createBoard, setBoardColumns, updateBoard, type createBoardInput, type setColumnsInput, type updateBoardInput } from "@/lib/ops/boards";
 import { removeMember, setMember, type setMemberInput } from "@/lib/ops/members";
 import { reopenPlanning } from "@/lib/ops/planning";
 import { deleteProject, updateProject, type updateProjectInput } from "@/lib/ops/projects";
@@ -48,6 +48,11 @@ export async function removeMemberAction(project: string, userId: string) {
 /** Adds a board and returns its slug. */
 export async function createBoardAction(project: string, input: z.input<typeof createBoardInput>) {
   return runAction(async (db, actor) => ({ slug: (await createBoard(db, actor, project, input)).slug }));
+}
+
+/** Renames or reorders a board. Owner only. */
+export async function updateBoardAction(project: string, board: string, input: z.input<typeof updateBoardInput>) {
+  return runAction(async (db, actor) => void (await updateBoard(db, actor, project, board, input)));
 }
 
 /** Replaces a board's columns. */

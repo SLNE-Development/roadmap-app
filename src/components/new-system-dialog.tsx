@@ -1,49 +1,95 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { createSystemAction } from "@/app/(app)/p/[project]/actions";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/slug";
+import { useAction } from "./use-action";
 
-/** Button and dialog creating a system in a board's planning column. */
-export function NewSystemDialog({ projectSlug, boards }: { projectSlug: string; boards: { slug: string; name: string }[] }) {
+/**
+ * Button and dialog creating a system in a board's planning column, then
+ * opening it.
+ *
+ * @param props.defaultBoard the board preselected each time it opens (default: the first one)
+ * @param props.trigger a custom trigger element replacing the "New system" button; `null` renders none
+ * @param props.open controls whether the dialog is open, together with `onOpenChange`
+ */
+export function NewSystemDialog({
+  projectSlug,
+  boards,
+  defaultBoard,
+  trigger,
+  open: openProp,
+  onOpenChange,
+}: {
+  projectSlug: string;
+  boards: { slug: string; name: string }[];
+  defaultBoard?: string;
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const { pending, act } = useAction();
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
+  const [slugEdited, setSlugEdited] = useState(false);
   const [summary, setSummary] = useState("");
-  const [board, setBoard] = useState(boards[0]?.slug ?? "");
+  const initialBoard = defaultBoard ?? boards[0]?.slug ?? "";
+  const [board, setBoard] = useState(initialBoard);
+  // Preselect the default board each time the dialog opens (state adjusted during render).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setBoard(initialBoard);
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>New system</Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button>
+              <Plus aria-hidden />
+              New system
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent>
         <form
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            startTransition(async () => {
+            act(async () => {
               const result = await createSystemAction(projectSlug, { title, slug, summary, board });
-              if (!result.ok) return void toast.error(result.error);
-              setOpen(false);
-              router.push(`/p/${projectSlug}/systems/${result.value.slug}`);
+              if (result.ok) {
+                setOpen(false);
+                toast.success(`Created ${title.trim()}`);
+                router.push(`/p/${projectSlug}/systems/${result.value.slug}`);
+              }
+              return result;
             });
           }}
         >
           <DialogHeader>
-            <DialogTitle>New system</DialogTitle>
+            <DialogTitle className="font-display text-[19px] font-semibold">New system</DialogTitle>
             <DialogDescription>
-              It starts in planning. Plan it with <code>/surf-roadmap:plan</code> before any work starts.
+              It starts in planning. Plan it with <code className="font-mono text-[12.5px]">/surf-roadmap:plan</code> before any work starts.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
@@ -52,33 +98,55 @@ export function NewSystemDialog({ projectSlug, boards }: { projectSlug: string; 
               <Input
                 id="system-title"
                 value={title}
+                autoFocus
+                placeholder="Vehicle garages"
                 onChange={(e) => {
                   setTitle(e.target.value);
-                  setSlug(slugify(e.target.value));
+                  if (!slugEdited) setSlug(slugify(e.target.value));
                 }}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="system-slug">Slug</FieldLabel>
-              <Input id="system-slug" className="font-mono" value={slug} onChange={(e) => setSlug(e.target.value)} />
+              <Input
+                id="system-slug"
+                className="font-mono"
+                value={slug}
+                onChange={(e) => {
+                  setSlug(e.target.value);
+                  setSlugEdited(true);
+                }}
+              />
               <FieldDescription>Agents refer to the system by this.</FieldDescription>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="system-board">Board</FieldLabel>
-              <NativeSelect id="system-board" value={board} onChange={(e) => setBoard(e.target.value)}>
-                {boards.map((b) => (
-                  <NativeSelectOption key={b.slug} value={b.slug}>
-                    {b.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
+            {boards.length > 1 && (
+              <Field>
+                <FieldLabel htmlFor="system-board">Board</FieldLabel>
+                <NativeSelect id="system-board" value={board} onChange={(e) => setBoard(e.target.value)}>
+                  {boards.map((b) => (
+                    <NativeSelectOption key={b.slug} value={b.slug}>
+                      {b.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
             <Field>
               <FieldLabel htmlFor="system-summary">Summary</FieldLabel>
-              <Textarea id="system-summary" value={summary} onChange={(e) => setSummary(e.target.value)} />
+              <Textarea
+                id="system-summary"
+                value={summary}
+                placeholder="What the system does, in a sentence or two."
+                onChange={(e) => setSummary(e.target.value)}
+              />
             </Field>
           </FieldGroup>
           <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </DialogClose>
             <Button type="submit" disabled={pending || !title.trim() || !slug.trim()}>
               Create system
             </Button>

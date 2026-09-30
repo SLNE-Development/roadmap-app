@@ -1,0 +1,179 @@
+"use client";
+
+import { ChevronDown, Link2, MoreHorizontal, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { reopenPlanningAction } from "@/app/(app)/p/[project]/actions";
+import { CategoryDot, StatusChip } from "@/components/chips";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useAction } from "@/components/use-action";
+import type { ColumnCategory } from "@/db/schema";
+import { cn } from "@/lib/utils";
+import { currentColumn, nextColumn, StatusMenu, useMoveSystem, type SystemControlsData } from "./controls";
+
+/** Soft background and text of each category, for the status button (literal strings for Tailwind). */
+const STATUS_BUTTON: Record<ColumnCategory, string> = {
+  planning: "bg-cat-planning-soft text-cat-planning",
+  todo: "bg-cat-todo-soft text-cat-todo",
+  active: "bg-cat-active-soft text-cat-active",
+  review: "bg-cat-review-soft text-cat-review",
+  blocked: "bg-cat-blocked-soft text-cat-blocked",
+  done: "bg-cat-done-soft text-cat-done",
+};
+
+/** The status as a chip-styled button with a chevron that opens the column menu; a plain chip for viewers. */
+function StatusButton({ data, className }: { data: SystemControlsData; className?: string }) {
+  const column = currentColumn(data);
+  if (!data.canEdit) return <StatusChip category={column.category} name={column.name} className={cn("h-[34px] px-3 text-[13.5px]", className)} />;
+  return (
+    <StatusMenu data={data}>
+      <button
+        type="button"
+        aria-label={`Status: ${column.name}. Change status`}
+        className={cn(
+          "inline-flex h-[34px] shrink-0 items-center gap-2 border pr-2.5 pl-3 text-[13.5px] font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          STATUS_BUTTON[column.category],
+          className,
+        )}
+      >
+        <CategoryDot category={column.category} />
+        {column.name}
+        <ChevronDown aria-hidden className="size-3.5" />
+      </button>
+    </StatusMenu>
+  );
+}
+
+/** The primary contextual action: "Move to <next column>", or nothing when there is no sensible next step. */
+function PrimaryMove({ data, className }: { data: SystemControlsData; className?: string }) {
+  const { pending, move } = useMoveSystem(data);
+  const next = nextColumn(data);
+  if (!data.canEdit || !next) return null;
+  return (
+    <Button className={className} disabled={pending} onClick={() => move(next)}>
+      Move to {next.name}
+    </Button>
+  );
+}
+
+/** The overflow menu: copy the link, and for editors reopen planning (after a confirmation). */
+function OverflowMenu({ data }: { data: SystemControlsData }) {
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" aria-label="More actions" className="text-fg-2">
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem
+            onSelect={() =>
+              void navigator.clipboard.writeText(window.location.href.split("?")[0]).then(
+                () => toast.success("Link copied"),
+                () => toast.error("Could not copy the link"),
+              )
+            }
+          >
+            <Link2 />
+            Copy link
+          </DropdownMenuItem>
+          {data.canEdit && data.planningComplete && (
+            <DropdownMenuItem onSelect={() => setConfirm(true)}>
+              <RotateCcw />
+              Reopen planning
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ReopenPlanningDialog open={confirm} onOpenChange={setConfirm} projectSlug={data.projectSlug} systemSlug={data.systemSlug} />
+    </>
+  );
+}
+
+/**
+ * The actions of the system header: the status button and the primary move
+ * (from 1024px; on phones they sit in {@link SystemActionBar}) and the overflow menu.
+ */
+export function SystemHeaderActions({ data }: { data: SystemControlsData }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="hidden items-center gap-2 lg:flex">
+        <StatusButton data={data} />
+        <PrimaryMove data={data} />
+      </div>
+      <OverflowMenu data={data} />
+    </div>
+  );
+}
+
+/** The phone's fixed bottom bar with the status button and the primary move, 48px tall. Editors only. */
+export function SystemActionBar({ data }: { data: SystemControlsData }) {
+  if (!data.canEdit) return null;
+  const hasNext = nextColumn(data) !== null;
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-20 flex gap-2 border-t bg-background px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
+      <StatusButton data={data} className={cn("h-12 px-4 text-sm", !hasNext && "flex-1 justify-center")} />
+      <PrimaryMove data={data} className="h-12 flex-1 text-[15px]" />
+    </div>
+  );
+}
+
+/** The confirmation dialog of reopening planning; confirming reopens it and toasts. */
+function ReopenPlanningDialog({
+  open,
+  onOpenChange,
+  projectSlug,
+  systemSlug,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  projectSlug: string;
+  systemSlug: string;
+}) {
+  const { act } = useAction();
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reopen planning?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The system moves back to the planning column and stays there until the planning interview is confirmed again.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep it closed</AlertDialogCancel>
+          <AlertDialogAction onClick={() => act(() => reopenPlanningAction(projectSlug, systemSlug), () => toast.success("Planning reopened"))}>
+            Reopen planning
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** Reopens planning after a confirmation, as an outline button (planning tab). Editors only. */
+export function ReopenPlanningButton({ projectSlug, systemSlug }: { projectSlug: string; systemSlug: string }) {
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <>
+      <Button variant="outline" onClick={() => setConfirm(true)}>
+        <RotateCcw />
+        Reopen planning
+      </Button>
+      <ReopenPlanningDialog open={confirm} onOpenChange={setConfirm} projectSlug={projectSlug} systemSlug={systemSlug} />
+    </>
+  );
+}
