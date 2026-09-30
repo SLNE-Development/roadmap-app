@@ -29,6 +29,8 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
   const [dirty, setDirty] = useState(false);
   // The notes as they were when editing started, to notice changes made elsewhere meanwhile.
   const [startNotes, setStartNotes] = useState(notes);
+  // While the user has not typed, the baseline follows the incoming notes.
+  if (!dirty && startNotes !== notes) setStartNotes(notes);
   const text = dirty ? draft : notes;
   const changedElsewhere = dirty && notes !== startNotes;
   const long = notes.length > LONG_NOTES;

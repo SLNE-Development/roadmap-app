@@ -35,6 +35,17 @@ const GROUPS = [
 ];
 
 /**
+ * Whether an incoming `q` is the one this toolbar just pushed, so the input,
+ * which may already hold newer keystrokes, must not be reset to it.
+ *
+ * @param incoming the `q` now in the URL
+ * @param pushed the last `q` the toolbar pushed, if any
+ */
+export function isOwnPush(incoming: string, pushed: string | undefined): boolean {
+  return pushed !== undefined && incoming === pushed;
+}
+
+/**
  * Search, filter chips, grouping and view toggle of the systems list. Every
  * change replaces the URL query at once; the server page re-renders from it.
  *
@@ -57,6 +68,8 @@ export function SystemsToolbar({
   const pathname = usePathname();
   const [, startTransition] = useTransition();
   const [query, setQuery] = useState(current.q ?? "");
+  // The last `q` this toolbar pushed to the URL; its arrival must not reset the input.
+  const [pushedQ, setPushedQ] = useState<string | undefined>(undefined);
 
   /** Replaces the URL with `patch` applied; empty values remove their key. */
   const update = (patch: Record<string, string>) => {
@@ -65,6 +78,7 @@ export function SystemsToolbar({
       if (v) next.set(k, v);
       else next.delete(k);
     }
+    if ("q" in patch) setPushedQ(patch.q);
     const qs = next.toString();
     startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
   };
@@ -73,7 +87,10 @@ export function SystemsToolbar({
   const [seenQ, setSeenQ] = useState(current.q ?? "");
   if ((current.q ?? "") !== seenQ) {
     setSeenQ(current.q ?? "");
-    setQuery(current.q ?? "");
+    if (!isOwnPush(current.q ?? "", pushedQ)) {
+      setQuery(current.q ?? "");
+      setPushedQ(undefined);
+    }
   }
 
   useEffect(() => {

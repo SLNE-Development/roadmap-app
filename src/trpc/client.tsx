@@ -7,7 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import superjson from "superjson";
 import type { AppRouter } from "@/server/trpc/router";
-import { affectedRouters, queryRouter } from "./invalidation";
+import { shouldInvalidate } from "./invalidation";
 import { makeQueryClient, queryProject } from "./query-client";
 
 /** The typed tRPC hooks: `useTRPC()` returns query and mutation options for every procedure. */
@@ -38,10 +38,7 @@ function makeBrowserQueryClient(): QueryClient {
       onSuccess: (_data, _variables, _context, mutation) => {
         const slug = mutation.meta?.leavesProject;
         if (slug) client.removeQueries({ predicate: (q) => queryProject(q.queryKey) === slug });
-        const routers = affectedRouters(mutation.options.mutationKey);
-        return client.invalidateQueries({
-          predicate: (q) => queryProject(q.queryKey) !== slug && (routers === "all" || routers.includes(queryRouter(q.queryKey) ?? "")),
-        });
+        return client.invalidateQueries({ predicate: (q) => shouldInvalidate(q.queryKey, mutation.options.mutationKey, slug) });
       },
       onError: (error, _variables, _context, mutation) => {
         if (!mutation.meta?.quiet) toast.error(error.message);
