@@ -15,7 +15,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-/** Guards everything except the login page, the API (bearer or Better Auth) and static assets. */
+/** Guards everything except the login page, the API (bearer or Better Auth), static assets and the favicon. */
 export const config = {
-  matcher: ["/((?!login|api/|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!login|api/|_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };
