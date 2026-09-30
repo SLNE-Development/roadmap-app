@@ -48,27 +48,41 @@ If `surf-roadmap.json` already exists, show its values and ask whether to keep t
 ## Step 3 — The worktree tree
 
 Run `detect-global`. If `worktrees` is null, skip to Step 4 with worktrees `none`.
-Otherwise show the found section verbatim (`heading` and `text`). If `subagents` is
-the same section, say that one section covers both topics. Then ask:
+Otherwise show the found section verbatim (`heading` and `text`).
+
+**One section covering both topics.** If `subagents` is non-null and has the same
+`heading` and `text`, one section holds both constraints and removing it removes
+both. Do not ask the two questions separately. Quote the section and ask once:
+**"This section restricts both worktrees and subagents. Do you want to remove it,
+lifting both constraints?"**
+
+- **Yes** → run `remove-global --kind worktrees`, show `removed`. Worktrees: `none`,
+  execution: `none`. Skip Step 4.
+- **No** → nothing is removed. Ask the two "allow in the current repository"
+  questions of Steps 3 and 4 (not the remove questions) to set worktrees and
+  execution.
+
+**Separate sections.** Otherwise ask:
 
 **"Do you want to remove your global constraint on using worktrees?"**
 
 - **Yes** → run `remove-global --kind worktrees`, show `removed`. Worktrees: `none`.
-  If the result has `alsoCovers`, that section covered the other topic too and it is
-  gone: say so, re-run `detect-global`, and treat the other tree as already
-  answered Yes.
+  If the result unexpectedly has `alsoCovers`, tell the user that the other
+  constraint went with it and record it as removed.
 - **No** → ask **"Do you want to allow worktrees in the current repository?"**
   - Yes → worktrees `allowed` (the repository's CLAUDE.md then overrides the global rule here).
   - No → worktrees `forbidden`.
 
 ## Step 4 — The subagent tree
 
-Same shape, for `subagents` from `detect-global`:
+Skip this step if the combined question of Step 3 was answered. Same shape, for
+`subagents` from `detect-global`:
 
 **"Do you want to remove your global constraint on using subagents and subagent-driven development?"**
 
 - **Yes** → `remove-global --kind subagents`, show `removed`. Execution: `none`. If
-  the result has `alsoCovers`, handle it as in Step 3.
+  the result unexpectedly has `alsoCovers`, tell the user that the other constraint
+  went with it.
 - **No** → **"Do you want to allow subagent-driven development in the current repository?"**
   - Yes → execution `subagent`.
   - No → execution `inline`.
@@ -76,8 +90,8 @@ Same shape, for `subagents` from `detect-global`:
 If no global restriction exists, execution is `none`.
 
 Removing a section edits the user's own `~/.claude/CLAUDE.md`. Ask before every
-`remove-global` call; never run it without a Yes to that exact question in this
-conversation. If `removed` is null, nothing was there; continue.
+`remove-global` call; never run it without a Yes to that exact question (for a shared
+section, the combined question) in this conversation. If `removed` is null, nothing was there; continue.
 
 ## Step 5 — Write
 

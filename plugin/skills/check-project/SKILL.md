@@ -31,8 +31,11 @@ Ask with the question tool (multi-select), never all-or-nothing.
 - `link`, `claude-md:*`, `gitignore:*` → follow `surf-roadmap:setup` (steps 1–2 for
   the link, step 5 for the rest) for just those findings. `apply` needs the
   repository's current answers: use the `--worktrees` and `--execution` values that
-  match the `worktrees` and `execution-mode` variants already in CLAUDE.md, and ask
-  the user only if there are none. For divergent blocks add `--update <id>,<id>`
+  match the variants already in CLAUDE.md: the `worktrees` block variant `allowed`
+  or `forbidden` gives `--worktrees allowed` or `forbidden`, and no block gives
+  `none`; the `execution-mode` block variant `subagent` or `inline` gives
+  `--execution subagent` or `inline`, and no block gives `none`. If a block is
+  missing, ask the user instead of assuming. For divergent blocks add `--update <id>,<id>`
   (block ids without the `claude-md:` prefix). A `claude-md:*` finding about a
   malformed block (unterminated, duplicate, orphan markers) cannot be applied; the
   markers must be fixed by hand, so show the location and stop there. If any
