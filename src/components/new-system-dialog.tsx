@@ -10,6 +10,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { slugify } from "@/lib/slug";
 
 /** Button and dialog creating a system in a board's planning column. */
 export function NewSystemDialog({ projectSlug, boards }: { projectSlug: string; boards: { slug: string; name: string }[] }) {
@@ -53,7 +54,7 @@ export function NewSystemDialog({ projectSlug, boards }: { projectSlug: string; 
                 value={title}
                 onChange={(e) => {
                   setTitle(e.target.value);
-                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64));
+                  setSlug(slugify(e.target.value));
                 }}
               />
             </Field>

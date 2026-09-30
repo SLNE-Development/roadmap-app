@@ -31,7 +31,7 @@ export default async function CataloguePage({
 }) {
   const { project: slug } = await params;
   const sp = await searchParams;
-  const raw = { board: param(sp.board), phase: param(sp.phase), category: param(sp.category), priority: param(sp.priority), owner: param(sp.owner) };
+  const raw = { board: param(sp.board), domain: param(sp.domain), phase: param(sp.phase), category: param(sp.category), priority: param(sp.priority), owner: param(sp.owner) };
   const filter = systemFilter.safeParse(Object.fromEntries(Object.entries(raw).filter(([, v]) => v)));
   const data = await pageData(async (db, actor) => {
     const detail = await getProject(db, actor, slug);
@@ -64,6 +64,14 @@ export default async function CataloguePage({
           {data.detail.boards.map((b) => (
             <NativeSelectOption key={b.id} value={b.slug}>
               {b.name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+        <NativeSelect name="domain" defaultValue={raw.domain} aria-label="Domain">
+          <NativeSelectOption value="">All domains</NativeSelectOption>
+          {data.domains.map((d) => (
+            <NativeSelectOption key={d.id} value={d.id}>
+              {d.name}
             </NativeSelectOption>
           ))}
         </NativeSelect>
@@ -111,7 +119,7 @@ export default async function CataloguePage({
         <Empty>
           <EmptyHeader>
             <EmptyTitle>No systems</EmptyTitle>
-            <EmptyDescription>{data.systems.length === 0 && !filter.success ? "" : "Nothing matches these filters, or the project has no systems yet."}</EmptyDescription>
+            <EmptyDescription>Nothing matches these filters, or the project has no systems yet.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (

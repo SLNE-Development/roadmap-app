@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { slugify } from "@/lib/slug";
 
 /** Button and dialog adding a board with the default columns; opens it on success. */
 export function NewBoardDialog({ projectSlug }: { projectSlug: string }) {
@@ -46,7 +47,7 @@ export function NewBoardDialog({ projectSlug }: { projectSlug: string }) {
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
-                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64));
+                  setSlug(slugify(e.target.value));
                 }}
               />
             </Field>
