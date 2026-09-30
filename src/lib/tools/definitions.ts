@@ -1,0 +1,454 @@
+import { z } from "zod";
+import { DOCUMENT_KINDS } from "@/db/schema";
+import { slugSchema } from "@/lib/ops/access";
+import { listActivity } from "@/lib/ops/activity";
+import {
+  acceptAdr,
+  adrFilter,
+  createAdr,
+  createAdrInput,
+  getAdr,
+  listAdrs,
+  supersedeAdr,
+  updateAdr,
+  updateAdrInput,
+} from "@/lib/ops/adrs";
+import { createBoard, createBoardInput, listBoards, setBoardColumns, setColumnsInput, updateBoard, updateBoardInput } from "@/lib/ops/boards";
+import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
+import { listMembers } from "@/lib/ops/members";
+import { getSystemOverview } from "@/lib/ops/overview";
+import {
+  addPlanningRound,
+  addRoundInput,
+  answerItemsInput,
+  answerPlanningItems,
+  completePlanning,
+  completePlanningInput,
+  getPlanning,
+  reopenPlanning,
+} from "@/lib/ops/planning";
+import { createProject, createProjectInput, getProject, listProjects, updateProject, updateProjectInput } from "@/lib/ops/projects";
+import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions } from "@/lib/ops/questions";
+import { createDomain, createPhase, domainInput, listDomains, listPhases, phaseInput } from "@/lib/ops/structure";
+import {
+  createSystem,
+  createSystemInput,
+  listSystems,
+  moveSystem,
+  moveSystemInput,
+  systemFilter,
+  updateSystem,
+  updateSystemInput,
+} from "@/lib/ops/systems";
+import { addTask, addTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
+import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
+import { defineTool, register, registeredTools, type ToolDef } from "./registry";
+
+/** The project a tool acts in. */
+const P = { project: slugSchema.describe("Project slug, e.g. surf-roleplay.") };
+
+/** The project and system a tool acts on. */
+const S = { ...P, system: slugSchema.describe("System slug within the project.") };
+
+/** The project and board a tool acts on. */
+const B = { ...P, board: slugSchema.describe("Board slug within the project, e.g. development.") };
+
+/** A numeric path parameter accepted as a number (MCP) or a numeric string (REST). */
+const intParam = (what: string) => z.coerce.number().int().min(1).describe(what);
+
+/** An optional result limit accepted as a number or a numeric string. */
+const limit = z.coerce.number().int().min(1).max(500).optional().describe("Maximum number of entries.");
+
+register(
+  defineTool({
+    name: "whoami",
+    description: "Who the API key belongs to, and the projects they can access with their role.",
+    input: {},
+    write: false,
+    method: "GET",
+    path: "/whoami",
+    run: async (db, actor) => ({ userId: actor.userId, name: actor.name, isAdmin: actor.isAdmin, projects: await listProjects(db, actor) }),
+  }),
+
+  defineTool({
+    name: "list_projects",
+    description: "List the projects you can access, with your role in each.",
+    input: {},
+    write: false,
+    method: "GET",
+    path: "/projects",
+    run: (db, actor) => listProjects(db, actor),
+  }),
+  defineTool({
+    name: "get_project",
+    description: "Get a project with your role and its boards (with columns and their categories).",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project",
+    run: (db, actor, i) => getProject(db, actor, i.project),
+  }),
+  defineTool({
+    name: "create_project",
+    description: "Create a project. You become its owner; it starts with a Development board.",
+    input: createProjectInput.shape,
+    write: true,
+    method: "POST",
+    path: "/projects",
+    run: (db, actor, i) => createProject(db, actor, i),
+  }),
+  defineTool({
+    name: "update_project",
+    description: "Change a project's name, description or repository URL (owner only).",
+    input: { ...P, ...updateProjectInput.shape },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project",
+    run: (db, actor, { project, ...patch }) => updateProject(db, actor, project, patch),
+  }),
+  defineTool({
+    name: "list_members",
+    description: "List project members with user ids (usable as ownerUserId) and roles.",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/members",
+    run: (db, actor, i) => listMembers(db, actor, i.project),
+  }),
+
+  defineTool({
+    name: "list_boards",
+    description: "List a project's boards with their columns (id, name, category).",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/boards",
+    run: (db, actor, i) => listBoards(db, actor, i.project),
+  }),
+  defineTool({
+    name: "create_board",
+    description: "Add a board (a workstream such as Building) with the default columns (owner only).",
+    input: { ...P, ...createBoardInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/boards",
+    run: (db, actor, { project, ...input }) => createBoard(db, actor, project, input),
+  }),
+  defineTool({
+    name: "update_board",
+    description: "Rename a board or change its position (owner only).",
+    input: { ...B, ...updateBoardInput.shape },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project/boards/:board",
+    run: (db, actor, { project, board, ...patch }) => updateBoard(db, actor, project, board, patch),
+  }),
+  defineTool({
+    name: "set_board_columns",
+    description:
+      "Replace a board's columns, in order. Keep existing columns by passing their id. Exactly one column must have category planning and at least one done (owner only).",
+    input: { ...B, ...setColumnsInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/projects/:project/boards/:board/columns",
+    run: (db, actor, { project, board, ...input }) => setBoardColumns(db, actor, project, board, input),
+  }),
+
+  defineTool({
+    name: "list_domains",
+    description: "List a project's domains (areas that group systems).",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/domains",
+    run: (db, actor, i) => listDomains(db, actor, i.project),
+  }),
+  defineTool({
+    name: "create_domain",
+    description: "Add a domain to a project.",
+    input: { ...P, ...domainInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/domains",
+    run: (db, actor, { project, ...input }) => createDomain(db, actor, project, input),
+  }),
+  defineTool({
+    name: "list_phases",
+    description: "List a project's delivery phases in order with their dependencies.",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/phases",
+    run: (db, actor, i) => listPhases(db, actor, i.project),
+  }),
+  defineTool({
+    name: "create_phase",
+    description: "Add a delivery phase, optionally building on other phases (ids).",
+    input: { ...P, ...phaseInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/phases",
+    run: (db, actor, { project, ...input }) => createPhase(db, actor, project, input),
+  }),
+
+  defineTool({
+    name: "list_systems",
+    description: "List systems with board, column, owner, planning state and task progress. Filter by board, domain, phase, column category, priority or owner (user id or none).",
+    input: { ...P, ...systemFilter.shape },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/systems",
+    run: (db, actor, { project, ...filter }) => listSystems(db, actor, project, filter),
+  }),
+  defineTool({
+    name: "get_system",
+    description: "Get one system: board and column, tasks (with ids), latest spec and plan, planning state and gaps, questions, linked ADRs and recent updates.",
+    input: S,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/systems/:system",
+    run: (db, actor, i) => getSystemOverview(db, actor, i.project, i.system),
+  }),
+  defineTool({
+    name: "create_system",
+    description: "Create a system on a board (default: the first). It starts in the planning column; run the surf-roadmap:plan-system interview next.",
+    input: { ...P, ...createSystemInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems",
+    run: (db, actor, { project, ...input }) => createSystem(db, actor, project, input),
+  }),
+  defineTool({
+    name: "update_system",
+    description: "Change a system's title, summary, priority, owner (user id or null), notes, domain or phase.",
+    input: { ...S, ...updateSystemInput.shape },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project/systems/:system",
+    run: (db, actor, { project, system, ...patch }) => updateSystem(db, actor, project, system, patch),
+  }),
+  defineTool({
+    name: "move_system",
+    description:
+      "Move a system to a column (id or name) of its board or of another board. Leaving planning requires complete_planning; moving into an active column makes you owner of an unowned system.",
+    input: { ...S, ...moveSystemInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/move",
+    run: (db, actor, { project, system, ...input }) => moveSystem(db, actor, project, system, input),
+  }),
+
+  defineTool({
+    name: "get_planning",
+    description: "Get a system's planning interview: every round with questions, areas, risk flags, answers and states, plus the gaps that still block completion.",
+    input: S,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/systems/:system/planning",
+    run: (db, actor, i) => getPlanning(db, actor, i.project, i.system),
+  }),
+  defineTool({
+    name: "add_planning_round",
+    description: "Record the next round of planning questions BEFORE asking them. Each item has an area (failure-modes, dependencies, scope, ops-testing) and isRisk for failure modes.",
+    input: { ...S, ...addRoundInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/planning/rounds",
+    run: (db, actor, { project, system, ...input }) => addPlanningRound(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "answer_planning_items",
+    description: "Store the user's answers right after they give them. Use status accepted-risk only when the user explicitly accepts a flagged risk, with their reason as the answer.",
+    input: { ...S, ...answerItemsInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/planning/answers",
+    run: (db, actor, { project, system, ...input }) => answerPlanningItems(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "complete_planning",
+    description: "Complete planning once every area is covered, nothing is open and the spec is written. userConfirmation must quote the user's own words confirming the spec.",
+    input: { ...S, ...completePlanningInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/planning/complete",
+    run: (db, actor, { project, system, ...input }) => completePlanning(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "reopen_planning",
+    description: "Reopen a system's planning and move it back to the planning column.",
+    input: S,
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/planning/reopen",
+    run: (db, actor, i) => reopenPlanning(db, actor, i.project, i.system),
+  }),
+
+  defineTool({
+    name: "get_document",
+    description: "Get a system's spec or plan: the latest version, or a given version, with the list of all versions.",
+    input: { ...S, kind: z.enum(DOCUMENT_KINDS), version: z.coerce.number().int().min(1).optional() },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/systems/:system/documents/:kind",
+    run: (db, actor, i) => getDocument(db, actor, i.project, i.system, i.kind, i.version),
+  }),
+  defineTool({
+    name: "write_spec",
+    description: "Write a new version of a system's spec (markdown). Specs live here, never as repository files.",
+    input: { ...S, ...writeSpecInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/spec",
+    run: (db, actor, { project, system, ...input }) => writeSpec(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "write_plan",
+    description:
+      "Write a new version of a system's implementation plan (markdown) with its numbered steps. Each new step becomes a task; renamed steps rename their task; dropped steps are reported, never deleted.",
+    input: { ...S, ...writePlanInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/plan",
+    run: (db, actor, { project, system, ...input }) => writePlan(db, actor, project, system, input),
+  }),
+
+  defineTool({
+    name: "add_task",
+    description: "Add a task to a system.",
+    input: { ...S, ...addTaskInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/tasks",
+    run: (db, actor, { project, system, ...input }) => addTask(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "update_task",
+    description:
+      "Change a task's title, state (todo, doing, blocked, done), priority or owner. Setting doing makes you owner of the task and its system when they have none; doing and done need completed planning.",
+    input: { id: intParam("Task id from get_system."), ...updateTaskInput.shape },
+    write: true,
+    method: "PATCH",
+    path: "/tasks/:id",
+    run: (db, actor, { id, ...patch }) => updateTask(db, actor, id, patch),
+  }),
+
+  defineTool({
+    name: "post_update",
+    description: "Post a progress update on a system after each commit: summary, optional next step, task id and commit hash (may be unpushed).",
+    input: { ...S, ...postUpdateInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/updates",
+    run: (db, actor, { project, system, ...input }) => postUpdate(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "list_updates",
+    description: "List progress updates, newest first, optionally for one system.",
+    input: { ...P, system: z.string().optional(), limit },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/updates",
+    run: (db, actor, { project, ...filter }) => listUpdates(db, actor, project, filter),
+  }),
+
+  defineTool({
+    name: "list_adrs",
+    description: "List a project's ADRs by number, optionally by status or linked system.",
+    input: { ...P, ...adrFilter.shape },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/adrs",
+    run: (db, actor, { project, ...filter }) => listAdrs(db, actor, project, filter),
+  }),
+  defineTool({
+    name: "get_adr",
+    description: "Get one ADR with context, decision, alternatives and consequences.",
+    input: { ...P, number: intParam("ADR number.") },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/adrs/:number",
+    run: (db, actor, i) => getAdr(db, actor, i.project, i.number),
+  }),
+  defineTool({
+    name: "create_adr",
+    description:
+      "Record a decision the user has made as a proposed ADR. Every section is required; alternatives state their real advantage first; consequences name gains, costs, follow-on work and what is foreclosed.",
+    input: { ...P, ...createAdrInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/adrs",
+    run: (db, actor, { project, ...input }) => createAdr(db, actor, project, input),
+  }),
+  defineTool({
+    name: "update_adr",
+    description: "Edit a proposed ADR. Accepted ADRs are immutable; supersede them instead.",
+    input: { ...P, number: intParam("ADR number."), ...updateAdrInput.shape },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project/adrs/:number",
+    run: (db, actor, { project, number, ...patch }) => updateAdr(db, actor, project, number, patch),
+  }),
+  defineTool({
+    name: "accept_adr",
+    description: "Accept a proposed ADR once the user confirms it. It becomes immutable.",
+    input: { ...P, number: intParam("ADR number.") },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/adrs/:number/accept",
+    run: (db, actor, i) => acceptAdr(db, actor, i.project, i.number),
+  }),
+  defineTool({
+    name: "supersede_adr",
+    description: "Mark accepted ADR number as superseded by accepted ADR by.",
+    input: { ...P, number: intParam("The ADR being superseded."), by: intParam("The accepted ADR that replaces it.") },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/adrs/:number/supersede",
+    run: (db, actor, i) => supersedeAdr(db, actor, i.project, { number: i.number, by: i.by }),
+  }),
+
+  defineTool({
+    name: "list_questions",
+    description: "List open questions, unresolved first, optionally for one system or by resolved state.",
+    input: { ...P, system: z.string().optional(), resolved: z.boolean().optional() },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/questions",
+    run: (db, actor, { project, ...filter }) => listQuestions(db, actor, project, filter),
+  }),
+  defineTool({
+    name: "add_question",
+    description: "Add an open question, optionally tied to a system (for example when blocked).",
+    input: { ...P, ...addQuestionInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/questions",
+    run: (db, actor, { project, ...input }) => addQuestion(db, actor, project, input),
+  }),
+  defineTool({
+    name: "answer_question",
+    description: "Record the answer to a question; resolves it unless resolved is false.",
+    input: { ...P, ...answerQuestionInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/questions/:id/answer",
+    run: (db, actor, { project, ...input }) => answerQuestion(db, actor, project, input),
+  }),
+
+  defineTool({
+    name: "list_activity",
+    description: "List the project's change log, newest first, optionally one system's history.",
+    input: { ...P, system: z.string().optional(), limit },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/activity",
+    run: (db, actor, { project, ...filter }) => listActivity(db, actor, project, filter),
+  }),
+);
+
+/** Every tool, in definition order. */
+export const TOOLS: readonly ToolDef[] = registeredTools();
+
+/** Names of every tool. */
+export const TOOL_NAMES: readonly string[] = TOOLS.map((t) => t.name);
