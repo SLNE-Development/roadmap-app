@@ -10,15 +10,17 @@ export default async function AdminUsersPage() {
   if (!actor.isAdmin) notFound();
   const accounts = await listAllowedAccounts(getDb(), actor);
   return (
-    <div className="flex max-w-5xl flex-col gap-4">
-      <div>
-        <p className="text-sm text-muted-foreground">Admin</p>
-        <h1 className="text-2xl font-semibold">Accounts</h1>
-        <p className="text-sm text-muted-foreground">
-          Only these Discord accounts can sign in. Find an id in Discord with Developer Mode on: right-click the user, Copy User ID.
-        </p>
+    <div className="mx-auto max-w-7xl py-6">
+      <div className="flex max-w-5xl flex-col gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">Admin</p>
+          <h1 className="text-2xl font-semibold">Accounts</h1>
+          <p className="text-sm text-muted-foreground">
+            Only these Discord accounts can sign in. Find an id in Discord with Developer Mode on: right-click the user, Copy User ID.
+          </p>
+        </div>
+        <AllowlistManager accounts={accounts} selfId={actor.userId} />
       </div>
-      <AllowlistManager accounts={accounts} selfId={actor.userId} />
     </div>
   );
 }

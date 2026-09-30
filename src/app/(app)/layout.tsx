@@ -5,7 +5,7 @@ import { requireActor } from "@/lib/auth/actor";
 export const dynamic = "force-dynamic";
 
 /**
- * Shell for every signed-in page: checks the session, then renders the navigation and a centred column.
+ * Shell for every signed-in page: checks the session, then renders the navigation; each page sets its own width.
  *
  * @param props.children the page content
  */
@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
       <Nav actor={actor} />
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+      <main className="px-4">{children}</main>
     </>
   );
 }
