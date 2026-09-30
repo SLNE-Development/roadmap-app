@@ -85,10 +85,10 @@ export function docPathDecision(root, filePath) {
   if (!filePath) return null;
   const absolute = isAbsolute(filePath) ? filePath : resolve(root, filePath);
   let rel = relative(root, absolute).split(sep).join("/").replace(/\\/g, "/");
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return null;
+  if (!rel || rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return null;
   if (process.platform === "win32") rel = rel.toLowerCase();
   for (const [dir, tool] of BLOCKED_DOC_DIRS) {
-    if (`${rel}/`.startsWith(dir) || rel.startsWith(dir)) {
+    if (`${rel}/`.startsWith(dir)) {
       return `${dir} is not used in this repository: specs, plans and ADRs live in the roadmap. Use the surf-roadmap MCP tool ${tool} instead.`;
     }
   }

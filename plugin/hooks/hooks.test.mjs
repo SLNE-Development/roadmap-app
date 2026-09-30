@@ -94,3 +94,18 @@ test("session-start adds context in a linked repo", () => {
   const ctx = JSON.parse(out.stdout).hookSpecificOutput.additionalContext;
   assert.match(ctx, /ROADMAP_URL or ROADMAP_API_KEY is not set/);
 });
+
+test("treats in-repo names starting with two dots as inside the repo", () => {
+  const root = linkedRepo();
+  assert.equal(docPathDecision(root, "..docs/adr/x.md"), null);
+  assert.equal(docPathDecision(root, join(root, "..", "docs", "adr", "x.md")), null);
+  assert.match(docPathDecision(root, "docs\\adr\\x.md"), /create_adr/);
+});
+
+test("session-start reports an invalid link file", () => {
+  const root = mkdtempSync(join(tmpdir(), "surf-roadmap-bad-"));
+  writeFileSync(join(root, "surf-roadmap.json"), "{ not json");
+  const out = run("session-start.mjs", JSON.stringify({ cwd: root }));
+  assert.equal(out.status, 0);
+  assert.match(JSON.parse(out.stdout).hookSpecificOutput.additionalContext, /surf-roadmap\.json is invalid/);
+});

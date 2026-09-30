@@ -28,6 +28,8 @@ ROADMAP_URL=https://roadmap.example.com
 ROADMAP_API_KEY=rmk_…
 ```
 
+`ROADMAP_URL` must not end with a slash.
+
 Then, in each repository: `/surf-roadmap:setup`.
 
 ## What "linked" means

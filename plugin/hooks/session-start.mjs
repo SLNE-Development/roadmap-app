@@ -13,9 +13,10 @@ async function whoami() {
     if (response.status === 401) return "The roadmap rejected ROADMAP_API_KEY (401). Create a new key in the app.";
     if (!response.ok) return `The roadmap answered ${response.status}; MCP tools may fail.`;
     const me = await response.json();
+    if (typeof me?.name !== "string") return "The roadmap answered with an unexpected whoami response; MCP tools may fail.";
     return `Signed in to the roadmap as ${me.name}.`;
   } catch {
-    return `The roadmap at ${url} did not answer within 3 seconds; MCP tools may fail.`;
+    return `The roadmap at ${url} could not be reached or did not answer in time; MCP tools may fail.`;
   }
 }
 
@@ -24,7 +25,10 @@ try {
   const input = await readInput();
   const root = input && typeof input.cwd === "string" ? findLinkedRoot(input.cwd) : null;
   const link = root ? readLink(root) : null;
-  if (link) {
+  if (root && !link) {
+    const additionalContext = "surf-roadmap.json is invalid: it must be JSON with a string `project`. Hooks treat this repository as linked, so fix or remove the file (see /surf-roadmap:setup).";
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }));
+  } else if (link) {
     const additionalContext = sessionContext(link, await whoami());
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }));
   }
