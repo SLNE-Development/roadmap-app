@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CircleAlert } from "lucide-react";
+import { safeNextPath } from "@/lib/auth/next-path";
 import { SignInButton } from "./sign-in-button";
 
 /** The public entry page. */
@@ -65,9 +66,9 @@ function Logo() {
  * button and, after a failed attempt, the reason in plain words. On phones the
  * panel shrinks to a band above the form.
  *
- * @param props.searchParams carries `error` after a rejected sign-in
+ * @param props.searchParams carries `error` after a rejected sign-in and `next`, the page to return to
  */
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string | string[] }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string | string[]; next?: string | string[] }> }) {
   const params = await searchParams;
   // A repeated `error` arrives as an array; the last one is the most specific.
   const error = Array.isArray(params.error) ? params.error.at(-1) : params.error;
@@ -106,7 +107,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <h2 className="font-display text-[30px] font-semibold tracking-[-0.02em]">Sign in</h2>
             <p className="text-sm leading-normal text-fg-2">Use the Discord account an admin added to the allowlist.</p>
           </div>
-          <SignInButton />
+          <SignInButton next={safeNextPath(params.next)} />
           {message && (
             <div role="alert" className="flex gap-2.5 bg-danger-soft px-3.5 py-3 text-[13px] leading-normal text-destructive">
               <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />

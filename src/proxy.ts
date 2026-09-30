@@ -2,7 +2,7 @@ import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Sends requests without a session cookie to `/login`. This is a fast pre-check;
+ * Sends requests without a session cookie to `/login`, remembering the requested page in `next`. This is a fast pre-check;
  * pages and actions verify the session itself.
  *
  * @param request the incoming request
@@ -12,6 +12,7 @@ export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
+  if (request.nextUrl.pathname !== "/") url.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
   return NextResponse.redirect(url);
 }
 

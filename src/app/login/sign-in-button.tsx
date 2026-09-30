@@ -10,7 +10,7 @@ import { authClient } from "@/lib/auth/client";
  * Starts the Discord OAuth flow. Callback failures come back to
  * `/login?error=<code>&error_description=…`; failures before the redirect are shown as a toast.
  */
-export function SignInButton() {
+export function SignInButton({ next }: { next: string }) {
   const [pending, setPending] = useState(false);
   return (
     <Button
@@ -21,7 +21,7 @@ export function SignInButton() {
         try {
           const { error } = await authClient.signIn.social({
             provider: "discord",
-            callbackURL: "/",
+            callbackURL: next,
             // Better Auth appends `error=<code>` itself; a query here would make `error` repeat.
             errorCallbackURL: "/login",
           });
