@@ -49,13 +49,19 @@ Set `APP_PORT` and `POSTGRES_PORT` to override default ports 3000 and 5432.
 ## Deploy on Coolify
 
 `.github/workflows/image.yml` publishes `ghcr.io/slne-development/roadmap-app`
-(`latest`, `sha-<commit>`) on every push to `main`.
+(`latest`, `sha-<commit>`) after CI passes on `main`.
 
-1. In Coolify, create a Docker Compose resource from `docker-compose.coolify.yml`.
-2. Set `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
-   `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
-3. Assign the domain to the `app` service on port 3000.
-4. Add `https://<domain>/api/auth/callback/discord` as a redirect in the Discord application.
+You set `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
+Coolify generates the database password (`SERVICE_PASSWORD_POSTGRES`) and the public
+URL (`SERVICE_URL_APP`, derived from the domain you assign), so neither is entered by hand.
+
+1. Make the GHCR package `roadmap-app` public, or add registry credentials in Coolify,
+   before the first pull.
+2. In Coolify, create a Docker Compose resource from `docker-compose.coolify.yml`.
+3. Set `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
+4. Assign the domain to the `app` service on port 3000.
+5. Add `https://<domain>/api/auth/callback/discord` as a redirect in the Discord application.
+6. Deploy, then sign in with Discord right away: the first account to sign in becomes admin.
 
 Postgres runs with small buffers and a 256 MB / 0.5 CPU limit; the app keeps at
 most 5 connections.
