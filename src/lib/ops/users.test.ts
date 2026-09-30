@@ -5,7 +5,8 @@ import { createTestDb } from "@/test/db";
 import { insertUser } from "@/test/fixtures";
 import {
   addAllowedAccount,
-  checkSignIn,
+  isAllowed,
+  linkDiscordAccount,
   listAllowedAccounts,
   listUsers,
   loadActor,
@@ -13,19 +14,45 @@ import {
   setAdmin,
 } from "./users";
 
-describe("checkSignIn", () => {
-  it("lets the very first account in", async () => {
+/** Inserts a user the way Better Auth creates one: without a Discord id. */
+async function insertBareUser(db: Awaited<ReturnType<typeof createTestDb>>, name: string): Promise<string> {
+  const id = `bare-${name}`;
+  await db.insert(user).values({ id, name, email: `${id}@example.test` });
+  return id;
+}
+
+describe("linkDiscordAccount", () => {
+  it("makes the very first account an allowed admin", async () => {
     const db = await createTestDb();
-    expect(await checkSignIn(db, "123456789012345678")).toBe("first-user");
+    const id = await insertBareUser(db, "Ammo");
+    await linkDiscordAccount(db, id, "123456789012345678");
+    const [row] = await db.select().from(user).where(eq(user.id, id));
+    expect(row.discordId).toBe("123456789012345678");
+    expect(row.isAdmin).toBe(true);
+    expect(await isAllowed(db, "123456789012345678")).toBe(true);
+    expect(await loadActor(db, id)).toEqual({ userId: id, name: "Ammo", isAdmin: true });
   });
 
-  it("afterwards admits only provisioned Discord ids", async () => {
+  it("afterwards admits only provisioned Discord ids, never as admin", async () => {
     const db = await createTestDb();
     const admin = await insertUser(db, { isAdmin: true });
     await addAllowedAccount(db, admin, { discordId: "223456789012345678", displayName: "Sam" });
-    expect(await checkSignIn(db, "223456789012345678")).toBe("allowed");
-    expect(await checkSignIn(db, "999999999999999999")).toBe("rejected");
-    expect(await checkSignIn(db, "")).toBe("rejected");
+    const sam = await insertBareUser(db, "Sam");
+    const eve = await insertBareUser(db, "Eve");
+    await linkDiscordAccount(db, sam, "223456789012345678");
+    await linkDiscordAccount(db, eve, "999999999999999999");
+    expect(await loadActor(db, sam)).toEqual({ userId: sam, name: "Sam", isAdmin: false });
+    expect(await loadActor(db, eve)).toBeNull();
+    expect(await isAllowed(db, "999999999999999999")).toBe(false);
+  });
+
+  it("never changes a Discord id that is already linked", async () => {
+    const db = await createTestDb();
+    const id = await insertBareUser(db, "Ammo");
+    await linkDiscordAccount(db, id, "123456789012345678");
+    await linkDiscordAccount(db, id, "999999999999999999");
+    const [row] = await db.select().from(user).where(eq(user.id, id));
+    expect(row.discordId).toBe("123456789012345678");
   });
 });
 

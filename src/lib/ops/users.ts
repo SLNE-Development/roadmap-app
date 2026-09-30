@@ -1,12 +1,9 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { allowedAccount, apikey, session, user } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import type { Actor } from "./actor";
 import { ConflictError, ForbiddenError, isUniqueViolation, NotFoundError } from "./errors";
-
-/** Outcome of a sign-in attempt: the bootstrap admin, a provisioned account, or a rejection. */
-export type SignInVerdict = "first-user" | "allowed" | "rejected";
 
 /** A provisioned Discord account together with the user it became, if they signed in. */
 export interface AllowedAccountRow {
@@ -51,13 +48,23 @@ export async function isAllowed(db: Executor, discordId: string): Promise<boolea
 }
 
 /**
- * Decides whether a Discord account may sign in: while no user exists the first
- * account is admitted as admin; afterwards only provisioned ids are admitted.
+ * Records the Discord id of a user who signed in with Discord, once. When no
+ * other user exists, this first account becomes admin and is provisioned; any
+ * later account is admitted only if an admin provisioned its id.
  */
-export async function checkSignIn(db: Executor, discordId: string): Promise<SignInVerdict> {
-  const [row] = await db.select({ n: count() }).from(user);
-  if (row.n === 0) return "first-user";
-  return (await isAllowed(db, discordId)) ? "allowed" : "rejected";
+export async function linkDiscordAccount(db: Db, userId: string, discordId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [linked] = await tx
+      .update(user)
+      .set({ discordId })
+      .where(and(eq(user.id, userId), isNull(user.discordId)))
+      .returning({ name: user.name });
+    if (!linked) return;
+    const [others] = await tx.select({ n: count() }).from(user).where(ne(user.id, userId));
+    if (others.n > 0) return;
+    await tx.update(user).set({ isAdmin: true }).where(eq(user.id, userId));
+    await tx.insert(allowedAccount).values({ discordId, displayName: linked.name }).onConflictDoNothing();
+  });
 }
 
 /**

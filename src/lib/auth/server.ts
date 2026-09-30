@@ -4,10 +4,11 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { account, allowedAccount, apikey, session, user, verification } from "@/db/schema";
-import { checkSignIn, isAllowed } from "@/lib/ops/users";
+import { account, apikey, session, user, verification } from "@/db/schema";
+import type { Db } from "@/db/types";
+import { isAllowed, linkDiscordAccount } from "@/lib/ops/users";
 
 /** Message shown when a Discord account that was not provisioned tries to sign in. */
 export const NOT_PROVISIONED = "Your Discord account has not been added. Ask an admin.";
@@ -24,6 +25,25 @@ function requireEnv(name: string): string {
 }
 
 /**
+ * Returns the Discord id of a user, first linking it from their Discord account
+ * row. Better Auth drops `input: false` fields from provider profiles, so the
+ * account row is where the id arrives.
+ */
+async function discordIdOf(db: Db, userId: string): Promise<string | null> {
+  const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, userId)).limit(1);
+  if (row?.discordId) return row.discordId;
+  const [linked] = await db
+    .select({ accountId: account.accountId })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, "discord")))
+    .limit(1);
+  if (!linked) return null;
+  await linkDiscordAccount(db, userId, linked.accountId);
+  const [after] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, userId)).limit(1);
+  return after?.discordId ?? null;
+}
+
+/**
  * Builds the Better Auth instance: Discord sign-in for provisioned accounts,
  * the first account as admin, and per-user API keys with the `rmk_` prefix.
  */
@@ -37,7 +57,6 @@ function createAuth() {
       discord: {
         clientId: requireEnv("DISCORD_CLIENT_ID"),
         clientSecret: requireEnv("DISCORD_CLIENT_SECRET"),
-        mapProfileToUser: (profile) => ({ discordId: profile.id }),
       },
     },
     user: {
@@ -47,28 +66,11 @@ function createAuth() {
       },
     },
     databaseHooks: {
-      user: {
-        create: {
-          before: async (data) => {
-            const verdict = await checkSignIn(db, String(data.discordId ?? ""));
-            if (verdict === "rejected") throw new APIError("FORBIDDEN", { message: NOT_PROVISIONED });
-            return { data: { ...data, isAdmin: verdict === "first-user" } };
-          },
-          after: async (created) => {
-            if (created.isAdmin && created.discordId) {
-              await db
-                .insert(allowedAccount)
-                .values({ discordId: String(created.discordId), displayName: created.name })
-                .onConflictDoNothing();
-            }
-          },
-        },
-      },
       session: {
         create: {
           before: async (data) => {
-            const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, data.userId)).limit(1);
-            if (!row?.discordId || !(await isAllowed(db, row.discordId))) {
+            const discordId = await discordIdOf(db, data.userId);
+            if (!discordId || !(await isAllowed(db, discordId))) {
               throw new APIError("FORBIDDEN", { message: NOT_PROVISIONED });
             }
           },
