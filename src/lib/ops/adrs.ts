@@ -177,9 +177,11 @@ export async function updateAdr(db: Db, actor: Actor, projectSlug: string, numbe
     if (current.status !== "proposed") {
       throw new ConflictError(`ADR ${formatAdrNumber(number)} is ${current.status} and can no longer be edited; write a new ADR that supersedes it.`);
     }
+    const fields = Object.keys({ ...patch, ...(systems ? { systems } : {}) });
+    if (fields.length === 0) return;
     if (Object.keys(patch).length > 0) await tx.update(adr).set(patch).where(eq(adr.id, current.id));
     if (systems) await linkSystems(tx, found.project.id, current.id, systems);
-    await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: current.id, field: "edited", newValue: Object.keys({ ...patch, ...(systems ? { systems } : {}) }).join(", ") });
+    await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: current.id, field: "edited", newValue: fields.join(", ") });
   });
 }
 
@@ -206,7 +208,7 @@ export async function acceptAdr(db: Db, actor: Actor, projectSlug: string, numbe
  * Editor or higher.
  *
  * @throws InvalidError if both numbers are the same
- * @throws ConflictError if either ADR is not accepted
+ * @throws ConflictError if either ADR is not accepted or `by` already supersedes another
  */
 export async function supersedeAdr(db: Db, actor: Actor, projectSlug: string, input: { number: number; by: number }): Promise<void> {
   if (input.number === input.by) throw new InvalidError("An ADR cannot supersede itself.");
@@ -219,6 +221,7 @@ export async function supersedeAdr(db: Db, actor: Actor, projectSlug: string, in
     const next = input.by === first ? low : high;
     if (old.status !== "accepted") throw new ConflictError(`ADR ${formatAdrNumber(input.number)} is ${old.status}; only accepted ADRs can be superseded.`);
     if (next.status !== "accepted") throw new ConflictError(`ADR ${formatAdrNumber(input.by)} must be accepted before it can supersede another.`);
+    if (next.supersedesId) throw new ConflictError(`ADR ${formatAdrNumber(input.by)} already supersedes another ADR.`);
     await tx.update(adr).set({ status: "superseded", supersededById: next.id }).where(eq(adr.id, old.id));
     await tx.update(adr).set({ supersedesId: old.id }).where(eq(adr.id, next.id));
     await logChange(tx, actor, { projectId: found.project.id, entity: "adr", entityId: old.id, field: "status", oldValue: "accepted", newValue: `superseded by ${formatAdrNumber(input.by)}` });

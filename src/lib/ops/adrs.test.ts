@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
 import { acceptAdr, createAdr, formatAdrNumber, getAdr, listAdrs, supersedeAdr, updateAdr } from "./adrs";
@@ -19,6 +20,8 @@ describe("ADRs", () => {
     expect(formatAdrNumber(12345)).toBe("12345");
   });
 
+  // PGlite serialises transactions, so this pins the numbering result, not the lock;
+  // the project row lock is what makes it hold on Postgres.
   it("numbers ADRs per project, also under parallel creation", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);
@@ -63,6 +66,34 @@ describe("ADRs", () => {
       [2, "accepted", 1, null],
     ]);
     await expect(supersedeAdr(db, owner, slug, { number: 2, by: 2 })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rejects superseding with an ADR that already supersedes another", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    for (const t of ["One", "Two", "Three"]) await createAdr(db, owner, slug, body(t));
+    for (const n of [1, 2, 3]) await acceptAdr(db, owner, slug, n);
+    await supersedeAdr(db, owner, slug, { number: 1, by: 3 });
+    await expect(supersedeAdr(db, owner, slug, { number: 2, by: 3 })).rejects.toMatchObject({
+      status: 409,
+      message: "ADR 0003 already supersedes another ADR.",
+    });
+    const list = await listAdrs(db, owner, slug);
+    expect(list.map((a) => [a.number, a.status, a.supersedes, a.supersededBy])).toEqual([
+      [1, "superseded", null, 3],
+      [2, "accepted", null, null],
+      [3, "accepted", 1, null],
+    ]);
+  });
+
+  it("does not log an edit that changes nothing", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const { number } = await createAdr(db, owner, slug, body("A"));
+    const count = async () => (await db.select().from(changeLog)).length;
+    const before = await count();
+    await updateAdr(db, owner, slug, number, {});
+    expect(await count()).toBe(before);
   });
 
   it("reports unknown numbers", async () => {
