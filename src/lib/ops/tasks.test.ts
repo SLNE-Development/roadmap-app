@@ -111,6 +111,16 @@ describe("tasks", () => {
     expect((await getSystem(db, owner, slug, "s")).tasks).toEqual([]);
   });
 
+  it("still reports unknown and invisible tasks as not found", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+    const stranger = await insertUser(db);
+    await expect(updateTask(db, stranger, id, { title: "x" })).rejects.toMatchObject({ status: 404, message: `Unknown task ${id}.` });
+    await expect(updateTask(db, owner, 999999, { title: "x" })).rejects.toMatchObject({ status: 404, message: "Unknown task 999999." });
+  });
+
   it("keeps a single owner when two members start the same task at once", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

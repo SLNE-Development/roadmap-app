@@ -24,21 +24,21 @@ export const updateTaskInput = z.object({
 
 /** Loads a task with its system, locking both rows, and checks the actor's role in its project. */
 async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
-  const [row] = await tx
-    .select({ task, system })
-    .from(task)
-    .innerJoin(system, eq(system.id, task.systemId))
-    .where(eq(task.id, taskId))
-    .limit(1)
-    .for("no key update");
-  if (!row) throw new NotFoundError(`Unknown task ${taskId}.`);
+  const unknown = () => new NotFoundError(`Unknown task ${taskId}.`);
+  const [found] = await tx.select({ systemId: task.systemId }).from(task).where(eq(task.id, taskId)).limit(1);
+  if (!found) throw unknown();
+  // Lock the system before the task, the order writePlan uses, so the two cannot deadlock.
+  const [parent] = await tx.select().from(system).where(eq(system.id, found.systemId)).limit(1).for("no key update");
+  if (!parent) throw unknown();
+  const [current] = await tx.select().from(task).where(eq(task.id, taskId)).limit(1).for("no key update");
+  if (!current || current.systemId !== parent.id) throw unknown();
   try {
-    await projectAccessById(tx, actor, row.system.projectId, "editor");
+    await projectAccessById(tx, actor, parent.projectId, "editor");
   } catch (error) {
-    if (error instanceof NotFoundError) throw new NotFoundError(`Unknown task ${taskId}.`);
+    if (error instanceof NotFoundError) throw unknown();
     throw error;
   }
-  return row;
+  return { task: current, system: parent };
 }
 
 /** Adds a task at the end of a system's list; priority defaults to the system's. Editor or higher. */
