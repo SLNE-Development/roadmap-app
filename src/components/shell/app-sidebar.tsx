@@ -75,8 +75,8 @@ export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; 
   const others = projects.filter((p) => p.slug !== project?.slug);
 
   return (
-    <nav aria-label="Main" className="flex h-full w-full flex-col gap-[18px] overflow-y-auto bg-sidebar px-3 py-4 text-sidebar-foreground">
-      <Link href="/" className="flex items-center gap-2.5 px-2 py-1">
+    <nav aria-label="Main" className="flex h-full w-full flex-col gap-[18px] bg-sidebar px-3 py-4 text-sidebar-foreground">
+      <Link href="/" className="flex shrink-0 items-center gap-2.5 px-2 py-1">
         <span className="flex size-[26px] items-center justify-center bg-primary text-primary-foreground">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
             <path d="M2 15c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-3 5-3 2.5 3 5 3" />
@@ -87,7 +87,7 @@ export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; 
       </Link>
 
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center gap-2.5 border bg-card p-2 text-left outline-none hover:bg-card/70 focus-visible:ring-2 focus-visible:ring-ring">
+        <DropdownMenuTrigger className="flex shrink-0 items-center gap-2.5 border bg-card p-2 text-left outline-none hover:bg-card/70 focus-visible:ring-2 focus-visible:ring-ring">
           {project ? <ProjectMark name={project.name} slug={project.slug} /> : <span className="size-6 border border-dashed" aria-hidden />}
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-[13px] font-semibold">{project ? project.name : "All projects"}</span>
@@ -117,13 +117,15 @@ export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; 
       <button
         type="button"
         onClick={openCommandMenu}
-        className="flex items-center gap-2 border bg-background px-2.5 py-[7px] text-[13px] text-muted-foreground hover:text-foreground"
+        className="flex shrink-0 items-center gap-2 border bg-background px-2.5 py-[7px] text-[13px] text-muted-foreground hover:text-foreground"
       >
         <Search className="size-[15px]" aria-hidden />
         <span className="flex-1 text-left">Search or jump to…</span>
         <kbd className="border bg-card px-[5px] py-px font-mono text-[11px]">⌘K</kbd>
       </button>
 
+      {/* Only the navigation between search and settings scrolls; the top and bottom stay put. */}
+      <div className="-mx-3 flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto overscroll-contain px-3">
       {project ? (
         <div className="flex flex-col gap-0.5">
           {sections.map((s) => (
@@ -179,8 +181,8 @@ export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; 
         </div>
       )}
 
-      <div className="flex-1" />
-      <div className="flex flex-col gap-1.5 border-t pt-3">
+      </div>
+      <div className="flex shrink-0 flex-col gap-1.5 border-t pt-3">
         {project && (
           <Link href={`${base}/settings`} aria-current={is(`${base}/settings`) ? "page" : undefined} className={rowClass(is(`${base}/settings`))}>
             <SlidersHorizontal className="size-4" aria-hidden />
