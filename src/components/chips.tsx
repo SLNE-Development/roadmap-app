@@ -1,7 +1,6 @@
 import { Bot } from "lucide-react";
 import type { AdrStatus, ColumnCategory, Priority, TaskState } from "@/db/schema";
 import { cn } from "@/lib/utils";
-import { PersonName } from "./person-avatar";
 
 /*
  * Tide chips: one shape per meaning. Status uses the six category colours;
@@ -48,6 +47,12 @@ export const CATEGORY_LABEL: Record<ColumnCategory, string> = {
   done: "Done",
 };
 
+/** Category colour used for each task state. */
+export const STATE_CATEGORY: Record<TaskState, ColumnCategory> = { todo: "todo", doing: "active", blocked: "blocked", done: "done" };
+
+/** Display names of task states. */
+export const STATE_LABEL: Record<TaskState, string> = { todo: "Todo", doing: "Doing", blocked: "Blocked", done: "Done" };
+
 /** A small round dot in a category's colour. */
 export function CategoryDot({ category, className }: { category: ColumnCategory; className?: string }) {
   return <span aria-hidden className={cn("inline-block size-2 shrink-0 rounded-full", CATEGORY_CLASS[category], className)} />;
@@ -72,23 +77,6 @@ export function PriorityTag({ priority, className }: { priority: Priority; class
         ? "border border-border px-1.5 py-px font-semibold text-fg-2"
         : "font-medium text-muted-foreground";
   return <span className={cn("inline-block w-fit text-[10.5px] leading-4 whitespace-nowrap", style, className)}>{priority}</span>;
-}
-
-/** An owner with avatar, or a muted "Unowned". */
-export function OwnerBadge({ name }: { name: string | null }) {
-  if (!name) return <span className="text-xs text-muted-foreground">Unowned</span>;
-  return <PersonName name={name} className="text-xs text-fg-2" />;
-}
-
-/** Category colour used for each task state. */
-export const STATE_CATEGORY: Record<TaskState, ColumnCategory> = { todo: "todo", doing: "active", blocked: "blocked", done: "done" };
-
-/** Display names of task states. */
-export const STATE_LABEL: Record<TaskState, string> = { todo: "Todo", doing: "Doing", blocked: "Blocked", done: "Done" };
-
-/** A task state as coloured text. */
-export function TaskStateBadge({ state }: { state: TaskState }) {
-  return <span className={cn("text-xs font-semibold", CATEGORY_TEXT[STATE_CATEGORY[state]])}>{STATE_LABEL[state]}</span>;
 }
 
 /** The name of the agent that made a change, in mono on a sunken tag. */

@@ -105,7 +105,7 @@ export function changeItems(
 }
 
 /** Merges timeline items newest first and groups them by day label. */
-export function groupByDay(items: TimelineItem[], now: Date = new Date()): { label: string; items: TimelineItem[] }[] {
+function groupByDay(items: TimelineItem[], now: Date = new Date()): { label: string; items: TimelineItem[] }[] {
   const sorted = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const groups: { label: string; items: TimelineItem[] }[] = [];
   for (const item of sorted) {

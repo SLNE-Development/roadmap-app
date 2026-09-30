@@ -43,7 +43,7 @@ function unwrapInputIssues(error: ZodError): ZodError {
 
 /**
  * Turns what an op throws into a tRPC error carrying the op's status and
- * user-facing message, the same text the server actions used to show.
+ * user-facing message, the same text the ops report to MCP and REST.
  * Unexpected failures are logged and read "Something went wrong.".
  */
 const opErrors = t.middleware(async ({ next }) => {
@@ -65,8 +65,8 @@ export const router = t.router;
 /** Calls procedures of a router directly, for tests. */
 export const createCallerFactory = t.createCallerFactory;
 
-/** A procedure anyone may call, even without a session. */
-export const publicProcedure = t.procedure.use(opErrors);
+/** Unexported base that `protectedProcedure` wraps; every exposed procedure requires a session. */
+const publicProcedure = t.procedure.use(opErrors);
 
 /** A procedure for the signed-in actor; without a session it fails with `UNAUTHORIZED`. */
 export const protectedProcedure = publicProcedure.use(({ ctx, next }) => {
