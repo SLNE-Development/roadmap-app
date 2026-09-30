@@ -23,7 +23,7 @@ export default async function ApiKeysPage() {
             variables for the surf-roadmap plugin.
           </p>
         </div>
-        <ApiKeyManager keys={keys} appUrl={process.env.BETTER_AUTH_URL ?? ""} />
+        <ApiKeyManager keys={keys} appUrl={(process.env.BETTER_AUTH_URL ?? "").replace(/\/+$/, "")} />
       </div>
     </div>
   );
