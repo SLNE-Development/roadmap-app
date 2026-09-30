@@ -10,15 +10,7 @@ import { Input } from "@/components/ui/input";
 import { COLUMN_CATEGORIES, type ColumnCategory } from "@/db/schema";
 import { useTRPC } from "@/trpc/client";
 import { CATEGORY_LABEL, CategoryDot } from "./chips";
-
-/** A column being edited; `id` is absent for new columns. */
-interface DraftColumn {
-  key: string;
-  id?: string;
-  name: string;
-  category: ColumnCategory;
-  systemCount: number;
-}
+import { mergeColumnCounts, type DraftColumn } from "./column-draft";
 
 /** "3 systems", "1 system" or "empty". */
 const holding = (n: number) => (n === 0 ? "empty" : n === 1 ? "1 system" : `${n} systems`);
@@ -68,6 +60,12 @@ export function ColumnEditor({
 }) {
   const initial = () => columns.map((c) => ({ key: c.id, ...c }));
   const [draft, setDraft] = useState<DraftColumn[]>(initial);
+  // Refetches refresh the system counts without touching unsaved edits.
+  const [seenColumns, setSeenColumns] = useState(columns);
+  if (columns !== seenColumns) {
+    setSeenColumns(columns);
+    setDraft((d) => mergeColumnCounts(d, columns));
+  }
   const trpc = useTRPC();
   // The toast sits on the mutation, not on `mutate`: the refetched columns re-key and remount this editor before the mutation settles.
   const save = useMutation(trpc.boards.setColumns.mutationOptions({ onSuccess: () => toast.success("Columns saved") }));

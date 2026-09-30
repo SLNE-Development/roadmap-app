@@ -190,7 +190,7 @@ export function SystemView({
             />
             <PlanningPanel planning={planning} href={tabHref(base, "planning")} />
             <DecisionsPanel projectSlug={slug} adrs={o.adrs} questions={openQuestions} />
-            <SystemNotes key={o.system.notes} projectSlug={slug} systemSlug={systemSlug} notes={o.system.notes} canEdit={canEdit} />
+            <SystemNotes key={systemSlug} projectSlug={slug} systemSlug={systemSlug} notes={o.system.notes} canEdit={canEdit} />
           </aside>
         </div>
       )}

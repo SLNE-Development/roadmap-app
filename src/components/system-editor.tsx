@@ -19,12 +19,18 @@ const LONG_NOTES = 400;
  */
 export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { projectSlug: string; systemSlug: string; notes: string; canEdit: boolean }) {
   const trpc = useTRPC();
-  // Saved notes remount this panel (keyed by the notes), so the toast lives on the mutation.
+  // The toast lives on the mutation so it survives the panel closing the editor.
   const update = useMutation(trpc.systems.update.mutationOptions({ onSuccess: () => toast.success("Notes saved") }));
   const pending = update.isPending;
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // Until the user types, the textarea follows the incoming notes; once dirty it keeps their draft.
   const [draft, setDraft] = useState(notes);
+  const [dirty, setDirty] = useState(false);
+  // The notes as they were when editing started, to notice changes made elsewhere meanwhile.
+  const [startNotes, setStartNotes] = useState(notes);
+  const text = dirty ? draft : notes;
+  const changedElsewhere = dirty && notes !== startNotes;
   const long = notes.length > LONG_NOTES;
 
   if (!canEdit && !notes.trim()) return null;
@@ -38,6 +44,8 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
             size="xs"
             onClick={() => {
               setDraft(notes);
+              setDirty(false);
+              setStartNotes(notes);
               setEditing(true);
             }}
           >
@@ -51,15 +59,30 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
           onSubmit={(e) => {
             e.preventDefault();
             update.mutate(
-              { project: projectSlug, system: systemSlug, patch: { notes: draft } },
-              { onSuccess: () => setEditing(false) },
+              { project: projectSlug, system: systemSlug, patch: { notes: text } },
+              {
+                onSuccess: () => {
+                  setDirty(false);
+                  setEditing(false);
+                },
+              },
             );
           }}
         >
-          <Textarea aria-label="Notes" className="min-h-40 text-[13px]" value={draft} autoFocus onChange={(e) => setDraft(e.target.value)} />
+          <Textarea
+            aria-label="Notes"
+            className="min-h-40 text-[13px]"
+            value={text}
+            autoFocus
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setDirty(true);
+            }}
+          />
           <p className="text-xs text-muted-foreground">Markdown works here.</p>
+          {changedElsewhere && <p className="text-xs text-cat-planning">Notes changed elsewhere since you started editing.</p>}
           <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={pending || draft === notes}>
+            <Button type="submit" size="sm" disabled={pending || text === notes}>
               Save notes
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => setEditing(false)}>

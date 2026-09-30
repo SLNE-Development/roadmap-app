@@ -98,7 +98,7 @@ export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: st
           </Button>
         </div>
         <ColumnEditor
-          key={`${selected.slug}:${columns.map((c) => `${c.id}/${c.name}/${c.category}/${c.systemCount}`).join("|")}`}
+          key={`${selected.slug}:${columns.map((c) => `${c.id}/${c.name}/${c.category}`).join("|")}`}
           projectSlug={slug}
           boardSlug={selected.slug}
           columns={columns}

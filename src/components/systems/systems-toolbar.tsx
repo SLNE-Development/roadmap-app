@@ -69,6 +69,13 @@ export function SystemsToolbar({
     startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
   };
 
+  // The URL is the source of truth: Clear filters and back/forward reset the input.
+  const [seenQ, setSeenQ] = useState(current.q ?? "");
+  if ((current.q ?? "") !== seenQ) {
+    setSeenQ(current.q ?? "");
+    setQuery(current.q ?? "");
+  }
+
   useEffect(() => {
     if (query.trim() === (current.q ?? "")) return;
     const timer = setTimeout(() => update({ q: query.trim() }), 250);

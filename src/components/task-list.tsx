@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Check, Lock, Minus, Plus, TrashIcon, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ProgressBar } from "@/components/page";
 import {
@@ -213,6 +213,7 @@ export function TaskList({
   const add = useMutation(trpc.tasks.add.mutationOptions());
   const pending = add.isPending;
   const [title, setTitle] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const done = tasks.filter((t) => t.state === "done").length;
   const collapsible = tasks.length > COLLAPSE_AT && done > 0;
   const [showDone, setShowDone] = useState(!collapsible);
@@ -263,16 +264,25 @@ export function TaskList({
           className="flex min-h-12 items-center gap-3 border-t px-4 py-2 text-muted-foreground focus-within:text-foreground sm:px-[18px] lg:min-h-0 lg:py-2.5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!title.trim()) return;
-            add.mutate({ project: projectSlug, system: systemSlug, task: { title: title.trim() } }, { onSuccess: () => setTitle("") });
+            if (pending || !title.trim()) return;
+            add.mutate(
+              { project: projectSlug, system: systemSlug, task: { title: title.trim() } },
+              {
+                onSuccess: () => {
+                  setTitle("");
+                  inputRef.current?.focus();
+                },
+              },
+            );
           }}
         >
           <Plus aria-hidden className="size-[18px] shrink-0" />
           <input
             aria-label="Add a task"
             placeholder="Add a task"
+            ref={inputRef}
             value={title}
-            disabled={pending}
+            readOnly={pending}
             onChange={(e) => setTitle(e.target.value)}
             className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground lg:text-[13.5px]"
           />
