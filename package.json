@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.mts --passWithNoTests",
     "test:plugin": "node --test \"plugin/**/*.test.mjs\"",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx --env-file=.env scripts/seed-demo.ts"

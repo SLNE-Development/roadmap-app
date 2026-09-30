@@ -1,7 +1,7 @@
-import { defineConfig, configDefaults } from "vitest/config";
+import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
-/** Vitest configuration: Node environment, the `@/` alias, and an inert `server-only`. */
+/** Integration test configuration: Node environment with Valkey. */
 export default defineConfig({
   resolve: {
     alias: {
@@ -11,9 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    exclude: [...configDefaults.exclude, "src/**/*.integration.test.ts"],
+    include: ["src/**/*.integration.test.ts"],
+    fileParallelism: false,
     testTimeout: 30_000,
-    hookTimeout: 60_000,
   },
 });
