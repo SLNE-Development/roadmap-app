@@ -59,6 +59,14 @@ describe("REST", () => {
     expect(inOther.json).toEqual([]);
   });
 
+  it("rejects ids beyond the integer range with 400", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    expect((await send(db, owner, "GET", `/projects/${slug}/adrs/2147483648`)).status).toBe(400);
+    expect((await send(db, owner, "GET", `/projects/${slug}/adrs/99999999999999`)).status).toBe(400);
+    expect((await send(db, owner, "GET", `/projects/${slug}/adrs/2147483647`)).status).toBe(404);
+  });
+
   it("rejects malformed and non-object bodies with 400", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

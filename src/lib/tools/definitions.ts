@@ -53,8 +53,8 @@ const S = { ...P, system: slugSchema.describe("System slug within the project.")
 /** The project and board a tool acts on. */
 const B = { ...P, board: slugSchema.describe("Board slug within the project, e.g. development.") };
 
-/** A numeric path parameter accepted as a number (MCP) or a numeric string (REST). */
-const intParam = (what: string) => z.coerce.number().int().min(1).describe(what);
+/** A numeric path parameter (a positive 32-bit integer) accepted as a number (MCP) or a numeric string (REST). */
+const intParam = (what: string) => z.coerce.number().int().min(1).max(2147483647).describe(what);
 
 /** An optional result limit accepted as a number or a numeric string. */
 const limit = z.coerce.number().int().min(1).max(500).optional().describe("Maximum number of entries.");
