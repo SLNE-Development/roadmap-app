@@ -77,4 +77,14 @@ describe("MCP server", () => {
     const invalid = await call(client, "create_project", { slug: "Bad Slug", name: "x" });
     expect(invalid.isError).toBe(true);
   });
+
+  it("reports a missing numeric id as a required argument, not as NaN", async () => {
+    const db = await createTestDb();
+    const { owner } = await createProjectFixture(db);
+    const client = await connect(db, owner);
+    const missing = await call(client, "update_task", { state: "doing" });
+    expect(missing.isError).toBe(true);
+    expect(missing.text).toContain("expected number, received undefined");
+    expect(missing.text).not.toContain("NaN");
+  });
 });

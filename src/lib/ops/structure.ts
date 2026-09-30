@@ -121,3 +121,214 @@ export async function deletePhase(db: Db, actor: Actor, slug: string, id: string
     await logChange(tx, actor, { projectId: project.id, entity: "phase", entityId: id, field: "deleted", oldValue: deleted[0].name });
   });
 }
+
+/** Input of {@link updateDomain}; omitted fields stay unchanged. */
+export const updateDomainInput = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  description: z.string().trim().max(500).optional(),
+});
+
+/** Input of {@link updatePhase}; omitted fields stay unchanged, `dependsOn` replaces all dependencies. */
+export const updatePhaseInput = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  goal: z.string().trim().max(2000).optional(),
+  dependsOn: z.array(z.string()).max(20).optional(),
+});
+
+/** Input of {@link reorderDomains} and {@link reorderPhases}: every id of the project, in the new order. */
+export const reorderInput = z.object({ orderedIds: z.array(z.string().min(1)).min(1).max(500) });
+
+/**
+ * Checks that `orderedIds` names every one of `current` exactly once.
+ *
+ * @throws InvalidError on a missing, repeated or unknown id
+ */
+function checkPermutation(kind: "domain" | "phase", current: { id: string }[], orderedIds: string[]): void {
+  const known = new Set(current.map((c) => c.id));
+  const seen = new Set<string>();
+  for (const id of orderedIds) {
+    if (!known.has(id)) throw new InvalidError(`Unknown ${kind} ${id}.`);
+    if (seen.has(id)) throw new InvalidError(`The ${kind} ${id} is listed twice.`);
+    seen.add(id);
+  }
+  if (seen.size !== known.size) throw new InvalidError(`List every ${kind} of the project exactly once.`);
+}
+
+/**
+ * Changes a domain's name or description and logs each changed field. Editor or higher.
+ *
+ * @throws NotFoundError if the domain is not in this project
+ */
+export async function updateDomain(
+  db: Db,
+  actor: Actor,
+  slug: string,
+  id: string,
+  raw: z.input<typeof updateDomainInput>,
+): Promise<DomainRow> {
+  const patch = updateDomainInput.parse(raw);
+  return db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, slug, "editor");
+    const [current] = await tx
+      .select()
+      .from(domain)
+      .where(and(eq(domain.id, id), eq(domain.projectId, project.id)))
+      .for("update");
+    if (!current) throw new NotFoundError(`Unknown domain ${id}.`);
+    const changes: Partial<DomainRow> = {};
+    for (const field of ["name", "description"] as const) {
+      const next = patch[field];
+      if (next === undefined || next === current[field]) continue;
+      changes[field] = next;
+      await logChange(tx, actor, { projectId: project.id, entity: "domain", entityId: id, field, oldValue: current[field], newValue: next });
+    }
+    if (Object.keys(changes).length === 0) return current;
+    const [row] = await tx.update(domain).set(changes).where(eq(domain.id, id)).returning();
+    return row;
+  });
+}
+
+/**
+ * Puts the project's domains into the order of `orderedIds`, which must list
+ * each of them exactly once, and logs every moved domain. Editor or higher.
+ *
+ * @throws InvalidError on a missing, repeated or unknown id
+ */
+export async function reorderDomains(db: Db, actor: Actor, slug: string, orderedIds: string[]): Promise<DomainRow[]> {
+  const { orderedIds: ids } = reorderInput.parse({ orderedIds });
+  return db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, slug, "editor");
+    const current = await tx.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder)).for("update");
+    checkPermutation("domain", current, ids);
+    for (const [index, id] of ids.entries()) {
+      const before = current.findIndex((c) => c.id === id);
+      if (before === index) continue;
+      await tx.update(domain).set({ sortOrder: index }).where(eq(domain.id, id));
+      await logChange(tx, actor, {
+        projectId: project.id,
+        entity: "domain",
+        entityId: id,
+        field: "position",
+        oldValue: String(before + 1),
+        newValue: String(index + 1),
+      });
+    }
+    return tx.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder));
+  });
+}
+
+/**
+ * Returns the first phase of `dependsOn` from which `phaseId` is reachable
+ * through `edges` (ignoring the edges of `phaseId` itself, which are being
+ * replaced), i.e. a dependency that would close a cycle, or undefined.
+ */
+function findCycle(phaseId: string, dependsOn: string[], edges: { phaseId: string; dependsOnId: string }[]): string | undefined {
+  const next = new Map<string, string[]>();
+  for (const e of edges) {
+    if (e.phaseId === phaseId) continue;
+    next.set(e.phaseId, [...(next.get(e.phaseId) ?? []), e.dependsOnId]);
+  }
+  return dependsOn.find((start) => {
+    const seen = new Set<string>();
+    const stack = [start];
+    while (stack.length > 0) {
+      const at = stack.pop() as string;
+      if (at === phaseId) return true;
+      if (seen.has(at)) continue;
+      seen.add(at);
+      stack.push(...(next.get(at) ?? []));
+    }
+    return false;
+  });
+}
+
+/**
+ * Changes a phase's name, goal or dependencies (replacing them all) and logs
+ * each changed field, dependencies by phase name. Editor or higher.
+ *
+ * @throws NotFoundError if the phase is not in this project
+ * @throws InvalidError if a dependency is foreign, the phase itself, or closes a cycle
+ */
+export async function updatePhase(
+  db: Db,
+  actor: Actor,
+  slug: string,
+  id: string,
+  raw: z.input<typeof updatePhaseInput>,
+): Promise<PhaseItem> {
+  const parsed = updatePhaseInput.parse(raw);
+  const dependsOn = parsed.dependsOn && [...new Set(parsed.dependsOn)];
+  return db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, slug, "editor");
+    // Lock every phase of the project so concurrent dependency edits cannot form a cycle together.
+    const phases = await tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder)).for("update");
+    const current = phases.find((p) => p.id === id);
+    if (!current) throw new NotFoundError(`Unknown phase ${id}.`);
+    const edges = await tx
+      .select()
+      .from(phaseDependency)
+      .where(inArray(phaseDependency.phaseId, phases.map((p) => p.id)));
+    const before = edges.filter((e) => e.phaseId === id).map((e) => e.dependsOnId);
+    if (dependsOn) {
+      const missing = dependsOn.find((d) => !phases.some((p) => p.id === d));
+      if (missing) throw new InvalidError(`Unknown phase ${missing}.`);
+      if (dependsOn.includes(id)) throw new InvalidError("A phase cannot depend on itself.");
+      const closing = findCycle(id, dependsOn, edges);
+      if (closing) {
+        const name = phases.find((p) => p.id === closing)?.name;
+        throw new InvalidError(`Phase ${name} already builds on ${current.name}; depending on it would create a cycle.`);
+      }
+    }
+
+    const changes: Partial<PhaseRow> = {};
+    for (const field of ["name", "goal"] as const) {
+      const next = parsed[field];
+      if (next === undefined || next === current[field]) continue;
+      changes[field] = next;
+      await logChange(tx, actor, { projectId: project.id, entity: "phase", entityId: id, field, oldValue: current[field], newValue: next });
+    }
+    const row = Object.keys(changes).length > 0 ? (await tx.update(phase).set(changes).where(eq(phase.id, id)).returning())[0] : current;
+
+    const unchanged = !dependsOn || (dependsOn.length === before.length && dependsOn.every((d) => before.includes(d)));
+    if (unchanged) return { ...row, dependsOn: before };
+    await tx.delete(phaseDependency).where(eq(phaseDependency.phaseId, id));
+    if (dependsOn.length > 0) await tx.insert(phaseDependency).values(dependsOn.map((d) => ({ phaseId: id, dependsOnId: d })));
+    /** Names of the given phases in phase order, or null for none. */
+    const names = (ids: string[]) =>
+      phases
+        .filter((p) => ids.includes(p.id))
+        .map((p) => p.name)
+        .join(", ") || null;
+    await logChange(tx, actor, { projectId: project.id, entity: "phase", entityId: id, field: "dependsOn", oldValue: names(before), newValue: names(dependsOn) });
+    return { ...row, dependsOn };
+  });
+}
+
+/**
+ * Puts the project's phases into the order of `orderedIds`, which must list
+ * each of them exactly once, and logs every moved phase. Editor or higher.
+ *
+ * @throws InvalidError on a missing, repeated or unknown id
+ */
+export async function reorderPhases(db: Db, actor: Actor, slug: string, orderedIds: string[]): Promise<PhaseRow[]> {
+  const { orderedIds: ids } = reorderInput.parse({ orderedIds });
+  return db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, slug, "editor");
+    const current = await tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder)).for("update");
+    checkPermutation("phase", current, ids);
+    for (const [index, id] of ids.entries()) {
+      const before = current.findIndex((c) => c.id === id);
+      if (before === index) continue;
+      await tx.update(phase).set({ sortOrder: index }).where(eq(phase.id, id));
+      await logChange(tx, actor, {
+        projectId: project.id,
+        entity: "phase",
+        entityId: id,
+        field: "position",
+        oldValue: String(before + 1),
+        newValue: String(index + 1),
+      });
+    }
+    return tx.select().from(phase).where(eq(phase.projectId, project.id)).orderBy(asc(phase.sortOrder));
+  });
+}

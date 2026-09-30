@@ -4,7 +4,7 @@ import { listDomains, listPhases } from "@/lib/ops/structure";
 import { listSystems } from "@/lib/ops/systems";
 import { pageData } from "@/lib/page";
 
-/** Domains and phases of the project; editors and above add and delete them. */
+/** Domains and phases of the project; editors and above add, edit, reorder and delete them. */
 export default async function SettingsStructurePage({ params }: { params: Promise<{ project: string }> }) {
   const { project: slug } = await params;
   const data = await pageData(async (db, actor) => {

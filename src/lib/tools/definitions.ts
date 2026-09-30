@@ -29,7 +29,21 @@ import {
 } from "@/lib/ops/planning";
 import { createProject, createProjectInput, getProject, listProjects, updateProject, updateProjectInput } from "@/lib/ops/projects";
 import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions } from "@/lib/ops/questions";
-import { createDomain, createPhase, domainInput, listDomains, listPhases, phaseInput } from "@/lib/ops/structure";
+import {
+  createDomain,
+  createPhase,
+  domainInput,
+  listDomains,
+  listPhases,
+  phaseInput,
+  reorderDomains,
+  reorderInput,
+  reorderPhases,
+  updateDomain,
+  updateDomainInput,
+  updatePhase,
+  updatePhaseInput,
+} from "@/lib/ops/structure";
 import {
   createSystem,
   createSystemInput,
@@ -53,11 +67,22 @@ const S = { ...P, system: slugSchema.describe("System slug within the project.")
 /** The project and board a tool acts on. */
 const B = { ...P, board: slugSchema.describe("Board slug within the project, e.g. development.") };
 
-/** A numeric path parameter (a positive 32-bit integer) accepted as a number (MCP) or a numeric string (REST). */
-const intParam = (what: string) => z.coerce.number().int().min(1).max(2147483647).describe(what);
+/**
+ * Turns a numeric string (REST path and query values) into a number and leaves
+ * anything else as is, so a missing value still fails as "required" instead of
+ * being coerced to `NaN` the way `z.coerce.number()` does.
+ */
+const fromNumericString = (value: unknown): unknown =>
+  typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : value;
+
+/** A positive integer up to `max`, accepted as a number (MCP, JSON bodies) or a numeric string (REST). */
+const positiveInt = (max: number) => z.preprocess(fromNumericString, z.number().int().min(1).max(max));
+
+/** A required numeric path parameter (a positive 32-bit integer) accepted as a number (MCP) or a numeric string (REST). */
+const intParam = (what: string) => positiveInt(2147483647).describe(what);
 
 /** An optional result limit accepted as a number or a numeric string. */
-const limit = z.coerce.number().int().min(1).max(500).optional().describe("Maximum number of entries.");
+const limit = positiveInt(500).optional().describe("Maximum number of entries.");
 
 register(
   defineTool({
@@ -108,7 +133,7 @@ register(
   }),
   defineTool({
     name: "list_members",
-    description: "List project members with user ids (usable as ownerUserId) and roles.",
+    description: "List project members with user ids (usable as ownerUserId), roles and when they joined (joinedAt).",
     input: P,
     write: false,
     method: "GET",
@@ -173,6 +198,24 @@ register(
     run: (db, actor, { project, ...input }) => createDomain(db, actor, project, input),
   }),
   defineTool({
+    name: "update_domain",
+    description: "Rename a domain or change its description (id from list_domains).",
+    input: { ...P, id: z.string().min(1).describe("Domain id from list_domains."), ...updateDomainInput.shape },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project/domains/:id",
+    run: (db, actor, { project, id, ...patch }) => updateDomain(db, actor, project, id, patch),
+  }),
+  defineTool({
+    name: "reorder_domains",
+    description: "Reorder a project's domains. orderedIds lists every domain id exactly once, in the new order.",
+    input: { ...P, ...reorderInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/projects/:project/domains/order",
+    run: (db, actor, i) => reorderDomains(db, actor, i.project, i.orderedIds),
+  }),
+  defineTool({
     name: "list_phases",
     description: "List a project's delivery phases in order with their dependencies.",
     input: P,
@@ -189,6 +232,25 @@ register(
     method: "POST",
     path: "/projects/:project/phases",
     run: (db, actor, { project, ...input }) => createPhase(db, actor, project, input),
+  }),
+  defineTool({
+    name: "update_phase",
+    description:
+      "Rename a phase, change its goal or replace its dependencies (phase ids; [] clears them). A phase cannot depend on itself or form a cycle.",
+    input: { ...P, id: z.string().min(1).describe("Phase id from list_phases."), ...updatePhaseInput.shape },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project/phases/:id",
+    run: (db, actor, { project, id, ...patch }) => updatePhase(db, actor, project, id, patch),
+  }),
+  defineTool({
+    name: "reorder_phases",
+    description: "Reorder a project's delivery phases. orderedIds lists every phase id exactly once, in the new delivery order.",
+    input: { ...P, ...reorderInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/projects/:project/phases/order",
+    run: (db, actor, i) => reorderPhases(db, actor, i.project, i.orderedIds),
   }),
 
   defineTool({
@@ -344,7 +406,7 @@ register(
   }),
   defineTool({
     name: "list_updates",
-    description: "List progress updates, newest first, optionally for one system.",
+    description: "List progress updates, newest first, optionally for one system; each names the person (authorName) and the agent, if any.",
     input: { ...P, system: z.string().optional(), limit },
     write: false,
     method: "GET",
@@ -410,7 +472,7 @@ register(
 
   defineTool({
     name: "list_questions",
-    description: "List open questions, unresolved first, optionally for one system or by resolved state.",
+    description: "List open questions, unresolved first, optionally for one system or by resolved state; answered ones say who answered (answeredBy) and when (answeredAt).",
     input: { ...P, system: z.string().optional(), resolved: z.boolean().optional() },
     write: false,
     method: "GET",

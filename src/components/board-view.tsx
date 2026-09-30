@@ -40,7 +40,10 @@ export interface BoardCardView {
   domainId: string | null;
   phaseId: string | null;
   columnId: string;
-  planningComplete: boolean;
+  /** Planning areas (of 4) with an answered or accepted-risk item. */
+  planningAreasCovered: number;
+  /** Planning interview rounds recorded so far. */
+  planningRounds: number;
   tasksDone: number;
   tasksTotal: number;
   /** Summary of the system's newest update; shown as the reason while it is blocked. */
@@ -411,7 +414,7 @@ function SystemCard({
         {category === "planning" ? (
           <span className="flex flex-1 items-center gap-1.5 text-[11.5px] text-cat-planning">
             <PieChart className="size-[13px]" aria-hidden />
-            {card.planningComplete ? "Interview complete" : "Planning open"}
+            {card.planningRounds === 0 ? "Interview not started" : `Planning: ${card.planningAreasCovered} of 4 areas`}
           </span>
         ) : card.tasksTotal > 0 ? (
           <>

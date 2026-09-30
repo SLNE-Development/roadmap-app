@@ -14,7 +14,20 @@ import {
   type addQuestionInput,
   type answerQuestionInput,
 } from "@/lib/ops/questions";
-import { createDomain, createPhase, deleteDomain, deletePhase, type domainInput, type phaseInput } from "@/lib/ops/structure";
+import {
+  createDomain,
+  createPhase,
+  deleteDomain,
+  deletePhase,
+  reorderDomains,
+  reorderPhases,
+  updateDomain,
+  updatePhase,
+  type domainInput,
+  type phaseInput,
+  type updateDomainInput,
+  type updatePhaseInput,
+} from "@/lib/ops/structure";
 import {
   createSystem,
   moveSystem,
@@ -78,6 +91,26 @@ export async function createPhaseAction(project: string, input: z.input<typeof p
 /** Deletes a phase. */
 export async function deletePhaseAction(project: string, id: string) {
   return runAction((db, actor) => deletePhase(db, actor, project, id));
+}
+
+/** Changes a domain's name or description. */
+export async function updateDomainAction(project: string, id: string, patch: z.input<typeof updateDomainInput>) {
+  return runAction(async (db, actor) => void (await updateDomain(db, actor, project, id, patch)));
+}
+
+/** Puts the project's domains into the given order. */
+export async function reorderDomainsAction(project: string, orderedIds: string[]) {
+  return runAction(async (db, actor) => void (await reorderDomains(db, actor, project, orderedIds)));
+}
+
+/** Changes a phase's name, goal or dependencies. */
+export async function updatePhaseAction(project: string, id: string, patch: z.input<typeof updatePhaseInput>) {
+  return runAction(async (db, actor) => void (await updatePhase(db, actor, project, id, patch)));
+}
+
+/** Puts the project's phases into the given delivery order. */
+export async function reorderPhasesAction(project: string, orderedIds: string[]) {
+  return runAction(async (db, actor) => void (await reorderPhases(db, actor, project, orderedIds)));
 }
 
 /** Creates a system in planning and returns its slug. */

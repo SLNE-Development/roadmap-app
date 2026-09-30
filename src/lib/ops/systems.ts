@@ -6,6 +6,8 @@ import {
   COLUMN_CATEGORIES,
   domain,
   phase,
+  planningItem,
+  planningRound,
   PRIORITIES,
   system,
   task,
@@ -77,6 +79,10 @@ export interface SystemListItem {
   ownerUserId: string | null;
   ownerName: string | null;
   planningComplete: boolean;
+  /** Planning areas (of 4) with at least one answered or accepted-risk item. */
+  planningAreasCovered: number;
+  /** Number of planning interview rounds recorded so far. */
+  planningRounds: number;
   tasksTotal: number;
   tasksDone: number;
 }
@@ -194,7 +200,7 @@ export async function createSystem(db: Db, actor: Actor, projectSlug: string, ra
   }
 }
 
-/** Lists the project's systems matching `filter`, by board order then system order, with task counts. */
+/** Lists the project's systems matching `filter`, by board order then system order, with task counts and planning progress. */
 export async function listSystems(
   db: Executor,
   actor: Actor,
@@ -249,9 +255,24 @@ export async function listSystems(
     .groupBy(task.systemId);
   const bySystem = new Map(counts.map((c) => [c.systemId, c]));
 
+  const planning = await db
+    .select({
+      systemId: planningRound.systemId,
+      rounds: sql<number>`count(distinct ${planningRound.id})`.mapWith(Number),
+      areas: sql<number>`count(distinct ${planningItem.area}) filter (where ${planningItem.status} <> 'open')`.mapWith(Number),
+    })
+    .from(planningRound)
+    .innerJoin(system, eq(system.id, planningRound.systemId))
+    .leftJoin(planningItem, eq(planningItem.roundId, planningRound.id))
+    .where(eq(system.projectId, project.id))
+    .groupBy(planningRound.systemId);
+  const planningBySystem = new Map(planning.map((p) => [p.systemId, p]));
+
   return rows.map(({ planningCompletedAt, ...r }) => ({
     ...r,
     planningComplete: planningCompletedAt !== null,
+    planningAreasCovered: planningBySystem.get(r.id)?.areas ?? 0,
+    planningRounds: planningBySystem.get(r.id)?.rounds ?? 0,
     tasksTotal: bySystem.get(r.id)?.total ?? 0,
     tasksDone: bySystem.get(r.id)?.done ?? 0,
   }));

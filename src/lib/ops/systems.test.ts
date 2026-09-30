@@ -3,6 +3,7 @@ import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createBoard } from "./boards";
+import { addPlanningRound, answerPlanningItems } from "./planning";
 import { createDomain } from "./structure";
 import { createSystem, getSystem, listSystems, moveSystem, updateSystem } from "./systems";
 
@@ -56,6 +57,34 @@ describe("listSystems", () => {
     expect((await listSystems(db, owner, slug, { owner: "none" })).map((s) => s.slug)).toEqual(["a"]);
     const [row] = await listSystems(db, owner, slug, { owner: owner.userId });
     expect(row).toMatchObject({ slug: "b", ownerName: "Owner", columnName: "Todo", planningComplete: true, tasksTotal: 0 });
+  });
+
+  it("counts planning rounds and areas with an answered or accepted-risk item", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "fresh", title: "Fresh" });
+    await createSystem(db, owner, slug, { slug: "busy", title: "Busy" });
+    const r1 = await addPlanningRound(db, owner, slug, "busy", {
+      items: [
+        { area: "failure-modes", question: "What breaks?", isRisk: true },
+        { area: "scope", question: "In scope?" },
+        { area: "scope", question: "Out of scope?" },
+      ],
+    });
+    const r2 = await addPlanningRound(db, owner, slug, "busy", { items: [{ area: "dependencies", question: "Needs?" }] });
+    await answerPlanningItems(db, owner, slug, "busy", {
+      answers: [
+        { itemId: r1.itemIds[0], answer: "Accepted", status: "accepted-risk" },
+        { itemId: r1.itemIds[1], answer: "Yes" },
+        { itemId: r1.itemIds[2], answer: "No" },
+      ],
+    });
+    expect(r2.itemIds).toHaveLength(1);
+    const rows = await listSystems(db, owner, slug);
+    expect(rows.map((s) => [s.slug, s.planningRounds, s.planningAreasCovered])).toEqual([
+      ["fresh", 0, 0],
+      ["busy", 2, 2],
+    ]);
   });
 });
 
