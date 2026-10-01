@@ -1,6 +1,6 @@
 import { and, count, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
-import { board, boardColumn, COLUMN_CATEGORIES, system, type ColumnCategory } from "@/db/schema";
+import { board, boardColumn, COLUMN_CATEGORIES, columnRule, system, type ColumnCategory } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { normalizeCardFields } from "@/lib/card-fields";
 import { newId } from "@/lib/id";
@@ -8,8 +8,9 @@ import { projectAccess, slugSchema } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, isUniqueViolation } from "./errors";
 import { fieldsOf } from "./fields";
+import { columnRulesOf, GATE_RULES, rulesSummary, type ColumnRuleRow } from "./gates";
 import { logChange } from "./log";
-import { findBoard, loadBoards, lockProject, type BoardWithColumns } from "./lookup";
+import { findBoard, loadBoards, lockProject, type BoardColumnRow, type BoardRow, type BoardWithColumns } from "./lookup";
 
 /** Columns every new board starts with. */
 export const DEFAULT_COLUMNS: readonly { name: string; category: ColumnCategory }[] = [
@@ -76,10 +77,23 @@ export const setColumnsInput = z.object({ columns: z.array(columnInput).min(2).m
 /** Input of {@link setBoardCardFields}: the fields cards show, in order. */
 export const cardFieldsInput = z.object({ fields: z.array(z.string().min(1).max(80)).max(8) });
 
-/** Lists the project's boards with their columns. */
-export async function listBoards(db: Executor, actor: Actor, projectSlug: string): Promise<BoardWithColumns[]> {
+/** Input of {@link setColumnRules}: a column (id or name) and its complete rule list, in order. */
+export const setColumnRulesInput = z.object({
+  column: z.string().min(1),
+  rules: z.array(z.object({ rule: z.string(), param: z.number().int().nullable().optional() })).max(10),
+});
+
+/** A board whose columns carry their entry rules. */
+export interface BoardWithRules extends BoardRow {
+  columns: (BoardColumnRow & { rules: ColumnRuleRow[] })[];
+}
+
+/** Lists the project's boards with their columns and each column's entry rules. */
+export async function listBoards(db: Executor, actor: Actor, projectSlug: string): Promise<BoardWithRules[]> {
   const { project } = await projectAccess(db, actor, projectSlug, "viewer");
-  return loadBoards(db, project.id);
+  const boards = await loadBoards(db, project.id);
+  const rules = await columnRulesOf(db, boards.flatMap((b) => b.columns.map((c) => c.id)));
+  return boards.map((b) => ({ ...b, columns: b.columns.map((c) => ({ ...c, rules: rules.get(c.id) ?? [] })) }));
 }
 
 /**
@@ -254,6 +268,73 @@ export async function setBoardCardFields(
         newValue: next.join(","),
       });
     }
+    return next;
+  });
+}
+
+/**
+ * Replaces a column's entry rules with `rules`, in that order; an empty list
+ * removes them. A rule with a parameter left out stores its default. The board
+ * row is locked FOR UPDATE, and moveSystem share-locks the target board, so rule
+ * edits and moves into the board serialise. Owner only.
+ *
+ * @throws InvalidError if the column is unknown or the planning column, a rule is unknown or
+ *         listed twice, or a parameter is out of range or given to a rule without one
+ */
+export async function setColumnRules(
+  db: Db,
+  actor: Actor,
+  projectSlug: string,
+  boardSlug: string,
+  raw: z.input<typeof setColumnRulesInput>,
+): Promise<ColumnRuleRow[]> {
+  const input = setColumnRulesInput.parse(raw);
+  return db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, projectSlug, "owner");
+    await tx
+      .select({ id: board.id })
+      .from(board)
+      .where(and(eq(board.projectId, project.id), eq(board.slug, boardSlug)))
+      .for("update");
+    const current = await findBoard(tx, project.id, boardSlug);
+    const wanted = input.column.toLowerCase();
+    const column = current.columns.find((c) => c.id === input.column || c.name.toLowerCase() === wanted);
+    if (!column) {
+      throw new InvalidError(`Board ${current.slug} has no column "${input.column}". Columns: ${current.columns.map((c) => c.name).join(", ")}.`);
+    }
+    if (column.category === "planning" && input.rules.length > 0) {
+      throw new InvalidError("The planning column cannot have entry rules; the planning interview is its gate.");
+    }
+    const next: ColumnRuleRow[] = [];
+    for (const { rule: id, param } of input.rules) {
+      const rule = GATE_RULES.get(id);
+      if (!rule) throw new InvalidError(`Unknown rule ${id}. Known rules: ${[...GATE_RULES.keys()].join(", ")}.`);
+      if (next.some((r) => r.rule === id)) throw new InvalidError(`Rule ${id} is listed twice.`);
+      if (!rule.param) {
+        if (param !== undefined && param !== null) throw new InvalidError(`Rule ${id} takes no parameter.`);
+        next.push({ rule: id, param: null });
+        continue;
+      }
+      const { min, max: top, unit } = rule.param;
+      if (param !== undefined && param !== null && (param < min || param > top)) {
+        throw new InvalidError(`Rule ${id} needs a parameter from ${min} to ${top} ${unit}.`);
+      }
+      next.push({ rule: id, param: param ?? rule.param.default });
+    }
+    const old = (await columnRulesOf(tx, [column.id])).get(column.id) ?? [];
+    if (rulesSummary(old) === rulesSummary(next)) return next;
+    await tx.delete(columnRule).where(eq(columnRule.columnId, column.id));
+    if (next.length > 0) {
+      await tx.insert(columnRule).values(next.map((r, i) => ({ id: newId(), columnId: column.id, rule: r.rule, param: r.param, sortOrder: i })));
+    }
+    await logChange(tx, actor, {
+      projectId: project.id,
+      entity: "column",
+      entityId: column.id,
+      field: "rules",
+      oldValue: old.length ? rulesSummary(old) : null,
+      newValue: next.length ? rulesSummary(next) : null,
+    });
     return next;
   });
 }

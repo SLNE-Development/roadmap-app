@@ -12,7 +12,7 @@ import { inputSchema, matchRoute, runTool } from "./registry";
 const SPEC_TOOLS = [
   "whoami", "my_work",
   "list_projects", "get_project", "create_project", "update_project", "list_members",
-  "list_boards", "create_board", "update_board", "set_board_columns",
+  "list_boards", "create_board", "update_board", "set_board_columns", "set_column_rules",
   "list_domains", "create_domain", "update_domain", "reorder_domains",
   "list_phases", "create_phase", "update_phase", "reorder_phases",
   "list_systems", "get_system", "create_system", "update_system", "set_dependencies", "set_system_fields", "move_system", "archive_system",

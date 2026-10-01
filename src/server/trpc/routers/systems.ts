@@ -48,7 +48,7 @@ export const systemsRouter = router({
     .input(z.object({ ...P, ...updateSystemsInput.shape }))
     .mutation(({ ctx, input }) => updateSystems(ctx.db, ctx.actor, input.project, { systems: input.systems, patch: input.patch })),
 
-  /** Moves a system to a column; the planning gate applies. */
+  /** Moves a system to a column; the planning gate and column rules apply, which an owner can pass with `overrideReason`. */
   move: protectedProcedure
     .input(z.object({ ...S, to: moveSystemInput }))
     .mutation(async ({ ctx, input }) => void (await moveSystem(ctx.db, ctx.actor, input.project, input.system, input.to))),

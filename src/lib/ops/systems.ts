@@ -26,8 +26,9 @@ import { newId } from "@/lib/id";
 import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./access";
 import type { Actor } from "./actor";
 import { dependencyMapsOf } from "./dependencies";
-import { ConflictError, InvalidError, isUniqueViolation, NotFoundError, OpError } from "./errors";
+import { ConflictError, ForbiddenError, InvalidError, isUniqueViolation, NotFoundError, OpError } from "./errors";
 import { fieldValuesByKey } from "./fields";
+import { columnRulesOf, evaluateGates, gateMessage } from "./gates";
 import { logChange } from "./log";
 import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
@@ -70,8 +71,12 @@ export const updateSystemInput = z.object({
   phaseId: nullableEntityId.optional(),
 });
 
-/** Input of {@link moveSystem}: a column id or name, on `board` or the current board. */
-export const moveSystemInput = z.object({ board: slugSchema.optional(), column: z.string().trim().min(1) });
+/** Input of {@link moveSystem}: a column id or name, on `board` or the current board; `overrideReason` lets an owner pass unmet column rules. */
+export const moveSystemInput = z.object({
+  board: slugSchema.optional(),
+  column: z.string().trim().min(1),
+  overrideReason: z.string().trim().min(3).max(500).optional(),
+});
 
 /** A system as listed in catalogues and boards. */
 export interface SystemListItem {
@@ -454,12 +459,14 @@ export async function applySystemPatch(
 
 /**
  * Moves a system to a column (by id or case-insensitive name) of `board` or its
- * current board. Leaving the planning column requires completed planning. Moving
- * into an `active` column makes the actor (when a project member) owner of an
- * unowned system. Editor or higher.
+ * current board. Leaving the planning column requires completed planning, and
+ * entering a column requires its entry rules to hold unless a project owner gives
+ * `overrideReason`, which is logged. Moving into an `active` column makes the
+ * actor (when a project member) owner of an unowned system. Editor or higher.
  *
  * @throws InvalidError if the board has no such column
- * @throws ConflictError if planning is not complete
+ * @throws ConflictError if planning is not complete or the column's rules are unmet
+ * @throws ForbiddenError if a non-owner passes `overrideReason` for unmet rules
  */
 export async function moveSystem(
   db: Db,
@@ -470,17 +477,18 @@ export async function moveSystem(
 ): Promise<SystemRow> {
   const input = moveSystemInput.parse(raw);
   return db.transaction(async (tx) => {
-    const { project } = await projectAccess(tx, actor, projectSlug, "editor");
+    const { project, role } = await projectAccess(tx, actor, projectSlug, "editor");
     const current = await findSystem(tx, project.id, systemSlug, true);
-    return applySystemMove(tx, actor, project, current, input);
+    return applySystemMove(tx, actor, project, role, current, input);
   });
 }
 
-/** Moves the locked, active system `parent` as {@link moveSystem} describes; returns the updated row. */
+/** Moves the locked, active system `parent` as {@link moveSystem} describes, `role` being the actor's; returns the updated row. */
 export async function applySystemMove(
   tx: Executor,
   actor: Actor,
   project: ProjectRow,
+  role: AccessRole,
   parent: SystemRow,
   to: z.output<typeof moveSystemInput>,
 ): Promise<SystemRow> {
@@ -488,7 +496,7 @@ export async function applySystemMove(
   const boards = await loadBoards(tx, project.id);
   const from = boards.find((b) => b.id === current.boardId) as BoardWithColumns;
   const toFirst = to.board ? await findBoard(tx, project.id, to.board) : from;
-  // Share-lock the target board so a concurrent column edit cannot delete the column used below.
+  // Share-lock the target board so a concurrent column or rule edit cannot change the column used below.
   await tx.select({ id: board.id }).from(board).where(eq(board.id, toFirst.id)).for("share");
   const target = await findBoard(tx, project.id, toFirst.slug);
   const wanted = to.column.toLowerCase();
@@ -508,6 +516,21 @@ export async function applySystemMove(
     }
   }
   if (column.id === current.columnId) return current;
+  const rules = (await columnRulesOf(tx, [column.id])).get(column.id) ?? [];
+  const gate = (await evaluateGates(tx, [current], column.name, rules, new Date())).get(current.id);
+  if (gate && gate.unmet.length > 0) {
+    if (!to.overrideReason) throw new ConflictError(gateMessage(current.slug, gate));
+    if (role !== "owner" && !actor.isAdmin) throw new ForbiddenError("Only project owners can override column rules.");
+    await logChange(tx, actor, {
+      projectId: project.id,
+      systemId: current.id,
+      entity: "system",
+      entityId: current.id,
+      field: "gateOverride",
+      oldValue: gate.unmet.join("; "),
+      newValue: `${column.name}: ${to.overrideReason}`,
+    });
+  }
   if (column.category === "active" && (await isMember(tx, project.id, actor.userId))) {
     await claimSystem(tx, actor, current);
   }
@@ -551,7 +574,7 @@ export async function updateSystems(db: Db, actor: Actor, projectSlug: string, r
   const slugs = [...new Set(input.systems)].sort();
   const { move, ...patch } = input.patch;
   return db.transaction(async (tx) => {
-    const { project } = await projectAccess(tx, actor, projectSlug, "editor");
+    const { project, role } = await projectAccess(tx, actor, projectSlug, "editor");
     const rows = await tx
       .select()
       .from(system)
@@ -569,7 +592,7 @@ export async function updateSystems(db: Db, actor: Actor, projectSlug: string, r
       try {
         assertSystemActive(row);
         const patched = await applySystemPatch(tx, actor, project, row, patch);
-        if (move) await applySystemMove(tx, actor, project, patched, move);
+        if (move) await applySystemMove(tx, actor, project, role, patched, move);
       } catch (error) {
         if (!(error instanceof OpError)) throw error;
         failures.push({ text: `${slug}: ${error.message}`, status: error.status });

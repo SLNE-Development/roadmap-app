@@ -1,9 +1,11 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
-import { createBoard } from "./boards";
-import { messageOf, statusOf } from "./errors";
+import { createBoard, setColumnRules } from "./boards";
+import { ConflictError, ForbiddenError, messageOf, statusOf } from "./errors";
+import { gateMessage } from "./gates";
 import { addPlanningRound, answerPlanningItems, reopenPlanningArea } from "./planning";
 import { addQuestion, setQuestionResolved } from "./questions";
 import { addTask, updateTask } from "./tasks";
@@ -190,6 +192,82 @@ describe("moveSystem", () => {
     });
     await moveSystem(db, owner, slug, "s", { board: "building", column: building.columns[1].id });
     expect((await getSystem(db, owner, slug, "s")).board.slug).toBe("building");
+  });
+});
+
+describe("moveSystem column entry rules", () => {
+  /** A planned system `s` with one todo task, and Done requiring all tasks done. */
+  async function gated() {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const s = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, s.id);
+    const { id: taskId } = await addTask(db, owner, slug, "s", { title: "Open" });
+    await setColumnRules(db, owner, slug, "development", { column: "Done", rules: [{ rule: "all-tasks-done" }] });
+    const overrides = async () =>
+      (await db.select().from(changeLog).where(eq(changeLog.projectId, projectId))).filter((r) => r.entity === "system" && r.field === "gateOverride");
+    return { db, owner, slug, s, taskId, overrides };
+  }
+
+  it("refuses a move into a column whose rules are unmet", async () => {
+    const { db, owner, slug, taskId } = await gated();
+    const message = gateMessage("s", { column: "Done", met: 0, total: 1, unmet: [`1 open task (#${taskId})`] });
+    await expect(moveSystem(db, owner, slug, "s", { column: "Done" })).rejects.toMatchObject({ status: 409, message });
+    await expect(moveSystem(db, owner, slug, "s", { column: "Done" })).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("lets an owner override with a reason and logs it", async () => {
+    const { db, owner, slug, taskId, overrides } = await gated();
+    await moveSystem(db, owner, slug, "s", { column: "Done", overrideReason: "shipping behind a flag" });
+    expect((await getSystem(db, owner, slug, "s")).column.name).toBe("Done");
+    const rows = await overrides();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ newValue: "Done: shipping behind a flag", oldValue: `1 open task (#${taskId})` });
+  });
+
+  it("refuses an override by an editor", async () => {
+    const { db, owner, slug } = await gated();
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    const run = moveSystem(db, editor, slug, "s", { column: "Done", overrideReason: "shipping behind a flag" });
+    await expect(run).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(moveSystem(db, editor, slug, "s", { column: "Done", overrideReason: "shipping behind a flag" })).rejects.toMatchObject({
+      message: "Only project owners can override column rules.",
+    });
+  });
+
+  it("accepts a reason when every rule is met without logging an override", async () => {
+    const { db, owner, slug, taskId, overrides } = await gated();
+    await updateTask(db, owner, taskId, { state: "done" });
+    await moveSystem(db, owner, slug, "s", { column: "Done", overrideReason: "no need" });
+    expect((await getSystem(db, owner, slug, "s")).column.name).toBe("Done");
+    expect(await overrides()).toHaveLength(0);
+  });
+
+  it("leaves moves into columns without rules alone", async () => {
+    const { db, owner, slug } = await gated();
+    await moveSystem(db, owner, slug, "s", { column: "Review" });
+    expect((await getSystem(db, owner, slug, "s")).column.name).toBe("Review");
+  });
+
+  it("lets an admin who is not a member override", async () => {
+    const { db, slug, overrides } = await gated();
+    const admin = await insertUser(db, { isAdmin: true });
+    await moveSystem(db, admin, slug, "s", { column: "Done", overrideReason: "admin call" });
+    expect(await overrides()).toHaveLength(1);
+  });
+
+  it("applies the rules and owner overrides to bulk moves", async () => {
+    const { db, owner, slug, overrides } = await gated();
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    await expect(updateSystems(db, owner, slug, { systems: ["s"], patch: { move: { column: "Done" } } })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("Can't move s to Done."),
+    });
+    await expect(
+      updateSystems(db, editor, slug, { systems: ["s"], patch: { move: { column: "Done", overrideReason: "bulk ship" } } }),
+    ).rejects.toMatchObject({ message: expect.stringContaining("Only project owners can override column rules.") });
+    await updateSystems(db, owner, slug, { systems: ["s"], patch: { move: { column: "Done", overrideReason: "bulk ship" } } });
+    expect(await overrides()).toHaveLength(1);
   });
 });
 

@@ -13,8 +13,19 @@ import {
   updateAdr,
   updateAdrInput,
 } from "@/lib/ops/adrs";
-import { createBoard, createBoardInput, listBoards, setBoardColumns, setColumnsInput, updateBoard, updateBoardInput } from "@/lib/ops/boards";
+import {
+  createBoard,
+  createBoardInput,
+  listBoards,
+  setBoardColumns,
+  setColumnRules,
+  setColumnRulesInput,
+  setColumnsInput,
+  updateBoard,
+  updateBoardInput,
+} from "@/lib/ops/boards";
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
+import { GATE_RULES } from "@/lib/ops/gates";
 import { listMembers } from "@/lib/ops/members";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { myWork } from "@/lib/ops/my-work";
@@ -166,12 +177,16 @@ register(
 
   defineTool({
     name: "list_boards",
-    description: "List a project's boards with their columns (id, name, category).",
+    description: "List a project's boards with their columns (id, name, category, entry rules).",
     input: P,
     write: false,
     method: "GET",
     path: "/projects/:project/boards",
-    run: (db, actor, i) => listBoards(db, actor, i.project),
+    run: async (db, actor, i) =>
+      (await listBoards(db, actor, i.project)).map((b) => ({
+        ...b,
+        columns: b.columns.map((c) => ({ ...c, rules: c.rules.map((r) => ({ ...r, label: GATE_RULES.get(r.rule)?.label(r.param) })) })),
+      })),
   }),
   defineTool({
     name: "create_board",
@@ -200,6 +215,15 @@ register(
     method: "PUT",
     path: "/projects/:project/boards/:board/columns",
     run: (db, actor, { project, board, ...input }) => setBoardColumns(db, actor, project, board, input),
+  }),
+  defineTool({
+    name: "set_column_rules",
+    description: "Set a column's entry rules (owner only); an empty list removes them.",
+    input: { ...B, ...setColumnRulesInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/projects/:project/boards/:board/columns/rules",
+    run: (db, actor, { project, board, ...input }) => setColumnRules(db, actor, project, board, input),
   }),
 
   defineTool({
@@ -339,7 +363,11 @@ register(
     name: "move_system",
     description:
       "Move a system to a column (id or name) of its board or of another board. Leaving planning requires complete_planning; moving into an active column makes you owner of an unowned system.",
-    input: { ...S, ...moveSystemInput.shape },
+    input: {
+      ...S,
+      ...moveSystemInput.shape,
+      overrideReason: moveSystemInput.shape.overrideReason.describe("Owner only: move despite unmet column rules; the reason is logged."),
+    },
     write: true,
     method: "POST",
     path: "/projects/:project/systems/:system/move",

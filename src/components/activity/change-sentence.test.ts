@@ -53,6 +53,17 @@ describe("describeChange", () => {
     expect(text(entry("update", "posted", null, "Done"))).toBe("posted an update on Inventory");
   });
 
+  it("describes column rules and gate overrides", () => {
+    const rules = entry("column", "rules", null, "all-tasks-done, update-within-days(3)", "col1");
+    expect(describeChange(rules, { columnName: "Done" })).toMatchObject({ verb: "set entry rules of column Done:", to: "all-tasks-done, update-within-days(3)" });
+    expect(text(rules, null)).toBe("set entry rules of a column: all-tasks-done, update-within-days(3)");
+    expect(text(entry("column", "rules", "spec-exists", null), null)).toBe("removed the entry rules of a column");
+    expect(text(entry("system", "gateOverride", "1 open task (#4)", "Done: shipping behind a flag"))).toBe(
+      "moved Inventory past unmet rules: shipping behind a flag",
+    );
+    expect(text(entry("system", "gateOverride", "no spec", "Done: ok"), null)).toBe("moved a system past unmet rules: ok");
+  });
+
   it("describes decisions", () => {
     expect(text(entry("adr", "created", null, "ADR 0010: Use Redis"), null)).toBe("proposed ADR-0010 Use Redis");
     expect(text(entry("adr", "status", "proposed", "accepted"), null, "ADR-0010 Use Redis")).toBe("accepted ADR-0010 Use Redis");

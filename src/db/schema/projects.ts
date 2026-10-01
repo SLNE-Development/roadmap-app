@@ -74,6 +74,21 @@ export const boardColumn = pgTable(
   (t) => [index("board_column_board_id_idx").on(t.boardId)],
 );
 
+/** Entry rules of a board column, checked when a system moves into it. */
+export const columnRule = pgTable(
+  "column_rule",
+  {
+    id: text("id").primaryKey(),
+    columnId: text("column_id")
+      .notNull()
+      .references(() => boardColumn.id, { onDelete: "cascade" }),
+    rule: text("rule").notNull(),
+    param: integer("param"),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (t) => [unique("column_rule_column_rule").on(t.columnId, t.rule)],
+);
+
 /** Areas that group systems within a project, such as Police or Vehicles. */
 export const domain = pgTable(
   "domain",

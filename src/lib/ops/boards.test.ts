@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { changeLog, system, type ColumnCategory } from "@/db/schema";
+import { changeLog, columnRule, system, type ColumnCategory } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
-import { columnRuleViolation, createBoard, listBoards, setBoardCardFields, setBoardColumns, updateBoard } from "./boards";
+import { columnRuleViolation, createBoard, listBoards, setBoardCardFields, setBoardColumns, setColumnRules, updateBoard } from "./boards";
+import { ForbiddenError, InvalidError } from "./errors";
 import { findBoard } from "./lookup";
 
 describe("columnRuleViolation", () => {
@@ -201,5 +202,55 @@ describe("setBoardCardFields", () => {
     const rows = await db.select().from(changeLog).where(and(eq(changeLog.projectId, projectId), eq(changeLog.field, "cardFields")));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ entity: "board", oldValue: "domain,priority,blocked,tasks,owner", newValue: "phase,questions" });
+  });
+});
+
+describe("setColumnRules", () => {
+  it("lets an owner set a column's rules, which listBoards returns in order, and logs them", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    await setColumnRules(db, owner, slug, "development", { column: "Done", rules: [{ rule: "all-tasks-done" }, { rule: "update-within-days", param: 3 }] });
+    const done = (await listBoards(db, owner, slug))[0].columns.find((c) => c.name === "Done");
+    expect(done?.rules).toEqual([
+      { rule: "all-tasks-done", param: null },
+      { rule: "update-within-days", param: 3 },
+    ]);
+    expect((await listBoards(db, owner, slug))[0].columns.find((c) => c.name === "Todo")?.rules).toEqual([]);
+    const rows = await db.select().from(changeLog).where(and(eq(changeLog.projectId, projectId), eq(changeLog.field, "rules")));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ entity: "column", entityId: done?.id, newValue: "all-tasks-done, update-within-days(3)" });
+  });
+
+  it("refuses unknown rules, bad params, the planning column and editors", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    const set = (rules: { rule: string; param?: number | null }[], column = "Done", actor = owner) =>
+      setColumnRules(db, actor, slug, "development", { column, rules });
+    await expect(set([{ rule: "nope" }])).rejects.toMatchObject({
+      status: 400,
+      message: "Unknown rule nope. Known rules: all-tasks-done, no-open-questions, spec-exists, plan-covers-tasks, update-within-days, adr-linked.",
+    });
+    await expect(set([{ rule: "update-within-days", param: 61 }])).rejects.toBeInstanceOf(InvalidError);
+    await expect(set([{ rule: "update-within-days", param: 0 }])).rejects.toBeInstanceOf(InvalidError);
+    await expect(set([{ rule: "spec-exists", param: 2 }])).rejects.toBeInstanceOf(InvalidError);
+    await expect(set([{ rule: "spec-exists" }], "Planning")).rejects.toMatchObject({
+      status: 400,
+      message: "The planning column cannot have entry rules; the planning interview is its gate.",
+    });
+    await expect(set([{ rule: "spec-exists" }], "Done", editor)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("removes the rules when their column is deleted", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const board = await findBoard(db, (await listBoards(db, owner, slug))[0].projectId, "development");
+    await setBoardColumns(db, owner, slug, "development", {
+      columns: [...board.columns.map((c) => ({ id: c.id, name: c.name, category: c.category })), { name: "Shipped", category: "done" as const }],
+    });
+    await setColumnRules(db, owner, slug, "development", { column: "Shipped", rules: [{ rule: "spec-exists" }] });
+    expect(await db.select().from(columnRule)).toHaveLength(1);
+    await setBoardColumns(db, owner, slug, "development", { columns: board.columns.map((c) => ({ id: c.id, name: c.name, category: c.category })) });
+    expect(await db.select().from(columnRule)).toHaveLength(0);
   });
 });

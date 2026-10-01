@@ -16,6 +16,8 @@ export interface ChangeContext {
   systemTitle?: string | null;
   /** "ADR-0010 Title" of the ADR an `adr` entry refers to, when known. */
   adrLabel?: string | null;
+  /** Name of the column a `column` entry refers to, when known. */
+  columnName?: string | null;
 }
 
 /**
@@ -51,6 +53,7 @@ const ENTITY_LABEL: Record<string, string> = {
   adr: "a decision",
   question: "a question",
   board: "a board",
+  column: "a column",
   project: "the project",
   member: "a member",
   domain: "a domain",
@@ -143,6 +146,12 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return onSystem("changed the domain of", "", "changed the domain");
     case "system:phaseId":
       return onSystem("changed the phase of", "", "changed the phase");
+    case "system:gateOverride": {
+      // newValue is "<column>: <reason>".
+      const text = e.newValue ?? "";
+      const i = text.indexOf(": ");
+      return onSystem("moved", "", "moved a system", { to: `past unmet rules: ${i === -1 ? text : text.slice(i + 2)}` });
+    }
 
     case "task:created":
       return onSystem(`added task ${quote(e.newValue)}`, "to");
@@ -212,6 +221,10 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return plain("renamed a board", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
     case "board:columns":
       return plain("changed the columns of a board");
+    case "column:rules": {
+      const column = ctx.columnName ? `column ${ctx.columnName}` : "a column";
+      return e.newValue ? plain(`set entry rules of ${column}:`, null, { to: e.newValue }) : plain(`removed the entry rules of ${column}`);
+    }
 
     case "member:role": {
       const next = memberOf(e.newValue);
