@@ -2,11 +2,13 @@
 
 import { useMutation, useQueryClient, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
 import { useFormatter, useTimeZone, useTranslations } from "next-intl";
+import Link from "next/link";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { UnderlineTabs } from "@/components/activity/url-tabs";
 import { BriefHistory } from "@/components/events/brief-history";
 import { ImageUpload } from "@/components/events/image-upload";
+import { openCount, QuestionForm } from "@/components/events/question-form";
 import { StatusBar } from "@/components/events/status-bar";
 import { Markdown } from "@/components/markdown";
 import { Page, PageHeader, Panel } from "@/components/page";
@@ -277,11 +279,11 @@ function CancelDialog({ requestId, open, onOpenChange }: { requestId: string; op
  * @param props.id the request id
  * @param props.tab the tab shown
  */
-export function RequestView({ id, tab }: { id: string; tab: "brief" | "overview" }) {
+export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions" | "overview" }) {
   const t = useTranslations("events");
   const trpc = useTRPC();
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [{ data: detail }] = useSuspenseQueries({ queries: [trpc.requests.get.queryOptions({ id })] });
+  const [{ data: detail }, { data: rounds }] = useSuspenseQueries({ queries: [trpc.requests.get.queryOptions({ id }), trpc.requests.rounds.queryOptions({ id })] });
   const { request, canEdit, canCancel } = detail;
   const done = (key: "submitted" | "recalled" | "withdrawn" | "done") => ({ onSuccess: () => toast.success(t(`actions.${key}`)) });
   const submit = useMutation(trpc.requests.submit.mutationOptions(done("submitted")));
@@ -290,6 +292,7 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "overview"
   const markDone = useMutation(trpc.requests.markDone.mutationOptions(done("done")));
   const busy = submit.isPending || recall.isPending || withdraw.isPending || markDone.isPending;
   const { status } = request;
+  const open = openCount(rounds);
   const base = `/requests/${id}`;
 
   return (
@@ -331,10 +334,21 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "overview"
         <StatusBar status={status} />
       </PageHeader>
       {!canEdit && <p className="border bg-secondary px-3 py-2 text-[13px] text-fg-2">{t("page.readOnly")}</p>}
+      {canEdit && open > 0 && (
+        <p role="status" className="flex flex-wrap items-center gap-3 border border-primary/40 bg-secondary px-3 py-2 text-[13px]">
+          <span className="min-w-0 flex-1 font-semibold">{t("questions.waiting", { count: open })}</span>
+          {tab !== "questions" && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`${base}?tab=questions`}>{t("questions.answerNow")}</Link>
+            </Button>
+          )}
+        </p>
+      )}
       <UnderlineTabs
         label={t("page.tabs")}
         tabs={[
           { label: t("page.tabBrief"), href: base, active: tab === "brief" },
+          { label: open > 0 ? t("page.tabQuestionsOpen", { count: open }) : t("page.tabQuestions"), href: `${base}?tab=questions`, active: tab === "questions" },
           { label: t("page.tabOverview"), href: `${base}?tab=overview`, active: tab === "overview" },
         ]}
       />
@@ -352,6 +366,8 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "overview"
           )}
           <BriefHistory requestId={id} currentVersion={request.briefVersion} />
         </div>
+      ) : tab === "questions" ? (
+        <QuestionForm requestId={id} canAnswer={canEdit} />
       ) : (
         <div className="flex flex-col gap-6">
           <BannerPanel detail={detail} />

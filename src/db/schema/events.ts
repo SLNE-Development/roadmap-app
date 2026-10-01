@@ -1,4 +1,5 @@
-import { bigserial, type AnyPgColumn, index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { bigserial, type AnyPgColumn, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { QUESTION_TYPES, type QuestionConfig, type QuestionType } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { tz, user } from "./auth";
 import { project } from "./projects";
@@ -118,3 +119,51 @@ export const eventUpload = pgTable(
 
 /** A row of {@link eventUpload}. */
 export type EventUploadRow = typeof eventUpload.$inferSelect;
+
+/** A round of questions a developer asked on a request; `number` counts up from 1 per request. */
+export const eventQuestionRound = pgTable(
+  "event_question_round",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => eventRequest.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    askedBy: text("asked_by").references(() => user.id, { onDelete: "set null" }),
+    /** The agent that asked for the author, if any. */
+    agent: text("agent"),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [unique("event_question_round_number").on(t.requestId, t.number)],
+);
+
+/** One question of a round, with its answer once given. `answer` holds the typed value (see `answerValueSchema`); a "not sure" answer has `notSure` and no value. */
+export const eventQuestion = pgTable(
+  "event_question",
+  {
+    id: text("id").primaryKey(),
+    roundId: text("round_id")
+      .notNull()
+      .references(() => eventQuestionRound.id, { onDelete: "cascade" }),
+    /** Denormalised from the round for queries. */
+    requestId: text("request_id")
+      .notNull()
+      .references(() => eventRequest.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    type: text("type", { enum: QUESTION_TYPES }).notNull().$type<QuestionType>(),
+    text: text("text").notNull(),
+    why: text("why"),
+    required: boolean("required").notNull().default(true),
+    config: jsonb("config").notNull().$type<QuestionConfig>(),
+    suggested: jsonb("suggested"),
+    answer: jsonb("answer"),
+    notSure: boolean("not_sure").notNull().default(false),
+    answeredBy: text("answered_by").references(() => user.id, { onDelete: "set null" }),
+    answeredAt: timestamp("answered_at", tz),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [index("event_question_request_answered").on(t.requestId, t.answeredAt)],
+);
+
+/** A row of {@link eventQuestion}. */
+export type EventQuestionRow = typeof eventQuestion.$inferSelect;

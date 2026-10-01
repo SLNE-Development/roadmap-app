@@ -1,7 +1,9 @@
 import "server-only";
 import { z } from "zod";
+import { askRoundInput } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { dbInt } from "@/lib/ops/params";
+import { answerQuestions, answerQuestionsInput, askRound, listRounds } from "@/lib/ops/request-questions";
 import {
   cancelRequest,
   compareBriefs,
@@ -82,6 +84,19 @@ export const requestsRouter = router({
   history: protectedProcedure
     .input(z.object({ ...R, limit: z.number().int().min(1).max(500).optional() }))
     .query(({ ctx, input }) => requestHistory(ctx.db, ctx.actor, input.id, input.limit)),
+
+  /** Asks a round of one to five typed questions (developers). */
+  askRound: protectedProcedure
+    .input(z.object({ ...R, ...askRoundInput.shape }))
+    .mutation(({ ctx, input: { id, ...round } }) => askRound(ctx.db, ctx.actor, id, round)),
+
+  /** Answers questions with a typed value or "not sure" (the requester or an event manager). */
+  answerQuestions: protectedProcedure
+    .input(z.object({ ...R, ...answerQuestionsInput.shape }))
+    .mutation(({ ctx, input: { id, ...answers } }) => answerQuestions(ctx.db, ctx.actor, id, answers)),
+
+  /** The question rounds of a request with their answers. */
+  rounds: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listRounds(ctx.db, ctx.actor, input.id)),
 
   /** Sets or clears the banner image of a request. */
   setBanner: protectedProcedure.input(setBannerInput).mutation(({ ctx, input }) => setBanner(ctx.db, ctx.actor, input)),

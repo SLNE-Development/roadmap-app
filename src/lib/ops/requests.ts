@@ -1,6 +1,6 @@
-import { and, asc, count, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { eventBriefVersion, eventRequest, project, requestLog, user, type EventRequestRow } from "@/db/schema";
+import { eventBriefVersion, eventQuestion, eventRequest, project, requestLog, user, type EventRequestRow } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { diffDocuments, type DiffHunk } from "@/lib/diff";
 import { canTransition, isOpen, REQUEST_STATUSES, type RequestStatus } from "@/lib/event-status";
@@ -388,7 +388,7 @@ export interface RequestListItem {
   requesterName: string;
   projectSlug: string | null;
   briefVersion: number;
-  /** Filled once requesters can be asked questions; `false` until then. */
+  /** Whether questions of the team wait for an answer. */
   waitingOnRequester: boolean;
 }
 
@@ -425,7 +425,17 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
       asc(eventRequest.startsAt),
       asc(eventRequest.createdAt),
     );
-  return rows.map((r) => ({ ...r, requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: false }));
+  const waiting = new Set(
+    rows.length === 0
+      ? []
+      : (
+          await db
+            .selectDistinct({ requestId: eventQuestion.requestId })
+            .from(eventQuestion)
+            .where(and(inArray(eventQuestion.requestId, rows.map((r) => r.id)), isNull(eventQuestion.answeredAt)))
+        ).map((r) => r.requestId),
+  );
+  return rows.map((r) => ({ ...r, requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: waiting.has(r.id) }));
 }
 
 /** A request with what its page needs. */

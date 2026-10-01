@@ -34,6 +34,8 @@
   "page": {
     "tabs": "Bereiche der Anfrage",
     "tabBrief": "Brief",
+    "tabQuestions": "Fragen",
+    "tabQuestionsOpen": "Fragen ({count})",
     "tabOverview": "Übersicht",
     "requestedBy": "Angefragt von {name}",
     "readOnly": "Du kannst diese Anfrage ansehen, aber nicht ändern."
@@ -124,5 +126,32 @@
     "help": "Das Bild, das mit der Event-Ankündigung gezeigt wird.",
     "saved": "Banner gespeichert",
     "removed": "Banner entfernt"
+  },
+  "questions": {
+    "waiting": "Das Team wartet auf deine Antworten: {count, plural, one {# offene Frage} other {# offene Fragen}}.",
+    "answerNow": "Jetzt antworten",
+    "emptyTitle": "Noch keine Fragen",
+    "emptyText": "Wenn das Team mehr wissen muss, erscheinen die Fragen hier.",
+    "round": "Runde {number}",
+    "askedBy": "Gefragt von {name}, {date}",
+    "required": "Pflicht",
+    "optional": "freiwillig",
+    "suggested": "Vorschlag",
+    "notSure": "Unsicher, das Team soll entscheiden",
+    "notSureBadge": "Unsicher",
+    "notSureAnswer": "Unsicher, das Team entscheidet",
+    "unanswered": "Noch nicht beantwortet",
+    "answeredBy": "Beantwortet von {name}, {date}",
+    "other": "Sonstiges",
+    "otherAnswer": "Andere Antwort",
+    "yes": "Ja",
+    "no": "Nein",
+    "scaleValue": "{value} von {max}",
+    "pickBetween": "Wähle {min} bis {max}.",
+    "pickAtLeast": "Wähle mindestens {min}.",
+    "pickUpTo": "Wähle bis zu {max}.",
+    "invalid": "Diese Antwort passt nicht zur Frage. Bitte prüfe sie.",
+    "save": "Antworten speichern",
+    "saved": "Antworten gespeichert"
   }
 }

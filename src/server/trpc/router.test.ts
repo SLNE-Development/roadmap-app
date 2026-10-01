@@ -7,7 +7,7 @@ import { DEFAULT_NOTIFY_RULES, activeKey } from "@/lib/notify-rules-schema";
 import { memoryKv, type Kv } from "@/lib/kv";
 import { notify, type NotifyInput } from "@/lib/ops/notifications";
 import { createTestDb } from "@/test/db";
-import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture, insertUser, requestFixture } from "@/test/fixtures";
 import { createCallerFactory } from "./init";
 import { appRouter } from "./router";
 
@@ -290,6 +290,24 @@ describe("appRouter", () => {
       await expect(api.saveBrief({ id: created.id, body: "Two", baseVersion: 1 })).rejects.toMatchObject({ code: "CONFLICT" });
       expect((await api.get({ id: created.id })).brief).toBe("One");
       expect(await api.list({})).toMatchObject([{ id: created.id, briefVersion: 2 }]);
+    });
+
+    it("limits asking to developers and answering to the requester, and hides rounds from strangers", async () => {
+      const db = await createTestDb();
+      const requester = await insertUser(db);
+      const developer = await insertUser(db, { isEventDeveloper: true });
+      const stranger = await insertUser(db);
+      const request = await requestFixture(db, requester, { status: "submitted" });
+      const questions = [{ type: "yesno" as const, text: "Voice chat?" }];
+      await expect(caller(db, requester).requests.askRound({ id: request.id, questions })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(caller(db, stranger).requests.askRound({ id: request.id, questions })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(caller(db, developer).requests.askRound({ id: request.id, questions: [] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      const round = await caller(db, developer).requests.askRound({ id: request.id, questions });
+      await expect(caller(db, developer).requests.answerQuestions({ id: request.id, answers: [{ questionId: round.questionIds[0], value: true }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(caller(db, requester).requests.answerQuestions({ id: request.id, answers: [{ questionId: round.questionIds[0], value: "yes" }] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await caller(db, requester).requests.answerQuestions({ id: request.id, answers: [{ questionId: round.questionIds[0], value: false }] });
+      await expect(caller(db, stranger).requests.rounds({ id: request.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect((await caller(db, developer).requests.rounds({ id: request.id }))[0].questions[0]).toMatchObject({ answer: false, notSure: false });
     });
   });
 });

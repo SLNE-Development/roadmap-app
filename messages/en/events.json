@@ -34,6 +34,8 @@
   "page": {
     "tabs": "Request sections",
     "tabBrief": "Brief",
+    "tabQuestions": "Questions",
+    "tabQuestionsOpen": "Questions ({count})",
     "tabOverview": "Overview",
     "requestedBy": "Requested by {name}",
     "readOnly": "You can view this request but not change it."
@@ -124,5 +126,32 @@
     "help": "The image shown with the event announcement.",
     "saved": "Banner saved",
     "removed": "Banner removed"
+  },
+  "questions": {
+    "waiting": "The team is waiting for your answers: {count, plural, one {# open question} other {# open questions}}.",
+    "answerNow": "Answer now",
+    "emptyTitle": "No questions yet",
+    "emptyText": "If the team needs to know more, its questions appear here.",
+    "round": "Round {number}",
+    "askedBy": "Asked by {name}, {date}",
+    "required": "required",
+    "optional": "optional",
+    "suggested": "suggested",
+    "notSure": "Not sure, let the team decide",
+    "notSureBadge": "Not sure",
+    "notSureAnswer": "Not sure, the team decides",
+    "unanswered": "Not answered yet",
+    "answeredBy": "Answered by {name}, {date}",
+    "other": "Other",
+    "otherAnswer": "Other answer",
+    "yes": "Yes",
+    "no": "No",
+    "scaleValue": "{value} of {max}",
+    "pickBetween": "Pick {min} to {max}.",
+    "pickAtLeast": "Pick at least {min}.",
+    "pickUpTo": "Pick up to {max}.",
+    "invalid": "This answer does not fit the question. Check it.",
+    "save": "Save answers",
+    "saved": "Answers saved"
   }
 }
