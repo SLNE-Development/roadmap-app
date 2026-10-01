@@ -2,10 +2,11 @@ import { and, desc, eq, isNotNull, max } from "drizzle-orm";
 import { z } from "zod";
 import { systemDocument, task, user, type DocumentKind } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
+import { diffDocuments, unifiedDiff, type DiffHunk } from "@/lib/diff";
 import { newId } from "@/lib/id";
 import { projectAccess } from "./access";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
-import { NotFoundError } from "./errors";
+import { InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, systemAccess, type SystemRow } from "./lookup";
 
@@ -68,11 +69,26 @@ export function latestDocument(db: Executor, systemId: string, kind: DocumentKin
   return loadDocument(db, systemId, kind);
 }
 
+/** The changes of a document since an older version, as a unified diff instead of the body. */
+export type DocumentChanges = Omit<DocumentView, "body"> & { since: number; diff: string };
+
 /**
  * Returns a version of a system's spec or plan (the latest when `version` is omitted), or `null` when none exists.
+ * With `since`, the body is left out and the result holds the unified diff from that older version.
  *
  * @throws NotFoundError for an unknown version
+ * @throws InvalidError when `since` is not lower than the resolved version
  */
+export async function getDocument(db: Executor, actor: Actor, projectSlug: string, systemSlug: string, kind: DocumentKind, version?: number): Promise<DocumentView | null>;
+export async function getDocument(
+  db: Executor,
+  actor: Actor,
+  projectSlug: string,
+  systemSlug: string,
+  kind: DocumentKind,
+  version: number | undefined,
+  since: number,
+): Promise<DocumentChanges | null>;
 export async function getDocument(
   db: Executor,
   actor: Actor,
@@ -80,11 +96,50 @@ export async function getDocument(
   systemSlug: string,
   kind: DocumentKind,
   version?: number,
-): Promise<DocumentView | null> {
+  since?: number,
+): Promise<DocumentView | DocumentChanges | null> {
   const { system } = await systemAccess(db, actor, projectSlug, systemSlug, "viewer");
   const found = await loadDocument(db, system.id, kind, version);
   if (!found && version !== undefined) throw new NotFoundError(`System ${systemSlug} has no ${kind} version ${version}.`);
-  return found;
+  if (!found || since === undefined) return found;
+  if (since >= found.version) throw new InvalidError("since must be lower than the version.");
+  const older = await loadDocument(db, system.id, kind, since);
+  if (!older) throw new NotFoundError(`System ${systemSlug} has no ${kind} version ${since}.`);
+  const { body, ...rest } = found;
+  return { ...rest, since, diff: unifiedDiff(older.body, body, `${kind} v${since}`, `${kind} v${found.version}`) };
+}
+
+/** Two versions of a spec or plan with the differences between them. */
+export interface DocumentComparison {
+  kind: DocumentKind;
+  from: DocumentView;
+  to: DocumentView;
+  hunks: DiffHunk[];
+  added: number;
+  removed: number;
+}
+
+/**
+ * Compares two versions of a system's spec or plan line by line. Viewer or higher.
+ *
+ * @throws InvalidError when `from` is not lower than `to`
+ * @throws NotFoundError for an unknown version
+ */
+export async function compareDocuments(
+  db: Executor,
+  actor: Actor,
+  projectSlug: string,
+  systemSlug: string,
+  kind: DocumentKind,
+  from: number,
+  to: number,
+): Promise<DocumentComparison> {
+  const { system } = await systemAccess(db, actor, projectSlug, systemSlug, "viewer");
+  if (from >= to) throw new InvalidError("from must be lower than to.");
+  const [older, newer] = await Promise.all([loadDocument(db, system.id, kind, from), loadDocument(db, system.id, kind, to)]);
+  if (!older) throw new NotFoundError(`System ${systemSlug} has no ${kind} version ${from}.`);
+  if (!newer) throw new NotFoundError(`System ${systemSlug} has no ${kind} version ${to}.`);
+  return { kind, from: older, to: newer, ...diffDocuments(older.body, newer.body) };
 }
 
 /** Appends the next version of a document; the caller holds the lock on the system row. */

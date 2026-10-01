@@ -3,6 +3,7 @@
 import { FileText } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, type ReactNode } from "react";
+import { CompareSelects, CompareToggle } from "@/components/compare-picker";
 import { EmptyState } from "@/components/page";
 import { extractHeadings } from "@/lib/headings";
 import type { DocumentView } from "@/lib/ops/documents";
@@ -33,6 +34,7 @@ function DocumentMeta({ doc }: { doc: DocumentView }) {
  * @param props.empty the empty state's title and sentence
  * @param props.stepStates the task state of each plan step, shown on the plan's step headings
  * @param props.aside shown above the outline in the right column from `lg`, above the document below it
+ * @param props.compare the compared versions and their rendered diff, shown in place of the body
  */
 export function DocumentSection({
   title,
@@ -41,6 +43,7 @@ export function DocumentSection({
   empty,
   stepStates,
   aside,
+  compare,
 }: {
   title: string;
   doc: DocumentView | null;
@@ -48,6 +51,7 @@ export function DocumentSection({
   empty: { title: string; description: string };
   stepStates?: StepStates;
   aside?: ReactNode;
+  compare?: { from: number; to: number; diff: ReactNode };
 }) {
   const body = doc?.body;
   const headings = useMemo(() => extractHeadings(body ?? ""), [body]);
@@ -72,24 +76,35 @@ export function DocumentSection({
         <h2 className="font-display text-[19px] font-semibold">{title}</h2>
         <DocumentMeta doc={doc} />
         {doc.versions.length > 1 && (
-          <div className="ml-auto flex items-center gap-3">
-            {doc.version !== doc.versions[0] && (
-              <span className="text-[12.5px] text-cat-review">An older version. The latest is v{doc.versions[0]}.</span>
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            {compare ? (
+              <CompareSelects versions={doc.versions} from={compare.from} to={compare.to} />
+            ) : (
+              <>
+                {doc.version !== doc.versions[0] && (
+                  <span className="text-[12.5px] text-cat-review">An older version. The latest is v{doc.versions[0]}.</span>
+                )}
+                <VersionPicker param={param} versions={doc.versions} current={doc.version} />
+              </>
             )}
-            <VersionPicker param={param} versions={doc.versions} current={doc.version} />
+            <CompareToggle param={param} versions={doc.versions} comparing={compare !== undefined} />
           </div>
         )}
       </header>
-      <div className={cn("grid gap-8 px-4 py-5 sm:px-6 sm:py-6", sidebar && "lg:grid-cols-[minmax(0,1fr)_220px]")}>
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-8 px-4 py-5 sm:px-6 sm:py-6", sidebar && "lg:grid-cols-[minmax(0,1fr)_220px]")}>
         {sidebar && (
           <div className="flex flex-col gap-5 lg:order-2">
             {aside}
             <DocumentOutline headings={headings} />
           </div>
         )}
-        <Markdown headingIds stepStates={stepStates}>
-          {doc.body}
-        </Markdown>
+        {compare ? (
+          compare.diff
+        ) : (
+          <Markdown headingIds stepStates={stepStates}>
+            {doc.body}
+          </Markdown>
+        )}
       </div>
     </section>
   );

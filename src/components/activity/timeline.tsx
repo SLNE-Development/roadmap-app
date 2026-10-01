@@ -4,10 +4,11 @@ import { AgentTag, CATEGORY_TEXT } from "@/components/chips";
 import { useNow } from "@/components/clock";
 import { Markdown } from "@/components/markdown";
 import { PersonAvatar } from "@/components/person-avatar";
+import { compareHref } from "@/components/system/tabs";
 import type { ColumnCategory } from "@/db/schema";
 import { dayLabel, formatDate, formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { describeChange, type ChangeFacts, type ChangeSentence } from "./change-sentence";
+import { describeChange, documentCompare, type ChangeFacts, type ChangeSentence } from "./change-sentence";
 
 /** Who made a timeline entry: the person and, when one acted for them, the agent. */
 export interface TimelineAuthor {
@@ -37,6 +38,8 @@ export interface ChangeTimelineItem extends TimelineAuthor {
   sentence: ChangeSentence;
   systemSlug: string | null;
   toCategory: ColumnCategory | null;
+  /** The versions a spec or plan entry can be compared across. */
+  compare?: { tab: "spec" | "plan"; from: number; to: number } | null;
 }
 
 /** One entry of the activity timeline. */
@@ -100,6 +103,7 @@ export function changeItems(
         sentence,
         systemSlug: system?.slug ?? null,
         toCategory,
+        compare: documentCompare(e),
       };
     });
 }
@@ -206,6 +210,11 @@ function ChangeText({ item, projectSlug }: { item: ChangeTimelineItem; projectSl
           )}
           <span className={cn("font-semibold", item.toCategory ? CATEGORY_TEXT[item.toCategory] : "text-foreground")}>{to}</span>
         </span>
+      )}
+      {item.compare && item.systemSlug && projectSlug && (
+        <Link href={compareHref(`/p/${projectSlug}/systems/${item.systemSlug}`, item.compare.tab, item.compare.from, item.compare.to)} className="text-brand-strong hover:underline">
+          Compare with v{item.compare.from}
+        </Link>
       )}
     </>
   );

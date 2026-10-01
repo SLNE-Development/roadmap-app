@@ -449,12 +449,20 @@ register(
 
   defineTool({
     name: "get_document",
-    description: "Get a system's spec or plan: the latest version, or a given version, with the list of all versions.",
-    input: { ...S, kind: z.enum(DOCUMENT_KINDS), version: positiveInt(MAX_INT).optional() },
+    description: "Get a system's spec or plan (latest or a given version) with all version numbers; pass since to get only the diff from an older version.",
+    input: {
+      ...S,
+      kind: z.enum(DOCUMENT_KINDS),
+      version: positiveInt(MAX_INT).optional(),
+      since: positiveInt(MAX_INT).optional().describe("Return only the changes since this version, as a unified diff, instead of the body."),
+    },
     write: false,
     method: "GET",
     path: "/projects/:project/systems/:system/documents/:kind",
-    run: async (db, actor, i) => (await getDocument(db, actor, i.project, i.system, i.kind, i.version)) ?? { document: null },
+    run: async (db, actor, i) => {
+      const doc = i.since === undefined ? await getDocument(db, actor, i.project, i.system, i.kind, i.version) : await getDocument(db, actor, i.project, i.system, i.kind, i.version, i.since);
+      return doc ?? { document: null };
+    },
   }),
   defineTool({
     name: "write_spec",

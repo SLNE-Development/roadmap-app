@@ -20,6 +20,11 @@ export function tabHref(base: string, tab: SystemTab): string {
   return tab === "overview" ? base : `${base}?tab=${tab}`;
 }
 
+/** Returns the URL of a spec or plan tab comparing version `from` with version `to`. */
+export function compareHref(base: string, tab: "spec" | "plan", from: number, to: number): string {
+  return `${base}?tab=${tab}&compare=${from}..${to}`;
+}
+
 /**
  * The section tabs as links: an underline row with a version or count after
  * each label from 1024px, a horizontally scrollable row of square pills below.

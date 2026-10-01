@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
-import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { withAgent } from "./actor";
-import { getDocument, writePlan, writeSpec } from "./documents";
+import { compareDocuments, getDocument, writePlan, writeSpec } from "./documents";
 import { createSystem, getSystem } from "./systems";
 import { moveTask } from "./tasks";
 
@@ -34,6 +34,46 @@ describe("specs", () => {
     const viewer = await addMemberFixture(db, owner, slug, "viewer");
     await createSystem(db, owner, slug, { slug: "s", title: "S" });
     await expect(writeSpec(db, viewer, slug, "s", { body: "x" })).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("comparing versions", () => {
+  async function setup() {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await writeSpec(db, owner, slug, "s", { body: "a" });
+    await writeSpec(db, owner, slug, "s", { body: "b" });
+    return { db, owner, slug };
+  }
+
+  it("counts added and removed lines between two versions", async () => {
+    const { db, owner, slug } = await setup();
+    const result = await compareDocuments(db, owner, slug, "s", "spec", 1, 2);
+    expect(result).toMatchObject({ kind: "spec", added: 1, removed: 1 });
+    expect([result.from.version, result.to.version]).toEqual([1, 2]);
+  });
+
+  it("rejects a reversed range and an unknown version", async () => {
+    const { db, owner, slug } = await setup();
+    await expect(compareDocuments(db, owner, slug, "s", "spec", 2, 1)).rejects.toMatchObject({ status: 400, message: "from must be lower than to." });
+    await expect(compareDocuments(db, owner, slug, "s", "spec", 1, 9)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("returns only the diff from getDocument with since", async () => {
+    const { db, owner, slug } = await setup();
+    const result = await getDocument(db, owner, slug, "s", "spec", undefined, 1);
+    expect(result).toMatchObject({ version: 2, since: 1, versions: [2, 1] });
+    expect(result?.diff).toContain("-a");
+    expect(result?.diff).toContain("+b");
+    expect(result).not.toHaveProperty("body");
+    await expect(getDocument(db, owner, slug, "s", "spec", undefined, 2)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("is hidden from non-members", async () => {
+    const { db, slug } = await setup();
+    const stranger = await insertUser(db);
+    await expect(compareDocuments(db, stranger, slug, "s", "spec", 1, 2)).rejects.toMatchObject({ status: 404 });
   });
 });
 

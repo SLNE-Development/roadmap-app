@@ -255,3 +255,14 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
   if (e.entity === "system" && system) return { verb: `changed ${field} of`, target: system, targetIsSystem: true };
   return plain(`changed ${field} of ${ENTITY_LABEL[e.entity] ?? e.entity}`);
 }
+
+/**
+ * The versions to compare for a "wrote spec/plan v<N>" entry, or `null` for any
+ * other entry and for a first version.
+ */
+export function documentCompare(e: Pick<ChangeFacts, "entity" | "field" | "newValue">): { tab: "spec" | "plan"; from: number; to: number } | null {
+  if (e.entity !== "document" || (e.field !== "spec" && e.field !== "plan")) return null;
+  const m = /^v(\d+)$/.exec(e.newValue ?? "");
+  const to = m ? Number(m[1]) : 0;
+  return to > 1 ? { tab: e.field, from: to - 1, to } : null;
+}

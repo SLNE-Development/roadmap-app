@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { ArchivedBanner } from "@/components/archive-banner";
 import { PriorityTag } from "@/components/chips";
+import { DocumentDiff } from "@/components/document-diff";
 import { DocumentSection, SpecPreview } from "@/components/document-section";
 import { type StepStates } from "@/components/markdown";
 import { Page, PageHeader } from "@/components/page";
@@ -61,6 +62,31 @@ function VersionedDocument({
   return <DocumentSection {...section} doc={doc} />;
 }
 
+/** The differences between two versions of the spec or plan, in place of its body. */
+function ComparedDocument({
+  projectSlug,
+  systemSlug,
+  kind,
+  from,
+  to,
+  ...section
+}: {
+  projectSlug: string;
+  systemSlug: string;
+  kind: DocumentKind;
+  from: number;
+  to: number;
+  title: string;
+  param: string;
+  empty: { title: string; description: string };
+  stepStates?: StepStates;
+  aside?: ReactNode;
+}) {
+  const trpc = useTRPC();
+  const { data: c } = useSuspenseQuery(trpc.history.compare.queryOptions({ project: projectSlug, system: systemSlug, kind, from, to }));
+  return <DocumentSection {...section} doc={c.to} compare={{ from, to, diff: <DocumentDiff hunks={c.hunks} added={c.added} removed={c.removed} from={from} to={to} /> }} />;
+}
+
 /**
  * The system page body: header with status, primary move and facts, the tabs
  * and the current tab's content.
@@ -68,6 +94,8 @@ function VersionedDocument({
  * @param props.tab the open tab
  * @param props.specVersion the listed spec version to show on the Spec tab, the latest when undefined
  * @param props.planVersion the listed plan version to show on the Plan tab, the latest when undefined
+ * @param props.specCompare the versions to compare on the Spec tab, shown instead of the document when set
+ * @param props.planCompare the versions to compare on the Plan tab, shown instead of the document when set
  */
 export function SystemView({
   projectSlug: slug,
@@ -75,12 +103,16 @@ export function SystemView({
   tab,
   specVersion,
   planVersion,
+  specCompare,
+  planCompare,
 }: {
   projectSlug: string;
   systemSlug: string;
   tab: SystemTab;
   specVersion: number | undefined;
   planVersion: number | undefined;
+  specCompare: { from: number; to: number } | undefined;
+  planCompare: { from: number; to: number } | undefined;
 }) {
   const trpc = useTRPC();
   const ref = { project: slug, system: systemSlug };
@@ -229,14 +261,26 @@ export function SystemView({
       )}
 
       {tab === "spec" &&
-        (specVersion ? (
+        (specCompare ? (
+          <ComparedDocument projectSlug={slug} systemSlug={systemSlug} kind="spec" {...specCompare} {...specSection} />
+        ) : specVersion ? (
           <VersionedDocument projectSlug={slug} systemSlug={systemSlug} kind="spec" version={specVersion} {...specSection} />
         ) : (
           <DocumentSection {...specSection} doc={o.spec} />
         ))}
 
       {tab === "plan" &&
-        (planVersion ? (
+        (planCompare ? (
+          <ComparedDocument
+            projectSlug={slug}
+            systemSlug={systemSlug}
+            kind="plan"
+            {...planCompare}
+            {...planSection}
+            stepStates={stepStates(o.tasks)}
+            aside={planPanel(planCompare.to !== o.plan?.version ? planCompare.to : undefined)}
+          />
+        ) : planVersion ? (
           <VersionedDocument
             projectSlug={slug}
             systemSlug={systemSlug}
@@ -288,6 +332,7 @@ export function SystemView({
 
       {tab === "activity" && (
         <ActivityFeed
+          base={base}
           updates={o.updates}
           changes={changes}
           names={{

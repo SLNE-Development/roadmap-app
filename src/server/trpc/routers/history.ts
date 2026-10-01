@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { DOCUMENT_KINDS } from "@/db/schema";
 import { activityFilter, listActivity } from "@/lib/ops/activity";
-import { getDocument } from "@/lib/ops/documents";
+import { compareDocuments, getDocument } from "@/lib/ops/documents";
 import { dbInt } from "@/lib/ops/params";
 import { listUpdates, listUpdatesInput } from "@/lib/ops/updates";
 import { protectedProcedure, router } from "../init";
@@ -24,4 +24,9 @@ export const historyRouter = router({
   document: protectedProcedure
     .input(z.object({ ...S, kind: z.enum(DOCUMENT_KINDS), version: dbInt.optional() }))
     .query(({ ctx, input }) => getDocument(ctx.db, ctx.actor, input.project, input.system, input.kind, input.version)),
+
+  /** The line differences between two versions of a system's spec or plan. */
+  compare: protectedProcedure
+    .input(z.object({ ...S, kind: z.enum(DOCUMENT_KINDS), from: dbInt, to: dbInt }))
+    .query(({ ctx, input }) => compareDocuments(ctx.db, ctx.actor, input.project, input.system, input.kind, input.from, input.to)),
 });

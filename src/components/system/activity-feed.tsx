@@ -1,4 +1,6 @@
 import { GitCommitHorizontal, History } from "lucide-react";
+import Link from "next/link";
+import { documentCompare } from "@/components/activity/change-sentence";
 import { STATE_LABEL } from "@/components/chips";
 import { useNow } from "@/components/clock";
 import { Markdown } from "@/components/markdown";
@@ -8,6 +10,7 @@ import type { HistoryEntry } from "@/lib/ops/activity";
 import type { UpdateItem } from "@/lib/ops/updates";
 import { dayLabel, formatTime } from "@/lib/time";
 import { AuthorBadge } from "./author";
+import { compareHref } from "./tabs";
 
 /** Names that change sentences need: task titles by id, and domain and phase names by id. */
 export interface ActivityNames {
@@ -141,11 +144,22 @@ function UpdateEntry({ update: u }: { update: UpdateItem }) {
 }
 
 /** A change in the feed, as one readable sentence. */
-function ChangeEntry({ change: e, names }: { change: HistoryEntry; names: ActivityNames }) {
+function ChangeEntry({ change: e, names, base }: { change: HistoryEntry; names: ActivityNames; base: string }) {
+  const compare = documentCompare(e);
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 text-[13px]">
       <AuthorBadge name={e.authorName} agent={e.agent} />
-      <span className="min-w-0 flex-1 text-fg-2">{describeChange(e, names)}</span>
+      <span className="min-w-0 flex-1 text-fg-2">
+        {describeChange(e, names)}
+        {compare && (
+          <>
+            {" "}
+            <Link href={compareHref(base, compare.tab, compare.from, compare.to)} className="text-brand-strong hover:underline">
+              Compare with v{compare.from}
+            </Link>
+          </>
+        )}
+      </span>
       <time className="text-xs text-muted-foreground tabular-nums" dateTime={e.createdAt.toISOString()}>
         {formatTime(e.createdAt.toISOString())}
       </time>
@@ -157,8 +171,10 @@ function ChangeEntry({ change: e, names }: { change: HistoryEntry; names: Activi
  * The system's activity, newest first and grouped by day: progress updates as
  * cards and changes as sentences. Update postings in the change log are left
  * out because the updates themselves are shown.
+ *
+ * @param props.base the system page URL, for the "Compare" links of spec and plan entries
  */
-export function ActivityFeed({ updates, changes, names }: { updates: UpdateItem[]; changes: HistoryEntry[]; names: ActivityNames }) {
+export function ActivityFeed({ updates, changes, names, base }: { updates: UpdateItem[]; changes: HistoryEntry[]; names: ActivityNames; base: string }) {
   const now = useNow();
   const items: FeedItem[] = [
     ...updates.map((u) => ({ kind: "update" as const, at: u.createdAt, update: u })),
@@ -181,7 +197,7 @@ export function ActivityFeed({ updates, changes, names }: { updates: UpdateItem[
           <ol className="flex flex-col gap-2">
             {d.items.map((item) => (
               <li key={item.kind === "update" ? `u-${item.update.id}` : `c-${item.change.id}`}>
-                {item.kind === "update" ? <UpdateEntry update={item.update} /> : <ChangeEntry change={item.change} names={names} />}
+                {item.kind === "update" ? <UpdateEntry update={item.update} /> : <ChangeEntry change={item.change} names={names} base={base} />}
               </li>
             ))}
           </ol>
