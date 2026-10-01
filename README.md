@@ -18,6 +18,8 @@ Better Auth (Discord), MCP TypeScript SDK.
 | `BETTER_AUTH_SECRET` | yes | Random secret signing sessions (`openssl rand -base64 32`). |
 | `BETTER_AUTH_URL` | yes | Public base URL, e.g. `https://roadmap.example.com`. |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | yes | Discord OAuth application. Redirect URL: `<BETTER_AUTH_URL>/api/auth/callback/discord`. |
+| `VALKEY_URL` | yes | Valkey (Redis-compatible) URL for background jobs, caching and live updates. |
+| `METRICS_TOKEN` | no | Bearer token for `/api/metrics` (Prometheus). Empty disables the endpoint. |
 | `POSTGRES_PASSWORD` | compose only | Password of the bundled Postgres. |
 
 Copy `.env.example` to `.env` and fill it in.
@@ -36,15 +38,17 @@ viewer (read), editor (change content), owner (also members, boards, settings).
 
 ```bash
 npm ci
-docker compose up -d postgres
+docker compose up -d postgres valkey
 npm run dev
 ```
 
-Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:plugin`, `npm run build`.
+In a second terminal, start the background worker: `npm run worker:dev`.
+
+Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:integration` (needs Valkey), `npm run test:plugin`, `npm run build`.
 Tests run against an in-process Postgres (PGlite) and need no Docker.
 
 Full stack in Docker: `docker compose --profile app up -d --build`.
-Set `APP_PORT` and `POSTGRES_PORT` to override default ports 3000 and 5432.
+Set `APP_PORT`, `POSTGRES_PORT` and `VALKEY_PORT` to override default ports 3000, 5432 and 6379.
 
 ## Deploy on Coolify
 
@@ -64,6 +68,9 @@ You set `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and
 4. Assign the same domain to the `app` service on port 3000, with `https://`.
 5. Add `https://<domain>/api/auth/callback/discord` as a redirect in the Discord application.
 6. Deploy, then sign in with Discord right away: the first account to sign in becomes admin.
+
+The stack has four services: `app`, `worker`, `postgres` and `valkey`. Coolify generates
+`SERVICE_PASSWORD_VALKEY` alongside the database password, and only `app` gets a domain.
 
 Postgres runs with small buffers and a 256 MB / 0.5 CPU limit; the app keeps at
 most 5 connections.

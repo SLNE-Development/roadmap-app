@@ -6,15 +6,21 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# ---- build: Next.js standalone output ----
+# ---- prod-deps: production dependencies for the worker bundle ----
+FROM node:22-bookworm-slim AS prod-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# ---- build: Next.js standalone output and worker bundle ----
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN npm run build && npm run build:worker
 
-# ---- runtime: standalone server plus migrations, as the non-root node user ----
+# ---- runtime: standalone server, worker and migrations, as the non-root node user ----
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -26,6 +32,8 @@ COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
+COPY --from=build --chown=node:node /app/dist/worker ./worker
+COPY --from=prod-deps --chown=node:node /app/node_modules ./worker/node_modules
 
 USER node
 EXPOSE 3000
