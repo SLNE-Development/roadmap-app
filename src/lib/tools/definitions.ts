@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DOCUMENT_KINDS } from "@/db/schema";
+import { DOCUMENT_KINDS, QUESTION_PRIORITIES } from "@/db/schema";
 import { slugSchema } from "@/lib/ops/access";
 import { listActivity } from "@/lib/ops/activity";
 import {
@@ -29,7 +29,7 @@ import {
   reopenPlanning,
 } from "@/lib/ops/planning";
 import { createProject, createProjectInput, getProject, listProjects, updateProject, updateProjectInput } from "@/lib/ops/projects";
-import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions } from "@/lib/ops/questions";
+import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions, setQuestionPriority } from "@/lib/ops/questions";
 import { similarSystems } from "@/lib/ops/similar";
 import {
   createDomain,
@@ -537,7 +537,7 @@ register(
   }),
   defineTool({
     name: "add_question",
-    description: "Add an open question, optionally tied to a system (for example when blocked).",
+    description: "Add an open question, optionally tied to a system (for example when blocked). Priority blocking holds the system's planning gate until resolved.",
     input: { ...P, ...addQuestionInput.shape },
     write: true,
     method: "POST",
@@ -552,6 +552,15 @@ register(
     method: "POST",
     path: "/projects/:project/questions/:id/answer",
     run: (db, actor, { project, ...input }) => answerQuestion(db, actor, project, input),
+  }),
+  defineTool({
+    name: "set_question_priority",
+    description: "Set a question's priority: blocking, normal or nice.",
+    input: { ...P, id: z.string().min(1), priority: z.enum(QUESTION_PRIORITIES) },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project/questions/:id/priority",
+    run: (db, actor, { project, id, priority }) => setQuestionPriority(db, actor, project, id, priority),
   }),
 
   defineTool({

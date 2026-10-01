@@ -20,6 +20,12 @@ export const TASK_ESTIMATES = ["S", "M", "L"] as const;
 /** The estimate of a task. */
 export type TaskEstimate = (typeof TASK_ESTIMATES)[number];
 
+/** Question priorities, from most to least urgent. */
+export const QUESTION_PRIORITIES = ["blocking", "normal", "nice"] as const;
+
+/** The priority of a question; `blocking` holds the planning gate of its system. */
+export type QuestionPriority = (typeof QUESTION_PRIORITIES)[number];
+
 /** Kinds of versioned system documents. */
 export const DOCUMENT_KINDS = ["spec", "plan"] as const;
 
@@ -209,6 +215,7 @@ export const question = pgTable(
     text: text("text").notNull().default(""),
     answer: text("answer"),
     resolved: boolean("resolved").notNull().default(false),
+    priority: text("priority", { enum: QUESTION_PRIORITIES }).notNull().default("normal"),
     authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
     agent: text("agent"),
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),

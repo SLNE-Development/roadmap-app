@@ -89,8 +89,9 @@ export function OverviewView({ slug }: { slug: string }) {
     ],
   });
   const planning = systems.filter((s) => s.columnCategory === "planning");
-  const staleQuestions = questions.filter((q) => isStale(q.createdAt, now));
-  const data = { detail, systems, phases, adrs, staleQuestions, updates, latest, activity, planning, gaps, blockedTasks };
+  // The list puts blocking questions first; they need attention at any age.
+  const attentionQuestions = questions.filter((q) => q.priority === "blocking" || isStale(q.createdAt, now));
+  const data = { detail, systems, phases, adrs, attentionQuestions, updates, latest, activity, planning, gaps, blockedTasks };
   const { project } = data.detail;
   const canEdit = data.detail.role !== "viewer" && !project.archivedAt;
   const tasksDone = data.systems.reduce((n, s) => n + s.tasksDone, 0);
@@ -141,11 +142,11 @@ export function OverviewView({ slug }: { slug: string }) {
         href: `${base}/adrs/${a.number}`,
       }),
     ),
-    ...data.staleQuestions.map(
+    ...data.attentionQuestions.map(
       (q): AttentionItem => ({
         key: `question-${q.id}`,
         kind: "question",
-        title: q.title,
+        title: q.priority === "blocking" ? `Blocking: ${q.title}` : q.title,
         detail: `Asked by ${q.author} ${relativeAge(q.createdAt.toISOString(), now)}${q.answer ? ", answered but not resolved." : ", no answer yet."}`,
         href: `${base}/questions`,
       }),

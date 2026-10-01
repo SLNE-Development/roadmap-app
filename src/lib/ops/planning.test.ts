@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
+import { setSystemArchived } from "./archive";
 import { writeSpec } from "./documents";
+import { addQuestion, answerQuestion } from "./questions";
 import { addPlanningRound, answerPlanningItems, completePlanning, getPlanning, planningGaps, planningGapsFor, reopenPlanning } from "./planning";
 import { createSystem, getSystem, moveSystem } from "./systems";
 import { addTask, updateTask } from "./tasks";
@@ -33,6 +35,48 @@ describe("planning gaps", () => {
       `Item ${itemIds[0]} is still open: "What if two players buy the last car?".`,
       "No spec has been written; call write_spec.",
     ]);
+  });
+});
+
+describe("blocking questions", () => {
+  /** Answers every area of system `s` and writes its spec, leaving no gaps. */
+  async function ready() {
+    const t = await setup();
+    const round = await addPlanningRound(t.db, t.owner, t.slug, "s", {
+      items: (["failure-modes", "dependencies", "scope", "ops-testing"] as const).map((area) => ({ area, question: area })),
+    });
+    await answerPlanningItems(t.db, t.owner, t.slug, "s", { answers: round.itemIds.map((itemId) => ({ itemId, answer: "ok" })) });
+    await writeSpec(t.db, t.owner, t.slug, "s", { body: "# Spec" });
+    const id = (await getSystem(t.db, t.owner, t.slug, "s")).system.id;
+    return { ...t, id };
+  }
+
+  it("holds the gate until the question is resolved", async () => {
+    const { db, owner, slug, id } = await ready();
+    expect(await planningGaps(db, id)).toEqual([]);
+    const q = await addQuestion(db, owner, slug, { title: "Who pays?", system: "s", priority: "blocking" });
+    expect(await planningGaps(db, id)).toEqual([`Question ${q.id} is blocking: "Who pays?".`]);
+    expect((await getPlanning(db, owner, slug, "s")).gaps).toEqual([`Question ${q.id} is blocking: "Who pays?".`]);
+    await expect(completePlanning(db, owner, slug, "s", { userConfirmation: "Go" })).rejects.toMatchObject({ status: 409, message: expect.stringContaining("is blocking") });
+    await answerQuestion(db, owner, slug, { id: q.id, answer: "Nobody", resolved: false });
+    expect(await planningGaps(db, id)).toHaveLength(1);
+    await answerQuestion(db, owner, slug, { id: q.id, answer: "Nobody", resolved: true });
+    expect(await planningGaps(db, id)).toEqual([]);
+  });
+
+  it("does not count questions of an archived system", async () => {
+    const { db, owner, slug, id } = await ready();
+    await addQuestion(db, owner, slug, { title: "Stuck", system: "s", priority: "blocking" });
+    await setSystemArchived(db, owner, slug, "s", true);
+    expect(await planningGaps(db, id)).toEqual([]);
+  });
+
+  it("ignores normal questions and agrees with the batched path", async () => {
+    const { db, owner, slug, id } = await ready();
+    await addQuestion(db, owner, slug, { title: "Fine?", system: "s" });
+    expect(await planningGaps(db, id)).toEqual([]);
+    await addQuestion(db, owner, slug, { title: "Stuck", system: "s", priority: "blocking" });
+    expect((await planningGapsFor(db, [id])).get(id)).toEqual(await planningGaps(db, id));
   });
 });
 

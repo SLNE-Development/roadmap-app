@@ -1,10 +1,11 @@
-import { and, asc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, max } from "drizzle-orm";
 import { z } from "zod";
 import {
   board,
   PLANNING_AREAS,
   planningItem,
   planningRound,
+  question,
   system,
   systemDocument,
   user,
@@ -102,8 +103,9 @@ async function loadRounds(db: Executor, systemId: string): Promise<PlanningRound
 
 /**
  * Returns what still prevents completing each system's planning, in this order:
- * areas without an answered or accepted item, open items, and a missing spec.
- * Uses one query for rounds, one for items and one for specs however many systems.
+ * areas without an answered or accepted item, open items, a missing spec, and
+ * unresolved blocking questions of systems that are not archived.
+ * Uses one query each for rounds, items, specs and questions however many systems.
  *
  * @param systemIds the systems to check
  * @returns the gaps keyed by system id, an empty list for a system with none
@@ -129,6 +131,12 @@ export async function planningGapsFor(db: Executor, systemIds: string[]): Promis
     .from(systemDocument)
     .where(and(inArray(systemDocument.systemId, systemIds), eq(systemDocument.kind, "spec")));
   const withSpec = new Set(specs.map((d) => d.systemId));
+  const blocking = await db
+    .select({ id: question.id, title: question.title, systemId: question.systemId })
+    .from(question)
+    .innerJoin(system, eq(system.id, question.systemId))
+    .where(and(inArray(question.systemId, systemIds), eq(question.priority, "blocking"), eq(question.resolved, false), isNull(system.archivedAt)))
+    .orderBy(asc(question.createdAt), asc(question.id));
   for (const systemId of systemIds) {
     const roundIds = rounds.filter((r) => r.systemId === systemId).map((r) => r.id);
     const own = roundIds.flatMap((id) => items.filter((i) => i.roundId === id));
@@ -138,6 +146,7 @@ export async function planningGapsFor(db: Executor, systemIds: string[]): Promis
     }
     for (const item of own.filter((i) => i.status === "open")) gaps.push(`Item ${item.id} is still open: "${short(item.question)}".`);
     if (!withSpec.has(systemId)) gaps.push("No spec has been written; call write_spec.");
+    for (const q of blocking.filter((b) => b.systemId === systemId)) gaps.push(`Question ${q.id} is blocking: "${short(q.title)}".`);
     result.set(systemId, gaps);
   }
   return result;
@@ -145,7 +154,8 @@ export async function planningGapsFor(db: Executor, systemIds: string[]): Promis
 
 /**
  * Returns what still prevents completing a system's planning, in this order:
- * areas without an answered or accepted item, open items, and a missing spec.
+ * areas without an answered or accepted item, open items, a missing spec, and
+ * unresolved blocking questions.
  */
 export async function planningGaps(db: Executor, systemId: string): Promise<string[]> {
   return (await planningGapsFor(db, [systemId])).get(systemId) ?? [];

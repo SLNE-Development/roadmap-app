@@ -19,7 +19,7 @@ const SPEC_TOOLS = [
   "add_task", "update_task", "set_task_checks", "move_task",
   "post_update", "list_updates",
   "list_adrs", "get_adr", "create_adr", "update_adr", "accept_adr", "supersede_adr",
-  "list_questions", "add_question", "answer_question",
+  "list_questions", "add_question", "answer_question", "set_question_priority",
   "list_activity",
 ];
 

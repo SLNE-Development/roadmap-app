@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { ZodError } from "zod";
 import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { withAgent } from "./actor";
-import { addQuestion, answerQuestion, listQuestions, setQuestionResolved } from "./questions";
+import { ForbiddenError } from "./errors";
+import { addQuestion, answerQuestion, listQuestions, setQuestionPriority, setQuestionResolved } from "./questions";
 import { createSystem } from "./systems";
 
 describe("questions", () => {
@@ -85,5 +87,37 @@ describe("questions", () => {
       oldValue: "true",
       newValue: "false",
     });
+  });
+
+  it("stores a priority and lists blocking questions before older normal ones", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await addQuestion(db, owner, slug, { title: "Older" });
+    await addQuestion(db, owner, slug, { title: "Nice", priority: "nice" });
+    await addQuestion(db, owner, slug, { title: "Blocker", priority: "blocking" });
+    const all = await listQuestions(db, owner, slug);
+    expect(all.map((q) => [q.title, q.priority])).toEqual([
+      ["Blocker", "blocking"],
+      ["Older", "normal"],
+      ["Nice", "nice"],
+    ]);
+  });
+
+  it("sets a priority, logs the change and refuses viewers", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const viewer = await addMemberFixture(db, owner, slug, "viewer");
+    const a = await addQuestion(db, owner, slug, { title: "A?", priority: "blocking" });
+    await expect(setQuestionPriority(db, viewer, slug, a.id, "nice")).rejects.toBeInstanceOf(ForbiddenError);
+    await setQuestionPriority(db, owner, slug, a.id, "nice");
+    expect((await listQuestions(db, owner, slug))[0].priority).toBe("nice");
+    const rows = (await db.select().from(changeLog)).filter((c) => c.entity === "question" && c.field === "priority");
+    expect(rows.map((c) => [c.oldValue, c.newValue])).toEqual([["blocking", "nice"]]);
+  });
+
+  it("rejects an unknown priority", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await expect(addQuestion(db, owner, slug, { title: "A?", priority: "urgent" as "nice" })).rejects.toBeInstanceOf(ZodError);
   });
 });

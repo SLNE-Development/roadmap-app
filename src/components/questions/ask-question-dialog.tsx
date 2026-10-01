@@ -10,6 +10,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import type { QuestionPriority } from "@/db/schema";
 import { useTRPC } from "@/trpc/client";
 
 /** The "Ask a question" button and its dialog: title, optional details and an optional system. */
@@ -28,6 +29,7 @@ export function AskQuestionDialog({
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [system, setSystem] = useState(defaultSystem);
+  const [priority, setPriority] = useState<QuestionPriority>("normal");
 
   return (
     <Dialog
@@ -49,12 +51,13 @@ export function AskQuestionDialog({
           onSubmit={(e) => {
             e.preventDefault();
             add.mutate(
-              { project: projectSlug, question: { title, text, system: system || undefined } },
+              { project: projectSlug, question: { title, text, system: system || undefined, priority } },
               {
                 onSuccess: () => {
                   setOpen(false);
                   setTitle("");
                   setText("");
+                  setPriority("normal");
                   toast.success("Question added");
                 },
               },
@@ -85,6 +88,15 @@ export function AskQuestionDialog({
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="question-priority">Priority</FieldLabel>
+              <NativeSelect id="question-priority" className="w-full" value={priority} onChange={(e) => setPriority(e.target.value as QuestionPriority)}>
+                <NativeSelectOption value="normal">Normal</NativeSelectOption>
+                <NativeSelectOption value="blocking">Blocking</NativeSelectOption>
+                <NativeSelectOption value="nice">Nice to know</NativeSelectOption>
+              </NativeSelect>
+              <FieldDescription>Blocking holds the system&apos;s planning gate until the question is resolved.</FieldDescription>
             </Field>
           </FieldGroup>
           <DialogFooter>

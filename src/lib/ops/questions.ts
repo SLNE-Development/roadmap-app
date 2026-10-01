@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { question, system, user } from "@/db/schema";
+import { QUESTION_PRIORITIES, question, system, user, type QuestionPriority } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema } from "./access";
@@ -15,6 +15,7 @@ export const addQuestionInput = z.object({
   title: z.string().trim().min(1).max(200),
   text: z.string().trim().max(5000).default(""),
   system: slugSchema.optional(),
+  priority: z.enum(QUESTION_PRIORITIES).default("normal"),
 });
 
 /** Input of {@link answerQuestion}. */
@@ -34,6 +35,7 @@ export interface QuestionItem extends AuthorFields {
   text: string;
   answer: string | null;
   resolved: boolean;
+  priority: QuestionPriority;
   systemSlug: string | null;
   systemTitle: string | null;
   createdAt: Date;
@@ -77,6 +79,7 @@ export async function addQuestion(db: Db, actor: Actor, projectSlug: string, raw
       systemId: parent?.id ?? null,
       title: input.title,
       text: input.text,
+      priority: input.priority,
       authorUserId: actor.userId,
       agent: actor.agent ?? null,
     });
@@ -124,7 +127,18 @@ export async function setQuestionResolved(db: Db, actor: Actor, projectSlug: str
   });
 }
 
-/** Lists questions of the project, unresolved first, then newest first. */
+/** Sets a question's priority. Editor or higher. */
+export async function setQuestionPriority(db: Db, actor: Actor, projectSlug: string, id: string, priority: QuestionPriority): Promise<void> {
+  await db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, projectSlug, "editor");
+    const current = await findQuestion(tx, project.id, id, true);
+    if (current.priority === priority) return;
+    await tx.update(question).set({ priority }).where(eq(question.id, id));
+    await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: id, field: "priority", oldValue: current.priority, newValue: priority });
+  });
+}
+
+/** Lists questions of the project, unresolved first (blocking, normal, nice), then newest first. */
 export async function listQuestions(
   db: Executor,
   actor: Actor,
@@ -149,6 +163,7 @@ export async function questionsOf(db: Executor, projectId: string, filter: { sys
       text: question.text,
       answer: question.answer,
       resolved: question.resolved,
+      priority: question.priority,
       systemSlug: system.slug,
       systemTitle: system.title,
       authorName: user.name,
@@ -164,7 +179,13 @@ export async function questionsOf(db: Executor, projectId: string, filter: { sys
     .leftJoin(user, eq(user.id, question.authorUserId))
     .leftJoin(answeringUser, eq(answeringUser.id, question.answeredByUserId))
     .where(and(...conditions))
-    .orderBy(asc(question.resolved), desc(question.createdAt), desc(question.id));
+    .orderBy(
+      asc(question.resolved),
+      // Unresolved ones rank by priority; resolved ones keep newest first.
+      asc(sql`case when ${question.resolved} then 0 when ${question.priority} = 'blocking' then 1 when ${question.priority} = 'normal' then 2 else 3 end`),
+      desc(question.createdAt),
+      desc(question.id),
+    );
   return rows.map(({ authorName, agent, answererName, ...r }) => {
     const answerer = r.answeredAt ? authorFields(answererName, r.answeredAgent) : null;
     return { ...r, ...authorFields(authorName, agent), answeredBy: answerer?.author ?? null, answeredByName: answerer?.authorName ?? null };

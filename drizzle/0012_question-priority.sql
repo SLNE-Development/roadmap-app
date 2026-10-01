@@ -1,0 +1,1 @@
+ALTER TABLE "question" ADD COLUMN "priority" text DEFAULT 'normal' NOT NULL;

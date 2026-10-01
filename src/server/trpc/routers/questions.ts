@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
-import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions, questionFilter, setQuestionResolved } from "@/lib/ops/questions";
+import { QUESTION_PRIORITIES } from "@/db/schema";
+import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions, questionFilter, setQuestionPriority, setQuestionResolved } from "@/lib/ops/questions";
 import { protectedProcedure, router } from "../init";
 import { P } from "./shared";
 
@@ -25,4 +26,9 @@ export const questionsRouter = router({
   setResolved: protectedProcedure
     .input(z.object({ ...P, id: z.string().min(1), resolved: z.boolean() }))
     .mutation(({ ctx, input }) => setQuestionResolved(ctx.db, ctx.actor, input.project, input.id, input.resolved)),
+
+  /** Sets a question's priority. */
+  setPriority: protectedProcedure
+    .input(z.object({ ...P, id: z.string().min(1), priority: z.enum(QUESTION_PRIORITIES) }))
+    .mutation(({ ctx, input }) => setQuestionPriority(ctx.db, ctx.actor, input.project, input.id, input.priority)),
 });

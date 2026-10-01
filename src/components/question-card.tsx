@@ -6,7 +6,15 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useNow } from "@/components/clock";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { QUESTION_PRIORITIES, type QuestionPriority } from "@/db/schema";
 import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -21,6 +29,7 @@ export interface QuestionView {
   text: string;
   answer: string | null;
   resolved: boolean;
+  priority: QuestionPriority;
   systemSlug: string | null;
   systemTitle: string | null;
   /** The person who asked. */
@@ -32,6 +41,9 @@ export interface QuestionView {
   /** Who last answered it, with the agent that answered for them, and when (ISO); `null` while unanswered. */
   answeredBy?: { name: string; agent: string | null; at: string } | null;
 }
+
+/** Menu labels of the priorities. */
+const PRIORITY_LABEL: Record<QuestionPriority, string> = { blocking: "Blocking", normal: "Normal", nice: "Nice to know" };
 
 /**
  * One question as a card. Open and unanswered: the text and, for editors, an
@@ -56,7 +68,10 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
       onSuccess: (_data, { resolved }) => toast.success(resolved ? "Question resolved" : "Question reopened"),
     }),
   );
-  const pending = answerQuestion.isPending || resolve.isPending;
+  const setPriority = useMutation(
+    trpc.questions.setPriority.mutationOptions({ onSuccess: (_data, { priority }) => toast.success(`Priority set to ${PRIORITY_LABEL[priority].toLowerCase()}`) }),
+  );
+  const pending = answerQuestion.isPending || resolve.isPending || setPriority.isPending;
   const answered = q.answer !== null && q.answer !== "";
   const needsAnswer = !q.resolved && !answered;
 
@@ -73,6 +88,8 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
         {!q.resolved && answered && (
           <span className="bg-cat-review-soft px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-cat-review">Answered, still open</span>
         )}
+        {q.priority === "blocking" && <span className="bg-cat-blocked-soft px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-cat-blocked">Blocking</span>}
+        {q.priority === "nice" && <span className="bg-secondary px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-muted-foreground">Nice to know</span>}
         {q.createdAt && (
           <time dateTime={q.createdAt} className="text-[12.5px] whitespace-nowrap text-muted-foreground">
             {relativeAge(q.createdAt, now)}
@@ -137,11 +154,32 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
         </form>
       )}
 
-      {canEdit && !needsAnswer && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" disabled={pending} onClick={() => setResolved(!q.resolved)}>
-            {q.resolved ? "Reopen" : "Mark resolved"}
-          </Button>
+      {canEdit && (
+        <div className="flex flex-wrap justify-end gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={pending} aria-label={`Priority of ${q.title}: ${PRIORITY_LABEL[q.priority]}`}>
+                Priority
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuRadioGroup
+                value={q.priority}
+                onValueChange={(value) => setPriority.mutate({ project: projectSlug, id: q.id, priority: value as QuestionPriority })}
+              >
+                {QUESTION_PRIORITIES.map((p) => (
+                  <DropdownMenuRadioItem key={p} value={p}>
+                    {PRIORITY_LABEL[p]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {!needsAnswer && (
+            <Button variant="outline" size="sm" disabled={pending} onClick={() => setResolved(!q.resolved)}>
+              {q.resolved ? "Reopen" : "Mark resolved"}
+            </Button>
+          )}
         </div>
       )}
     </article>

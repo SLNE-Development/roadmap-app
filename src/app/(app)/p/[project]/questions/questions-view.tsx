@@ -80,6 +80,7 @@ export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "o
                 text: q.text,
                 answer: q.answer,
                 resolved: q.resolved,
+                priority: q.priority,
                 systemSlug: q.systemSlug,
                 systemTitle: q.systemTitle,
                 authorName: q.authorName,
