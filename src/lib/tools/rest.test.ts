@@ -5,6 +5,7 @@ import { ApiKeyRateLimitedError } from "@/lib/auth/rate-limit";
 import type { Actor } from "@/lib/ops/actor";
 import type { CallRecord } from "@/lib/ops/agent-runs";
 import { writeSpec } from "@/lib/ops/documents";
+import { createRelease, writeReleaseNote } from "@/lib/ops/releases";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
 import { coerceQuery, handleRest } from "./rest";
@@ -215,5 +216,20 @@ describe("REST call recording", () => {
     expect((await send(db, owner, "POST", "/agent-runs/usage", usage, (r) => records.push(r))).status).toBe(200);
     expect((await send(db, owner, "GET", "/whoami", undefined, (r) => records.push(r))).status).toBe(200);
     expect(records).toEqual([]);
+  });
+
+  it("lists releases and leaves the note body out of get_release unless asked", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    expect(await send(db, owner, "GET", `/projects/${slug}/releases`)).toEqual({ status: 200, json: [] });
+    await createRelease(db, owner, slug, { slug: "v1", name: "v1" });
+    await writeReleaseNote(db, owner, slug, "v1", "Shipped things");
+    const list = await send(db, owner, "GET", `/projects/${slug}/releases`);
+    expect(list.status).toBe(200);
+    expect(list.json).toHaveLength(1);
+    const brief = await send(db, owner, "GET", `/projects/${slug}/releases/v1`);
+    expect(brief.json.latestNote).toEqual({ version: 1 });
+    const full = await send(db, owner, "GET", `/projects/${slug}/releases/v1?notes=true`);
+    expect(full.json.latestNote).toEqual({ version: 1, body: "Shipped things" });
   });
 });

@@ -5,12 +5,12 @@ import { queryProject } from "./query-client";
  * these; a router missing here refetches everything.
  */
 export const INVALIDATES: Record<string, readonly string[]> = {
-  tasks: ["tasks", "systems", "planning", "history", "projects", "structure", "adrs", "gates", "insight"],
-  systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks", "gates", "search", "insight"],
-  planning: ["planning", "systems", "history", "projects", "gates", "boards", "insight"],
+  tasks: ["tasks", "systems", "planning", "history", "projects", "structure", "adrs", "gates", "insight", "releases"],
+  systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks", "gates", "search", "insight", "releases"],
+  planning: ["planning", "systems", "history", "projects", "gates", "boards", "insight", "releases"],
   adrs: ["adrs", "systems", "history", "projects", "gates", "search"],
-  questions: ["questions", "systems", "planning", "history", "projects", "gates", "search"],
-  boards: ["boards", "systems", "planning", "projects", "history", "gates", "insight"],
+  questions: ["questions", "systems", "planning", "history", "projects", "gates", "search", "releases"],
+  boards: ["boards", "systems", "planning", "projects", "history", "gates", "insight", "releases"],
   fields: ["fields", "systems", "projects", "history"],
   structure: ["structure", "systems", "projects", "history", "insight"],
   members: ["members", "projects", "account", "views"],
@@ -29,6 +29,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   webhooks: ["webhooks", "history"],
   github: ["github", "history", "gates", "systems"],
   insight: ["insight"],
+  releases: ["releases", "systems", "insight", "history", "projects", "boards"],
 };
 
 /**

@@ -31,6 +31,7 @@ import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } fro
 import { GATE_RULES } from "@/lib/ops/gates";
 import { deleteGlossaryTerm, listGlossary, setGlossaryTerm, setGlossaryTermInput } from "@/lib/ops/glossary";
 import { getProgress, progressInput } from "@/lib/ops/insight";
+import { getRelease, listReleases } from "@/lib/ops/releases";
 import { listMembers } from "@/lib/ops/members";
 import { getPage, listPages, writePage, writePageInput } from "@/lib/ops/pages";
 import { searchProjectInput, searchProjectWithRefs } from "@/lib/ops/search";
@@ -781,6 +782,29 @@ register(
     run: async (db, actor, { project, series, ...filter }) => {
       const { points, ...rest } = await getProgress(db, actor, project, filter);
       return { totals: rest.totals, scopeAdded: rest.scopeAdded, projection: rest.projection, ...(series ? { points } : {}) };
+    },
+  }),
+
+  defineTool({
+    name: "list_releases",
+    description: "List releases with target date, status and done counts.",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/releases",
+    run: (db, actor, { project }) => listReleases(db, actor, project),
+  }),
+  defineTool({
+    name: "get_release",
+    description: "A release's readiness: systems, open questions, unmet gates, slip risk.",
+    input: { ...P, release: z.string(), notes: z.boolean().default(false) },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/releases/:release",
+    run: async (db, actor, { project, release, notes }) => {
+      const detail = await getRelease(db, actor, project, release);
+      if (notes || !detail.latestNote) return detail;
+      return { ...detail, latestNote: { version: detail.latestNote.version } };
     },
   }),
 

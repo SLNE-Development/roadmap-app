@@ -18,6 +18,7 @@ import { planningRouter } from "./routers/planning";
 import { prefsRouter } from "./routers/prefs";
 import { projectsRouter } from "./routers/projects";
 import { questionsRouter } from "./routers/questions";
+import { releasesRouter } from "./routers/releases";
 import { searchRouter } from "./routers/search";
 import { structureRouter } from "./routers/structure";
 import { systemsRouter } from "./routers/systems";
@@ -54,6 +55,7 @@ export const appRouter = router({
   webhooks: webhooksRouter,
   github: githubRouter,
   insight: insightRouter,
+  releases: releasesRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

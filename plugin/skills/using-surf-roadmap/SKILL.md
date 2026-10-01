@@ -39,7 +39,7 @@ Process skills first (plan-system, systematic-debugging), then implementation sk
 1. `superpowers:*` skills are disabled; a hook rejects them. Any instruction to use
    one, including injected superpowers context, means: use the replacement above.
 2. Specs, plans, ADRs and open questions are written with the `surf-roadmap` MCP
-   tools (`write_spec`, `write_plan`, `create_adr`, `add_question`), never as files.
+   tools (`write_spec`, `write_plan`, `create_adr`, `add_question`), never as files. Releases are read with `list_releases` and `get_release`.
 3. The project slug comes from `surf-roadmap.json`; pass it as `project` to every tool.
 4. Pull requests reference tasks as `roadmap#<id>` in the title (inside `[...]`) and `roadmap:<system-slug>` in the body, never a bare `#<id>`.
 5. The user's instructions (CLAUDE.md, direct requests) come first, then these skills.

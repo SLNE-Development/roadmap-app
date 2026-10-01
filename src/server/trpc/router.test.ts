@@ -264,4 +264,16 @@ describe("appRouter", () => {
     ];
     for (const call of calls) await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("creates, freezes and lists releases", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const api = caller(db, owner).releases;
+    await api.create({ project: slug, release: { slug: "v1", name: "v1", targetDate: "2026-12-01" } });
+    expect((await api.freeze({ project: slug, release: "v1" })).status).toBe("frozen");
+    expect(await api.list({ project: slug })).toMatchObject([{ slug: "v1", status: "frozen", systemCount: 0 }]);
+    expect((await api.get({ project: slug, release: "v1" })).release.slug).toBe("v1");
+    await api.writeNote({ project: slug, release: "v1", body: "Notes" });
+    expect(await api.note({ project: slug, release: "v1" })).toMatchObject({ version: 1, body: "Notes" });
+  });
 });
