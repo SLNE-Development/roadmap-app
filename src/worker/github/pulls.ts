@@ -1,18 +1,17 @@
 import { and, eq, notInArray } from "drizzle-orm";
 import { codeLink, githubRepo, type CodeLinkRow, type GitHubRepoRow } from "@/db/schema";
 import type { Executor } from "@/db/types";
-import type { GitHubApi } from "@/lib/github/api";
 import { parseRefs, type Refs } from "@/lib/github/refs";
 import type { GitHubEventJob } from "@/lib/github/webhook";
 import type { Actor } from "@/lib/ops/actor";
 import { refKeyOf, resolveRefs, targetKeyOf, upsertCodeLink, type CodeLinkInput } from "@/lib/ops/github-links";
 import { logChange } from "@/lib/ops/log";
 import { plural } from "@/lib/text";
-import type { WorkerDeps } from "../deps";
 import { onGitHubEvent, type DeliveryOutcome } from "./events";
+import { automationActor, NO_ACTOR_NOTE, runPullRequestRules } from "./rules";
 
 /** The parts of `payload.repository` the handlers read. */
-interface RepositoryPayload {
+export interface RepositoryPayload {
   id?: number;
   full_name?: string;
 }
@@ -28,8 +27,9 @@ interface PullRequestPayload {
     html_url: string;
     state: string;
     merged?: boolean | null;
+    draft?: boolean | null;
     head?: { sha?: string };
-    user?: { login?: string } | null;
+    user?: { login?: string; id?: number } | null;
   };
 }
 
@@ -37,6 +37,7 @@ interface PullRequestPayload {
 interface PushPayload {
   deleted?: boolean;
   repository?: RepositoryPayload;
+  sender?: { id?: number } | null;
   commits?: { id: string; message: string; url: string; author?: { username?: string } | null }[];
 }
 
@@ -65,7 +66,7 @@ const NOT_LINKED: DeliveryOutcome = { status: "ignored", detail: "repository not
  * Finds the linked repository of a delivery: the job's repo for a manual webhook, else the repo with the
  * payload's GitHub id or, failing that, its full name.
  */
-async function findRepo(db: Executor, job: GitHubEventJob, repository: RepositoryPayload | undefined): Promise<GitHubRepoRow | null> {
+export async function findRepo(db: Executor, job: GitHubEventJob, repository: RepositoryPayload | undefined): Promise<GitHubRepoRow | null> {
   if (job.source === "repo") {
     if (!job.repoId) return null;
     const [row] = await db.select().from(githubRepo).where(eq(githubRepo.id, job.repoId));
@@ -109,20 +110,6 @@ async function logLink(tx: Executor, actor: Actor | null, input: CodeLinkInput, 
   }
 }
 
-/**
- * Who link changes are attributed to in the change log. Task 7.7 replaces this with `automationActor`; until
- * then there is no one, so nothing is logged.
- */
-async function linkActor(): Promise<Actor | null> {
-  return null;
-}
-
-/**
- * Applies the repository's owner rules to the linked pull request and returns notes for the delivery detail.
- * A no-op until Task 7.7 adds the rules.
- */
-const runPullRequestRules: (job: GitHubEventJob, deps: WorkerDeps, api: GitHubApi, links: PullRequestLink[]) => Promise<string[]> = async () => [];
-
 onGitHubEvent("pull_request", async (job, deps, api) => {
   const payload = job.payload as PullRequestPayload;
   const pr = payload.pull_request;
@@ -133,7 +120,7 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
 
   const state = pr.merged ? "merged" : pr.state === "closed" ? "closed" : "open";
   const resetChecks = repo.mode === "app" && (action === "opened" || action === "synchronize");
-  const actor = await linkActor();
+  const actor = await automationActor(deps.db, repo, pr.user?.id ?? null);
 
   const links = await deps.db.transaction(async (tx) => {
     // A reference in both the title and the body counts as the title's.
@@ -180,7 +167,8 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
 
   const notes = await runPullRequestRules(job, deps, api, links);
   const tasks = links.filter((l) => l.taskId !== null).length;
-  return { status: "done", detail: [linkedDetail(tasks, links.length - tasks), ...notes].join("; ") };
+  const detail = [linkedDetail(tasks, links.length - tasks), ...notes].join("; ");
+  return { status: notes.includes(NO_ACTOR_NOTE) ? "skipped" : "done", detail };
 });
 
 onGitHubEvent("push", async (job, deps) => {
@@ -188,7 +176,7 @@ onGitHubEvent("push", async (job, deps) => {
   if (payload.deleted === true) return { status: "ignored", detail: "branch deleted" };
   const repo = await findRepo(deps.db, job, payload.repository);
   if (!repo) return NOT_LINKED;
-  const actor = await linkActor();
+  const actor = await automationActor(deps.db, repo, payload.sender?.id ?? null);
 
   const tasks = new Set<number>();
   const systems = new Set<string>();

@@ -20,6 +20,9 @@ export const NOTIFICATION_KINDS = [
   "system.done",
   "adr.proposed",
   "update.posted",
+  "pr.merged",
+  "checks.failed",
+  "automation.blocked",
 ] as const;
 
 /** A kind of notification. */

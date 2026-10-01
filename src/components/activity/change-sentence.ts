@@ -65,6 +65,7 @@ const ENTITY_LABEL: Record<string, string> = {
   update: "an update",
   webhook: "a Discord webhook",
   repo: "a repository",
+  code: "linked code",
 };
 
 /** Quotes a user-written value, shortened for one line. */
@@ -235,6 +236,13 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return plain("unlinked repository", e.oldValue);
     case "repo:rules":
       return plain("changed the automation rules of a repository");
+
+    case "code:created":
+      return onSystem(`linked ${e.newValue ?? "code"}`, "to", "linked code");
+    case "code:state":
+      return onSystem("changed the state of a linked pull request", "on", undefined, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+    case "code:checks":
+      return onSystem("changed the checks of linked code", "on", undefined, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
 
     case "update:posted":
       return onSystem("posted an update on", "", "posted an update");

@@ -88,6 +88,14 @@ describe("describeChange", () => {
     expect(text(entry("repo", "rules", "{}", "{}"), null)).toBe("changed the automation rules of a repository");
   });
 
+  it("describes linked code", () => {
+    expect(text(entry("code", "created", null, "PR #419"))).toBe("linked PR #419 to Inventory");
+    expect(text(entry("code", "created", null, "Commit abc1234"))).toBe("linked Commit abc1234 to Inventory");
+    expect(text(entry("code", "state", "open", "merged"))).toBe("changed the state of a linked pull request on Inventory open → merged");
+    expect(text(entry("code", "checks", "pending", "failure"))).toBe("changed the checks of linked code on Inventory pending → failure");
+    expect(text(entry("code", "created", null, "PR #419"), null)).toBe("linked code");
+  });
+
   it("describes glossary changes", () => {
     expect(text(entry("glossary", "created", null, "Outbox"), null)).toBe("added glossary term “Outbox”");
     expect(text(entry("glossary", "definition", "Queue", "Pending events"), null)).toBe("changed a glossary definition");

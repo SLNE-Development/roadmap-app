@@ -51,6 +51,8 @@ const PUSH_BY_DEFAULT: NotificationKind[] = [
   "task.blocked",
   "system.blocked",
   "task.assigned",
+  "checks.failed",
+  "automation.blocked",
 ];
 
 /** The rules of a user who set none. */

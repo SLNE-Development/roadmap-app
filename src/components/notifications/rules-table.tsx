@@ -19,6 +19,9 @@ const KIND_LABELS: Record<NotificationKind, string> = {
   "system.done": "My system is done",
   "adr.proposed": "A decision is proposed on my system",
   "update.posted": "A progress update on my system",
+  "pr.merged": "A pull request on my task or system is merged",
+  "checks.failed": "Checks fail on a pull request of my system",
+  "automation.blocked": "A GitHub automation is blocked on my system",
 };
 
 /** Shown where push settings would be while the server has no VAPID keys. */
