@@ -11,11 +11,11 @@ const EDGES: Record<RequestStatus, readonly RequestStatus[]> = {
   accepted: ["event_week", "cancelled"],
   event_week: ["done", "cancelled"],
   done: [],
-  withdrawn: [],
-  cancelled: [],
+  withdrawn: ["draft"],
+  cancelled: ["accepted"],
 };
 
-/** Returns whether a request may move from `from` to `to`; `submitted` to `draft` is the requester's recall. */
+/** Returns whether a request may move from `from` to `to`; `submitted` to `draft` is the requester's recall, `cancelled` to `accepted` and `withdrawn` to `draft` a reopen. */
 export function canTransition(from: RequestStatus, to: RequestStatus): boolean {
   return EDGES[from].includes(to);
 }

@@ -12,6 +12,8 @@ const EDGES: [RequestStatus, RequestStatus][] = [
   ["accepted", "cancelled"],
   ["event_week", "done"],
   ["event_week", "cancelled"],
+  ["cancelled", "accepted"],
+  ["withdrawn", "draft"],
 ];
 
 describe("canTransition", () => {
@@ -19,10 +21,16 @@ describe("canTransition", () => {
     expect(canTransition(from, to)).toBe(true);
   });
 
-  it("allows exactly the nine edges in the 7x7 matrix", () => {
+  it("allows exactly the eleven edges in the 7x7 matrix", () => {
     const allowed = REQUEST_STATUSES.flatMap((from) => REQUEST_STATUSES.filter((to) => canTransition(from, to)).map((to) => `${from}>${to}`));
     expect(allowed.sort()).toEqual(EDGES.map(([from, to]) => `${from}>${to}`).sort());
-    expect(allowed).toHaveLength(9);
+    expect(allowed).toHaveLength(11);
+  });
+});
+
+describe("done", () => {
+  it("has no way out", () => {
+    expect(REQUEST_STATUSES.filter((to) => canTransition("done", to))).toEqual([]);
   });
 });
 

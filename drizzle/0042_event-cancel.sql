@@ -1,0 +1,2 @@
+ALTER TABLE "event_request" ADD COLUMN "cancel_note" text;--> statement-breakpoint
+ALTER TABLE "event_settings" ADD COLUMN "cancelled_template" jsonb DEFAULT '{"title":"Event abgesagt","text":"{event} am {start_date} findet leider nicht statt.\n\n{note}","color":"#8a8f98","imageUploadId":null}'::jsonb NOT NULL;

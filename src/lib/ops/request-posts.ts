@@ -1,6 +1,6 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
-import { eventPost, eventUpload, user, type EventPostRow, type PostStatus } from "@/db/schema";
+import { eventPost, eventUpload, user, type EventPostRow, type EventRequestRow, type PostStatus } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { countEmbedChars, LIMITS, textLength, type Embed } from "@/lib/discord-limits";
 import { discordEventUrl, keepsMention, MAX_POST_TEXT, plannedParts, POST_DUE_OFFSET_DAYS, POST_KINDS, POST_TARGET, type PlanRequest, type PostKind, type PostPart } from "@/lib/event-messages";
@@ -17,6 +17,9 @@ import { lockRequest, logRequest } from "./requests";
 
 /** The statuses of a request in which its messages may be posted. */
 export const POSTING_STATUSES: readonly string[] = ["accepted", "event_week"];
+
+/** Whether a post of `kind` may be sent while its request is in `status`: a cancelled message belongs to a cancelled request, every other kind to a request that is accepted or in its event week. */
+export const canPostKind = (kind: PostKind, status: string): boolean => (kind === "cancelled" ? status === "cancelled" : POSTING_STATUSES.includes(status));
 
 /** How long the Kv lock of one post lives at most; a part takes at most 10 s and a post has a handful. */
 export const LOCK_SECONDS = 300;
@@ -83,6 +86,7 @@ async function livePost(tx: Executor, requestId: string, kind: PostKind): Promis
 export async function savePostDraft(db: Db, actor: Actor, requestId: string, rawKind: PostKind, raw: unknown): Promise<void> {
   const kind = parse(kindSchema, rawKind);
   const input = parse(savePostDraftInput, raw);
+  if (kind === "cancelled") throw new InvalidError("A cancelled message is posted by cancelling the request.");
   if (input.pingRole && kind !== "announcement" && kind !== "reminder") throw new InvalidError("Only an announcement or a reminder can ping the event role.");
   if (input.note && kind !== "resolved") throw new InvalidError("Only a resolved message has a note.");
   await db.transaction(async (tx) => {
@@ -147,7 +151,7 @@ function plan(post: Parameters<typeof plannedParts>[0], request: Parameters<type
 function checkReady(request: { status: string }, kind: PostKind, settings: PostSettings): void {
   const target = POST_TARGET[kind];
   if (!settings.hooks[target]) throw new ConflictError(`The ${target} webhook is not set. An admin sets it in Event settings.`);
-  if (!POSTING_STATUSES.includes(request.status)) throw new ConflictError(`A ${request.status} request cannot post messages.`);
+  if (!canPostKind(kind, request.status)) throw new ConflictError(`A ${request.status} request cannot post messages.`);
 }
 
 /** Sets the post to `sending` with the next attempt, applies `set`, and logs it; returns the next attempt. */
@@ -218,6 +222,7 @@ async function enqueue(db: Db, queue: JobQueue, job: Queued): Promise<void> {
  */
 export async function startPost(db: Db, actor: Actor, requestId: string, kind: PostKind, queue: JobQueue): Promise<void> {
   if (kind === "disaster" || kind === "resolved") throw new InvalidError("A disaster message is posted with the disaster panel.");
+  if (kind === "cancelled") throw new InvalidError("A cancelled message is posted by cancelling the request.");
   const job = await db.transaction(async (tx) => {
     await requestAccess(tx, actor, requestId, "edit");
     const request = await lockRequest(tx, requestId);
@@ -298,6 +303,7 @@ export async function editPost(db: Db, actor: Actor, requestId: string, rawKind:
     await requestAccess(tx, actor, requestId, "edit");
     const request = await lockRequest(tx, requestId);
     if (kind === "disaster" || kind === "resolved") throw new InvalidError("A disaster message cannot be edited. Resolve it instead.");
+    if (kind === "cancelled") throw new InvalidError("A cancelled message cannot be edited.");
     const post = await livePost(tx, requestId, kind);
     if (!post) throw new NotFoundError(`There is no ${kind} post.`);
     if (post.status !== "posted" && post.status !== "partial") throw new ConflictError(`A ${post.status} post cannot be edited this way.`);
@@ -352,6 +358,7 @@ export async function deletePost(db: Db, actor: Actor, requestId: string, rawKin
 export async function testSend(db: Db, actor: Actor, requestId: string, rawKind: PostKind, queue: JobQueue): Promise<void> {
   const kind = parse(kindSchema, rawKind);
   if (kind === "disaster" || kind === "resolved") throw new InvalidError("A disaster or resolved message has no test send: a test would announce a problem. Use its preview.");
+  if (kind === "cancelled") throw new InvalidError("A cancelled message has no test send.");
   await requestAccess(db, actor, requestId, "edit");
   const settings = await loadPostSettings(db);
   if (!settings.hooks.staff) throw new ConflictError("The staff test webhook is not set. An admin sets it in Event settings.");
@@ -383,6 +390,37 @@ export async function testResult(kv: Kv, db: Db, actor: Actor, requestId: string
     return null;
   }
 }
+
+/** Whether the live announcement has at least one message in Discord: a part with a message id. */
+export async function announcementInDiscord(tx: Executor, requestId: string): Promise<boolean> {
+  const post = await livePost(tx, requestId, "announcement");
+  return post !== undefined && post.parts.some((p) => p.messageId !== null && !p.deleted);
+}
+
+/** A `cancelled` post the cancel queued: its job, for {@link enqueuePost} after the commit. */
+export type CancelledPostJob = Queued;
+
+/**
+ * Inserts the `cancelled` post of a cancel inside its transaction: only when the announcement is in Discord and the public
+ * webhook is set. The caller enqueues the returned job with {@link enqueuePost} after the commit.
+ *
+ * @returns the job to enqueue, or null when nothing is posted
+ * @throws InvalidError when the message does not fit Discord
+ */
+export async function insertCancelledPost(tx: Tx, actor: Actor, request: EventRequestRow, note: string): Promise<CancelledPostJob | null> {
+  if (!(await announcementInDiscord(tx, request.id))) return null;
+  const settings = await loadPostSettings(tx);
+  if (!settings.hooks.public) return null;
+  const base = { kind: "cancelled" as const, text: "", embed: null, pingRole: false, note };
+  const parts = plan(base, request, settings);
+  const id = newId();
+  await tx.insert(eventPost).values({ id, requestId: request.id, ...base, parts, status: "sending", attempt: 1, postedBy: actor.userId, createdBy: actor.userId });
+  await logRequest(tx, actor, { requestId: request.id, field: "post", newValue: "cancelled sending" });
+  return sendJob(id, 1);
+}
+
+/** Queues the job of a post {@link insertCancelledPost} made; when the queue is down the post goes to `failed` so Resume can try again. */
+export const enqueuePost = (db: Db, queue: JobQueue, job: CancelledPostJob): Promise<void> => enqueue(db, queue, job);
 
 /** Input of {@link postDisaster}. */
 export const postDisasterInput = z.strictObject({ note: z.string().max(1500).optional() });

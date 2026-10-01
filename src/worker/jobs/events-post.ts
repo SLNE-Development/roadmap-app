@@ -195,7 +195,7 @@ async function runPost(deps: WorkerDeps, postId: string, attempt: number, retry:
   if (!loaded || loaded.attempt !== attempt || !["sending", "partial"].includes(loaded.status)) return;
   const [request] = await deps.db.select().from(eventRequest).where(eq(eventRequest.id, loaded.requestId)).limit(1);
   if (!request) return;
-  if (!(await requestAllows(deps.db, loaded, request, loaded.kind === "disaster" || loaded.kind === "resolved" ? ["event_week"] : POSTING_STATUSES))) return;
+  if (!(await requestAllows(deps.db, loaded, request, loaded.kind === "disaster" || loaded.kind === "resolved" ? ["event_week"] : loaded.kind === "cancelled" ? ["cancelled"] : POSTING_STATUSES))) return;
   const settings = await loadPostSettings(deps.db);
   const secrets = await loadEventSecrets(deps.db);
   const target = POST_TARGET[loaded.kind];

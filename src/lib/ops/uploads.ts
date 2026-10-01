@@ -44,13 +44,13 @@ export const storeUploadInput = z.object({
  * Later tasks add their check here.
  */
 export const UPLOAD_REFERENCES: ((tx: Tx, uploadId: string) => Promise<boolean>)[] = [
-  // The disaster or resolved template of the event settings shows the image.
+  // The disaster, resolved or cancelled template of the event settings shows the image.
   async (tx, uploadId) =>
     (
       await tx
         .select({ id: eventSettings.id })
         .from(eventSettings)
-        .where(or(sql`${eventSettings.disasterTemplate}->>'imageUploadId' = ${uploadId}`, sql`${eventSettings.resolvedTemplate}->>'imageUploadId' = ${uploadId}`))
+        .where(or(sql`${eventSettings.disasterTemplate}->>'imageUploadId' = ${uploadId}`, sql`${eventSettings.resolvedTemplate}->>'imageUploadId' = ${uploadId}`, sql`${eventSettings.cancelledTemplate}->>'imageUploadId' = ${uploadId}`))
         .limit(1)
     ).length > 0,
 ];

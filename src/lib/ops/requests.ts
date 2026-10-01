@@ -12,6 +12,7 @@ import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./er
 import { botConfigured, discordEventState, type DiscordEventState } from "./event-settings";
 import { briefAudienceIds, developerIds, notifyRequest } from "./request-notify";
 import { canAcceptRequests, canDevelop, eventFlags, requestAccess, type RequestAccess, type RequestRole } from "./request-access";
+import { enqueuePost, insertCancelledPost, type CancelledPostJob } from "./request-posts";
 import { ensurePrepTodos, fallbackReady, redateTodos, seedRequestDefaults } from "./request-setup";
 
 /** One change to a request's history: which field changed, from what to what. Never holds secrets. */
@@ -75,8 +76,8 @@ export const updateRequestInput = z.object({
 /** Input of {@link saveBrief}. */
 export const saveBriefInput = z.object({ body: briefSchema, baseVersion: z.number().int().min(0) });
 
-/** Input of {@link cancelRequest}'s reason. */
-const reasonSchema = z.string().trim().min(1).max(500);
+/** The reason of a cancel. */
+const reasonSchema = z.string().trim().min(1).max(1000);
 
 /** Normalizes a brief for storing and comparing: `\r\n` to `\n`, outer whitespace removed. */
 function normalizeBrief(body: string): string {
@@ -154,8 +155,8 @@ async function editAccess(tx: Tx, actor: Actor, requestId: string): Promise<Requ
   return requestAccess(tx, actor, requestId, "edit");
 }
 
-/** Access for cancelling: event managers and admins, or developers (see {@link requestAccess}). */
-async function manageOrDevelop(tx: Tx, actor: Actor, requestId: string): Promise<RequestAccess> {
+/** Access for cancelling and reopening a cancelled request: event managers and admins, or developers (see {@link requestAccess}). */
+export async function manageOrDevelop(tx: Executor, actor: Actor, requestId: string): Promise<RequestAccess> {
   try {
     return await requestAccess(tx, actor, requestId, "manage");
   } catch (e) {
@@ -436,13 +437,29 @@ export function withdrawRequest(db: Db, actor: Actor, requestId: string): Promis
   return transition(db, actor, requestId, (tx) => editAccess(tx, actor, requestId), (tx, request) => moveTo(tx, actor, request, "withdrawn"));
 }
 
+/** Input of {@link cancelRequest}: the reason, 1 to 1,000 characters. */
+export const cancelRequestInput = z.object({ reason: reasonSchema });
+
 /**
- * Cancels an accepted or event-week request; managers, admins and developers only. The reason is stored as the log's new
- * value. A request with a Discord event queues `events.discord-event` to delete it once the cancel is committed.
+ * Cancels an accepted or event-week request; managers, admins and developers only. The reason is stored as `cancelNote` and
+ * is the log's new value. When the announcement is in Discord and the public webhook is set, a `cancelled` post is created
+ * in the same transaction and `events.post` queued after the commit. A request with a Discord event queues
+ * `events.discord-event` to delete it.
+ *
+ * @throws InvalidError for a missing or too long reason
+ * @throws ConflictError unless the request is accepted or in its event week (a cancelled request cannot be cancelled again)
  */
-export async function cancelRequest(db: Db, actor: Actor, requestId: string, rawReason: unknown, queue?: JobQueue): Promise<EventRequestRow> {
-  const reason = reasonSchema.parse(rawReason);
-  const cancelled = await transition(db, actor, requestId, (tx) => manageOrDevelop(tx, actor, requestId), (tx, request) => moveTo(tx, actor, request, "cancelled", {}, reason));
+export async function cancelRequest(db: Db, actor: Actor, requestId: string, raw: unknown, queue?: JobQueue): Promise<EventRequestRow> {
+  const parsed = cancelRequestInput.safeParse(raw);
+  if (!parsed.success) throw new InvalidError(parsed.error.issues.map((i) => i.message).join(" "));
+  const { reason } = parsed.data;
+  const queued: { job: CancelledPostJob | null } = { job: null };
+  const cancelled = await transition(db, actor, requestId, (tx) => manageOrDevelop(tx, actor, requestId), async (tx, request) => {
+    const moved = await moveTo(tx, actor, request, "cancelled", { cancelNote: reason }, reason);
+    queued.job = await insertCancelledPost(tx, actor, moved, reason);
+    return moved;
+  });
+  if (queued.job && queue) await enqueuePost(db, queue, queued.job);
   await queueDiscordEventSync(db, queue, cancelled, "delete");
   return cancelled;
 }
@@ -574,6 +591,10 @@ export interface RequestDetail {
   canManage: boolean;
   /** Whether the actor may cancel the request (managers, admins, developers). */
   canCancel: boolean;
+  /** Whether the actor may reopen the request: a cancelled one with manage or develop access, a withdrawn one with edit access or as its requester. */
+  canReopen: boolean;
+  /** Whether the actor may delete the request (set from Task 6 on). */
+  canDelete: boolean;
   /** Whether the actor may accept the request (admins and event developers). */
   canAccept: boolean;
   /** Whether the actor has develop access (see {@link canDevelop}). */
@@ -607,6 +628,8 @@ export async function getRequest(db: Db, actor: Actor, requestId: string): Promi
     canEdit,
     canManage,
     canCancel: canManage || flags.isEventDeveloper,
+    canReopen: request.status === "cancelled" ? canManage || flags.isEventDeveloper : request.status === "withdrawn" && (canEdit || role === "requester"),
+    canDelete: false,
     canAccept: canAcceptRequests(flags),
     canDevelop: await canDevelop(db, actor, requestId),
     projectOpen: linked !== undefined && (membership !== undefined || flags.isAdmin),

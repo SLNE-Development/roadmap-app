@@ -121,7 +121,7 @@ export async function ensureDiscordEvent(
   return null;
 }
 
-const jobData = z.object({ requestId: z.string().min(1), action: z.enum(["update", "delete"]), retry: z.number().int().min(0).optional() });
+const jobData = z.object({ requestId: z.string().min(1), action: z.enum(["update", "delete", "create"]), retry: z.number().int().min(0).optional() });
 
 /** Clears the stored event id (only while it still is `eventId`) and logs why. */
 async function forget(db: Db, requestId: string, eventId: string, why: string): Promise<void> {
@@ -131,15 +131,31 @@ async function forget(db: Db, requestId: string, eventId: string, why: string): 
   });
 }
 
+/** The `create` action: makes the event of a reopened request with {@link ensureDiscordEvent}; a 429 queues the job again like the update path. */
+async function createEvent(deps: WorkerDeps, request: EventRequestRow | undefined, retry: number): Promise<void> {
+  if (!request) return;
+  const settings = await loadPostSettings(deps.db);
+  const secrets = await loadEventSecrets(deps.db);
+  try {
+    await ensureDiscordEvent(deps, request, settings, secrets);
+  } catch (error) {
+    if (!(error instanceof DiscordEventRetry)) throw error;
+    const n = retry + 1;
+    if (n > MAX_RETRIES) throw new Error(`Discord rate-limited the event create ${n} times in a row.`);
+    await deps.queue("deliver").add("events.discord-event", { requestId: request.id, action: "create", retry: n }, { jobId: `event-dev-${request.id}-create-r${n}-${deps.now().getTime()}`, delayMs: error.delayMs, attempts: 3, backoffMs: 10_000 });
+  }
+}
+
 /**
  * Brings the Discord event of a request in line with it: `update` sends the current name, description, times, location and
- * banner, `delete` removes the event. An event Discord no longer has clears the stored id and stops. A refused token is
+ * banner, `delete` removes the event, `create` makes it for a reopened request. An event Discord no longer has clears the stored id and stops. A refused token is
  * recorded on the settings and not retried; a 429 queues the job again after Discord's delay; a 5xx throws so BullMQ retries.
  * Nothing happens without a stored event id, a bot token or a guild id.
  */
 export async function syncDiscordEvent(deps: WorkerDeps, raw: unknown): Promise<void> {
   const { requestId, action, retry = 0 } = jobData.parse(raw);
   const [request] = await deps.db.select().from(eventRequest).where(eq(eventRequest.id, requestId)).limit(1);
+  if (action === "create") return createEvent(deps, request, retry);
   if (!request?.discordEventId) return;
   const { botToken } = await loadEventSecrets(deps.db);
   const { guildId } = await loadPostSettings(deps.db);

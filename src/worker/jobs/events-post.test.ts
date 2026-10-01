@@ -8,6 +8,7 @@ import { GERMAN } from "@/lib/event-messages";
 import * as secrets from "@/lib/event-secrets";
 import * as events from "./events-discord-event";
 import { setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
+import { cancelRequest } from "@/lib/ops/requests";
 import { deletePost, editPost, postDisaster, resolveDisaster, resumePost, savePostDraft, startPost, testSend } from "@/lib/ops/request-posts";
 import { draftPost, longText, postWorld, PUBLIC_TOKEN, PUBLIC_URL, ROLE_ID, stubEncryptionKey, TEAM_TOKEN } from "@/test/post-fixtures";
 import { testDeps } from "../deps";
@@ -241,6 +242,26 @@ describe("events.post", () => {
     expect(row.status).toBe("failed");
     expect(row.lastError).toBe("The request is cancelled; nothing was posted.");
     spy.mockRestore();
+  });
+
+  it("sends a cancelled message for a cancelled request, but not a team post", async () => {
+    const w = await postWorld();
+    const deps = testDeps(w.db);
+    await w.db.insert(eventPost).values({ id: "ann", requestId: w.request.id, kind: "announcement", status: "posted", text: "Hallo", parts: [{ kind: "embed", content: "", messageId: "m0", sentAt: "x" }], createdBy: w.manager.userId });
+    await draftPost(w.db, w.manager, w.request.id, "team", { text: "Intern" });
+    await startPost(w.db, w.manager, w.request.id, "team", deps.queue("deliver"));
+    await cancelRequest(w.db, w.manager, w.request.id, { reason: "Sturm" }, deps.queue("deliver"));
+    const rows = await w.db.select().from(eventPost).where(eq(eventPost.requestId, w.request.id));
+    const cancelled = rows.find((r) => r.kind === "cancelled")!;
+    const team = rows.find((r) => r.kind === "team")!;
+    const calls = stubFetch([ok("c1")]);
+    await runJob("deliver", "events.post", { postId: team.id, attempt: team.attempt }, deps);
+    expect(calls).toHaveLength(0);
+    expect((await w.db.select().from(eventPost).where(eq(eventPost.id, team.id)))[0]).toMatchObject({ status: "failed", lastError: "The request is cancelled; nothing was posted." });
+    await runJob("deliver", "events.post", { postId: cancelled.id, attempt: cancelled.attempt }, deps);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${PUBLIC_URL}?wait=true`);
+    expect((await w.db.select().from(eventPost).where(eq(eventPost.id, cancelled.id)))[0].status).toBe("posted");
   });
 
   it("sends a disaster only in the event week", async () => {

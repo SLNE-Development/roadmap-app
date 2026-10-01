@@ -209,15 +209,15 @@ describe("transitions", () => {
   it("cancels an accepted request with a reason for managers and developers only", async () => {
     const w = await world();
     const req = await requestFixture(w.db, w.R, { status: "accepted" });
-    await expect(cancelRequest(w.db, w.R, req.id, "no time")).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(cancelRequest(w.db, w.M, req.id, "  ")).rejects.toThrow();
-    expect((await cancelRequest(w.db, w.D, req.id, "no time")).status).toBe("cancelled");
+    await expect(cancelRequest(w.db, w.R, req.id, { reason: "no time" })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(cancelRequest(w.db, w.M, req.id, { reason: "  " })).rejects.toThrow();
+    expect((await cancelRequest(w.db, w.D, req.id, { reason: "no time" })).status).toBe("cancelled");
     const [log] = await w.db.select().from(requestLog).where(eq(requestLog.requestId, req.id));
     expect(log).toMatchObject({ field: "status", oldValue: "accepted", newValue: "no time" });
     const other = await requestFixture(w.db, w.R, { status: "event_week" });
-    expect((await cancelRequest(w.db, w.M, other.id, "storm")).status).toBe("cancelled");
+    expect((await cancelRequest(w.db, w.M, other.id, { reason: "storm" })).status).toBe("cancelled");
     const draft = await requestFixture(w.db, w.R);
-    await expect(cancelRequest(w.db, w.M, draft.id, "x")).rejects.toBeInstanceOf(ConflictError);
+    await expect(cancelRequest(w.db, w.M, draft.id, { reason: "x" })).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("marks done only from event week", async () => {

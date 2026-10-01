@@ -319,7 +319,7 @@ function CancelDialog({ requestId, open, onOpenChange }: { requestId: string; op
           </DialogHeader>
           <Field>
             <FieldLabel htmlFor={id}>{t("reason")}</FieldLabel>
-            <Textarea id={id} value={reason} maxLength={500} autoFocus onChange={(e) => setReason(e.target.value)} />
+            <Textarea id={id} value={reason} maxLength={1000} autoFocus onChange={(e) => setReason(e.target.value)} />
           </Field>
           <DialogFooter>
             <DialogClose asChild>

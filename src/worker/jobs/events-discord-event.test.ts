@@ -268,7 +268,7 @@ describe("keeping the event in sync", () => {
     const s = await botWorld({ bot: false });
     await s.setEventId();
     await updateRequest(s.db, s.manager, s.request.id, { startsAt: later() }, s.deps.queue("deliver"));
-    await cancelRequest(s.db, s.manager, s.request.id, "Sturm", s.deps.queue("deliver"));
+    await cancelRequest(s.db, s.manager, s.request.id, { reason: "Sturm" }, s.deps.queue("deliver"));
     expect(jobs(s)).toHaveLength(0);
     const t = await botWorld();
     await t.setEventId();
@@ -278,11 +278,30 @@ describe("keeping the event in sync", () => {
   it("enqueues a delete when the request is cancelled and the job clears the id", async () => {
     const s = await botWorld();
     await s.setEventId();
-    await cancelRequest(s.db, s.manager, s.request.id, "Sturm", s.deps.queue("deliver"));
+    await cancelRequest(s.db, s.manager, s.request.id, { reason: "Sturm" }, s.deps.queue("deliver"));
     expect(jobs(s).map((j) => j.data)).toEqual([{ requestId: s.request.id, action: "delete" }]);
     const calls = stubFetch([new Response(null, { status: 204 })]);
     await runJob("deliver", "events.discord-event", jobs(s)[0].data, s.deps);
     expect(calls[0]).toMatchObject({ method: "DELETE", url: `${API}/555` });
+    expect((await s.reload()).discordEventId).toBeNull();
+  });
+
+  it("creates the event for a reopened request once and stores its id", async () => {
+    const s = await botWorld();
+    const calls = stubFetch([json(200, { id: "777" })]);
+    await runJob("deliver", "events.discord-event", { requestId: s.request.id, action: "create" }, s.deps);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ method: "POST", url: API });
+    expect((await s.reload()).discordEventId).toBe("777");
+    await runJob("deliver", "events.discord-event", { requestId: s.request.id, action: "create" }, s.deps);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("queues the create again after Discord's delay on a 429", async () => {
+    const s = await botWorld();
+    stubFetch([new Response(JSON.stringify({ retry_after: 2 }), { status: 429, headers: { "Retry-After": "2" } })]);
+    await runJob("deliver", "events.discord-event", { requestId: s.request.id, action: "create" }, s.deps);
+    expect(jobs(s).map((j) => j.data)).toEqual([{ requestId: s.request.id, action: "create", retry: 1 }]);
     expect((await s.reload()).discordEventId).toBeNull();
   });
 

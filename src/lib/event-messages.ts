@@ -7,13 +7,13 @@ import { fillPlaceholders, placeholderValues, PLACEHOLDERS, type Placeholder } f
 export const MAX_POST_TEXT = 40_000;
 
 /** The kinds of post a request has. */
-export const POST_KINDS = ["team", "announcement", "reminder", "disaster", "resolved"] as const;
+export const POST_KINDS = ["team", "announcement", "reminder", "disaster", "resolved", "cancelled"] as const;
 
 /** One of {@link POST_KINDS}. */
 export type PostKind = (typeof POST_KINDS)[number];
 
 /** Which webhook a kind is posted to. */
-export const POST_TARGET = { team: "team", announcement: "public", reminder: "public", disaster: "public", resolved: "public" } as const satisfies Record<PostKind, "team" | "public">;
+export const POST_TARGET = { team: "team", announcement: "public", reminder: "public", disaster: "public", resolved: "public", cancelled: "public" } as const satisfies Record<PostKind, "team" | "public">;
 
 /** Days from the event start when a kind is due (display only; nothing is scheduled). */
 export const POST_DUE_OFFSET_DAYS: Partial<Record<PostKind, number>> = { team: -8, announcement: -7, reminder: -1 };
@@ -44,7 +44,7 @@ export interface PlanPost {
 }
 
 /** What the builders read from the settings. */
-export type PlanSettings = Pick<EventSettingsRow, "pingRoleId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate">;
+export type PlanSettings = Pick<EventSettingsRow, "pingRoleId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate" | "cancelledTemplate">;
 
 /** What the builders read from the request. */
 export type PlanRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl" | "bannerUploadId" | "summary">;
@@ -111,6 +111,21 @@ export function buildResolvedEmbed(request: PlanRequest, settings: Pick<PlanSett
   };
 }
 
+/** The embed of the cancelled message; `{note}` is the cancel note, left as the literal `{note}` when `note` is null. The banner is shown as thumbnail. */
+export function buildCancelledEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "cancelledTemplate">, note: string | null): Embed {
+  const t = settings.cancelledTemplate;
+  const values = placeholderValues(request, settings, note ?? "{note}");
+  return {
+    title: fillPlaceholders(t.title, values, { allow: PLACEHOLDERS, mode: "text" }),
+    description: fillPlaceholders(t.text, values, { allow: PLACEHOLDERS, mode: "discord" }).trimEnd(),
+    color: t.color,
+    imageUploadId: request.bannerUploadId,
+    imageAs: "thumbnail",
+    fields: [],
+    footer: "",
+  };
+}
+
 /** Whether a post of `kind` may carry the role ping. */
 export const mayPing = (kind: PostKind, pingRole: boolean): boolean => pingRole && (kind === "announcement" || kind === "reminder");
 
@@ -126,7 +141,7 @@ const unsent = (fields: Pick<PostPart, "kind" | "content"> & Partial<PostPart>):
 
 /**
  * Plans the Discord messages of a post. The text becomes `text` parts; the last part is its own message: the event link when
- * the Discord event exists, else the details embed (an explicit `post.embed` replaces it). A team notice always ends with the details embed (never the event link); disaster and resolved posts are the embed from their template. The role mention is written only
+ * the Discord event exists, else the details embed (an explicit `post.embed` replaces it). A team notice always ends with the details embed (never the event link); disaster, resolved and cancelled posts are the embed from their template. The role mention is written only
  * into the first part of an announcement or a chosen reminder, and the first chunk shrinks to leave room for it.
  *
  * @throws Error naming the part whose message Discord would refuse
@@ -136,8 +151,8 @@ export function plannedParts(post: PlanPost, request: PlanRequest, settings: Pla
   const text = fillPlaceholders(post.text, placeholderValues(request, settings), { allow: NO_NOTE, mode: "discord" });
   const chunks = splitText(text, LIMITS.content, LIMITS.content - textLength(mention));
   const parts: PostPart[] = chunks.map((c, i) => unsent({ kind: "text", content: i === 0 ? mention + c : c }));
-  if (post.kind === "disaster" || post.kind === "resolved") {
-    const embed = post.embed ?? (post.kind === "disaster" ? buildDisasterEmbed(request, settings, post.note) : buildResolvedEmbed(request, settings, post.note));
+  if (post.kind === "disaster" || post.kind === "resolved" || post.kind === "cancelled") {
+    const embed = post.embed ?? (post.kind === "disaster" ? buildDisasterEmbed(request, settings, post.note) : post.kind === "resolved" ? buildResolvedEmbed(request, settings, post.note) : buildCancelledEmbed(request, settings, post.note));
     parts.push(unsent({ kind: "embed", content: "", embed, uploadId: embed.imageUploadId }));
   } else if (post.embed) {
     parts.push(unsent({ kind: "embed", content: "", embed: post.embed, uploadId: post.embed.imageUploadId }));

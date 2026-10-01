@@ -36,6 +36,7 @@ export interface EventSettingsView {
   teamExample: string;
   disasterTemplate: EmbedTemplate;
   resolvedTemplate: EmbedTemplate;
+  cancelledTemplate: EmbedTemplate;
   detailsTemplate: DetailsTemplate;
   updatedAt: Date;
   /** What Discord last said to the bot token, and when; null until the first call. */
@@ -71,6 +72,7 @@ export const updateEventSettingsInput = z.strictObject({
   teamExample: longText,
   disasterTemplate: embedTemplateSchema,
   resolvedTemplate: embedTemplateSchema,
+  cancelledTemplate: embedTemplateSchema,
   detailsTemplate: detailsTemplateSchema,
 }).partial();
 
@@ -84,7 +86,7 @@ export const setEventSecretsInput = z.strictObject({
 
 /** Input of {@link previewTemplate}. */
 export const previewTemplateInput = z.discriminatedUnion("kind", [
-  z.object({ kind: z.enum(["disaster", "resolved"]), template: embedTemplateSchema }),
+  z.object({ kind: z.enum(["disaster", "resolved", "cancelled"]), template: embedTemplateSchema }),
   z.object({ kind: z.literal("details"), template: detailsTemplateSchema }),
 ]);
 
@@ -107,7 +109,7 @@ export async function eventTimeZone(db: Executor): Promise<string> {
 }
 
 /** The settings a post is planned and sent with: no secret, only which webhooks are set. */
-export interface PostSettings extends Pick<EventSettingsRow, "postAs" | "pingRoleId" | "guildId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate"> {
+export interface PostSettings extends Pick<EventSettingsRow, "postAs" | "pingRoleId" | "guildId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate" | "cancelledTemplate"> {
   hooks: { public: boolean; team: boolean; staff: boolean };
 }
 
@@ -127,6 +129,7 @@ export async function loadPostSettings(db: Executor): Promise<PostSettings> {
     detailsTemplate: r.detailsTemplate,
     disasterTemplate: r.disasterTemplate,
     resolvedTemplate: r.resolvedTemplate,
+    cancelledTemplate: r.cancelledTemplate,
     hooks: { public: r.publicWebhookEnc !== null, team: r.teamWebhookEnc !== null, staff: r.staffWebhookEnc !== null },
   };
 }
@@ -185,6 +188,7 @@ export async function getEventSettings(db: Db, actor: Actor): Promise<EventSetti
     teamExample: r.teamExample,
     disasterTemplate: r.disasterTemplate,
     resolvedTemplate: r.resolvedTemplate,
+    cancelledTemplate: r.cancelledTemplate,
     detailsTemplate: r.detailsTemplate,
     updatedAt: r.updatedAt,
     botStatus: r.botStatus,
@@ -210,7 +214,7 @@ export async function updateEventSettings(db: Db, actor: Actor, raw: unknown): P
   const changed = Object.keys(input).filter((k) => input[k as keyof typeof input] !== undefined);
   if (changed.length === 0) return;
   await db.transaction(async (tx) => {
-    for (const template of [input.disasterTemplate, input.resolvedTemplate]) {
+    for (const template of [input.disasterTemplate, input.resolvedTemplate, input.cancelledTemplate]) {
       if (!template?.imageUploadId) continue;
       const [upload] = await tx.select({ requestId: eventUpload.requestId, purpose: eventUpload.purpose }).from(eventUpload).where(eq(eventUpload.id, template.imageUploadId)).limit(1);
       if (!upload || upload.requestId !== null || upload.purpose !== "template") throw new InvalidError("Unknown settings image.");
@@ -266,7 +270,7 @@ const SAMPLE_NOTE = "Der Server wurde neu gestartet.";
 
 /**
  * Renders a template with a sample event and the saved time zone and rulebook link, for the editor preview. `{note}`
- * is filled in the disaster and resolved templates. Nothing is sent anywhere.
+ * is filled in the disaster, resolved and cancelled templates. Nothing is sent anywhere.
  *
  * @throws ForbiddenError without an event role, InvalidError for a template of the wrong shape
  */

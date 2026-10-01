@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { bigserial, type AnyPgColumn, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import type { Embed } from "@/lib/discord-limits";
-import { DEFAULT_DETAILS_TEMPLATE, DEFAULT_DISASTER_TEMPLATE, DEFAULT_RESOLVED_TEMPLATE, type DetailsTemplate, type EmbedTemplate } from "@/lib/event-templates";
+import { DEFAULT_CANCELLED_TEMPLATE, DEFAULT_DETAILS_TEMPLATE, DEFAULT_DISASTER_TEMPLATE, DEFAULT_RESOLVED_TEMPLATE, type DetailsTemplate, type EmbedTemplate } from "@/lib/event-templates";
 import { POST_KINDS, type PostPart } from "@/lib/event-messages";
 import { QUESTION_TYPES, type QuestionConfig, type QuestionType } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
@@ -29,6 +29,8 @@ export const eventRequest = pgTable(
     where: text("where").notNull().default(""),
     /** The short description of the event (at most 500 characters); empty falls back to the brief's first paragraph. */
     summary: text("summary").notNull().default(""),
+    /** Why the request was cancelled; null otherwise. */
+    cancelNote: text("cancel_note"),
     eventDocsUrl: text("event_docs_url"),
     /** The current version number of the brief (see {@link eventBriefVersion}). */
     briefVersion: integer("brief_version").notNull().default(0),
@@ -292,6 +294,7 @@ export const eventSettings = pgTable("event_settings", {
   teamExample: text("team_example").notNull().default(""),
   disasterTemplate: jsonb("disaster_template").notNull().$type<EmbedTemplate>().default(DEFAULT_DISASTER_TEMPLATE),
   resolvedTemplate: jsonb("resolved_template").notNull().$type<EmbedTemplate>().default(DEFAULT_RESOLVED_TEMPLATE),
+  cancelledTemplate: jsonb("cancelled_template").notNull().$type<EmbedTemplate>().default(DEFAULT_CANCELLED_TEMPLATE),
   detailsTemplate: jsonb("details_template").notNull().$type<DetailsTemplate>().default(DEFAULT_DETAILS_TEMPLATE),
   updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", tz).notNull().defaultNow(),

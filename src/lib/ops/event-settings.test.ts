@@ -40,6 +40,7 @@ describe("getEventSettings", () => {
     const s = await getEventSettings(db, manager);
     expect(s).toMatchObject({ postAs: "Event-Team", timeZone: "Europe/Berlin", pingRoleId: null, rulebookUrl: null, announcementStyle: "" });
     expect(s.disasterTemplate.title).toBe("Wir arbeiten an einer Lösung");
+    expect(s.cancelledTemplate).toMatchObject({ title: "Event abgesagt", color: "#8a8f98" });
     expect(s.detailsTemplate.lines).toHaveLength(5);
     expect(s.secrets.publicWebhook).toEqual({ set: false, hint: null });
     expect(await db.select().from(eventSettings)).toHaveLength(1);
@@ -136,6 +137,7 @@ describe("updateEventSettings", () => {
     await expect(updateEventSettings(db, manager, { disasterTemplate: template("req") })).rejects.toBeInstanceOf(InvalidError);
     await expect(updateEventSettings(db, manager, { disasterTemplate: template("nope") })).rejects.toBeInstanceOf(InvalidError);
     await updateEventSettings(db, manager, { disasterTemplate: template("tpl") });
+    await expect(updateEventSettings(db, manager, { cancelledTemplate: template("req") })).rejects.toBeInstanceOf(InvalidError);
     const used = (id: string) => db.transaction(async (tx) => (await Promise.all(UPLOAD_REFERENCES.map((check) => check(tx, id)))).includes(true));
     expect(await used("tpl")).toBe(true);
     expect(await used("req")).toBe(false);
@@ -209,6 +211,8 @@ describe("previewTemplate", () => {
     expect((disaster as { text: string }).text).not.toContain("{note}");
     const resolved = await previewTemplate(db, developer, { kind: "resolved", template: { title: "x", text: "{event}: {note}", color: "#1a7048", imageUploadId: null } });
     expect(resolved).toMatchObject({ kind: "embed", text: expect.stringMatching(/^Piratenfest: .+/) });
+    const cancelled = await previewTemplate(db, developer, { kind: "cancelled", template: { title: "{event}", text: "Abgesagt: {note}", color: "#8a8f98", imageUploadId: null } });
+    expect(cancelled).toMatchObject({ kind: "embed", title: "Piratenfest", text: expect.stringMatching(/^Abgesagt: .+/) });
     const details = await previewTemplate(db, developer, { kind: "details", template: { lines: ["Datum: {date}", "Ort: {where}"], color: "#112233", footer: "Hi" } });
     expect(details).toMatchObject({ kind: "details", lines: ["Datum: <t:1792260000:D>", "Ort: Hafenwelt"], footer: "Hi" });
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DETAILS_TEMPLATE, DEFAULT_DISASTER_TEMPLATE, DEFAULT_RESOLVED_TEMPLATE } from "./event-templates";
-import { buildDetailsEmbed, buildDisasterEmbed, buildResolvedEmbed, eventPayload, GERMAN, plannedParts, type PlanSettings } from "./event-messages";
+import { DEFAULT_CANCELLED_TEMPLATE, DEFAULT_DETAILS_TEMPLATE, DEFAULT_DISASTER_TEMPLATE, DEFAULT_RESOLVED_TEMPLATE } from "./event-templates";
+import { buildCancelledEmbed, buildDetailsEmbed, buildDisasterEmbed, buildResolvedEmbed, eventPayload, GERMAN, plannedParts, type PlanSettings } from "./event-messages";
 import { textLength } from "./discord-limits";
 
 const ROLE = "123456789012345678";
@@ -12,10 +12,30 @@ const settings: PlanSettings = {
   detailsTemplate: DEFAULT_DETAILS_TEMPLATE,
   disasterTemplate: DEFAULT_DISASTER_TEMPLATE,
   resolvedTemplate: DEFAULT_RESOLVED_TEMPLATE,
+  cancelledTemplate: DEFAULT_CANCELLED_TEMPLATE,
 };
 const post = (over: Partial<Parameters<typeof plannedParts>[0]> = {}) => ({ kind: "announcement" as const, text: "", embed: null, pingRole: false, note: null, ...over });
 const long = (paragraphs: number) => ["# Piratenfest", ...Array.from({ length: paragraphs }, (_, i) => `Absatz ${i} ` + "x".repeat(380))].join("\n\n");
 const none = { discordEventUrl: null };
+
+describe("buildCancelledEmbed", () => {
+  it("fills the title as text and the description as timestamps with the note, and shows the banner as thumbnail", () => {
+    const e = buildCancelledEmbed({ ...request, bannerUploadId: "up1" }, settings, "Sturm.");
+    expect(e.title).toBe("Event abgesagt");
+    expect(e.description).toBe("Piratenfest am <t:1792252800:D> findet leider nicht statt.\n\nSturm.");
+    expect(e.imageUploadId).toBe("up1");
+    expect(e.imageAs).toBe("thumbnail");
+  });
+
+  it("leaves {note} as written without a note", () => {
+    expect(buildCancelledEmbed(request, settings, null).description).toContain("{note}");
+  });
+
+  it("plans one embed part for a cancelled post and never pings", () => {
+    const parts = plannedParts(post({ kind: "cancelled", note: "Sturm.", pingRole: true }), request, settings, none);
+    expect(parts.map((p) => p.kind)).toEqual(["embed"]);
+  });
+});
 
 describe("buildDetailsEmbed", () => {
   it("fills the template lines and links the event docs", () => {

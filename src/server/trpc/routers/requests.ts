@@ -22,6 +22,7 @@ import {
   updateTodo,
   updateTodoInput,
 } from "@/lib/ops/request-prep";
+import { cancelPreview, reopenRequest } from "@/lib/ops/request-lifecycle";
 import { answerQuestions, answerQuestionsInput, askRound, listRounds } from "@/lib/ops/request-questions";
 import {
   cancelRequest,
@@ -102,7 +103,13 @@ export const requestsRouter = router({
   /** Cancels an accepted request with a reason. */
   cancel: protectedProcedure
     .input(z.object({ ...R, reason: z.string() }))
-    .mutation(({ ctx, input }) => cancelRequest(ctx.db, ctx.actor, input.id, input.reason, bullQueue(QUEUE.deliver))),
+    .mutation(({ ctx, input: { id, reason } }) => cancelRequest(ctx.db, ctx.actor, id, { reason }, bullQueue(QUEUE.deliver))),
+
+  /** Whether cancelling would post a cancelled message to Discord, and its embed. */
+  cancelPreview: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => cancelPreview(ctx.db, ctx.actor, input.id)),
+
+  /** Reopens a cancelled request as accepted, or a withdrawn one as a draft. */
+  reopen: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => reopenRequest(ctx.db, ctx.actor, input.id, bullQueue(QUEUE.deliver))),
 
   /** Marks an event-week request as done. */
   markDone: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => markDone(ctx.db, ctx.actor, input.id)),

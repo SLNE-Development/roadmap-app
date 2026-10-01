@@ -3,7 +3,7 @@ import { z } from "zod";
 /** A `#rrggbb` colour. */
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a colour like #c23636.");
 
-/** A message embed the settings hold a template for (disaster and resolved); texts may hold placeholders. */
+/** A message embed the settings hold a template for (disaster, resolved and cancelled); texts may hold placeholders. */
 export const embedTemplateSchema = z.strictObject({
   title: z.string().max(256),
   text: z.string().max(4096),
@@ -37,6 +37,14 @@ export const DEFAULT_RESOLVED_TEMPLATE: EmbedTemplate = {
   title: "Das Event ist nun wieder online",
   text: "{event} läuft wieder. {note}",
   color: "#1a7048",
+  imageUploadId: null,
+};
+
+/** The cancelled message until the managers change it. */
+export const DEFAULT_CANCELLED_TEMPLATE: EmbedTemplate = {
+  title: "Event abgesagt",
+  text: "{event} am {start_date} findet leider nicht statt.\n\n{note}",
+  color: "#8a8f98",
   imageUploadId: null,
 };
 
