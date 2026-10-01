@@ -12,10 +12,11 @@ export default async function RequestPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ request }, sp] = await Promise.all([params, searchParams]);
-  await prefetch(trpc.requests.get.queryOptions({ id: request }), trpc.requests.briefVersions.queryOptions({ id: request }), trpc.requests.rounds.queryOptions({ id: request }), trpc.requests.progress.queryOptions({ id: request }), trpc.requests.fallbacks.queryOptions({ id: request }), trpc.requests.history.queryOptions({ id: request }), trpc.requests.todos.queryOptions({ id: request }), trpc.requests.owners.queryOptions({ id: request }), trpc.requests.posts.list.queryOptions({ id: request }));
+  const tab = TABS.find((t) => t === sp.tab) ?? "overview";
+  await prefetch(...(tab === "eventday" ? [trpc.requests.eventDay.queryOptions({ id: request }), trpc.requests.posts.disasterState.queryOptions({ id: request })] : []), trpc.requests.get.queryOptions({ id: request }),trpc.requests.briefVersions.queryOptions({ id: request }), trpc.requests.rounds.queryOptions({ id: request }), trpc.requests.progress.queryOptions({ id: request }), trpc.requests.fallbacks.queryOptions({ id: request }), trpc.requests.history.queryOptions({ id: request }), trpc.requests.todos.queryOptions({ id: request }), trpc.requests.owners.queryOptions({ id: request }), trpc.requests.posts.list.queryOptions({ id: request }));
   return (
     <HydrateClient>
-      <RequestView id={request} tab={TABS.find((t) => t === sp.tab) ?? "overview"} />
+      <RequestView id={request} tab={tab} />
     </HydrateClient>
   );
 }

@@ -110,7 +110,6 @@ export function RequestHeader({ detail, incomplete, tab }: { detail: RequestDeta
   if (canEdit) items.push({ key: "prompts", label: t("prompts.button"), onSelect: () => setPromptsOpen(true) });
   if (canEdit && status === "submitted") items.push({ key: "recall", label: t("actions.recall"), onSelect: () => recall.mutate({ id }), disabled: busy });
   if (canEdit && (status === "draft" || status === "submitted")) items.push({ key: "withdraw", label: t("actions.withdraw"), onSelect: () => setConfirm("withdraw") });
-  if (live || status === "done") items.push({ key: "eventday", label: t("header.eventDay"), href: `/requests/${id}/event-day` });
   if (canManage || canDevelop) items.push({ key: "settings", label: t("header.settings"), href: "/requests/settings" });
   if (canCancel && live) items.push({ key: "cancel", label: t("actions.cancel"), onSelect: () => setCancelOpen(true), destructive: true });
   if (canDelete) items.push({ key: "delete", label: tc("delete"), onSelect: () => setDeleteOpen(true), destructive: true });
