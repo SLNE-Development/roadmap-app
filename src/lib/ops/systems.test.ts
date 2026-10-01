@@ -4,7 +4,7 @@ import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createBoard } from "./boards";
 import { messageOf, statusOf } from "./errors";
-import { addPlanningRound, answerPlanningItems } from "./planning";
+import { addPlanningRound, answerPlanningItems, reopenPlanningArea } from "./planning";
 import { addQuestion, setQuestionResolved } from "./questions";
 import { addTask, updateTask } from "./tasks";
 import { setSystemArchived } from "./archive";
@@ -123,6 +123,19 @@ describe("listSystems", () => {
 });
 
 describe("moveSystem", () => {
+  it("refuses the done column while a planning area is reopened", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const { id } = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, id);
+    await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    await expect(moveSystem(db, owner, slug, "s", { column: "Done" })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("reopened planning areas: scope"),
+    });
+    await expect(moveSystem(db, owner, slug, "s", { column: "Review" })).resolves.toBeDefined();
+  });
+
   it("keeps a system in planning until planning is complete", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

@@ -1,4 +1,5 @@
-import { boolean, index, integer, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, index, integer, pgTable, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { system } from "./content";
 
@@ -46,4 +47,23 @@ export const planningItem = pgTable(
     sortOrder: integer("sort_order").notNull(),
   },
   (t) => [index("planning_item_round_id_idx").on(t.roundId)],
+);
+
+/** Single planning areas reopened after planning was completed, and their closing confirmation. */
+export const planningAreaReopen = pgTable(
+  "planning_area_reopen",
+  {
+    id: text("id").primaryKey(),
+    systemId: text("system_id")
+      .notNull()
+      .references(() => system.id, { onDelete: "cascade" }),
+    area: text("area", { enum: PLANNING_AREAS }).notNull(),
+    reason: text("reason").notNull(),
+    reopenedByUserId: text("reopened_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    agent: text("agent"),
+    reopenedAt: timestamp("reopened_at", tz).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", tz),
+    confirmation: text("confirmation"),
+  },
+  (t) => [uniqueIndex("planning_area_reopen_open_idx").on(t.systemId, t.area).where(sql`closed_at is null`)],
 );

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   board,
   PLANNING_AREAS,
+  planningAreaReopen,
   planningItem,
   planningRound,
   question,
@@ -48,6 +49,12 @@ export const answerItemsInput = z.object({
 /** Input of {@link completePlanning}: the user's own words confirming the spec. */
 export const completePlanningInput = z.object({ userConfirmation: z.string().trim().min(1).max(2000) });
 
+/** Input of {@link reopenPlanningArea}. */
+export const reopenAreaInput = z.object({ area: z.enum(PLANNING_AREAS), reason: z.string().trim().min(3).max(1000) });
+
+/** Input of {@link completePlanningArea}: the user's own words confirming the area. */
+export const completeAreaInput = z.object({ area: z.enum(PLANNING_AREAS), userConfirmation: z.string().trim().min(1).max(2000) });
+
 /** A planning question as shown. */
 export interface PlanningItemView {
   id: string;
@@ -73,6 +80,7 @@ export interface PlanningView {
   gaps: string[];
   coverage: AreaCoverage[];
   warnings: string[];
+  reopenedAreas: { area: PlanningArea; reason: string; reopenedAt: Date }[];
 }
 
 /** Returns a question shortened to 80 characters for messages. */
@@ -164,9 +172,25 @@ export async function planningGaps(db: Executor, systemId: string): Promise<stri
   return (await planningGapsFor(db, [systemId])).get(systemId) ?? [];
 }
 
-/** Throws when the system's planning is already complete. */
-function assertOpen(parent: SystemRow): void {
-  if (parent.planningCompletedAt) throw new ConflictError(`Planning of system ${parent.slug} is complete; call reopen_planning to change it.`);
+/** Returns the areas of a system that are reopened and not yet completed again, oldest first. */
+export async function openAreaReopens(db: Executor, systemId: string): Promise<{ area: PlanningArea; reason: string; reopenedAt: Date }[]> {
+  return db
+    .select({ area: planningAreaReopen.area, reason: planningAreaReopen.reason, reopenedAt: planningAreaReopen.reopenedAt })
+    .from(planningAreaReopen)
+    .where(and(eq(planningAreaReopen.systemId, systemId), isNull(planningAreaReopen.closedAt)))
+    .orderBy(asc(planningAreaReopen.reopenedAt), asc(planningAreaReopen.area));
+}
+
+/**
+ * Throws unless the system's planning accepts writes to items of `areas`: planning is
+ * not complete, or every one of the areas is reopened.
+ */
+async function assertWritable(tx: Tx, parent: SystemRow, areas: PlanningArea[]): Promise<void> {
+  if (!parent.planningCompletedAt) return;
+  const reopened = await openAreaReopens(tx, parent.id);
+  if (reopened.length === 0) throw new ConflictError(`Planning of system ${parent.slug} is complete; call reopen_planning to change it.`);
+  const offending = areas.find((a) => !reopened.some((r) => r.area === a));
+  if (offending) throw new InvalidError(`Only reopened areas can get new questions: ${offending} is not reopened.`);
 }
 
 /** Locks and returns a system for a planning write, checking the editor role. */
@@ -192,13 +216,15 @@ export async function planningOf(db: Executor, parent: SystemRow): Promise<Plann
     gaps: parent.planningCompletedAt ? [] : await planningGaps(db, parent.id),
     coverage,
     warnings: parent.planningCompletedAt ? [] : coverage.filter((c) => c.thin).map((c) => `Area ${c.area} is thin: ${c.reason}`),
+    reopenedAreas: await openAreaReopens(db, parent.id),
   };
 }
 
 /**
  * Records the next round of planning questions before they are asked. Editor or higher.
  *
- * @throws ConflictError if planning is complete
+ * @throws ConflictError if planning is complete and no area is reopened
+ * @throws InvalidError for an item of an area that is not reopened while planning is complete
  */
 export async function addPlanningRound(
   db: Db,
@@ -210,7 +236,7 @@ export async function addPlanningRound(
   const input = addRoundInput.parse(raw);
   return db.transaction(async (tx) => {
     const parent = await lockForPlanning(tx, actor, projectSlug, systemSlug);
-    assertOpen(parent);
+    await assertWritable(tx, parent, input.items.map((i) => i.area));
     const [{ last }] = await tx.select({ last: max(planningRound.number) }).from(planningRound).where(eq(planningRound.systemId, parent.id));
     const round = (last ?? 0) + 1;
     const roundId = newId();
@@ -227,7 +253,8 @@ export async function addPlanningRound(
  *
  * @throws NotFoundError for an item of another system
  * @throws InvalidError when accepting a risk on an item that is not flagged as one
- * @throws ConflictError if planning is complete
+ * @throws ConflictError if planning is complete and no area is reopened
+ * @throws InvalidError for an item of an area that is not reopened while planning is complete
  */
 export async function answerPlanningItems(
   db: Db,
@@ -239,17 +266,19 @@ export async function answerPlanningItems(
   const input = answerItemsInput.parse(raw);
   return db.transaction(async (tx) => {
     const parent = await lockForPlanning(tx, actor, projectSlug, systemSlug);
-    assertOpen(parent);
     const ids = input.answers.map((a) => a.itemId);
     const found = await tx
-      .select({ id: planningItem.id, isRisk: planningItem.isRisk })
+      .select({ id: planningItem.id, isRisk: planningItem.isRisk, area: planningItem.area })
       .from(planningItem)
       .innerJoin(planningRound, eq(planningRound.id, planningItem.roundId))
       .where(and(eq(planningRound.systemId, parent.id), inArray(planningItem.id, ids)));
     const byId = new Map(found.map((f) => [f.id, f]));
     for (const a of input.answers) {
-      const item = byId.get(a.itemId);
-      if (!item) throw new NotFoundError(`Unknown planning item ${a.itemId}.`);
+      if (!byId.has(a.itemId)) throw new NotFoundError(`Unknown planning item ${a.itemId}.`);
+    }
+    await assertWritable(tx, parent, found.map((f) => f.area));
+    for (const a of input.answers) {
+      const item = byId.get(a.itemId)!;
       if (a.status === "accepted-risk" && !item.isRisk) {
         throw new InvalidError(`Item ${a.itemId} is not a flagged risk; answer it instead of accepting it.`);
       }
@@ -302,6 +331,11 @@ export async function reopenPlanning(db: Db, actor: Actor, projectSlug: string, 
       .update(system)
       .set({ planningCompletedAt: null, planningConfirmation: null, columnId: planningColumn.id })
       .where(eq(system.id, parent.id));
+    // The full interview is open again, so single-area reopens end without a confirmation.
+    await tx
+      .update(planningAreaReopen)
+      .set({ closedAt: new Date() })
+      .where(and(eq(planningAreaReopen.systemId, parent.id), isNull(planningAreaReopen.closedAt)));
     if (planningColumn.id !== parent.columnId) {
       const fromColumn = currentBoard.columns.find((c) => c.id === parent.columnId);
       await logChange(tx, actor, {
@@ -315,5 +349,73 @@ export async function reopenPlanning(db: Db, actor: Actor, projectSlug: string, 
       });
     }
     await logChange(tx, actor, { projectId: parent.projectId, systemId: parent.id, entity: "planning", entityId: parent.id, field: "reopened" });
+  });
+}
+
+/**
+ * Reopens one planning area of a system whose planning is complete, with the reason.
+ * Planning stays complete and the system stays in its column, so tasks go on; only that
+ * area then accepts new rounds and answers, and the system cannot enter a done column
+ * until {@link completePlanningArea} closes it. Reopening an area that is already
+ * reopened returns the existing reopen. Editor or higher.
+ *
+ * @throws ConflictError if planning is not complete
+ */
+export async function reopenPlanningArea(
+  db: Db,
+  actor: Actor,
+  projectSlug: string,
+  systemSlug: string,
+  raw: z.input<typeof reopenAreaInput>,
+): Promise<{ area: PlanningArea; reopenedAt: Date }> {
+  const input = reopenAreaInput.parse(raw);
+  return db.transaction(async (tx) => {
+    const parent = await lockForPlanning(tx, actor, projectSlug, systemSlug);
+    if (!parent.planningCompletedAt) throw new ConflictError(`Planning of ${parent.slug} is not complete; keep answering in the open interview.`);
+    const existing = (await openAreaReopens(tx, parent.id)).find((r) => r.area === input.area);
+    if (existing) return { area: input.area, reopenedAt: existing.reopenedAt };
+    const [row] = await tx
+      .insert(planningAreaReopen)
+      .values({ id: newId(), systemId: parent.id, area: input.area, reason: input.reason, reopenedByUserId: actor.userId, agent: actor.agent ?? null })
+      .returning({ reopenedAt: planningAreaReopen.reopenedAt });
+    await logChange(tx, actor, { projectId: parent.projectId, systemId: parent.id, entity: "planning", entityId: parent.id, field: "area-reopened", oldValue: input.reason, newValue: input.area });
+    return { area: input.area, reopenedAt: row.reopenedAt };
+  });
+}
+
+/**
+ * Closes a reopened planning area with the user's confirmation. The area needs at least
+ * one question asked since it was reopened, and none of its questions may be open. Editor or higher.
+ *
+ * @throws ConflictError if the area is not reopened, has no new question, or has an open item
+ */
+export async function completePlanningArea(
+  db: Db,
+  actor: Actor,
+  projectSlug: string,
+  systemSlug: string,
+  raw: z.input<typeof completeAreaInput>,
+): Promise<{ area: PlanningArea; closedAt: Date }> {
+  const input = completeAreaInput.parse(raw);
+  return db.transaction(async (tx) => {
+    const parent = await lockForPlanning(tx, actor, projectSlug, systemSlug);
+    const [reopen] = await tx
+      .select()
+      .from(planningAreaReopen)
+      .where(and(eq(planningAreaReopen.systemId, parent.id), eq(planningAreaReopen.area, input.area), isNull(planningAreaReopen.closedAt)));
+    if (!reopen) throw new ConflictError(`Area ${input.area} of ${parent.slug} is not reopened.`);
+    const items = await tx
+      .select({ id: planningItem.id, question: planningItem.question, status: planningItem.status, createdAt: planningRound.createdAt })
+      .from(planningItem)
+      .innerJoin(planningRound, eq(planningRound.id, planningItem.roundId))
+      .where(and(eq(planningRound.systemId, parent.id), eq(planningItem.area, input.area)))
+      .orderBy(asc(planningRound.number), asc(planningItem.sortOrder));
+    if (!items.some((i) => i.createdAt >= reopen.reopenedAt)) throw new ConflictError(`No question was asked since area ${input.area} was reopened.`);
+    const open = items.find((i) => i.status === "open");
+    if (open) throw new ConflictError(`Item ${open.id} is still open: "${short(open.question)}".`);
+    const closedAt = new Date();
+    await tx.update(planningAreaReopen).set({ closedAt, confirmation: input.userConfirmation }).where(eq(planningAreaReopen.id, reopen.id));
+    await logChange(tx, actor, { projectId: parent.projectId, systemId: parent.id, entity: "planning", entityId: parent.id, field: "area-completed", oldValue: input.userConfirmation, newValue: input.area });
+    return { area: input.area, closedAt };
   });
 }

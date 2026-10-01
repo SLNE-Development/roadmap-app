@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
-import { createProjectFixture } from "@/test/fixtures";
+import { addMemberFixture, completePlanningFixture, createProjectFixture } from "@/test/fixtures";
 import { setSystemArchived } from "./archive";
 import { writeSpec } from "./documents";
 import { addQuestion, answerQuestion } from "./questions";
-import { addPlanningRound, answerPlanningItems, completePlanning, getPlanning, planningGaps, planningGapsFor, reopenPlanning } from "./planning";
+import { addPlanningRound, answerPlanningItems, completePlanning, completePlanningArea, getPlanning, planningGaps, openAreaReopens, planningGapsFor, reopenPlanning, reopenPlanningArea } from "./planning";
 import { createSystem, getSystem, moveSystem } from "./systems";
 import { addTask, updateTask } from "./tasks";
 
@@ -229,5 +229,92 @@ describe("reopenPlanning", () => {
     const { db, owner, slug } = await setup();
     await expect(reopenPlanning(db, owner, slug, "s")).rejects.toMatchObject({ status: 409, message: expect.stringContaining("is not complete") });
     expect((await db.select().from(changeLog)).filter((c) => c.field === "reopened")).toEqual([]);
+  });
+});
+
+describe("planning area reopen", () => {
+  /** A system `s` with completed planning and one answered scope item. */
+  async function completed() {
+    const t = await setup();
+    const { itemIds } = await addPlanningRound(t.db, t.owner, t.slug, "s", { items: [{ area: "scope", question: "Is resale in scope?" }] });
+    await answerPlanningItems(t.db, t.owner, t.slug, "s", { answers: [{ itemId: itemIds[0], answer: "No" }] });
+    const id = (await getSystem(t.db, t.owner, t.slug, "s")).system.id;
+    await completePlanningFixture(t.db, id);
+    return { ...t, id };
+  }
+
+  it("keeps planning complete and the column, and logs the reopen", async () => {
+    const { db, owner, slug } = await completed();
+    const before = (await getSystem(db, owner, slug, "s")).column.name;
+    await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    const view = await getPlanning(db, owner, slug, "s");
+    expect(view.completedAt).not.toBeNull();
+    expect(view.reopenedAreas).toMatchObject([{ area: "scope", reason: "new partner API" }]);
+    expect((await getSystem(db, owner, slug, "s")).column.name).toBe(before);
+    const log = (await db.select().from(changeLog)).filter((c) => c.entity === "planning" && c.field === "area-reopened");
+    expect(log).toMatchObject([{ newValue: "scope", oldValue: "new partner API" }]);
+  });
+
+  it("accepts new questions only for reopened areas", async () => {
+    const { db, owner, slug } = await completed();
+    await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    await expect(addPlanningRound(db, owner, slug, "s", { items: [{ area: "dependencies", question: "Who?" }] })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining("dependencies is not reopened"),
+    });
+    await expect(addPlanningRound(db, owner, slug, "s", { items: [{ area: "scope", question: "Which API?" }] })).resolves.toMatchObject({ round: 2 });
+  });
+
+  it("answers items of reopened areas only", async () => {
+    const { db, owner, slug } = await completed();
+    const { itemIds } = await getPlanning(db, owner, slug, "s").then((v) => ({ itemIds: v.rounds[0].items.map((i) => i.id) }));
+    await expect(answerPlanningItems(db, owner, slug, "s", { answers: [{ itemId: itemIds[0], answer: "x" }] })).rejects.toMatchObject({ status: 409 });
+    await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    await expect(answerPlanningItems(db, owner, slug, "s", { answers: [{ itemId: itemIds[0], answer: "Still no" }] })).resolves.toEqual({ answered: 1 });
+  });
+
+  it("completes an area only after a new question was asked and answered", async () => {
+    const { db, owner, slug } = await completed();
+    await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    await expect(completePlanningArea(db, owner, slug, "s", { area: "scope", userConfirmation: "ok" })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("No question was asked since area scope was reopened"),
+    });
+    const { itemIds } = await addPlanningRound(db, owner, slug, "s", { items: [{ area: "scope", question: "Which API?" }] });
+    await expect(completePlanningArea(db, owner, slug, "s", { area: "scope", userConfirmation: "ok" })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining(`Item ${itemIds[0]} is still open`),
+    });
+    await answerPlanningItems(db, owner, slug, "s", { answers: [{ itemId: itemIds[0], answer: "Partner v2" }] });
+    await completePlanningArea(db, owner, slug, "s", { area: "scope", userConfirmation: "ok" });
+    expect((await getPlanning(db, owner, slug, "s")).reopenedAreas).toEqual([]);
+    const log = (await db.select().from(changeLog)).filter((c) => c.entity === "planning" && c.field === "area-completed");
+    expect(log).toMatchObject([{ newValue: "scope", oldValue: "ok" }]);
+  });
+
+  it("refuses a reopen while the system is still in planning", async () => {
+    const { db, owner, slug } = await setup();
+    await expect(reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("returns the existing reopen when reopened twice", async () => {
+    const { db, owner, slug, id } = await completed();
+    const first = await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    const second = await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "again" });
+    expect(second.reopenedAt).toEqual(first.reopenedAt);
+    expect(await openAreaReopens(db, id)).toHaveLength(1);
+  });
+
+  it("closes area reopens when the whole planning is reopened", async () => {
+    const { db, owner, slug } = await completed();
+    await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    await reopenPlanning(db, owner, slug, "s");
+    expect((await getPlanning(db, owner, slug, "s")).reopenedAreas).toEqual([]);
+  });
+
+  it("is an editor action", async () => {
+    const { db, owner, slug } = await completed();
+    const viewer = await addMemberFixture(db, owner, slug, "viewer");
+    await expect(reopenPlanningArea(db, viewer, slug, "s", { area: "scope", reason: "new partner API" })).rejects.toMatchObject({ status: 403 });
   });
 });

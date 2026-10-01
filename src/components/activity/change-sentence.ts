@@ -177,6 +177,10 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return onSystem("completed planning of", "", "completed planning");
     case "planning:reopened":
       return onSystem("reopened planning of", "", "reopened planning");
+    case "planning:area-reopened":
+      return onSystem(`reopened the ${e.newValue ?? "planning"} area of`, "", "reopened a planning area");
+    case "planning:area-completed":
+      return onSystem(`completed the ${e.newValue ?? "planning"} area of`, "", "completed a planning area");
 
     case "question:created":
       return onSystem(`asked ${quote(e.newValue)}`, "on");

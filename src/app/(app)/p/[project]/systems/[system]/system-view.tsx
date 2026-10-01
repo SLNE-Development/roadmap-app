@@ -9,6 +9,7 @@ import { DocumentSection, SpecPreview } from "@/components/document-section";
 import { Page, PageHeader } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
 import { CoverageMap } from "@/components/planning/coverage-map";
+import { ReopenAreaDialog } from "@/components/planning/reopen-area-dialog";
 import { PlanningRounds } from "@/components/planning-rounds";
 import { SystemNotes } from "@/components/system-editor";
 import { ActivityFeed } from "@/components/system/activity-feed";
@@ -18,6 +19,7 @@ import { PropertiesPanel, SystemFacts } from "@/components/system/properties";
 import { DecisionsPanel, PlanningPanel } from "@/components/system/rail";
 import { SystemTabs, tabHref, type SystemTab } from "@/components/system/tabs";
 import { AREA_LABEL } from "@/components/system/text";
+import { formatDate } from "@/lib/time";
 import { describeGaps } from "@/components/system/text";
 import { TaskList } from "@/components/task-list";
 import type { DocumentKind } from "@/db/schema";
@@ -250,9 +252,18 @@ export function SystemView({
                 <Check aria-hidden className="size-3.5" strokeWidth={2.4} />
                 Planning complete
               </p>
+              <ReopenAreaDialog projectSlug={slug} systemSlug={systemSlug} reopened={planning.reopenedAreas.map((r) => r.area)} />
               <ReopenPlanningButton projectSlug={slug} systemSlug={systemSlug} />
             </div>
           )}
+          {planning.reopenedAreas.map((r) => (
+            <p key={r.area} className="flex flex-col gap-0.5 bg-cat-planning-soft px-3 py-2.5 text-[13px] leading-[1.45] text-cat-planning">
+              <span>
+                Area {r.area} reopened {formatDate(r.reopenedAt.toISOString())}: {r.reason}
+              </span>
+              <span className="text-xs">An agent closes this area with complete_planning_area once its questions are answered.</span>
+            </p>
+          ))}
           <PlanningRounds rounds={planning.rounds} confirmation={planning.confirmation} completedAt={planning.completedAt?.toISOString() ?? null} />
         </div>
       )}

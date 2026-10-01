@@ -24,10 +24,14 @@ import {
   addRoundInput,
   answerItemsInput,
   answerPlanningItems,
+  completeAreaInput,
   completePlanning,
+  completePlanningArea,
   completePlanningInput,
   getPlanning,
+  reopenAreaInput,
   reopenPlanning,
+  reopenPlanningArea,
 } from "@/lib/ops/planning";
 import { createProject, createProjectInput, getProject, listProjects, updateProject, updateProjectInput } from "@/lib/ops/projects";
 import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions, setQuestionPriority } from "@/lib/ops/questions";
@@ -389,12 +393,30 @@ register(
   }),
   defineTool({
     name: "reopen_planning",
-    description: "Reopen a system's planning and move it back to the planning column.",
+    description: "Reopen the whole planning interview and move the system back to the planning column; prefer reopen_planning_area for a single area.",
     input: S,
     write: true,
     method: "POST",
     path: "/projects/:project/systems/:system/planning/reopen",
     run: (db, actor, i) => reopenPlanning(db, actor, i.project, i.system),
+  }),
+  defineTool({
+    name: "reopen_planning_area",
+    description: "Reopen one planning area of a completed system, with the reason, without moving the system. Only that area then accepts new rounds and answers.",
+    input: { ...S, ...reopenAreaInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/planning/areas/reopen",
+    run: (db, actor, { project, system, ...input }) => reopenPlanningArea(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "complete_planning_area",
+    description: "Close a reopened planning area once its new questions are answered; userConfirmation quotes the user's words.",
+    input: { ...S, ...completeAreaInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/planning/areas/complete",
+    run: (db, actor, { project, system, ...input }) => completePlanningArea(db, actor, project, system, input),
   }),
 
   defineTool({

@@ -16,7 +16,7 @@ const SPEC_TOOLS = [
   "list_domains", "create_domain", "update_domain", "reorder_domains",
   "list_phases", "create_phase", "update_phase", "reorder_phases",
   "list_systems", "get_system", "create_system", "update_system", "set_dependencies", "set_system_fields", "move_system", "archive_system",
-  "get_planning", "add_planning_round", "answer_planning_items", "complete_planning", "reopen_planning",
+  "get_planning", "add_planning_round", "answer_planning_items", "complete_planning", "reopen_planning", "reopen_planning_area", "complete_planning_area",
   "get_document", "write_spec", "write_plan",
   "add_task", "update_task", "set_task_checks", "move_task",
   "post_update", "list_updates",

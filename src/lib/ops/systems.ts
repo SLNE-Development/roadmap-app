@@ -32,7 +32,7 @@ import { logChange } from "./log";
 import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
 import { nullableEntityId } from "./params";
-import { planningGaps } from "./planning";
+import { openAreaReopens, planningGaps } from "./planning";
 import { systemRollups } from "./rollups";
 import type { DomainRow, PhaseRow } from "./structure";
 
@@ -498,6 +498,14 @@ export async function applySystemMove(
   }
   if (column.category !== "planning" && !current.planningCompletedAt) {
     throw new ConflictError(planningGateMessage(current.slug, await planningGaps(tx, current.id)));
+  }
+  if (column.category === "done") {
+    const reopened = await openAreaReopens(tx, current.id);
+    if (reopened.length > 0) {
+      throw new ConflictError(
+        `System ${current.slug} has reopened planning areas: ${reopened.map((r) => r.area).join(", ")}. Complete them with complete_planning_area first.`,
+      );
+    }
   }
   if (column.id === current.columnId) return current;
   if (column.category === "active" && (await isMember(tx, project.id, actor.userId))) {

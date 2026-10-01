@@ -45,6 +45,9 @@ describe("describeChange", () => {
   it("describes documents, planning, questions and updates", () => {
     expect(text(entry("document", "spec", null, "v3"))).toBe("published v3 of the spec for Inventory");
     expect(text(entry("planning", "completed", null, "yes"))).toBe("completed planning of Inventory");
+    expect(text(entry("planning", "area-reopened", "new partner API", "scope"))).toBe("reopened the scope area of Inventory");
+    expect(text(entry("planning", "area-completed", "ok", "scope"))).toBe("completed the scope area of Inventory");
+    expect(text(entry("planning", "area-reopened", "x", "scope"), null)).toBe("reopened a planning area");
     expect(text(entry("question", "created", null, "Who owns it?"))).toBe("asked “Who owns it?” on Inventory");
     expect(text(entry("question", "resolved", "false", "true"))).toBe("resolved a question on Inventory");
     expect(text(entry("update", "posted", null, "Done"))).toBe("posted an update on Inventory");

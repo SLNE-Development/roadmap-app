@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { getPlanning, planningGapsFor, reopenPlanning } from "@/lib/ops/planning";
+import { completeAreaInput, completePlanningArea, getPlanning, planningGapsFor, reopenAreaInput, reopenPlanning, reopenPlanningArea } from "@/lib/ops/planning";
 import { listSystems } from "@/lib/ops/systems";
 import { protectedProcedure, router } from "../init";
 import { P, S } from "./shared";
@@ -18,4 +18,14 @@ export const planningRouter = router({
 
   /** Reopens a system's planning. */
   reopen: protectedProcedure.input(z.object(S)).mutation(({ ctx, input }) => reopenPlanning(ctx.db, ctx.actor, input.project, input.system)),
+
+  /** Reopens one planning area of a completed system. */
+  reopenArea: protectedProcedure
+    .input(z.object({ ...S, ...reopenAreaInput.shape }))
+    .mutation(({ ctx, input: { project, system, ...input } }) => reopenPlanningArea(ctx.db, ctx.actor, project, system, input)),
+
+  /** Closes a reopened planning area. */
+  completeArea: protectedProcedure
+    .input(z.object({ ...S, ...completeAreaInput.shape }))
+    .mutation(({ ctx, input: { project, system, ...input } }) => completePlanningArea(ctx.db, ctx.actor, project, system, input)),
 });
