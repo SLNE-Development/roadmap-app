@@ -3,12 +3,24 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { Check, Milestone } from "lucide-react";
 import Link from "next/link";
+import { SegmentedLinks } from "@/components/activity/url-tabs";
 import { CategoryDot } from "@/components/chips";
 import { EmptyState, Page, PageHeader, Panel, ProgressBar } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import type { SystemListItem } from "@/lib/ops/systems";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
+import { ProgressView, type ProgressParams } from "./progress-view";
+
+/** The views of the roadmap page; `graph` shows the rail until the dependency graph exists. */
+export type RoadmapMode = "rail" | "graph" | "progress";
+
+/** The tabs of the view switch and the `?view=` value each one sets. */
+const VIEWS = [
+  { value: "rail", label: "Rail" },
+  { value: "graph", label: "Graph" },
+  { value: "progress", label: "Progress" },
+] as const;
 
 /** Zero-pads a phase's position to two digits, "01". */
 function phaseNumber(index: number): string {
@@ -34,8 +46,10 @@ function SystemChip({ system, projectSlug }: { system: SystemListItem; projectSl
  * systems and progress; the first phase not fully done is "now".
  *
  * @param props.slug the project slug
+ * @param props.mode which view to show
+ * @param props.progress the URL filters of the Progress view
  */
-export function RoadmapView({ slug }: { slug: string }) {
+export function RoadmapView({ slug, mode, progress }: { slug: string; mode: RoadmapMode; progress: ProgressParams }) {
   const trpc = useTRPC();
   const [{ data: detail }, { data: phases }, { data: systems }, { data: phaseRollups }] = useSuspenseQueries({
     queries: [
@@ -68,26 +82,34 @@ export function RoadmapView({ slug }: { slug: string }) {
         crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]}
         title="Roadmap"
         actions={
-          (rows.length > 0 || editPhases) && (
-            <>
-              {rows.length > 0 && (
-                <span className="text-[13px] text-fg-2">
-                  {nowIndex >= 0 ? (
-                    <>
-                      Now in <b className="font-semibold text-foreground">{rows[nowIndex].phase.name}</b> ·{" "}
-                    </>
-                  ) : (
-                    "Every phase is done · "
-                  )}
-                  {doneCount} of {systems.length} systems done
-                </span>
-              )}
-              {editPhases}
-            </>
-          )
+          <>
+            <SegmentedLinks
+              label="View"
+              items={VIEWS.map((v) => ({
+                label: v.label,
+                href: v.value === "rail" ? `/p/${slug}/roadmap` : `/p/${slug}/roadmap?view=${v.value}`,
+                active: v.value === mode,
+              }))}
+            />
+            {mode !== "progress" && rows.length > 0 && (
+              <span className="text-[13px] text-fg-2">
+                {nowIndex >= 0 ? (
+                  <>
+                    Now in <b className="font-semibold text-foreground">{rows[nowIndex].phase.name}</b> ·{" "}
+                  </>
+                ) : (
+                  "Every phase is done · "
+                )}
+                {doneCount} of {systems.length} systems done
+              </span>
+            )}
+            {editPhases}
+          </>
         }
       />
-      {rows.length === 0 ? (
+      {mode === "progress" ? (
+        <ProgressView slug={slug} params={progress} />
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={<Milestone />}
           title="No phases yet"
@@ -156,7 +178,8 @@ export function RoadmapView({ slug }: { slug: string }) {
           })}
         </ol>
       )}
-      {systems.length > 0 &&
+      {mode !== "progress" &&
+        systems.length > 0 &&
         (unphased.length > 0 ? (
           <Panel title="Without a phase" meta={`${unphased.length} ${unphased.length === 1 ? "system" : "systems"}`} bodyClassName="px-4 pb-4 sm:px-5">
             <div className="flex flex-wrap gap-1.5">
