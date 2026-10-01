@@ -146,7 +146,7 @@ export async function acceptRequest(db: Db, actor: Actor, requestId: string, raw
         }
       }
 
-      const accepted = await moveTo(tx, actor, request, "accepted", { projectId, systemId: systemRow.id, acceptedAt: new Date(), acceptedBy: actor.userId });
+      const accepted = await moveTo(tx, actor, request, "accepted", { projectId, systemId: systemRow.id, acceptedAt: new Date(), acceptedBy: actor.userId, projectCreated: input.mode === "create" });
       await ensurePrepTodos(tx, accepted, actor.userId);
       await logRequest(tx, actor, { requestId, field: "project", newValue: projectSlug });
       if (request.requesterId) {

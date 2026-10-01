@@ -1,13 +1,18 @@
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { eventPost, eventRequest, requestLog } from "@/db/schema";
+import { eventPost, eventRequest, eventUpload, project, projectMember, requestLog } from "@/db/schema";
 import { newId } from "@/lib/id";
 import { memoryQueue } from "@/lib/queue";
+import { createProjectFixture } from "@/test/fixtures";
 import { postWorld, stubEncryptionKey } from "@/test/post-fixtures";
-import { ConflictError, ForbiddenError, InvalidError } from "./errors";
+import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
 import { setEventSecrets, updateEventSettings } from "./event-settings";
-import { cancelPreview, reopenRequest } from "./request-lifecycle";
-import { cancelRequest } from "./requests";
+import { cancelPreview, deleteChoices, deleteRequest, reopenRequest } from "./request-lifecycle";
+import { cancelRequest, getRequest } from "./requests";
+import { storeUpload } from "./uploads";
 
 beforeEach(stubEncryptionKey);
 afterEach(() => vi.unstubAllEnvs());
@@ -169,5 +174,136 @@ describe("reopenRequest", () => {
     await expect(reopenRequest(w.db, w.manager, w.request.id)).rejects.toBeInstanceOf(ConflictError);
     const open = await postWorld();
     await expect(reopenRequest(open.db, open.manager, open.request.id)).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("deleteRequest", () => {
+  const png = Uint8Array.from({ length: 64 }, (_, i) => (i < 4 ? [0x89, 0x50, 0x4e, 0x47][i] : i));
+  const exists = async (w: World) => (await w.db.select().from(eventRequest).where(eq(eventRequest.id, w.request.id))).length === 1;
+
+  /** A world whose request has a project, created from the event or only linked; the manager is its owner or an editor. */
+  async function withProject(status: "cancelled" | "draft", opts: { created?: boolean; managerRole?: "owner" | "editor" } = {}) {
+    const w = await postWorld({ status });
+    const p = await createProjectFixture(w.db, "winter");
+    await w.db.insert(projectMember).values({ projectId: p.projectId, userId: w.manager.userId, role: opts.managerRole ?? "owner" });
+    await w.db.update(eventRequest).set({ projectId: p.projectId, projectCreated: opts.created ?? true }).where(eq(eventRequest.id, w.request.id));
+    return { ...w, p };
+  }
+
+  it("deletes a cancelled request for a manager with its upload rows and files", async () => {
+    const w = await postWorld({ status: "cancelled" });
+    const dir = await mkdtemp(path.join(tmpdir(), "del-"));
+    try {
+      await storeUpload(w.db, w.manager, { requestId: w.request.id, purpose: "banner", name: "a.png", bytes: png }, dir);
+      expect(await readdir(dir)).toHaveLength(1);
+      await deleteRequest(w.db, w.manager, w.request.id, {}, undefined, dir);
+      expect(await exists(w)).toBe(false);
+      expect(await w.db.select().from(eventUpload)).toHaveLength(0);
+      expect(await readdir(dir)).toHaveLength(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses accepted, event_week and done requests", async () => {
+    for (const status of ["accepted", "event_week", "done"] as const) {
+      const w = await postWorld({ status });
+      await expect(deleteRequest(w.db, w.manager, w.request.id, {})).rejects.toThrow(new ConflictError("Only drafts, submitted, withdrawn and cancelled events can be deleted."));
+      expect(await exists(w)).toBe(true);
+    }
+  });
+
+  it("lets the requester delete their own draft and withdrawn request, not a submitted one, and hides it from strangers", async () => {
+    const draft = await postWorld({ status: "draft" });
+    await expect(deleteRequest(draft.db, draft.stranger, draft.request.id, {})).rejects.toBeInstanceOf(NotFoundError);
+    await deleteRequest(draft.db, draft.requester, draft.request.id, {});
+    expect(await exists(draft)).toBe(false);
+    const withdrawn = await postWorld({ status: "withdrawn" });
+    await deleteRequest(withdrawn.db, withdrawn.requester, withdrawn.request.id, {});
+    expect(await exists(withdrawn)).toBe(false);
+    const submitted = await postWorld({ status: "submitted" });
+    await expect(deleteRequest(submitted.db, submitted.requester, submitted.request.id, {})).rejects.toBeInstanceOf(ForbiddenError);
+    expect(await exists(submitted)).toBe(true);
+    await deleteRequest(submitted.db, submitted.manager, submitted.request.id, {});
+    expect(await exists(submitted)).toBe(false);
+  });
+
+  it("deletes a created project for its owner", async () => {
+    const w = await withProject("cancelled");
+    await deleteRequest(w.db, w.manager, w.request.id, { project: "delete" });
+    expect(await exists(w)).toBe(false);
+    expect(await w.db.select().from(project).where(eq(project.slug, "winter"))).toHaveLength(0);
+  });
+
+  it("refuses to delete or archive the project for a manager who is not its owner and keeps the request", async () => {
+    const w = await withProject("cancelled", { managerRole: "editor" });
+    await expect(deleteRequest(w.db, w.manager, w.request.id, { project: "delete" })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(deleteRequest(w.db, w.manager, w.request.id, { project: "archive" })).rejects.toBeInstanceOf(ForbiddenError);
+    expect(await exists(w)).toBe(true);
+    expect(await w.db.select().from(project).where(eq(project.slug, "winter"))).toHaveLength(1);
+  });
+
+  it("archives a created project, and keeps it on keep", async () => {
+    const w = await withProject("cancelled");
+    await deleteRequest(w.db, w.manager, w.request.id, { project: "archive" });
+    expect((await w.db.select().from(project).where(eq(project.slug, "winter")))[0].archivedAt).not.toBeNull();
+    const k = await withProject("cancelled");
+    await deleteRequest(k.db, k.manager, k.request.id, {});
+    expect((await k.db.select().from(project).where(eq(project.slug, "winter")))[0].archivedAt).toBeNull();
+  });
+
+  it("refuses to archive or delete a linked project and keeps the request", async () => {
+    const w = await withProject("cancelled", { created: false });
+    for (const choice of ["archive", "delete"] as const) {
+      await expect(deleteRequest(w.db, w.manager, w.request.id, { project: choice })).rejects.toThrow(new InvalidError("Only a project created from this event can be archived or deleted here."));
+    }
+    expect(await exists(w)).toBe(true);
+    await deleteRequest(w.db, w.manager, w.request.id, {});
+    expect(await w.db.select().from(project).where(eq(project.slug, "winter"))).toHaveLength(1);
+  });
+
+  it("queues one delete-orphan job with the ids when the request has a Discord event and the bot is set", async () => {
+    const w = await postWorld({ status: "cancelled" });
+    await updateEventSettings(w.db, w.manager, { guildId: "42" });
+    await setEventSecrets(w.db, w.admin, { botToken: BOT_TOKEN });
+    await w.db.update(eventRequest).set({ discordEventId: "555" }).where(eq(eventRequest.id, w.request.id));
+    const queue = memoryQueue();
+    await deleteRequest(w.db, w.manager, w.request.id, {}, queue);
+    expect(queue.jobs.map((j) => [j.jobName, j.data])).toEqual([["events.discord-event", { requestId: w.request.id, action: "delete-orphan", guildId: "42", eventId: "555" }]]);
+    const noBot = await postWorld({ status: "cancelled" });
+    await noBot.db.update(eventRequest).set({ discordEventId: "555" }).where(eq(eventRequest.id, noBot.request.id));
+    const none = memoryQueue();
+    await deleteRequest(noBot.db, noBot.manager, noBot.request.id, {}, none);
+    expect(none.jobs).toHaveLength(0);
+  });
+
+  it("reports canDelete on the request detail", async () => {
+    const w = await postWorld({ status: "draft" });
+    expect((await getRequest(w.db, w.requester, w.request.id)).canDelete).toBe(true);
+    expect((await getRequest(w.db, w.manager, w.request.id)).canDelete).toBe(true);
+    const s = await postWorld({ status: "submitted" });
+    expect((await getRequest(s.db, s.requester, s.request.id)).canDelete).toBe(false);
+    const a = await postWorld();
+    expect((await getRequest(a.db, a.manager, a.request.id)).canDelete).toBe(false);
+  });
+});
+
+describe("deleteChoices", () => {
+  it("reports the created project and the rights of the actor", async () => {
+    const w = await postWorld({ status: "cancelled" });
+    const p = await createProjectFixture(w.db, "winter");
+    await w.db.insert(projectMember).values({ projectId: p.projectId, userId: w.manager.userId, role: "editor" });
+    await w.db.update(eventRequest).set({ projectId: p.projectId, projectCreated: true }).where(eq(eventRequest.id, w.request.id));
+    expect(await deleteChoices(w.db, w.manager, w.request.id)).toEqual({ allowed: true, reason: null, project: { slug: "winter", name: "WINTER", created: true, canArchive: false, canDelete: false, archived: false } });
+    expect((await deleteChoices(w.db, w.admin, w.request.id)).project).toMatchObject({ canArchive: true, canDelete: true });
+    await w.db.update(projectMember).set({ role: "owner" }).where(eq(projectMember.userId, w.manager.userId));
+    expect((await deleteChoices(w.db, w.manager, w.request.id)).project).toMatchObject({ canArchive: true, canDelete: true });
+  });
+
+  it("says why a request cannot be deleted and reports no project without one", async () => {
+    const w = await postWorld();
+    expect(await deleteChoices(w.db, w.manager, w.request.id)).toEqual({ allowed: false, reason: "Only drafts, submitted, withdrawn and cancelled events can be deleted.", project: null });
+    const s = await postWorld({ status: "submitted" });
+    expect(await deleteChoices(s.db, s.requester, s.request.id)).toMatchObject({ allowed: false });
   });
 });

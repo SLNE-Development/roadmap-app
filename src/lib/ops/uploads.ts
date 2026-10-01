@@ -182,6 +182,11 @@ export async function readUploadForWorker(db: Db, uploadId: string, dir: string 
   return { bytes, mime: row.mime, name: row.originalName };
 }
 
+/** Removes the upload files with these storage keys from `dir`; best effort, a file that cannot be removed is left to {@link sweepOrphanFiles}. */
+export async function removeUploadFiles(keys: string[], dir: string = uploadsDir()): Promise<void> {
+  for (const key of keys) await rm(safePath(dir, key), { force: true }).catch(() => undefined);
+}
+
 /** How old a file without a row must be before it is removed. */
 const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000;
 

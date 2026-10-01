@@ -22,7 +22,7 @@ import {
   updateTodo,
   updateTodoInput,
 } from "@/lib/ops/request-prep";
-import { cancelPreview, reopenRequest } from "@/lib/ops/request-lifecycle";
+import { cancelPreview, deleteChoices, deleteRequest, deleteRequestInput, reopenRequest } from "@/lib/ops/request-lifecycle";
 import { answerQuestions, answerQuestionsInput, askRound, listRounds } from "@/lib/ops/request-questions";
 import {
   cancelRequest,
@@ -110,6 +110,12 @@ export const requestsRouter = router({
 
   /** Reopens a cancelled request as accepted, or a withdrawn one as a draft. */
   reopen: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => reopenRequest(ctx.db, ctx.actor, input.id, bullQueue(QUEUE.deliver))),
+
+  /** What the delete dialog offers: whether the actor may delete and what they may do with a created project. */
+  deleteChoices: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => deleteChoices(ctx.db, ctx.actor, input.id)),
+
+  /** Deletes a draft, submitted, withdrawn or cancelled request; `project` says what happens to a project created from it. */
+  delete: protectedProcedure.input(z.object({ ...R, ...deleteRequestInput.shape })).mutation(({ ctx, input: { id, project } }) => deleteRequest(ctx.db, ctx.actor, id, { project }, bullQueue(QUEUE.deliver))),
 
   /** Marks an event-week request as done. */
   markDone: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => markDone(ctx.db, ctx.actor, input.id)),

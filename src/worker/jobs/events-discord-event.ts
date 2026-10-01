@@ -121,7 +121,11 @@ export async function ensureDiscordEvent(
   return null;
 }
 
-const jobData = z.object({ requestId: z.string().min(1), action: z.enum(["update", "delete", "create"]), retry: z.number().int().min(0).optional() });
+const snowflake = z.string().regex(/^\d{1,32}$/);
+const jobData = z.discriminatedUnion("action", [
+  z.object({ requestId: z.string().min(1), action: z.enum(["update", "delete", "create"]), retry: z.number().int().min(0).optional() }),
+  z.object({ requestId: z.string().min(1), action: z.literal("delete-orphan"), guildId: snowflake, eventId: snowflake, retry: z.number().int().min(0).optional() }),
+]);
 
 /** Clears the stored event id (only while it still is `eventId`) and logs why. */
 async function forget(db: Db, requestId: string, eventId: string, why: string): Promise<void> {
@@ -146,14 +150,32 @@ async function createEvent(deps: WorkerDeps, request: EventRequestRow | undefine
   }
 }
 
+/** The `delete-orphan` action: removes the event of a request that is gone by its ids; a 429 queues the job again like the update path. */
+async function deleteOrphan(deps: WorkerDeps, data: { requestId: string; guildId: string; eventId: string; retry?: number }): Promise<void> {
+  const { requestId, guildId, eventId, retry = 0 } = data;
+  const { botToken } = await loadEventSecrets(deps.db);
+  if (!botToken) return;
+  const result = await deleteScheduledEvent(botToken, guildId, eventId);
+  if (result.kind === "ok") await recordBotStatus(deps.db, "ok");
+  else if (result.kind === "denied") await recordBotStatus(deps.db, refusal(result));
+  else if (result.kind === "rejected") await recordBotStatus(deps.db, null);
+  else if (result.kind === "retry") {
+    const n = retry + 1;
+    if (n > MAX_RETRIES) throw new Error(`Discord rate-limited the event delete ${n} times in a row.`);
+    await deps.queue("deliver").add("events.discord-event", { requestId, action: "delete-orphan", guildId, eventId, retry: n }, { jobId: `event-dev-${requestId}-delete-orphan-r${n}-${deps.now().getTime()}`, delayMs: result.delayMs, attempts: 3, backoffMs: 10_000 });
+  } else if (result.kind === "failed") throw result.error;
+}
+
 /**
  * Brings the Discord event of a request in line with it: `update` sends the current name, description, times, location and
- * banner, `delete` removes the event, `create` makes it for a reopened request. An event Discord no longer has clears the stored id and stops. A refused token is
+ * banner, `delete` removes the event, `delete-orphan` removes the event of an already deleted request by its guild and event id, `create` makes it for a reopened request. An event Discord no longer has clears the stored id and stops. A refused token is
  * recorded on the settings and not retried; a 429 queues the job again after Discord's delay; a 5xx throws so BullMQ retries.
  * Nothing happens without a stored event id, a bot token or a guild id.
  */
 export async function syncDiscordEvent(deps: WorkerDeps, raw: unknown): Promise<void> {
-  const { requestId, action, retry = 0 } = jobData.parse(raw);
+  const data = jobData.parse(raw);
+  if (data.action === "delete-orphan") return deleteOrphan(deps, data);
+  const { requestId, action, retry = 0 } = data;
   const [request] = await deps.db.select().from(eventRequest).where(eq(eventRequest.id, requestId)).limit(1);
   if (action === "create") return createEvent(deps, request, retry);
   if (!request?.discordEventId) return;

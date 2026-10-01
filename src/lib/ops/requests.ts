@@ -579,6 +579,12 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
   return rows.map(({ durationMinutes, ...r }) => ({ ...r, endsAt: endsAtOf({ startsAt: r.startsAt, durationMinutes }), requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: waiting.has(r.id), lateTodos: late.get(r.id) ?? 0 }));
 }
 
+/** Whether a request in `status` may be deleted by an actor who is staff (manager or admin) or the requester of it. */
+export function canDeleteRequest(status: RequestStatus, staff: boolean, requester: boolean): boolean {
+  if (staff) return status === "draft" || status === "submitted" || status === "withdrawn" || status === "cancelled";
+  return requester && (status === "draft" || status === "withdrawn");
+}
+
 /** A request with what its page needs. */
 export interface RequestDetail {
   request: EventRequestRow & { endsAt: Date | null };
@@ -593,7 +599,7 @@ export interface RequestDetail {
   canCancel: boolean;
   /** Whether the actor may reopen the request: a cancelled one with manage or develop access, a withdrawn one with edit access or as its requester. */
   canReopen: boolean;
-  /** Whether the actor may delete the request (set from Task 6 on). */
+  /** Whether the actor may delete the request: managers and admins in draft, submitted, withdrawn or cancelled; the requester in their own draft or withdrawn one. */
   canDelete: boolean;
   /** Whether the actor may accept the request (admins and event developers). */
   canAccept: boolean;
@@ -629,7 +635,7 @@ export async function getRequest(db: Db, actor: Actor, requestId: string): Promi
     canManage,
     canCancel: canManage || flags.isEventDeveloper,
     canReopen: request.status === "cancelled" ? canManage || flags.isEventDeveloper : request.status === "withdrawn" && (canEdit || role === "requester"),
-    canDelete: false,
+    canDelete: canDeleteRequest(request.status, canManage, request.requesterId === actor.userId),
     canAccept: canAcceptRequests(flags),
     canDevelop: await canDevelop(db, actor, requestId),
     projectOpen: linked !== undefined && (membership !== undefined || flags.isAdmin),

@@ -48,6 +48,7 @@ describe("acceptRequest create", () => {
     const [proj] = await w.db.select().from(project);
     expect(proj.name).toBe("Winter Party!");
     expect(proj.deadline?.getTime()).toBe(START.getTime() + 90 * 60_000);
+    expect((await w.db.select().from(eventRequest).where(eq(eventRequest.id, w.request.id)))[0].projectCreated).toBe(true);
     const boards = await w.db.select().from(board).where(eq(board.projectId, proj.id));
     expect(boards.map((b) => b.slug)).toEqual(["event"]);
     const columns = await w.db.select().from(boardColumn).where(eq(boardColumn.boardId, boards[0].id)).orderBy(boardColumn.sortOrder);
@@ -136,7 +137,7 @@ describe("acceptRequest link", () => {
     const [proj] = await w.db.select().from(project).where(eq(project.slug, "demo"));
     expect(proj.deadline?.getTime()).toBe(START.getTime() + 90 * 60_000);
     const [req] = await w.db.select().from(eventRequest).where(eq(eventRequest.id, w.request.id));
-    expect(req).toMatchObject({ status: "accepted", projectId: p.projectId });
+    expect(req).toMatchObject({ status: "accepted", projectId: p.projectId, projectCreated: false });
   });
 
   it("keeps an existing deadline, creates a system when none is given and rejects an unknown system", async () => {

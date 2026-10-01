@@ -37,6 +37,8 @@ export const eventRequest = pgTable(
     /** The project and system built for the request; several requests may share a project. */
     projectId: text("project_id").references(() => project.id, { onDelete: "set null" }),
     systemId: text("system_id").references(() => system.id, { onDelete: "set null" }),
+    /** Whether accepting created the project (rather than linking an existing one); only such a project may be archived or deleted with the request. */
+    projectCreated: boolean("project_created").notNull().default(false),
     /** The scheduled Discord event and the uploaded banner, filled by later features. */
     discordEventId: text("discord_event_id"),
     bannerUploadId: text("banner_upload_id").references((): AnyPgColumn => eventUpload.id, { onDelete: "set null" }),

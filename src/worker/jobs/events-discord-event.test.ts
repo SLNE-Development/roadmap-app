@@ -286,6 +286,15 @@ describe("keeping the event in sync", () => {
     expect((await s.reload()).discordEventId).toBeNull();
   });
 
+  it("deletes the event of a deleted request by its ids without reading the request", async () => {
+    const s = await botWorld();
+    const calls = stubFetch([new Response(null, { status: 204 })]);
+    await runJob("deliver", "events.discord-event", { requestId: "gone", action: "delete-orphan", guildId: "42", eventId: "555" }, s.deps);
+    expect(calls[0]).toMatchObject({ method: "DELETE", url: `${API}/555` });
+    await expect(runJob("deliver", "events.discord-event", { requestId: "gone", action: "delete-orphan", guildId: "4/../2", eventId: "555" }, s.deps)).rejects.toThrow();
+    expect(calls).toHaveLength(1);
+  });
+
   it("creates the event for a reopened request once and stores its id", async () => {
     const s = await botWorld();
     const calls = stubFetch([json(200, { id: "777" })]);
