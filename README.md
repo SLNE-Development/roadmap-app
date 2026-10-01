@@ -94,6 +94,16 @@ you belong to.
   Unknown query parameters are rejected with 400. MCP writes default to the agent
   name "Claude Code"; REST writes carry no agent unless the body sets `agent`.
 
+**Tools added in v2:**
+
+- `my_work` (`GET /my-work`): What is waiting on you across your projects: blocked and in-progress tasks, planning items, questions and proposed ADRs.
+- `move_task` (`POST /tasks/:id/move`): Move a task to another system; it keeps its state, owner and checklist.
+- `set_task_checks` (`PUT /tasks/:id/checks`): Replace a task's checklist; items matched by title keep their state.
+- `set_dependencies` (`PUT /projects/:project/systems/:system/dependencies`): Set which systems this system depends on.
+- `set_system_fields` (`PATCH /projects/:project/systems/:system/fields`): Set custom field values of a system by key.
+- `archive_system` (`POST /projects/:project/systems/:system/archive`): Archive a system or restore it.
+- `set_question_priority` (`PATCH /projects/:project/questions/:id/priority`): Set a question's priority: blocking, normal or nice.
+
 ## The surf-roadmap plugin
 
 ```
