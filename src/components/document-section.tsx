@@ -1,9 +1,14 @@
+"use client";
+
 import { FileText } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import { EmptyState } from "@/components/page";
+import { extractHeadings } from "@/lib/headings";
 import type { DocumentView } from "@/lib/ops/documents";
 import { formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { DocumentOutline, MIN_OUTLINE_HEADINGS } from "./document-outline";
 import { Markdown } from "./markdown";
 import { AuthorText } from "./system/author";
 import { VersionPicker } from "./version-picker";
@@ -38,6 +43,21 @@ export function DocumentSection({
   param: string;
   empty: { title: string; description: string };
 }) {
+  const body = doc?.body;
+  const headings = useMemo(() => extractHeadings(body ?? ""), [body]);
+  const outlined = headings.length >= MIN_OUTLINE_HEADINGS;
+  // Scroll to a section link (`#scope`) once after hydration.
+  useEffect(() => {
+    if (!location.hash) return;
+    const raw = location.hash.slice(1);
+    let id = raw;
+    try {
+      id = decodeURIComponent(raw);
+    } catch {
+      // A malformed escape such as `#%` falls back to the raw value.
+    }
+    document.getElementById(id)?.scrollIntoView();
+  }, []);
   if (!doc) return <EmptyState icon={<FileText />} title={empty.title} description={empty.description} />;
   return (
     <section className="flex flex-col border bg-card">
@@ -53,8 +73,13 @@ export function DocumentSection({
           </div>
         )}
       </header>
-      <div className="px-4 py-5 sm:px-6 sm:py-6">
-        <Markdown>{doc.body}</Markdown>
+      <div className={cn("grid gap-8 px-4 py-5 sm:px-6 sm:py-6", outlined && "lg:grid-cols-[minmax(0,1fr)_220px]")}>
+        {outlined && (
+          <div className="lg:order-2">
+            <DocumentOutline headings={headings} />
+          </div>
+        )}
+        <Markdown headingIds>{doc.body}</Markdown>
       </div>
     </section>
   );
