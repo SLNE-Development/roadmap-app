@@ -11,6 +11,7 @@ import { BriefHistory } from "@/components/events/brief-history";
 import { ImageUpload } from "@/components/events/image-upload";
 import { EventDayPanel } from "@/components/events/event-day-panel";
 import { FallbackTab } from "@/components/events/fallback-tab";
+import { MessagesTab } from "@/components/events/post-composer";
 import { PrepTab } from "@/components/events/prep-tab";
 import { EventProgressBar } from "@/components/events/progress-bar";
 import { openCount, QuestionForm } from "@/components/events/question-form";
@@ -316,7 +317,7 @@ function CancelDialog({ requestId, open, onOpenChange }: { requestId: string; op
  * @param props.id the request id
  * @param props.tab the tab shown
  */
-export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions" | "overview" | "fallback" | "prep" | "eventday" }) {
+export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions" | "overview" | "fallback" | "prep" | "eventday" | "messages" }) {
   const t = useTranslations("events");
   const trpc = useTRPC();
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -416,6 +417,7 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
           { label: t("page.tabFallback"), href: `${base}?tab=fallback`, active: tab === "fallback" },
           { label: t("page.tabPrep"), href: `${base}?tab=prep`, active: tab === "prep" },
           { label: t("page.tabEventDay"), href: `${base}?tab=eventday`, active: tab === "eventday" },
+          { label: t("page.tabMessages"), href: `${base}?tab=messages`, active: tab === "messages" },
           { label: t("page.tabOverview"), href: `${base}?tab=overview`, active: tab === "overview" },
         ]}
       />
@@ -439,6 +441,8 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
         <FallbackTab requestId={id} canEdit={canEdit} />
       ) : tab === "prep" ? (
         <PrepTab requestId={id} canEdit={canEdit || canDevelop} />
+      ) : tab === "messages" ? (
+        <MessagesTab requestId={id} requestStatus={status} canEdit={canEdit} />
       ) : tab === "eventday" ? (
         <EventDayPanel requestId={id} canManageList={canEdit || canDevelop} />
       ) : (

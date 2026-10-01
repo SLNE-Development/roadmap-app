@@ -5,6 +5,7 @@ import type { Db, Executor } from "@/db/types";
 import { formatAdrNumber } from "@/lib/adr-number";
 import { decryptSecret } from "@/lib/crypto";
 import { buildDigest, buildDiscordBatches, plainMessage, type DigestData, type DiscordItem, type DiscordMessage } from "@/lib/discord-format";
+import { retryAfterSeconds } from "@/lib/discord-webhook";
 import { QUEUE } from "@/lib/queue";
 import { SITE_NAME, siteUrl } from "@/lib/site";
 import type { WorkerDeps } from "../deps";
@@ -35,15 +36,6 @@ type Sent =
   | { kind: "rejected" }
   /** 5xx or a network error: worth retrying. */
   | { kind: "failed"; error: Error };
-
-/** Reads `retry_after` in seconds from a 429's JSON body or its `Retry-After` header; 1 when neither has it. */
-async function retryAfterSeconds(res: Response): Promise<number> {
-  const body: unknown = await res.json().catch(() => null);
-  const fromBody = body && typeof body === "object" && "retry_after" in body ? Number(body.retry_after) : NaN;
-  if (Number.isFinite(fromBody) && fromBody >= 0) return fromBody;
-  const fromHeader = Number(res.headers.get("retry-after"));
-  return Number.isFinite(fromHeader) && fromHeader >= 0 ? fromHeader : 1;
-}
 
 /** Posts one message to the webhook. Errors name the webhook id, never its URL. */
 async function send(webhookId: string, url: string, message: DiscordMessage): Promise<Sent> {

@@ -1,9 +1,9 @@
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import { RequestView } from "./request-view";
 
-const TABS = ["overview", "questions", "fallback", "prep", "eventday"] as const;
+const TABS = ["overview", "questions", "fallback", "prep", "eventday", "messages"] as const;
 
-/** One event request: status, details, brief with its versions and the history; `?tab=` switches to questions, fallback, prep, eventday or overview. */
+/** One event request: status, details, brief with its versions and the history; `?tab=` switches to questions, fallback, prep, eventday, messages or overview. */
 export default async function RequestPage({
   params,
   searchParams,

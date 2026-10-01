@@ -42,7 +42,8 @@
     "readOnly": "Du kannst diese Anfrage ansehen, aber nicht ändern.",
     "tabFallback": "Notfallplan",
     "tabPrep": "Vorbereitung",
-    "tabEventDay": "Eventtag"
+    "tabEventDay": "Eventtag",
+    "tabMessages": "Nachrichten"
   },
   "statusBar": {
     "label": "Status der Anfrage",
@@ -351,5 +352,56 @@
       "preview": "Vorschau",
       "previewNote": "Zeigt ein Beispiel-Event. Es wird nichts gesendet."
     }
+  },
+  "messages": {
+    "help": "Schreibe die Nachrichten zum Event und poste jede mit einem Klick. Nichts wird von selbst gepostet.",
+    "target": {
+      "team": "Team-Kanal",
+      "public": "öffentlichen Kanal"
+    },
+    "kind": {
+      "team": "Teamnachricht",
+      "announcement": "Ankündigung",
+      "reminder": "Erinnerung"
+    },
+    "due": "Fällig am {date}",
+    "late": "Überfällig",
+    "status": {
+      "draft": "Entwurf",
+      "sending": "Wird gesendet",
+      "partial": "Teilweise gepostet",
+      "posted": "Gepostet",
+      "failed": "Fehlgeschlagen",
+      "deleted": "Gelöscht"
+    },
+    "editor": "Nachrichtentext",
+    "placeholders": "Platzhalter",
+    "insert": "{name} einfügen",
+    "counter": "{count} von {max} Zeichen",
+    "ping": "@Event-Ping pingen",
+    "pingUnset": "In den Eventeinstellungen ist noch keine Ping-Rolle gesetzt.",
+    "save": "Entwurf speichern",
+    "saved": "Entwurf gespeichert",
+    "post": "Jetzt posten",
+    "resume": "Fortsetzen",
+    "preview": "{count, plural, one {# Nachricht} other {# Nachrichten}}",
+    "previewCard": "Eventkarte",
+    "previewMessage": "Nachricht {n}",
+    "previewStale": "Speichere den Entwurf, um diese Vorschau zu aktualisieren.",
+    "sentOf": "{sent} von {total} Nachrichten gesendet",
+    "postedBy": "Gepostet am {date} von {name}",
+    "stall": "Wenn der Beitrag hängt, prüfe den Kanal, bevor du fortsetzt.",
+    "reasonWebhook": "Ein Admin muss zuerst den Webhook für den {target} in den Eventeinstellungen setzen.",
+    "reasonStatus": "Nachrichten können gepostet werden, sobald die Anfrage angenommen ist.",
+    "reasonEmpty": "Schreibe zuerst die Nachricht.",
+    "reasonDirty": "Speichere zuerst deine Änderungen.",
+    "confirmTitle": "Diese Nachricht posten?",
+    "confirmBody": "Das postet in den {target}. Es lässt sich nur rückgängig machen, indem die Nachrichten gelöscht werden.",
+    "confirmPings": "Sie pingt @Event-Ping.",
+    "confirmNoPing": "Sie pingt niemanden.",
+    "cancel": "Abbrechen",
+    "started": "Das Posten läuft",
+    "resumed": "Der Beitrag wird fortgesetzt",
+    "readOnly": "Du kannst die Nachrichten ansehen, aber nicht ändern."
   }
 }

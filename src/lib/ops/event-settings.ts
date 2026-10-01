@@ -102,6 +102,31 @@ export async function eventTimeZone(db: Executor): Promise<string> {
   return row?.timeZone ?? DEFAULT_EVENT_TIME_ZONE;
 }
 
+/** The settings a post is planned and sent with: no secret, only which webhooks are set. */
+export interface PostSettings extends Pick<EventSettingsRow, "postAs" | "pingRoleId" | "guildId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate"> {
+  hooks: { public: boolean; team: boolean; staff: boolean };
+}
+
+/**
+ * Reads what posting needs from the settings (creating the row on first read), for ops and the worker. Unlike
+ * {@link getEventSettings} it checks no role (a requester posts their own request); it returns only whether each webhook
+ * is set, never a value or a hint.
+ */
+export async function loadPostSettings(db: Executor): Promise<PostSettings> {
+  const r = await ensureSettings(db);
+  return {
+    postAs: r.postAs,
+    pingRoleId: r.pingRoleId,
+    guildId: r.guildId,
+    timeZone: r.timeZone,
+    rulebookUrl: r.rulebookUrl,
+    detailsTemplate: r.detailsTemplate,
+    disasterTemplate: r.disasterTemplate,
+    resolvedTemplate: r.resolvedTemplate,
+    hooks: { public: r.publicWebhookEnc !== null, team: r.teamWebhookEnc !== null, staff: r.staffWebhookEnc !== null },
+  };
+}
+
 /** Whether the actor holds an event role (manager, developer) or is an admin. */
 async function requireReader(db: Executor, actor: Actor): Promise<void> {
   const flags = await eventFlags(db, actor);

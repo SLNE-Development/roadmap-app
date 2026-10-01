@@ -42,7 +42,8 @@
     "readOnly": "You can view this request but not change it.",
     "tabFallback": "Fallback",
     "tabPrep": "Prep",
-    "tabEventDay": "Event day"
+    "tabEventDay": "Event day",
+    "tabMessages": "Messages"
   },
   "statusBar": {
     "label": "Request status",
@@ -351,5 +352,56 @@
       "preview": "Preview",
       "previewNote": "Shown with a sample event. Nothing is sent."
     }
+  },
+  "messages": {
+    "help": "Write the messages for the event and post each with one click. Nothing is posted on its own.",
+    "target": {
+      "team": "team channel",
+      "public": "public channel"
+    },
+    "kind": {
+      "team": "Team notice",
+      "announcement": "Announcement",
+      "reminder": "Reminder"
+    },
+    "due": "Due {date}",
+    "late": "Late",
+    "status": {
+      "draft": "Draft",
+      "sending": "Sending",
+      "partial": "Partly posted",
+      "posted": "Posted",
+      "failed": "Failed",
+      "deleted": "Deleted"
+    },
+    "editor": "Message text",
+    "placeholders": "Placeholders",
+    "insert": "Insert {name}",
+    "counter": "{count} of {max} characters",
+    "ping": "Ping @Event-Ping",
+    "pingUnset": "No ping role is set in Event settings yet.",
+    "save": "Save draft",
+    "saved": "Draft saved",
+    "post": "Post now",
+    "resume": "Resume",
+    "preview": "{count, plural, one {# message} other {# messages}}",
+    "previewCard": "event card",
+    "previewMessage": "Message {n}",
+    "previewStale": "Save the draft to update this preview.",
+    "sentOf": "{sent} of {total} messages sent",
+    "postedBy": "Posted {date} by {name}",
+    "stall": "If the post stalls, check the channel before resuming.",
+    "reasonWebhook": "An admin has to set the {target} webhook in Event settings first.",
+    "reasonStatus": "Messages can be posted once the request is accepted.",
+    "reasonEmpty": "Write the message first.",
+    "reasonDirty": "Save your changes first.",
+    "confirmTitle": "Post this message?",
+    "confirmBody": "This posts to the {target}. It cannot be undone except by deleting the messages.",
+    "confirmPings": "It pings @Event-Ping.",
+    "confirmNoPing": "It does not ping anyone.",
+    "cancel": "Cancel",
+    "started": "Posting started",
+    "resumed": "Resuming the post",
+    "readOnly": "You can view the messages but not change them."
   }
 }

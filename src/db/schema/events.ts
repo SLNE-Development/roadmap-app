@@ -1,5 +1,8 @@
-import { bigserial, type AnyPgColumn, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { bigserial, type AnyPgColumn, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
+import type { Embed } from "@/lib/discord-limits";
 import { DEFAULT_DETAILS_TEMPLATE, DEFAULT_DISASTER_TEMPLATE, DEFAULT_RESOLVED_TEMPLATE, type DetailsTemplate, type EmbedTemplate } from "@/lib/event-templates";
+import { POST_KINDS, type PostPart } from "@/lib/event-messages";
 import { QUESTION_TYPES, type QuestionConfig, type QuestionType } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { tz, user } from "./auth";
@@ -301,3 +304,46 @@ export const eventSettings = pgTable("event_settings", {
 
 /** The row of {@link eventSettings}. */
 export type EventSettingsRow = typeof eventSettings.$inferSelect;
+
+/** Where a post is: `sending` while a job works on it, `partial` after some messages went out and a send failed, `deleted` once its messages are removed. */
+export const POST_STATUSES = ["draft", "sending", "partial", "posted", "failed", "deleted"] as const;
+
+/** One of {@link POST_STATUSES}. */
+export type PostStatus = (typeof POST_STATUSES)[number];
+
+/**
+ * A Discord post of a request, split into `parts` (one per message). Each part's message id is stored the moment Discord
+ * answers, so a retry or a resume sends only the parts without one. `lastError` never holds a URL or token. A request has at
+ * most one live team, announcement and reminder post; disaster and resolved posts may repeat.
+ */
+export const eventPost = pgTable(
+  "event_post",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => eventRequest.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: POST_KINDS }).notNull(),
+    status: text("status", { enum: POST_STATUSES }).notNull().default("draft"),
+    /** The full body as the person edited it; the source of the split. */
+    text: text("text").notNull().default(""),
+    /** The card, for the details embed, disaster and resolved posts. */
+    embed: jsonb("embed").$type<Embed>(),
+    pingRole: boolean("ping_role").notNull().default(false),
+    /** The note of a resolved post. */
+    note: text("note"),
+    parts: jsonb("parts").notNull().$type<PostPart[]>().default([]),
+    attempt: integer("attempt").notNull().default(0),
+    lastError: text("last_error"),
+    postedAt: timestamp("posted_at", tz),
+    /** Who started the post; shown as the poster once it is posted. */
+    postedBy: text("posted_by").references(() => user.id, { onDelete: "set null" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", tz).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("event_post_one_live_per_kind").on(t.requestId, t.kind).where(sql`${t.status} <> 'deleted' and ${t.kind} in ('team', 'announcement', 'reminder')`)],
+);
+
+/** A row of {@link eventPost}. */
+export type EventPostRow = typeof eventPost.$inferSelect;

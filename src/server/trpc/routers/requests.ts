@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { POST_KINDS } from "@/lib/event-messages";
 import { askRoundInput } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { dbInt } from "@/lib/ops/params";
@@ -45,11 +46,16 @@ import {
   withdrawRequest,
 } from "@/lib/ops/requests";
 import { getEventSettings, previewTemplate, setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
+import { listPosts, previewPost, resumePost, savePostDraft, savePostDraftInput, startPost } from "@/lib/ops/request-posts";
 import { deleteUpload, setBanner, setBannerInput } from "@/lib/ops/uploads";
+import { bullQueue, QUEUE } from "@/lib/queue";
 import { protectedProcedure, router } from "../init";
 
 /** The request a procedure acts on. */
 const R = { id: z.string().min(1).max(64) };
+
+/** The request and the kind of post a procedure acts on. */
+const POST = { ...R, kind: z.enum(POST_KINDS) };
 
 /** Event requests: the list and page, status changes and brief versions. */
 export const requestsRouter = router({
@@ -210,6 +216,26 @@ export const requestsRouter = router({
 
   /** The event-day page: event, checklist, fallback scenarios and check-ins; open to every signed-in user in the event week. */
   eventDay: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => eventDayView(ctx.db, ctx.actor, input.id)),
+
+  /** The Discord posts of a request: drafts, the plan, and the buttons that start or resume a send. A click only queues a job. */
+  posts: router({
+    /** The live posts with progress, due dates, late flags and which webhooks are set. */
+    list: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listPosts(ctx.db, ctx.actor, input.id)),
+
+    /** Saves the draft of one post. */
+    saveDraft: protectedProcedure
+      .input(z.object({ ...POST, ...savePostDraftInput.shape }))
+      .mutation(({ ctx, input: { id, kind, ...draft } }) => savePostDraft(ctx.db, ctx.actor, id, kind, draft)),
+
+    /** How many messages a saved post becomes and how long each is; calls nothing. */
+    preview: protectedProcedure.input(z.object(POST)).query(({ ctx, input }) => previewPost(ctx.db, ctx.actor, input.id, input.kind)),
+
+    /** Starts posting; returns at once while the worker sends. */
+    start: protectedProcedure.input(z.object(POST)).mutation(({ ctx, input }) => startPost(ctx.db, ctx.actor, input.id, input.kind, bullQueue(QUEUE.deliver))),
+
+    /** Continues a partial or failed post where it stopped. */
+    resume: protectedProcedure.input(z.object(POST)).mutation(({ ctx, input }) => resumePost(ctx.db, ctx.actor, input.id, input.kind, bullQueue(QUEUE.deliver))),
+  }),
 
   /** The event settings. Secrets are write-only for admins; no procedure here returns one. */
   settings: router({

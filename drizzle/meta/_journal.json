@@ -253,6 +253,13 @@
       "when": 1790868291726,
       "tag": "0035_event-settings",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790869671501,
+      "tag": "0036_event-posts",
+      "breakpoints": true
     }
   ]
 }
