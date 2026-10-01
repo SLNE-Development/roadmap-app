@@ -6,3 +6,4 @@ export * from "./platform";
 export * from "./agents";
 export * from "./audit";
 export * from "./notifications";
+export * from "./github";
