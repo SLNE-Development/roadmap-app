@@ -15,7 +15,7 @@ import { useTRPC } from "@/trpc/client";
 
 /**
  * One tab of the dialog: the read-only prompt with its Copy button, and the paste-back box that saves the pasted text as
- * the draft of the matching post.
+ * the draft of the matching post, or as the short description for the summary prompt.
  *
  * @param props.requestId the request
  * @param props.kind the kind of prompt
@@ -30,7 +30,7 @@ function PromptPanel({ requestId, kind, prompt, tabId, panelId, onClose }: { req
   const ids = useId();
   const area = useRef<HTMLTextAreaElement>(null);
   const [pasted, setPasted] = useState("");
-  const save = useMutation(trpc.requests.posts.savePasteBack.mutationOptions({ onSuccess: () => toast.success(t("saved")) }));
+  const save = useMutation(trpc.requests.posts.savePasteBack.mutationOptions({ onSuccess: () => toast.success(t(kind === "summary" ? "savedSummary" : "saved")) }));
 
   /** Copies the prompt; when the browser refuses, selects it so the person can copy by hand. */
   async function copy() {
@@ -63,11 +63,13 @@ function PromptPanel({ requestId, kind, prompt, tabId, panelId, onClose }: { req
         <Textarea id={`${ids}-paste`} value={pasted} onChange={(e) => setPasted(e.target.value)} rows={8} maxLength={MAX_POST_TEXT} />
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" disabled={save.isPending || !pasted.trim()} onClick={() => save.mutate({ id: requestId, kind, text: pasted })}>
-            {t("saveDraft")}
+            {t(kind === "summary" ? "saveSummary" : "saveDraft")}
           </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href={`/requests/${requestId}?tab=messages`} onClick={onClose}>{t("openMessages")}</Link>
-          </Button>
+          {kind !== "summary" && (
+            <Button asChild size="sm" variant="ghost">
+              <Link href={`/requests/${requestId}?tab=messages`} onClick={onClose}>{t("openMessages")}</Link>
+            </Button>
+          )}
         </div>
         {save.error && (
           <p role="alert" className="text-[13px] text-destructive">
@@ -80,8 +82,8 @@ function PromptPanel({ requestId, kind, prompt, tabId, panelId, onClose }: { req
 }
 
 /**
- * The copy-prompts dialog: three tabs (announcement, reminder, team message), each with a prompt to copy into any chat
- * assistant and a box to paste the answer back as a draft. The app calls no assistant itself.
+ * The copy-prompts dialog: four tabs (announcement, reminder, team message, short description), each with a prompt to copy into any chat
+ * assistant and a box to paste the answer back as a draft or the short description. The app calls no assistant itself.
  *
  * @param props.requestId the request
  * @param props.open whether the dialog is shown

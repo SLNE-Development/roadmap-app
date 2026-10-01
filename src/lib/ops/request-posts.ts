@@ -121,6 +121,8 @@ export interface PreviewPart {
   /** Characters Discord counts: the content, or the embed's total. */
   length: number;
   sent: boolean;
+  /** The embed of an embed part, so the editor can draw the card. */
+  embed?: Embed;
 }
 
 /**
@@ -129,13 +131,14 @@ export interface PreviewPart {
  *
  * @throws NotFoundError for a request the actor cannot see, InvalidError when a part would not fit Discord
  */
-export async function previewPost(db: Db, actor: Actor, requestId: string, kind: PostKind): Promise<{ parts: PreviewPart[] }> {
+export async function previewPost(db: Db, actor: Actor, requestId: string, kind: PostKind): Promise<{ parts: PreviewPart[]; embeds: Embed[] }> {
   const { request } = await requestAccess(db, actor, requestId, "view");
   const post = await livePost(db, requestId, kind);
-  if (!post) return { parts: [] };
+  if (!post) return { parts: [], embeds: [] };
   const settings = await loadPostSettings(db);
   const planned = plan(post, request, settings);
-  return { parts: planned.map((p, i) => ({ kind: p.kind, content: p.content, length: p.embed ? countEmbedChars(p.embed) : textLength(p.content), sent: post.parts[i]?.messageId != null })) };
+  const parts = planned.map((p, i): PreviewPart => ({ kind: p.kind, content: p.content, length: p.embed ? countEmbedChars(p.embed) : textLength(p.content), sent: post.parts[i]?.messageId != null, ...(p.embed ? { embed: p.embed } : {}) }));
+  return { parts, embeds: parts.flatMap((p) => (p.embed ? [p.embed] : [])) };
 }
 
 /** Plans the parts of `post`, turning a part that breaks Discord's limits into an InvalidError. */
@@ -546,6 +549,8 @@ export interface PostView {
   lastError: string | null;
   postedAt: Date | null;
   postedByName: string | null;
+  /** When the post was last written; the card adopts the server text only when this changed. */
+  updatedAt: Date;
   /** When the kind is due (team, announcement, reminder, 09:00 local), from the event start. */
   dueAt: Date | null;
   /** Due date passed and not posted. */
@@ -604,6 +609,7 @@ export async function listPosts(db: Db, actor: Actor, requestId: string, now: Da
       lastError: post.lastError,
       postedAt: post.postedAt,
       postedByName: post.status === "posted" ? postedByName : null,
+      updatedAt: post.updatedAt,
       dueAt,
       late: dueAt !== null && post.status !== "posted" && dueAt.getTime() < now.getTime(),
       stale: isStaleSending(post, now),

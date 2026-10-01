@@ -78,6 +78,9 @@ describe("previewPost", () => {
     const preview = await previewPost(w.db, w.requester, w.request.id, "announcement");
     expect(preview.parts.map((p) => p.kind)).toEqual(["text", "text", "embed"]);
     expect(preview.parts[0].length).toBeLessThanOrEqual(2000);
+    expect(preview.parts[2].embed?.title).toBeTruthy();
+    expect(preview.embeds).toEqual([preview.parts[2].embed]);
+    expect(preview.parts[0].embed).toBeUndefined();
     const json = JSON.stringify(preview);
     expect(json).not.toContain(TEAM_TOKEN);
     expect(json).not.toContain(PUBLIC_TOKEN);

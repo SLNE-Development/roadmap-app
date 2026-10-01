@@ -429,7 +429,10 @@
     "kind": {
       "team": "Teamnachricht",
       "announcement": "Ankündigung",
-      "reminder": "Erinnerung"
+      "reminder": "Erinnerung",
+      "disaster": "Störfall-Nachricht",
+      "resolved": "Entwarnung",
+      "cancelled": "Absage"
     },
     "due": "Fällig am {date}",
     "late": "Überfällig",
@@ -444,17 +447,12 @@
     "editor": "Nachrichtentext",
     "placeholders": "Platzhalter",
     "insert": "{name} einfügen",
-    "counter": "{count} von {max} Zeichen",
     "ping": "@Event-Ping pingen",
     "pingUnset": "In den Eventeinstellungen ist noch keine Ping-Rolle gesetzt.",
     "save": "Entwurf speichern",
     "saved": "Entwurf gespeichert",
     "post": "Jetzt posten",
     "resume": "Fortsetzen",
-    "preview": "{count, plural, one {# Nachricht} other {# Nachrichten}}",
-    "previewCard": "Eventkarte",
-    "previewMessage": "Nachricht {n}",
-    "previewStale": "Speichere den Entwurf, um diese Vorschau zu aktualisieren.",
     "sentOf": "{sent} von {total} Nachrichten gesendet",
     "postedBy": "Gepostet am {date} von {name}",
     "stall": "Wenn der Beitrag hängt, prüfe den Kanal, bevor du fortsetzt.",
@@ -476,14 +474,21 @@
     "editNote": "{count, plural, one {# Nachricht wird} other {# Nachrichten werden}} aktualisiert. Beim Bearbeiten wird nie gepingt.",
     "delete": "Nachrichten löschen",
     "deleteTitle": "Diese Nachrichten aus Discord löschen?",
-    "deleteBody": "{count, plural, one {# Nachricht wird} other {# Nachrichten werden}} aus dem {target} entfernt. Ein Discord-Event bleibt bestehen.",
+    "deleteBody": "{count, plural, one {# Nachricht wird} other {# Nachrichten werden}} aus dem {target} entfernt. Dein Text bleibt hier als Entwurf erhalten. Ein Discord-Event bleibt bestehen.",
     "deleting": "Die Nachrichten werden gelöscht",
     "testSend": "An Team-Testkanal senden",
     "testHelp": "Sendet den gespeicherten Entwurf nur an den Team-Testkanal. Es wird nie gepingt und kein Event angelegt.",
     "testReasonStaff": "Ein Admin muss zuerst den Test-Webhook für das Team in den Event-Einstellungen setzen.",
     "testOk": "{count, plural, one {# Testnachricht} other {# Testnachrichten}} an den Team-Testkanal gesendet",
     "testFailed": "Testversand fehlgeschlagen: {error}",
-    "testTimeout": "Der Testversand hat noch nicht geantwortet. Versuche es gleich noch einmal."
+    "testTimeout": "Der Testversand hat noch nicht geantwortet. Versuche es gleich noch einmal.",
+    "deleteBodyEntry": "{count, plural, one {# Nachricht wird} other {# Nachrichten werden}} aus dem {target} entfernt. Ein Discord-Event bleibt bestehen.",
+    "timeline": "Nachrichten-Zeitplan",
+    "previewTitle": "Discord-Vorschau",
+    "previewSaved": "Die Vorschau zeigt den gespeicherten Text.",
+    "previewEmpty": "Speichere einen Text, um die Vorschau zu sehen.",
+    "noDue": "Noch kein Eventbeginn",
+    "entryNote": "Notiz"
   },
   "disaster": {
     "title": "Störfallnachricht",
@@ -543,7 +548,9 @@
     "openMessages": "In Nachrichten öffnen",
     "loading": "Prompts werden geladen…",
     "close": "Schließen",
-    "button": "Prompts kopieren"
+    "button": "Prompts kopieren",
+    "saveSummary": "Als Kurzbeschreibung speichern",
+    "savedSummary": "Kurzbeschreibung gespeichert"
   },
   "discordPreview": {
     "label": "Vorschau der Discord-Nachricht",

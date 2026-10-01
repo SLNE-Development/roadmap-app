@@ -429,7 +429,10 @@
     "kind": {
       "team": "Team notice",
       "announcement": "Announcement",
-      "reminder": "Reminder"
+      "reminder": "Reminder",
+      "disaster": "Disaster message",
+      "resolved": "Resolved message",
+      "cancelled": "Cancel message"
     },
     "due": "Due {date}",
     "late": "Late",
@@ -444,17 +447,12 @@
     "editor": "Message text",
     "placeholders": "Placeholders",
     "insert": "Insert {name}",
-    "counter": "{count} of {max} characters",
     "ping": "Ping @Event-Ping",
     "pingUnset": "No ping role is set in Event settings yet.",
     "save": "Save draft",
     "saved": "Draft saved",
     "post": "Post now",
     "resume": "Resume",
-    "preview": "{count, plural, one {# message} other {# messages}}",
-    "previewCard": "event card",
-    "previewMessage": "Message {n}",
-    "previewStale": "Save the draft to update this preview.",
     "sentOf": "{sent} of {total} messages sent",
     "postedBy": "Posted {date} by {name}",
     "stall": "If the post stalls, check the channel before resuming.",
@@ -476,14 +474,21 @@
     "editNote": "{count, plural, one {# message} other {# messages}} will be updated. Edits never ping.",
     "delete": "Delete messages",
     "deleteTitle": "Delete these messages from Discord?",
-    "deleteBody": "{count, plural, one {# message} other {# messages}} will be removed from the {target}. A Discord event stays.",
+    "deleteBody": "{count, plural, one {# message is} other {# messages are}} removed from the {target}. Your text stays here as a draft. A Discord event stays.",
     "deleting": "Deleting the messages",
     "testSend": "Send to staff channel",
     "testHelp": "Sends the saved draft to the staff channel only. It never pings and creates no event.",
     "testReasonStaff": "An admin has to set the staff test webhook in Event settings first.",
     "testOk": "{count, plural, one {# test message} other {# test messages}} sent to the staff channel",
     "testFailed": "Test send failed: {error}",
-    "testTimeout": "The test send has not answered yet. Try again in a moment."
+    "testTimeout": "The test send has not answered yet. Try again in a moment.",
+    "deleteBodyEntry": "{count, plural, one {# message is} other {# messages are}} removed from the {target}. A Discord event stays.",
+    "timeline": "Message timeline",
+    "previewTitle": "Discord preview",
+    "previewSaved": "Preview shows the saved text.",
+    "previewEmpty": "Save some text to see the preview.",
+    "noDue": "No event start yet",
+    "entryNote": "Note"
   },
   "disaster": {
     "title": "Disaster message",
@@ -543,7 +548,9 @@
     "openMessages": "Open in Messages",
     "loading": "Loading prompts…",
     "close": "Close",
-    "button": "Copy prompts"
+    "button": "Copy prompts",
+    "saveSummary": "Save as short description",
+    "savedSummary": "Short description saved"
   },
   "discordPreview": {
     "label": "Discord message preview",
