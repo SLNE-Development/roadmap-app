@@ -119,12 +119,20 @@ function Checklist({ requestId, view, canManageList }: { requestId: string; view
   );
 }
 
+/**
+ * The two forms of a player message: `shown` has readable German date and time for the screen, `copy` has Discord timestamps so
+ * the pasted message shows each reader's own time. Both have `{docs}` and `{rules}` filled.
+ */
+export function playerMessageTexts(message: string, view: Pick<EventDayView, "request" | "timeZone" | "eventDocsUrl" | "rulebookUrl">): { shown: string; copy: string } {
+  const { request } = view;
+  const values = placeholderValues({ title: request.title, startsAt: request.startsAt, durationMinutes: request.durationMinutes, where: request.where, eventDocsUrl: view.eventDocsUrl }, { timeZone: view.timeZone, rulebookUrl: view.rulebookUrl });
+  return { shown: fillPlaceholders(message, values, { mode: "text" }), copy: fillPlaceholders(message, values) };
+}
+
 /** One fallback scenario, always open: what we do, who decides and the player message with a Copy button. */
-function Scenario({ scenario, request, timeZone }: { scenario: EventDayView["fallbacks"][number]; request: EventDayView["request"]; timeZone: string }) {
+function Scenario({ scenario, view }: { scenario: EventDayView["fallbacks"][number]; view: EventDayView }) {
   const t = useTranslations("events.eventDay");
-  const message = scenario.playerMessage
-    ? fillPlaceholders(scenario.playerMessage, placeholderValues({ title: request.title, startsAt: request.startsAt, durationMinutes: request.durationMinutes, where: request.where, eventDocsUrl: null }, { timeZone, rulebookUrl: null }))
-    : null;
+  const message = scenario.playerMessage ? playerMessageTexts(scenario.playerMessage, view) : null;
   return (
     <Panel title={scenario.title} bodyClassName="gap-4 px-4 pb-4 sm:px-5">
       <div className="flex flex-col gap-1">
@@ -142,7 +150,7 @@ function Scenario({ scenario, request, timeZone }: { scenario: EventDayView["fal
               variant="outline"
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(message);
+                  await navigator.clipboard.writeText(message.copy);
                   toast.success(t("copied"));
                 } catch {
                   toast.error(t("copyFailed"));
@@ -154,7 +162,7 @@ function Scenario({ scenario, request, timeZone }: { scenario: EventDayView["fal
               <span className="sr-only"> ({scenario.title})</span>
             </Button>
           </div>
-          <p className="border-l-2 border-primary bg-secondary px-3 py-2 text-[13.5px] whitespace-pre-wrap">{message}</p>
+          <p className="border-l-2 border-primary bg-secondary px-3 py-2 text-[13.5px] whitespace-pre-wrap">{message.shown}</p>
         </div>
       )}
     </Panel>
@@ -181,7 +189,7 @@ export function EventDayPanel({ requestId, canManageList = false }: { requestId:
           <h2 className="font-display text-[19px] font-semibold">{t("fallbacks")}</h2>
           {view.fallbacks.length === 0 && <EmptyState title={t("fallbacksEmptyTitle")} description={t("fallbacksEmptyText")} />}
           {view.fallbacks.map((f) => (
-            <Scenario key={f.id} scenario={f} request={view.request} timeZone={view.timeZone} />
+            <Scenario key={f.id} scenario={f} view={view} />
           ))}
         </div>
         <DisasterPanel requestId={requestId} />

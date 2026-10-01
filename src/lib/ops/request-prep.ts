@@ -257,6 +257,9 @@ export interface EventDayView {
   fallbacks: { id: string; title: string; whatWeDo: string; whoDecides: string; playerMessage: string | null }[];
   /** The time zone of the event settings, for filling placeholders in player messages. */
   timeZone: string;
+  /** The event docs link of the request and the rulebook link of the settings, for `{docs}` and `{rules}` in player messages. */
+  eventDocsUrl: string | null;
+  rulebookUrl: string | null;
   /** Whether the actor may tick the checklist (edit or develop rights). */
   canTick: boolean;
 }
@@ -285,6 +288,8 @@ export async function eventDayView(db: Db, actor: Actor, requestId: string): Pro
     checklist: checklist.map(({ item: c, doneByName }) => ({ id: c.id, key: c.key, label: c.label, doneAt: c.doneAt, doneByName })),
     fallbacks: fallbacks.map((f) => ({ id: f.id, title: f.title, whatWeDo: f.whatWeDo, whoDecides: f.whoDecides, playerMessage: f.playerMessage })),
     timeZone: settings.timeZone,
+    eventDocsUrl: request.eventDocsUrl,
+    rulebookUrl: settings.rulebookUrl,
     canTick,
   };
 }

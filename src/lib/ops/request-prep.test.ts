@@ -205,7 +205,7 @@ describe("the event-day view", () => {
     const w = await accepted();
     await w.db.update(eventRequest).set({ status: "event_week", where: "Lobby" }).where(eq(eventRequest.id, w.request.id));
     const view = await eventDayView(w.db, w.S, w.request.id);
-    expect(Object.keys(view).sort()).toEqual(["canTick", "checklist", "fallbacks", "request", "timeZone"]);
+    expect(Object.keys(view).sort()).toEqual(["canTick", "checklist", "eventDocsUrl", "fallbacks", "request", "rulebookUrl", "timeZone"]);
     expect(Object.keys(view.request).sort()).toEqual(["durationMinutes", "id", "startsAt", "status", "title", "where"]);
     expect(view.canTick).toBe(false);
     expect(view.request.where).toBe("Lobby");

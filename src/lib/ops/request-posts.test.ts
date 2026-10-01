@@ -319,11 +319,19 @@ describe("testSend", () => {
     await setEventSecrets(w.db, w.admin, { staffWebhook: "https://discord.com/api/webhooks/333333333333333333/STAFF" });
     await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
     const queue = memoryQueue();
-    await testSend(w.db, w.manager, w.request.id, "announcement", queue);
-    await testSend(w.db, w.manager, w.request.id, "announcement", queue);
-    expect(queue.jobs).toHaveLength(1);
-    await savePostDraft(w.db, w.manager, w.request.id, "announcement", { text: "Hallo Welt" });
-    await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+    // The job id holds a 2-second time bucket: freeze the clock at the start of one so a double click always lands in it.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(Math.ceil(Date.now() / 2000) * 2000);
+      await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+      vi.setSystemTime(Date.now() + 500);
+      await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+      expect(queue.jobs).toHaveLength(1);
+      await savePostDraft(w.db, w.manager, w.request.id, "announcement", { text: "Hallo Welt" });
+      await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+    } finally {
+      vi.useRealTimers();
+    }
     expect(queue.jobs).toHaveLength(2);
     expect(queue.jobs.every((j) => !String(j.opts.jobId).includes(":"))).toBe(true);
   });
