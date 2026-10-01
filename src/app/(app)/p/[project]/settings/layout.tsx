@@ -9,7 +9,11 @@ import { SettingsFrame } from "./settings-frame";
  */
 export default async function SettingsLayout({ children, params }: { children: React.ReactNode; params: Promise<{ project: string }> }) {
   const { project: slug } = await params;
-  await prefetch(trpc.projects.get.queryOptions({ project: slug }), trpc.members.list.queryOptions({ project: slug }));
+  await prefetch(
+    trpc.projects.get.queryOptions({ project: slug }),
+    trpc.members.list.queryOptions({ project: slug }),
+    trpc.fields.list.queryOptions({ project: slug }),
+  );
   return (
     <HydrateClient>
       <SettingsFrame slug={slug}>{children}</SettingsFrame>

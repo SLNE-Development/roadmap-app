@@ -13,13 +13,18 @@ export interface SystemGroup {
   items: SystemListItem[];
 }
 
-/** Column template shared by the header and every row. */
-const GRID = "grid grid-cols-[minmax(0,2.4fr)_130px_110px_170px_130px_130px_80px] items-center gap-4";
+/** Classes of the grid shared by the header and every row. */
+const GRID = "grid items-center gap-4";
+
+/** Width of one custom field column. */
+const FIELD_WIDTH = 130;
 
 /**
  * The systems table: one row per system with status, priority, owner, phase,
- * task progress and the age of its latest update, under group header rows.
+ * task progress and the age of its latest update, under group header rows,
+ * followed by one column per custom field.
  *
+ * @param props.fields the project's custom fields, one column each
  * @param props.phaseName the phase name of a phase id
  * @param props.updatedAt the ISO time of each system's latest update, by id
  */
@@ -28,18 +33,23 @@ export function SystemsTable({
   projectSlug,
   phaseName,
   updatedAt,
+  fields,
 }: {
   groups: SystemGroup[];
   projectSlug: string;
   phaseName: Record<string, string>;
   updatedAt: Record<string, string>;
+  fields: { key: string; name: string }[];
 }) {
   const now = useNow();
+  const template = {
+    gridTemplateColumns: `minmax(0,2.4fr) 130px 110px 170px 130px 130px 80px${` ${FIELD_WIDTH}px`.repeat(fields.length)}`,
+  };
   return (
     <div className="overflow-x-auto border bg-card">
-      <div role="table" aria-label="Systems" className="flex min-w-[1040px] flex-col">
+      <div role="table" aria-label="Systems" className="flex min-w-max flex-col">
         <div role="rowgroup">
-          <div role="row" className={`${GRID} border-b px-4 py-[9px] text-xs font-semibold text-muted-foreground`}>
+          <div role="row" style={template} className={`${GRID} border-b px-4 py-[9px] text-xs font-semibold text-muted-foreground`}>
             <span role="columnheader">System</span>
             <span role="columnheader">Status</span>
             <span role="columnheader">Priority</span>
@@ -49,6 +59,11 @@ export function SystemsTable({
             <span role="columnheader" className="text-right">
               Updated
             </span>
+            {fields.map((f) => (
+              <span role="columnheader" key={f.key} className="truncate">
+                {f.name}
+              </span>
+            ))}
           </div>
         </div>
         {groups.map((g) => (
@@ -62,7 +77,7 @@ export function SystemsTable({
               </div>
             )}
             {g.items.map((s) => (
-              <div role="row" key={s.id} className={`${GRID} relative border-b px-4 py-2.5 text-[13.5px] last:border-b-0 hover:bg-muted/50`}>
+              <div role="row" key={s.id} style={template} className={`${GRID} relative border-b px-4 py-2.5 text-[13.5px] last:border-b-0 hover:bg-muted/50`}>
                 <span role="cell" className="flex min-w-0 flex-col gap-0.5">
                   <Link
                     href={`/p/${projectSlug}/systems/${s.slug}`}
@@ -93,6 +108,11 @@ export function SystemsTable({
                 <span role="cell" className="text-right text-[12.5px] text-muted-foreground">
                   {updatedAt[s.id] ? relativeAge(updatedAt[s.id], now) : "—"}
                 </span>
+                {fields.map((f) => (
+                  <span role="cell" key={f.key} className="truncate text-fg-2">
+                    {s.fields[f.key] ?? <span className="text-muted-foreground">—</span>}
+                  </span>
+                ))}
               </div>
             ))}
           </div>

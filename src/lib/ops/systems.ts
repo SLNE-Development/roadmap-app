@@ -24,6 +24,7 @@ import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./a
 import type { Actor } from "./actor";
 import { dependencyMapsOf } from "./dependencies";
 import { ConflictError, InvalidError, isUniqueViolation, NotFoundError } from "./errors";
+import { fieldValuesByKey } from "./fields";
 import { logChange } from "./log";
 import { findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
@@ -99,6 +100,8 @@ export interface SystemListItem {
   dependsOn: string[];
   /** Slugs of the dependencies that are not in a done column yet. */
   blockedBy: string[];
+  /** Custom field values by field key. */
+  fields: Record<string, string>;
 }
 
 /** A task as shown on its system. */
@@ -294,6 +297,7 @@ export async function listSystems(
   const planningBySystem = new Map(planning.map((p) => [p.systemId, p]));
 
   const dependencies = await dependencyMapsOf(db, project.id);
+  const fieldValues = await fieldValuesByKey(db, project.id);
 
   const items = rows.map(({ planningCompletedAt, ...r }) => ({
     ...r,
@@ -308,6 +312,7 @@ export async function listSystems(
     unestimated: rollups.get(r.id)?.unestimated ?? 0,
     dependsOn: dependencies.dependsOn.get(r.id) ?? [],
     blockedBy: dependencies.blockedBy.get(r.id) ?? [],
+    fields: fieldValues.get(r.id) ?? {},
   }));
   if (filter.startable === undefined) return items;
   return items.filter((s) => (filter.startable ? s.blockedBy.length === 0 && s.columnCategory !== "done" : s.blockedBy.length > 0));

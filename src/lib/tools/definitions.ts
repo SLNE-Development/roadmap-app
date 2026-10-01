@@ -57,6 +57,7 @@ import {
 } from "@/lib/ops/systems";
 import { setTaskChecks, setTaskChecksInput } from "@/lib/ops/checks";
 import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
+import { setSystemFields } from "@/lib/ops/fields";
 import { addTask, addTaskInput, moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
@@ -109,7 +110,7 @@ register(
   }),
   defineTool({
     name: "get_project",
-    description: "Get a project with your role and its boards (with columns and their categories).",
+    description: "Get a project with your role, its boards (with columns and their categories) and its custom fields.",
     input: P,
     write: false,
     method: "GET",
@@ -300,6 +301,15 @@ register(
     method: "PUT",
     path: "/projects/:project/systems/:system/dependencies",
     run: (db, actor, { project, system, ...input }) => setDependencies(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "set_system_fields",
+    description: "Set custom field values of a system by key (see get_project fields); null clears one.",
+    input: { ...S, values: z.record(z.string(), z.union([z.string(), z.number(), z.null()])) },
+    write: true,
+    method: "PATCH",
+    path: "/projects/:project/systems/:system/fields",
+    run: (db, actor, { project, system, values }) => setSystemFields(db, actor, project, system, { values }),
   }),
   defineTool({
     name: "move_system",

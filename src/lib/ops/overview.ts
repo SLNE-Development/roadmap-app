@@ -1,7 +1,9 @@
+import type { FieldType } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import type { Actor } from "./actor";
 import { adrsOf, type AdrSummary } from "./adrs";
 import { dependenciesOf, type SystemDependencies } from "./dependencies";
+import { fieldsOf, fieldValuesByKey } from "./fields";
 import { latestDocument, type DocumentView } from "./documents";
 import { planningOf } from "./planning";
 import { questionsOf, type QuestionItem } from "./questions";
@@ -17,6 +19,8 @@ export interface SystemOverview extends SystemDetail {
   adrs: AdrSummary[];
   updates: UpdateItem[];
   dependencies: SystemDependencies;
+  /** The project's custom fields in order, each with this system's value. */
+  fields: { key: string; name: string; type: FieldType; options: string[]; value: string | null }[];
 }
 
 /**
@@ -33,7 +37,7 @@ export async function getSystemOverview(
   updatesLimit = 10,
 ): Promise<SystemOverview> {
   const detail = await getSystem(db, actor, projectSlug, systemSlug);
-  const [spec, plan, planning, questions, adrs, updates, dependencies] = await Promise.all([
+  const [spec, plan, planning, questions, adrs, updates, dependencies, definitions] = await Promise.all([
     latestDocument(db, detail.system.id, "spec"),
     latestDocument(db, detail.system.id, "plan"),
     planningOf(db, detail.system),
@@ -41,7 +45,9 @@ export async function getSystemOverview(
     adrsOf(db, detail.project.id, { systemId: detail.system.id }),
     updatesOf(db, detail.system.id, detail.project.id, updatesLimit),
     dependenciesOf(db, detail.system.id),
+    fieldsOf(db, detail.project.id),
   ]);
+  const values = (await fieldValuesByKey(db, detail.project.id)).get(detail.system.id) ?? {};
   return {
     ...detail,
     spec,
@@ -51,5 +57,6 @@ export async function getSystemOverview(
     adrs,
     updates,
     dependencies,
+    fields: definitions.map((f) => ({ key: f.key, name: f.name, type: f.type, options: f.options, value: values[f.key] ?? null })),
   };
 }

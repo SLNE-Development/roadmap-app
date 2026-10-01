@@ -35,6 +35,7 @@ export default async function SystemsPage({
     trpc.structure.phases.queryOptions({ project: slug }),
     trpc.members.list.queryOptions({ project: slug }),
     trpc.systems.latestUpdates.queryOptions({ project: slug }),
+    trpc.fields.list.queryOptions({ project: slug }),
   );
   return (
     <HydrateClient>

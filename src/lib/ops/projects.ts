@@ -7,6 +7,7 @@ import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./a
 import type { Actor } from "./actor";
 import { insertBoard } from "./boards";
 import { ConflictError, isUniqueViolation } from "./errors";
+import { fieldsOf, type CustomFieldRow } from "./fields";
 import { logChange } from "./log";
 import { loadBoards, type BoardWithColumns } from "./lookup";
 
@@ -38,6 +39,8 @@ export interface ProjectDetail {
   project: ProjectRow;
   role: AccessRole;
   boards: BoardWithColumns[];
+  /** The project's custom fields in order, so agents learn the keys. */
+  fields: Omit<CustomFieldRow, "projectId">[];
 }
 
 /**
@@ -74,7 +77,16 @@ export async function listProjects(db: Executor, actor: Actor): Promise<ProjectL
 /** Returns a project the actor can see, with their role and its boards. */
 export async function getProject(db: Executor, actor: Actor, slug: string): Promise<ProjectDetail> {
   const found = await projectAccess(db, actor, slug, "viewer");
-  return { ...found, boards: await loadBoards(db, found.project.id) };
+  const fields = (await fieldsOf(db, found.project.id)).map((f) => ({
+    id: f.id,
+    key: f.key,
+    name: f.name,
+    type: f.type,
+    options: f.options,
+    sortOrder: f.sortOrder,
+    createdAt: f.createdAt,
+  }));
+  return { ...found, boards: await loadBoards(db, found.project.id), fields };
 }
 
 /** Changes name, description or repository URL, logging each changed field. Owner only. */

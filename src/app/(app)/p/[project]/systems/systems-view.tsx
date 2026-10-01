@@ -33,7 +33,7 @@ export function SystemsView({
   filter: z.output<typeof systemFilter>;
 }) {
   const trpc = useTRPC();
-  const [{ data: detail }, { data: systems }, { data: all }, { data: domains }, { data: phases }, { data: members }, { data: latest }] =
+  const [{ data: detail }, { data: systems }, { data: all }, { data: domains }, { data: phases }, { data: members }, { data: latest }, { data: fields }] =
     useSuspenseQueries({
       queries: [
         trpc.projects.get.queryOptions({ project: slug }),
@@ -43,9 +43,10 @@ export function SystemsView({
         trpc.structure.phases.queryOptions({ project: slug }),
         trpc.members.list.queryOptions({ project: slug }),
         trpc.systems.latestUpdates.queryOptions({ project: slug }),
+        trpc.fields.list.queryOptions({ project: slug }),
       ],
     });
-  const data = { detail, systems, total: all.length, domains, phases, members, latest };
+  const data = { detail, systems, total: all.length, domains, phases, members, latest, fields };
   const q = current.q ?? "";
   const canEdit = data.detail.role !== "viewer";
   const needle = q.toLowerCase();
@@ -143,7 +144,7 @@ export function SystemsView({
           ))}
         </div>
       ) : (
-        <SystemsTable groups={groups} projectSlug={slug} phaseName={phaseName} updatedAt={updatedAt} />
+        <SystemsTable groups={groups} projectSlug={slug} phaseName={phaseName} updatedAt={updatedAt} fields={data.fields} />
       )}
     </Page>
   );

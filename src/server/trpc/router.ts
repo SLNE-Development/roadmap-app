@@ -3,6 +3,7 @@ import { router } from "./init";
 import { accountRouter } from "./routers/account";
 import { adrsRouter } from "./routers/adrs";
 import { boardsRouter } from "./routers/boards";
+import { fieldsRouter } from "./routers/fields";
 import { historyRouter } from "./routers/history";
 import { membersRouter } from "./routers/members";
 import { planningRouter } from "./routers/planning";
@@ -23,6 +24,7 @@ export const appRouter = router({
   members: membersRouter,
   boards: boardsRouter,
   structure: structureRouter,
+  fields: fieldsRouter,
   systems: systemsRouter,
   tasks: tasksRouter,
   questions: questionsRouter,

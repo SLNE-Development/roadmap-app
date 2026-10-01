@@ -1,6 +1,6 @@
 import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
-import { board, boardColumn, domain, phase, project } from "./projects";
+import { board, boardColumn, customField, domain, phase, project } from "./projects";
 
 /** Priority classes, from most to least urgent. */
 export const PRIORITIES = ["MVP", "Later", "Nice to have"] as const;
@@ -105,6 +105,21 @@ export const systemDependency = pgTable(
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.systemId, t.dependsOnId] }), index("system_dependency_depends_on_id_idx").on(t.dependsOnId)],
+);
+
+/** A system's value for a custom field, stored as text. */
+export const systemFieldValue = pgTable(
+  "system_field_value",
+  {
+    systemId: text("system_id")
+      .notNull()
+      .references(() => system.id, { onDelete: "cascade" }),
+    fieldId: text("field_id")
+      .notNull()
+      .references(() => customField.id, { onDelete: "cascade" }),
+    value: text("value").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.systemId, t.fieldId] }), index("system_field_value_field_id_idx").on(t.fieldId)],
 );
 
 /** Checklist items inside a task. */

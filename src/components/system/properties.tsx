@@ -6,8 +6,11 @@ import Link from "next/link";
 import { CATEGORY_TEXT, CategoryDot, PriorityTag } from "@/components/chips";
 import { PersonName } from "@/components/person-avatar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { SystemDependencies } from "@/lib/ops/dependencies";
+import type { SystemOverview } from "@/lib/ops/overview";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 import { currentColumn, DomainMenu, OwnerMenu, PhaseMenu, PriorityMenu, StatusMenu, type SystemControlsData } from "./controls";
@@ -102,13 +105,74 @@ function DependencyPicker({
   );
 }
 
+/** A custom field of the system with its definition and current value. */
+export type FieldValue = SystemOverview["fields"][number];
+
+/**
+ * One custom field row: the editor matching the field type for editors, saved
+ * on blur (text, number, date) or on change (select); an empty value clears it.
+ * Viewers see the plain value.
+ */
+function FieldRow({ data, field }: { data: SystemControlsData; field: FieldValue }) {
+  const trpc = useTRPC();
+  const save = useMutation(trpc.fields.setValues.mutationOptions());
+  const commit = (value: string) => {
+    const next = value.trim();
+    if (next === (field.value ?? "")) return;
+    save.mutate({
+      project: data.projectSlug,
+      system: data.systemSlug,
+      values: { [field.key]: next === "" ? null : field.type === "number" ? Number(next) : next },
+    });
+  };
+  const label = field.name;
+  if (!data.canEdit) {
+    return <Row label={label}>{field.value ?? <span className="text-muted-foreground">None</span>}</Row>;
+  }
+  return (
+    <Row label={label}>
+      {field.type === "select" ? (
+        <NativeSelect
+          aria-label={label}
+          size="sm"
+          className="w-full"
+          value={field.value ?? ""}
+          disabled={save.isPending}
+          onChange={(e) => commit(e.target.value)}
+        >
+          <option value="">None</option>
+          {field.options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </NativeSelect>
+      ) : (
+        <Input
+          // Remounts with the saved value, so a refetch or a refused save resets the input.
+          key={field.value ?? ""}
+          aria-label={label}
+          type={field.type === "text" ? "text" : field.type}
+          defaultValue={field.value ?? ""}
+          disabled={save.isPending}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className="h-[30px]"
+        />
+      )}
+    </Row>
+  );
+}
+
 /**
  * The properties panel of the right rail: status, priority, owner, board,
- * domain, phase and dependencies. Editors change them through menus; viewers
- * read them. On phones the first three are shown in {@link SystemFacts} instead.
+ * domain, phase, dependencies and the project's custom fields. Editors change
+ * them through menus and inputs; viewers read them. On phones the first three
+ * are shown in {@link SystemFacts} instead.
  *
  * @param props.dependencies the systems this one depends on and those depending on it
  * @param props.systems the project's systems, from which editors pick dependencies
+ * @param props.fields the project's custom fields with this system's values
  */
 export function PropertiesPanel({
   data,
@@ -118,6 +182,7 @@ export function PropertiesPanel({
   phaseName,
   dependencies,
   systems,
+  fields,
 }: {
   data: SystemControlsData;
   boardName: string;
@@ -126,6 +191,7 @@ export function PropertiesPanel({
   phaseName: string | null;
   dependencies: SystemDependencies;
   systems: { slug: string; title: string }[];
+  fields: FieldValue[];
 }) {
   const column = currentColumn(data);
   const status = (
@@ -218,6 +284,9 @@ export function PropertiesPanel({
       <Row label="Needed by" className="items-start">
         <SystemChips projectSlug={data.projectSlug} systems={dependencies.dependents} />
       </Row>
+      {fields.map((f) => (
+        <FieldRow key={f.key} data={data} field={f} />
+      ))}
     </section>
   );
 }

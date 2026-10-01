@@ -13,7 +13,7 @@ const SPEC_TOOLS = [
   "list_boards", "create_board", "update_board", "set_board_columns",
   "list_domains", "create_domain", "update_domain", "reorder_domains",
   "list_phases", "create_phase", "update_phase", "reorder_phases",
-  "list_systems", "get_system", "create_system", "update_system", "set_dependencies", "move_system",
+  "list_systems", "get_system", "create_system", "update_system", "set_dependencies", "set_system_fields", "move_system",
   "get_planning", "add_planning_round", "answer_planning_items", "complete_planning", "reopen_planning",
   "get_document", "write_spec", "write_plan",
   "add_task", "update_task", "set_task_checks", "move_task",

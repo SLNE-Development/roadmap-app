@@ -1,4 +1,4 @@
-import { index, integer, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 
 /** Roles a member can have in a project, from most to least privileged. */
@@ -111,4 +111,28 @@ export const phaseDependency = pgTable(
       .references(() => phase.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.phaseId, t.dependsOnId] }), index("phase_dependency_depends_on_id_idx").on(t.dependsOnId)],
+);
+
+/** Value types of a custom field. */
+export const FIELD_TYPES = ["text", "select", "number", "date"] as const;
+
+/** The value type of a custom field. */
+export type FieldType = (typeof FIELD_TYPES)[number];
+
+/** Per-project fields that every system of the project can carry a value for. */
+export const customField = pgTable(
+  "custom_field",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    type: text("type", { enum: FIELD_TYPES }).notNull(),
+    options: jsonb("options").$type<string[]>().notNull().default([]),
+    sortOrder: integer("sort_order").notNull(),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [unique("custom_field_project_key").on(t.projectId, t.key)],
 );

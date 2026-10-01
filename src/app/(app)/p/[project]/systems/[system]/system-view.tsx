@@ -190,6 +190,7 @@ export function SystemView({
               phaseName={o.phase?.name ?? null}
               dependencies={o.dependencies}
               systems={systems}
+              fields={o.fields}
             />
             <PlanningPanel planning={planning} href={tabHref(base, "planning")} />
             <DecisionsPanel projectSlug={slug} systemSlug={systemSlug} adrs={o.adrs} questions={openQuestions} />
