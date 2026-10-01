@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MentionTextarea } from "@/components/mentions/mention-textarea";
@@ -18,9 +19,11 @@ const LONG_NOTES = 400;
  * Hidden for viewers when there are no notes.
  */
 export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { projectSlug: string; systemSlug: string; notes: string; canEdit: boolean }) {
+  const t = useTranslations("system.notes");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   // The toast lives on the mutation so it survives the panel closing the editor.
-  const update = useMutation(trpc.systems.update.mutationOptions({ onSuccess: () => toast.success("Notes saved") }));
+  const update = useMutation(trpc.systems.update.mutationOptions({ onSuccess: () => toast.success(t("saved")) }));
   const pending = update.isPending;
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -39,7 +42,7 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
   return (
     <section className="flex flex-col gap-2.5 border bg-card p-4" aria-busy={pending}>
       <div className="flex items-center gap-2">
-        <h2 className="flex-1 text-sm font-semibold">Notes</h2>
+        <h2 className="flex-1 text-sm font-semibold">{t("title")}</h2>
         {canEdit && !editing && (
           <Button
             variant="ghost"
@@ -51,7 +54,7 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
               setEditing(true);
             }}
           >
-            {notes.trim() ? "Edit notes" : "Add notes"}
+            {notes.trim() ? t("edit") : t("add")}
           </Button>
         )}
       </div>
@@ -72,7 +75,7 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
           }}
         >
           <MentionTextarea
-            aria-label="Notes"
+            aria-label={t("title")}
             className="min-h-40 text-[13px]"
             projectSlug={projectSlug}
             value={text}
@@ -82,14 +85,14 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
               setDirty(true);
             }}
           />
-          <p className="text-xs text-muted-foreground">Markdown works here.</p>
-          {changedElsewhere && <p className="text-xs text-cat-planning">Notes changed elsewhere since you started editing.</p>}
+          <p className="text-xs text-muted-foreground">{t("markdownHint")}</p>
+          {changedElsewhere && <p className="text-xs text-cat-planning">{t("changedElsewhere")}</p>}
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={pending || text === notes}>
-              Save notes
+              {t("save")}
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => setEditing(false)}>
-              Cancel
+              {tc("cancel")}
             </Button>
           </div>
         </form>
@@ -101,12 +104,12 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
           </div>
           {long && (
             <button type="button" onClick={() => setExpanded((v) => !v)} className="self-start text-[12.5px] font-medium text-brand-strong hover:underline">
-              {expanded ? "Show less" : "Show all"}
+              {expanded ? t("showLess") : t("showAll")}
             </button>
           )}
         </>
       ) : (
-        <p className="text-[12.5px] text-fg-2">Keep context for people and agents here: links, constraints, decisions in progress.</p>
+        <p className="text-[12.5px] text-fg-2">{t("emptyHint")}</p>
       )}
     </section>
   );

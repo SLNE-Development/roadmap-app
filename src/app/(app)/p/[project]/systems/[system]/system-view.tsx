@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
 import { Check, Lock } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
@@ -27,12 +28,9 @@ import { ReopenPlanningButton, SystemActionBar, SystemHeaderActions } from "@/co
 import { PropertiesPanel, SystemFacts } from "@/components/system/properties";
 import { DecisionsPanel, PlanningPanel } from "@/components/system/rail";
 import { SystemTabs, tabHref, type SystemTab } from "@/components/system/tabs";
-import { AREA_LABEL } from "@/components/system/text";
 import type { GlossaryTerm } from "@/lib/glossary-match";
 import { stepStates } from "@/lib/plan-steps";
-import { plural } from "@/lib/text";
-import { formatDate } from "@/lib/time";
-import { describeGaps } from "@/components/system/text";
+import { areaKey, useGapText, useShortDate } from "@/components/system/text";
 import { TaskList } from "@/components/task-list";
 import type { DocumentKind } from "@/db/schema";
 import { useTRPC } from "@/trpc/client";
@@ -123,6 +121,12 @@ export function SystemView({
   specCompare: { from: number; to: number } | undefined;
   planCompare: { from: number; to: number } | undefined;
 }) {
+  const t = useTranslations("system");
+  const td = useTranslations("documents");
+  const te = useTranslations("enums.planningArea");
+  const format = useFormatter();
+  const date = useShortDate();
+  const { stillInPlanning } = useGapText();
   const trpc = useTRPC();
   const ref = { project: slug, system: systemSlug };
   const [{ data: o }, { data: planning }, { data: history }, { data: members }, { data: domains }, { data: phases }, { data: systems }, { data: glossary }, { data: releases }] = useSuspenseQueries({
@@ -146,7 +150,7 @@ export function SystemView({
   const canArchive = o.role !== "viewer" && !o.project.archivedAt;
   const archived = o.system.archivedAt !== null;
   const canEdit = canArchive && !archived;
-  const restore = useMutation(trpc.systems.setArchived.mutationOptions({ onSuccess: () => toast.success("System restored") }));
+  const restore = useMutation(trpc.systems.setArchived.mutationOptions({ onSuccess: () => toast.success(t("header.restored")) }));
   const base = `/p/${slug}/systems/${systemSlug}`;
   const boardHref = `/p/${slug}/boards/${o.board.slug}`;
   const openQuestions = o.questions.filter((q) => !q.resolved);
@@ -175,21 +179,21 @@ export function SystemView({
   const meta = {
     spec: o.spec ? `v${o.spec.version}` : undefined,
     plan: o.plan ? `v${o.plan.version}` : undefined,
-    planning: `${planning.rounds.length} ${planning.rounds.length === 1 ? "round" : "rounds"}`,
+    planning: t("meta.rounds", { count: planning.rounds.length }),
     activity: String(o.updates.length + changes.length),
   };
 
   const specSection = {
-    title: "Specification",
+    title: td("spec.title"),
     param: "spec",
     glossary,
-    empty: { title: "No spec yet", description: "The spec is written at the end of the planning interview." },
+    empty: { title: td("spec.emptyTitle"), description: td("spec.emptyDescription") },
   };
   const planSection = {
-    title: "Implementation plan",
+    title: td("plan.title"),
     param: "plan",
     glossary,
-    empty: { title: "No plan yet", description: "An agent writes the implementation plan once the spec is agreed; its steps become tasks." },
+    empty: { title: td("plan.emptyTitle"), description: td("plan.emptyDescription") },
   };
 
   const planPanel = (viewingVersion: number | undefined) => (
@@ -222,26 +226,26 @@ export function SystemView({
               <Sep />
             </>
           )}
-          {o.ownerName ? <PersonName name={o.ownerName} /> : <span className="text-muted-foreground">No owner</span>}
+          {o.ownerName ? <PersonName name={o.ownerName} /> : <span className="text-muted-foreground">{t("view.noOwner")}</span>}
           <Sep />
           {o.planning.complete ? (
             <span className="flex items-center gap-1.5 font-medium text-cat-done">
               <Check aria-hidden className="size-3.5" strokeWidth={2.4} />
-              Planning complete
+              {t("view.planningComplete")}
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 font-medium text-cat-planning" title={`Still in planning: ${describeGaps(o.planning.gaps)}.`}>
+            <span className="flex items-center gap-1.5 font-medium text-cat-planning" title={stillInPlanning(o.planning.gaps)}>
               <Lock aria-hidden className="size-3.5" />
-              In planning
+              {t("view.inPlanning")}
             </span>
           )}
         </div>
         <SystemFacts data={controls} planningHref={tabHref(base, "planning")} />
         {agentCost && (
           <Link href={`/p/${slug}/agents`} className="flex w-fit items-baseline gap-2 text-[13px] text-fg-2 hover:text-foreground">
-            <span>Agent cost</span>
+            <span>{t("view.agentCost")}</span>
             <span className="font-semibold text-foreground">
-              {formatTokens(agentCost.tokens)} tokens · {plural(agentCost.runs, "run")}
+              {t("view.agentCostValue", { tokens: formatTokens(agentCost.tokens), runs: agentCost.runs })}
             </span>
           </Link>
         )}
@@ -250,7 +254,7 @@ export function SystemView({
 
       {archived && (
         <ArchivedBanner
-          message="This system is archived and read-only."
+          message={t("view.archived")}
           onRestore={canArchive ? () => restore.mutate({ ...ref, archived: false }) : undefined}
           pending={restore.isPending}
         />
@@ -274,7 +278,7 @@ export function SystemView({
             <CodeLinks links={o.code} settingsHref={o.role === "owner" ? `/p/${slug}/settings/github` : undefined} />
             <SpecPreview doc={o.spec} href={tabHref(base, "spec")} />
           </div>
-          <aside aria-label="About this system" className="flex min-w-0 flex-col gap-4">
+          <aside aria-label={t("view.about")} className="flex min-w-0 flex-col gap-4">
             <PropertiesPanel
               data={controls}
               boardName={o.board.name}
@@ -334,12 +338,14 @@ export function SystemView({
           {!o.planning.complete && planning.rounds.length > 0 && (
             <p className="flex items-start gap-2.5 bg-cat-planning-soft px-3 py-2.5 text-[13px] leading-[1.45] text-cat-planning">
               <Lock aria-hidden className="mt-0.5 size-[15px] shrink-0" />
-              Still in planning: {describeGaps(o.planning.gaps)}.
+              {stillInPlanning(o.planning.gaps)}
             </p>
           )}
           {!o.planning.complete && o.planning.gaps.length === 0 && (
             <p className="bg-cat-done-soft px-3 py-2.5 text-[13px] leading-[1.45] text-cat-done">
-              Ready to complete{planning.warnings.length > 0 && <> · Thin areas: {planning.coverage.filter((c) => c.thin).map((c) => AREA_LABEL[c.area].toLowerCase()).join(", ")}</>}
+              {planning.warnings.length > 0
+                ? t("view.readyThin", { areas: format.list(planning.coverage.filter((c) => c.thin).map((c) => t(`gaps.areaNames.${areaKey(c.area)}`)), { type: "conjunction" }) })
+                : t("view.ready")}
             </p>
           )}
           {planning.rounds.length > 0 && <CoverageMap coverage={planning.coverage} />}
@@ -347,7 +353,7 @@ export function SystemView({
             <div className="flex flex-wrap items-center gap-3">
               <p className="flex flex-1 items-center gap-1.5 text-[13px] font-medium text-cat-done">
                 <Check aria-hidden className="size-3.5" strokeWidth={2.4} />
-                Planning complete
+                {t("view.planningComplete")}
               </p>
               <ReopenAreaDialog projectSlug={slug} systemSlug={systemSlug} reopened={planning.reopenedAreas.map((r) => r.area)} />
               <ReopenPlanningButton projectSlug={slug} systemSlug={systemSlug} />
@@ -356,9 +362,9 @@ export function SystemView({
           {planning.reopenedAreas.map((r) => (
             <p key={r.area} className="flex flex-col gap-0.5 bg-cat-planning-soft px-3 py-2.5 text-[13px] leading-[1.45] text-cat-planning">
               <span>
-                Area {r.area} reopened {formatDate(r.reopenedAt.toISOString())}: {r.reason}
+                {t("view.areaReopened", { area: te(areaKey(r.area)), date: date(r.reopenedAt), reason: r.reason })}
               </span>
-              <span className="text-xs">An agent closes this area with complete_planning_area once its questions are answered.</span>
+              <span className="text-xs">{t("view.areaReopenedHint", { tool: "complete_planning_area" })}</span>
             </p>
           ))}
           <PlanningRounds rounds={planning.rounds} confirmation={planning.confirmation} completedAt={planning.completedAt?.toISOString() ?? null} />
@@ -371,7 +377,7 @@ export function SystemView({
           updates={o.updates}
           changes={changes}
           names={{
-            tasks: new Map(o.tasks.map((t) => [String(t.id), t.title])),
+            tasks: new Map(o.tasks.map((task) => [String(task.id), task.title])),
             domains: new Map(domains.map((d) => [d.id, d.name])),
             phases: new Map(phases.map((p) => [p.id, p.name])),
           }}

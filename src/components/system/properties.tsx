@@ -2,8 +2,10 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Check, ChevronDown, Lock, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { CATEGORY_TEXT, CategoryDot, PriorityTag } from "@/components/chips";
+import { priorityKey } from "@/i18n/enums";
 import { PersonName } from "@/components/person-avatar";
 import { ReleaseSelect, type ReleaseOption } from "@/components/releases/release-select";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -28,8 +30,8 @@ function Hint() {
 /** One label/value row of the properties panel. */
 function Row({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className={cn("grid grid-cols-[84px_minmax(0,1fr)] items-center gap-2.5 px-4 py-1", className)}>
-      <span className="text-[12.5px] text-muted-foreground">{label}</span>
+    <div className={cn("grid grid-cols-[100px_minmax(0,1fr)] items-center gap-2.5 px-4 py-1", className)}>
+      <span className="min-w-0 text-[12.5px] break-words text-muted-foreground">{label}</span>
       <div className="flex min-h-[30px] min-w-0 items-center text-[13.5px]">{children}</div>
     </div>
   );
@@ -37,7 +39,8 @@ function Row({ label, className, children }: { label: string; className?: string
 
 /** Dependency chips: category dot and title, each linking to its system. */
 function SystemChips({ projectSlug, systems }: { projectSlug: string; systems: SystemDependencies["dependsOn"] }) {
-  if (systems.length === 0) return <span className="text-muted-foreground">None</span>;
+  const tc = useTranslations("common");
+  if (systems.length === 0) return <span className="text-muted-foreground">{tc("none")}</span>;
   return (
     <ul className="flex min-w-0 flex-wrap gap-1">
       {systems.map((s) => (
@@ -68,6 +71,7 @@ function DependencyPicker({
   systems: { slug: string; title: string }[];
   selected: string[];
 }) {
+  const t = useTranslations("system.properties");
   const trpc = useTRPC();
   const save = useMutation(trpc.systems.setDependencies.mutationOptions());
   const toggle = (slug: string) =>
@@ -81,7 +85,7 @@ function DependencyPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Change dependencies"
+          aria-label={t("changeDependencies")}
           className="ml-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <Plus aria-hidden className="size-3.5" />
@@ -89,10 +93,10 @@ function DependencyPicker({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-0">
         <Command>
-          <CommandInput placeholder="Search systems…" />
+          <CommandInput placeholder={t("searchSystems")} />
           <CommandList>
-            <CommandEmpty>No other systems.</CommandEmpty>
-            <CommandGroup heading="Depends on">
+            <CommandEmpty>{t("noOtherSystems")}</CommandEmpty>
+            <CommandGroup heading={t("dependsOn")}>
               {systems.map((s) => (
                 <CommandItem key={s.slug} value={`${s.title} ${s.slug}`} data-checked={selected.includes(s.slug)} disabled={save.isPending} onSelect={() => toggle(s.slug)}>
                   {s.title}
@@ -115,6 +119,7 @@ export type FieldValue = SystemOverview["fields"][number];
  * Viewers see the plain value.
  */
 function FieldRow({ data, field }: { data: SystemControlsData; field: FieldValue }) {
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const save = useMutation(trpc.fields.setValues.mutationOptions());
   const commit = (value: string) => {
@@ -128,7 +133,7 @@ function FieldRow({ data, field }: { data: SystemControlsData; field: FieldValue
   };
   const label = field.name;
   if (!data.canEdit) {
-    return <Row label={label}>{field.value ?? <span className="text-muted-foreground">None</span>}</Row>;
+    return <Row label={label}>{field.value ?? <span className="text-muted-foreground">{tc("none")}</span>}</Row>;
   }
   return (
     <Row label={label}>
@@ -141,7 +146,7 @@ function FieldRow({ data, field }: { data: SystemControlsData; field: FieldValue
           disabled={save.isPending}
           onChange={(e) => commit(e.target.value)}
         >
-          <option value="">None</option>
+          <option value="">{tc("none")}</option>
           {field.options.map((o) => (
             <option key={o} value={o}>
               {o}
@@ -203,6 +208,9 @@ export function PropertiesPanel({
   releaseSlug: string | null;
   isOwner: boolean;
 }) {
+  const t = useTranslations("system.fields");
+  const tc = useTranslations("common");
+  const tp = useTranslations("enums.priority");
   const column = currentColumn(data);
   const status = (
     <span className={cn("flex items-center gap-1.5 font-semibold", CATEGORY_TEXT[column.category])}>
@@ -211,15 +219,15 @@ export function PropertiesPanel({
     </span>
   );
   const priority = <PriorityTag priority={data.priority} />;
-  const owner = data.ownerName ? <PersonName name={data.ownerName} className="truncate" /> : <span className="text-muted-foreground">Nobody</span>;
-  const domain = domainName ?? <span className="text-muted-foreground">None</span>;
-  const phase = phaseName ?? <span className="text-muted-foreground">None</span>;
+  const owner = data.ownerName ? <PersonName name={data.ownerName} className="truncate" /> : <span className="text-muted-foreground">{t("nobody")}</span>;
+  const domain = domainName ?? <span className="text-muted-foreground">{tc("none")}</span>;
+  const phase = phaseName ?? <span className="text-muted-foreground">{tc("none")}</span>;
   return (
-    <section aria-label="Properties" className="flex flex-col border bg-card py-1.5">
-      <Row label="Status" className="hidden lg:grid">
+    <section aria-label={t("properties")} className="flex flex-col border bg-card py-1.5">
+      <Row label={t("status")} className="hidden lg:grid">
         {data.canEdit ? (
           <StatusMenu data={data} align="start">
-            <button type="button" aria-label={`Status: ${column.name}. Change status`} className={FIELD_BUTTON}>
+            <button type="button" aria-label={t("changeStatus", { name: column.name })} className={FIELD_BUTTON}>
               {status}
               <Hint />
             </button>
@@ -228,10 +236,10 @@ export function PropertiesPanel({
           status
         )}
       </Row>
-      <Row label="Priority" className="hidden lg:grid">
+      <Row label={t("priority")} className="hidden lg:grid">
         {data.canEdit ? (
           <PriorityMenu data={data}>
-            <button type="button" aria-label={`Priority: ${data.priority}. Change priority`} className={FIELD_BUTTON}>
+            <button type="button" aria-label={t("changePriority", { value: tp(priorityKey(data.priority)) })} className={FIELD_BUTTON}>
               {priority}
               <Hint />
             </button>
@@ -240,10 +248,10 @@ export function PropertiesPanel({
           priority
         )}
       </Row>
-      <Row label="Owner" className="hidden lg:grid">
+      <Row label={t("owner")} className="hidden lg:grid">
         {data.canEdit ? (
           <OwnerMenu data={data}>
-            <button type="button" aria-label={`Owner: ${data.ownerName ?? "nobody"}. Change owner`} className={FIELD_BUTTON}>
+            <button type="button" aria-label={t("changeOwner", { name: data.ownerName ?? t("nobodyLower") })} className={FIELD_BUTTON}>
               {owner}
               <Hint />
             </button>
@@ -252,15 +260,15 @@ export function PropertiesPanel({
           owner
         )}
       </Row>
-      <Row label="Board">
+      <Row label={t("board")}>
         <Link href={boardHref} className="truncate hover:text-brand-strong hover:underline">
           {boardName}
         </Link>
       </Row>
-      <Row label="Domain">
+      <Row label={t("domain")}>
         {data.canEdit ? (
           <DomainMenu data={data}>
-            <button type="button" aria-label={`Domain: ${domainName ?? "none"}. Change domain`} className={FIELD_BUTTON}>
+            <button type="button" aria-label={t("changeDomain", { name: domainName ?? tc("none") })} className={FIELD_BUTTON}>
               <span className="truncate">{domain}</span>
               <Hint />
             </button>
@@ -269,10 +277,10 @@ export function PropertiesPanel({
           domain
         )}
       </Row>
-      <Row label="Phase">
+      <Row label={t("phase")}>
         {data.canEdit ? (
           <PhaseMenu data={data}>
-            <button type="button" aria-label={`Phase: ${phaseName ?? "none"}. Change phase`} className={FIELD_BUTTON}>
+            <button type="button" aria-label={t("changePhase", { name: phaseName ?? tc("none") })} className={FIELD_BUTTON}>
               <span className="truncate">{phase}</span>
               <Hint />
             </button>
@@ -282,7 +290,7 @@ export function PropertiesPanel({
         )}
       </Row>
       {releases.length > 0 && (
-        <Row label="Release">
+        <Row label={t("release")}>
           {data.canEdit ? (
             <ReleaseSelect
               projectSlug={data.projectSlug}
@@ -293,11 +301,11 @@ export function PropertiesPanel({
               className={FIELD_BUTTON}
             />
           ) : (
-            (releases.find((r) => r.slug === releaseSlug)?.name ?? <span className="text-muted-foreground">None</span>)
+            (releases.find((r) => r.slug === releaseSlug)?.name ?? <span className="text-muted-foreground">{tc("none")}</span>)
           )}
         </Row>
       )}
-      <Row label="Depends on" className="items-start">
+      <Row label={t("dependsOn")} className="items-start">
         <SystemChips projectSlug={data.projectSlug} systems={dependencies.dependsOn} />
         {data.canEdit && (
           <DependencyPicker
@@ -307,7 +315,7 @@ export function PropertiesPanel({
           />
         )}
       </Row>
-      <Row label="Needed by" className="items-start">
+      <Row label={t("neededBy")} className="items-start">
         <SystemChips projectSlug={data.projectSlug} systems={dependencies.dependents} />
       </Row>
       {fields.map((f) => (
@@ -335,9 +343,11 @@ function FactBody({ label, children }: { label: string; children: React.ReactNod
  * planning. For editors the first three open the same menus as the rail.
  */
 export function SystemFacts({ data, planningHref }: { data: SystemControlsData; planningHref: string }) {
+  const t = useTranslations("system.fields");
+  const tp = useTranslations("enums.priority");
   const column = currentColumn(data);
   const status = (
-    <FactBody label="Status">
+    <FactBody label={t("status")}>
       <span className={cn("flex items-center gap-1.5", CATEGORY_TEXT[column.category])}>
         <CategoryDot category={column.category} />
         {column.name}
@@ -345,11 +355,11 @@ export function SystemFacts({ data, planningHref }: { data: SystemControlsData; 
     </FactBody>
   );
   const priority = (
-    <FactBody label="Priority">
-      <span className={data.priority === "MVP" ? "text-brand-strong" : undefined}>{data.priority}</span>
+    <FactBody label={t("priority")}>
+      <span className={data.priority === "MVP" ? "text-brand-strong" : undefined}>{tp(priorityKey(data.priority))}</span>
     </FactBody>
   );
-  const owner = <FactBody label="Owner">{data.ownerName ?? <span className="font-medium text-muted-foreground">Nobody</span>}</FactBody>;
+  const owner = <FactBody label={t("owner")}>{data.ownerName ?? <span className="font-medium text-muted-foreground">{t("nobody")}</span>}</FactBody>;
   return (
     <div className="grid grid-cols-2 gap-2 lg:hidden">
       {data.canEdit ? (
@@ -378,16 +388,16 @@ export function SystemFacts({ data, planningHref }: { data: SystemControlsData; 
         </>
       )}
       <Link href={planningHref} className={FACT}>
-        <FactBody label="Planning">
+        <FactBody label={t("planning")}>
           {data.planningComplete ? (
             <span className="flex items-center gap-1.5 text-cat-done">
               <Check aria-hidden className="size-3.5" strokeWidth={2.6} />
-              Complete
+              {t("planningDone")}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-cat-planning">
               <Lock aria-hidden className="size-3.5" />
-              In planning
+              {t("inPlanning")}
             </span>
           )}
         </FactBody>

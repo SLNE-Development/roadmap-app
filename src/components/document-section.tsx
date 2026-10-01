@@ -1,6 +1,7 @@
 "use client";
 
 import { FileText } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useMemo, type ReactNode } from "react";
 import { CompareSelects, CompareToggle } from "@/components/compare-picker";
@@ -8,11 +9,11 @@ import { EmptyState } from "@/components/page";
 import { extractHeadings } from "@/lib/headings";
 import type { GlossaryTerm } from "@/lib/glossary-match";
 import type { DocumentView } from "@/lib/ops/documents";
-import { formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { DocumentOutline, MIN_OUTLINE_HEADINGS } from "./document-outline";
 import { Markdown, type StepStates } from "./markdown";
 import { AuthorText } from "./system/author";
+import { useShortDate } from "./system/text";
 import { VersionPicker } from "./version-picker";
 
 /** Above this many characters, the overview's spec preview is clipped with a fade. */
@@ -20,9 +21,10 @@ const PREVIEW_CHARS = 900;
 
 /** "v2 · Aiko Tanaka via claude-code · 12 Sep" for a document version. */
 function DocumentMeta({ doc }: { doc: Omit<DocumentView, "kind"> }) {
+  const date = useShortDate();
   return (
     <span className="text-[12.5px] text-muted-foreground">
-      v{doc.version} · <AuthorText name={doc.authorName} agent={doc.agent} /> · {formatDate(doc.createdAt.toISOString())}
+      {`v${doc.version}`} · <AuthorText name={doc.authorName} agent={doc.agent} /> · {date(doc.createdAt)}
     </span>
   );
 }
@@ -57,6 +59,7 @@ export function DocumentSection({
   aside?: ReactNode;
   compare?: { from: number; to: number; diff: ReactNode };
 }) {
+  const t = useTranslations("documents");
   const body = doc?.body;
   const headings = useMemo(() => extractHeadings(body ?? ""), [body]);
   // A diff has no heading anchors, so compare mode shows no outline.
@@ -87,7 +90,7 @@ export function DocumentSection({
             ) : (
               <>
                 {doc.version !== doc.versions[0] && (
-                  <span className="text-[12.5px] text-cat-review">An older version. The latest is v{doc.versions[0]}.</span>
+                  <span className="text-[12.5px] text-cat-review">{t("olderVersion", { latest: doc.versions[0] })}</span>
                 )}
                 <VersionPicker param={param} versions={doc.versions} current={doc.version} />
               </>
@@ -120,11 +123,12 @@ export function DocumentSection({
  * with its version, author and date and a link to the full spec tab.
  */
 export function SpecPreview({ doc, href }: { doc: DocumentView | null; href: string }) {
+  const t = useTranslations("documents");
   const long = doc !== null && doc.body.length > PREVIEW_CHARS;
   return (
     <section className="flex flex-col gap-3 border bg-card px-4 py-4 sm:px-[22px] sm:py-[18px]">
       <header className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <h2 className="font-display text-[19px] font-semibold">Specification</h2>
+        <h2 className="font-display text-[19px] font-semibold">{t("spec.title")}</h2>
         {doc && <DocumentMeta doc={doc} />}
       </header>
       {doc ? (
@@ -134,11 +138,11 @@ export function SpecPreview({ doc, href }: { doc: DocumentView | null; href: str
             {long && <div aria-hidden className="absolute inset-x-0 bottom-0 h-20 bg-linear-to-t from-card to-transparent" />}
           </div>
           <Link href={href} className="self-start text-[13px] font-semibold text-brand-strong hover:underline">
-            Read the full spec
+            {t("preview.readFull")}
           </Link>
         </>
       ) : (
-        <p className="text-[13px] text-fg-2">No spec yet. It is written at the end of the planning interview.</p>
+        <p className="text-[13px] text-fg-2">{t("preview.noSpec")}</p>
       )}
     </section>
   );

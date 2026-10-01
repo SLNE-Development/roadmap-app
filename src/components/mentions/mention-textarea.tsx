@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type ComponentProps, type KeyboardEvent } from "react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Command, CommandEmpty, CommandItem, CommandList } from "@/components/ui/command";
@@ -38,6 +39,7 @@ export function MentionTextarea({
   onSelect,
   ...props
 }: Omit<ComponentProps<typeof Textarea>, "value"> & { projectSlug: string; value: string; onValueChange: (value: string) => void }) {
+  const t = useTranslations("system.mentions");
   const trpc = useTRPC();
   const ref = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -149,11 +151,11 @@ export function MentionTextarea({
         }}
       >
         <Command shouldFilter={false} value={picked?.userId ?? ""} className="rounded-none!">
-          <CommandList aria-label="Members">
+          <CommandList aria-label={t("members")}>
             {members.isPending ? (
-              <p className="px-2 py-3 text-sm text-muted-foreground">Loading members…</p>
+              <p className="px-2 py-3 text-sm text-muted-foreground">{t("loading")}</p>
             ) : (
-              <CommandEmpty>No member matches.</CommandEmpty>
+              <CommandEmpty>{t("noMatch")}</CommandEmpty>
             )}
             {matches.map((m) => (
               <CommandItem

@@ -1,1 +1,64 @@
-{}
+{
+  "move": {
+    "moved": "Nach {system} verschoben",
+    "title": "In ein System verschieben",
+    "description": "Wähle das System, in das „{task}“ verschoben wird",
+    "search": "Systeme suchen…",
+    "loading": "Systeme werden geladen…",
+    "none": "Keine weiteren Systeme."
+  },
+  "dialog": {
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "save": "Speichern"
+  },
+  "checklist": {
+    "label": "Checkliste von {task}",
+    "remove": "{item} entfernen",
+    "addLabel": "Punkt zur Checkliste von {task} hinzufügen",
+    "add": "Punkt hinzufügen"
+  },
+  "row": {
+    "stateLabel": "Aufgabenstatus: {state}",
+    "deleted": "Aufgabe gelöscht",
+    "dragToReorder": "Zum Umsortieren ziehen",
+    "changeState": "Aufgabenstatus: {state}. Status von {task} ändern",
+    "state": "Status",
+    "blockedEllipsis": "Blockiert…",
+    "planningLocked": "Aufgaben können beginnen, sobald die Planung abgeschlossen ist.",
+    "owner": "Verantwortlich",
+    "ownerSet": "{name} ist für „{task}“ verantwortlich",
+    "ownerCleared": "Für „{task}“ ist niemand verantwortlich",
+    "nobody": "Niemand",
+    "estimate": "Schätzung",
+    "addChecklist": "Checkliste hinzufügen",
+    "notes": "Notizen",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten",
+    "moveToSystem": "In ein System verschieben…",
+    "deleteTask": "Aufgabe löschen",
+    "pullRequest": "PR #{number}",
+    "checksFailing": "Prüfungen schlagen fehl",
+    "checklistProgress": "Checkliste von {task}, {done} von {total} erledigt",
+    "notesFor": "Notizen zu {task}",
+    "estimateValue": "Schätzung {value}",
+    "noOwner": "Niemand verantwortlich",
+    "blockTitle": "Aufgabe blockieren",
+    "blockLabel": "Worauf wartet sie?",
+    "deleteTitle": "Diese Aufgabe löschen?",
+    "keep": "Behalten"
+  },
+  "list": {
+    "title": "Aufgaben",
+    "progress": "{done} von {total} erledigt",
+    "points": "{done} / {total} Pkt.",
+    "unestimated": "{count} ohne Schätzung",
+    "hideDone": "Erledigte ausblenden",
+    "showDone": "{count} erledigte anzeigen",
+    "planningLocked": "Aufgaben können beginnen, sobald die Planung abgeschlossen ist.",
+    "emptyEditable": "Noch keine Aufgaben. Sie kommen aus dem Umsetzungsplan, oder füge unten eine hinzu.",
+    "empty": "Noch keine Aufgaben. Sie kommen aus dem Umsetzungsplan.",
+    "addTask": "Aufgabe hinzufügen",
+    "enter": "Eingabe"
+  }
+}

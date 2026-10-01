@@ -1,1 +1,214 @@
-{}
+{
+  "tabs": {
+    "sections": "System sections",
+    "overview": "Overview",
+    "spec": "Spec",
+    "plan": "Plan",
+    "planning": "Planning",
+    "activity": "Activity"
+  },
+  "meta": {
+    "rounds": "{count, plural, one {# round} other {# rounds}}"
+  },
+  "gaps": {
+    "areaNames": {
+      "failureModes": "failure modes",
+      "dependencies": "dependencies",
+      "scope": "scope",
+      "opsTesting": "ops and testing"
+    },
+    "areaNoAnswerOne": "{areas} has no answer yet",
+    "areasNoAnswer": "{areas} have no answer yet",
+    "questionsOpen": "{count, plural, one {# question is} other {# questions are}} still open",
+    "noSpec": "no spec has been written",
+    "notComplete": "the planning interview is not complete",
+    "areaNoAnswer": "No answer yet for {area}",
+    "openQuestion": "Open question: {title}",
+    "noSpecYet": "No spec has been written yet",
+    "stillInPlanning": "Still in planning: {gaps}."
+  },
+  "planningPanel": {
+    "rounds": "{count, plural, one {# round} other {# rounds}}",
+    "answers": "{count, plural, one {# answer} other {# answers}}",
+    "acceptedRisks": "{count, plural, one {# accepted risk} other {# accepted risks}}",
+    "complete": "Planning complete",
+    "inPlanning": "In planning",
+    "roundsLink": "Rounds",
+    "stillMissing": "Still missing before it can leave planning"
+  },
+  "decisionsPanel": {
+    "decisions": "Decisions",
+    "noDecisions": "No decision records link to this system.",
+    "openQuestion": "Open question",
+    "openQuestions": "Open questions",
+    "nothingOpen": "Nothing open for this system."
+  },
+  "header": {
+    "changeStatus": "Status: {name}. Change status",
+    "moveTo": "Move to {name}",
+    "archived": "System archived",
+    "restored": "System restored",
+    "moreActions": "More actions",
+    "linkCopied": "Link copied",
+    "linkCopyFailed": "Could not copy the link",
+    "copyLink": "Copy link",
+    "reopenPlanning": "Reopen planning",
+    "planningReopened": "Planning reopened",
+    "reopenTitle": "Reopen planning?",
+    "reopenDescription": "The system moves back to the planning column and stays there until the planning interview is confirmed again.",
+    "keepClosed": "Keep it closed"
+  },
+  "moveOverride": {
+    "title": "Move anyway?",
+    "reasonLabel": "Reason for moving anyway",
+    "reasonPlaceholder": "Why move it anyway?",
+    "confirm": "Move anyway"
+  },
+  "controls": {
+    "movedBack": "Moved back to {name}",
+    "movedTo": "Moved to {name}",
+    "undo": "Undo",
+    "moveToLabel": "Move to",
+    "columnsLocked": "Other columns unlock when the planning interview is complete.",
+    "fieldSet": "{label} set to {value}"
+  },
+  "fields": {
+    "properties": "Properties",
+    "status": "Status",
+    "priority": "Priority",
+    "owner": "Owner",
+    "domain": "Domain",
+    "phase": "Phase",
+    "board": "Board",
+    "release": "Release",
+    "dependsOn": "Depends on",
+    "neededBy": "Needed by",
+    "nobody": "Nobody",
+    "nobodyLower": "nobody",
+    "planning": "Planning",
+    "planningDone": "Complete",
+    "inPlanning": "In planning",
+    "changeStatus": "Status: {name}. Change status",
+    "changePriority": "Priority: {value}. Change priority",
+    "changeOwner": "Owner: {name}. Change owner",
+    "changeDomain": "Domain: {name}. Change domain",
+    "changePhase": "Phase: {name}. Change phase"
+  },
+  "properties": {
+    "changeDependencies": "Change dependencies",
+    "searchSystems": "Search systems…",
+    "noOtherSystems": "No other systems.",
+    "dependsOn": "Depends on"
+  },
+  "author": {
+    "via": "via"
+  },
+  "activity": {
+    "postedUpdate": "posted an update",
+    "next": "Next:",
+    "task": "Task {title}",
+    "commit": "Commit {hash}",
+    "compare": "Compare with v{from}",
+    "emptyTitle": "No activity yet",
+    "emptyDescription": "Updates from agents and every change to this system show up here.",
+    "change": {
+      "quoted": "“{title}”",
+      "aTask": "a task",
+      "nowhere": "nowhere",
+      "theOwner": "the owner",
+      "removedDomain": "a removed domain",
+      "removedPhase": "a removed phase",
+      "itsRelease": "its release",
+      "planningArea": "planning",
+      "systemCreated": "created the system",
+      "systemColumn": "moved it from {from} to {to}",
+      "systemPriority": "changed the priority from {from} to {to}",
+      "systemOwnerSet": "made {name} the owner",
+      "systemOwnerRemoved": "removed {name} as owner",
+      "systemTitle": "renamed it from {from} to {to}",
+      "systemSummary": "edited the summary",
+      "systemNotes": "edited the notes",
+      "domainSet": "set the domain to {name}",
+      "domainCleared": "cleared the domain",
+      "phaseSet": "set the phase to {name}",
+      "phaseCleared": "cleared the phase",
+      "releaseSet": "moved it to release {name}",
+      "releaseRemoved": "removed it from {name}",
+      "gateOverrideBare": "moved it past unmet column rules",
+      "gateOverride": "moved it to {column} past unmet rules: {reason}",
+      "columnRulesSet": "set column entry rules: {rules}",
+      "columnRulesRemoved": "removed column entry rules",
+      "taskCreated": "added the task {title}",
+      "taskDeleted": "deleted the task {title}",
+      "taskTitle": "renamed the task {from} to {to}",
+      "taskState": "set {title} to {state}",
+      "taskPriority": "changed the priority of {title} to {priority}",
+      "taskOwnerSet": "assigned {title} to {name}",
+      "taskUnassigned": "unassigned {title}",
+      "planningRound": "asked planning round {round} ({count, plural, one {# question} other {# questions}})",
+      "planningRoundBare": "asked a planning round",
+      "planningAnswers": "recorded {count, plural, one {# planning answer} other {# planning answers}}",
+      "planningAnswersBare": "recorded planning answers",
+      "planningCompleted": "completed planning",
+      "planningReopened": "reopened planning",
+      "areaReopened": "reopened the {area} area",
+      "areaCompleted": "completed the {area} area",
+      "specWritten": "wrote spec {version}",
+      "planWritten": "wrote plan {version}",
+      "questionAsked": "asked {title}",
+      "questionAnswered": "answered a question",
+      "questionResolved": "resolved a question",
+      "questionReopened": "reopened a question",
+      "fallback": "changed {entity} {field}"
+    }
+  },
+  "gate": {
+    "ready": "{column} ready",
+    "progress": "{column} {met}/{total}",
+    "reader": "{column} rules: {met} of {total} met",
+    "readerUnmet": "{column} rules: {met} of {total} met. Unmet: {rules}"
+  },
+  "code": {
+    "title": "Code",
+    "empty": "No pull requests or commits mention this system yet. Put {example} in a PR title to link it.",
+    "githubSettings": "GitHub settings",
+    "unknownAuthor": "unknown",
+    "states": {
+      "open": "Open",
+      "merged": "Merged",
+      "closed": "Closed"
+    },
+    "checksRunning": "checks running",
+    "checksFailing": "checks failing"
+  },
+  "mentions": {
+    "members": "Members",
+    "loading": "Loading members…",
+    "noMatch": "No member matches."
+  },
+  "notes": {
+    "saved": "Notes saved",
+    "title": "Notes",
+    "edit": "Edit notes",
+    "add": "Add notes",
+    "markdownHint": "Markdown works here.",
+    "changedElsewhere": "Notes changed elsewhere since you started editing.",
+    "save": "Save notes",
+    "showLess": "Show less",
+    "showAll": "Show all",
+    "emptyHint": "Keep context for people and agents here: links, constraints, decisions in progress."
+  },
+  "view": {
+    "noOwner": "No owner",
+    "planningComplete": "Planning complete",
+    "inPlanning": "In planning",
+    "agentCost": "Agent cost",
+    "agentCostValue": "{tokens} tokens · {runs, plural, one {# run} other {# runs}}",
+    "archived": "This system is archived and read-only.",
+    "about": "About this system",
+    "ready": "Ready to complete",
+    "readyThin": "Ready to complete · Thin areas: {areas}",
+    "areaReopened": "Area {area} reopened {date}: {reason}",
+    "areaReopenedHint": "An agent closes this area with {tool} once its questions are answered."
+  }
+}

@@ -1,25 +1,2 @@
 /** Files of the system area not yet migrated to next-intl; the area task empties this list. */
-export const PENDING_SYSTEM: string[] = [
-  "src/app/(app)/p/[project]/systems/[system]/system-view.tsx",
-  "src/components/compare-picker.tsx",
-  "src/components/document-outline.tsx",
-  "src/components/document-section.tsx",
-  "src/components/gate-status.tsx",
-  "src/components/github/code-links.tsx",
-  "src/components/mentions/mention-textarea.tsx",
-  "src/components/move-task-dialog.tsx",
-  "src/components/plan-steps-panel.tsx",
-  "src/components/planning-rounds.tsx",
-  "src/components/planning/coverage-map.tsx",
-  "src/components/planning/reopen-area-dialog.tsx",
-  "src/components/system-editor.tsx",
-  "src/components/system/activity-feed.tsx",
-  "src/components/system/controls.tsx",
-  "src/components/system/header-actions.tsx",
-  "src/components/system/move-override-dialog.tsx",
-  "src/components/system/properties.tsx",
-  "src/components/system/rail.tsx",
-  "src/components/system/tabs.tsx",
-  "src/components/task-list.tsx",
-  "src/components/version-picker.tsx",
-];
+export const PENDING_SYSTEM: string[] = [];

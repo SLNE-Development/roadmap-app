@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -10,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenu
  * choosing one sets the `param` search parameter (removed for the latest).
  */
 export function VersionPicker({ param, versions, current }: { param: string; versions: number[]; current: number }) {
+  const t = useTranslations("documents.versions");
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -17,9 +19,9 @@ export function VersionPicker({ param, versions, current }: { param: string; ver
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={`Version ${current}. Choose a version`}>
-          v{current}
-          {current === latest && <span className="font-normal text-muted-foreground">latest</span>}
+        <Button variant="outline" size="sm" aria-label={t("choose", { version: current })}>
+          {`v${current}`}
+          {current === latest && <span className="font-normal text-muted-foreground">{t("latest")}</span>}
           <ChevronDown aria-hidden />
         </Button>
       </DropdownMenuTrigger>
@@ -35,8 +37,8 @@ export function VersionPicker({ param, versions, current }: { param: string; ver
         >
           {versions.map((v) => (
             <DropdownMenuRadioItem key={v} value={String(v)}>
-              Version {v}
-              {v === latest && <span className="text-muted-foreground">latest</span>}
+              {t("version", { version: v })}
+              {v === latest && <span className="text-muted-foreground">{t("latest")}</span>}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

@@ -2,9 +2,10 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { AREA_LABEL } from "@/components/system/text";
+import { areaKey } from "@/components/system/text";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -19,6 +20,9 @@ import { useTRPC } from "@/trpc/client";
  * @param props.reopened the areas that are already reopened, left out of the choice
  */
 export function ReopenAreaDialog({ projectSlug, systemSlug, reopened }: { projectSlug: string; systemSlug: string; reopened: PlanningArea[] }) {
+  const t = useTranslations("planning.reopenArea");
+  const tc = useTranslations("common");
+  const te = useTranslations("enums.planningArea");
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
   const [area, setArea] = useState<PlanningArea | "">("");
@@ -30,7 +34,7 @@ export function ReopenAreaDialog({ projectSlug, systemSlug, reopened }: { projec
       onSuccess: (_, input) => {
         setOpen(false);
         setReason("");
-        toast.success(`Area ${input.area} reopened`);
+        toast.success(t("reopened", { area: te(areaKey(input.area)) }));
       },
     }),
   );
@@ -40,7 +44,7 @@ export function ReopenAreaDialog({ projectSlug, systemSlug, reopened }: { projec
       <DialogTrigger asChild>
         <Button variant="outline" disabled={choices.length === 0}>
           <RotateCcw aria-hidden />
-          Reopen one area
+          {t("trigger")}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -52,36 +56,35 @@ export function ReopenAreaDialog({ projectSlug, systemSlug, reopened }: { projec
           }}
         >
           <DialogHeader>
-            <DialogTitle className="font-display text-[19px] font-semibold">Reopen one planning area</DialogTitle>
+            <DialogTitle className="font-display text-[19px] font-semibold">{t("title")}</DialogTitle>
             <DialogDescription>
-              The system stays where it is and planning stays complete. Only this area accepts new questions, and the system cannot move to a done column until
-              it is completed again.
+              {t("description")}
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="reopen-area">Area</FieldLabel>
+              <FieldLabel htmlFor="reopen-area">{t("area")}</FieldLabel>
               <NativeSelect id="reopen-area" value={chosen} onChange={(e) => setArea(e.target.value as PlanningArea)}>
                 {choices.map((a) => (
                   <NativeSelectOption key={a} value={a}>
-                    {AREA_LABEL[a]}
+                    {te(areaKey(a))}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
             </Field>
             <Field>
-              <FieldLabel htmlFor="reopen-reason">Reason</FieldLabel>
-              <Textarea id="reopen-reason" value={reason} required minLength={3} placeholder="What changed since planning was completed?" onChange={(e) => setReason(e.target.value)} />
+              <FieldLabel htmlFor="reopen-reason">{t("reason")}</FieldLabel>
+              <Textarea id="reopen-reason" value={reason} required minLength={3} placeholder={t("reasonPlaceholder")} onChange={(e) => setReason(e.target.value)} />
             </Field>
           </FieldGroup>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
-                Cancel
+                {tc("cancel")}
               </Button>
             </DialogClose>
             <Button type="submit" disabled={reopen.isPending || !chosen || reason.trim().length < 3}>
-              Reopen area
+              {t("submit")}
             </Button>
           </DialogFooter>
         </form>

@@ -1,1 +1,41 @@
-{}
+{
+  "steps": {
+    "label": "Plan steps",
+    "title": "Steps",
+    "progress": "{done} of {total} done",
+    "liveNote": "Task state is live; you are viewing plan v{version}",
+    "noneLinked": "No task is linked to a plan step yet.",
+    "notInPlan": "Not in the plan",
+    "notInPlanNote": "Added by hand, so no plan step shows their state."
+  },
+  "rounds": {
+    "confirmedOn": "Confirmed by the user · {date}",
+    "confirmed": "Confirmed by the user",
+    "emptyTitle": "The planning interview has not started",
+    "emptyDescription": "An agent asks the first round of questions about scope, dependencies, failure modes and testing.",
+    "round": "Round {number}",
+    "questions": "{count, plural, one {# question} other {# questions}}",
+    "risk": "Risk",
+    "noAnswer": "No answer yet."
+  },
+  "itemStatus": {
+    "open": "Open",
+    "answered": "Answered",
+    "acceptedRisk": "Accepted risk"
+  },
+  "coverage": {
+    "settledLabel": "{area}: {settled} of {asked} settled",
+    "counts": "{asked} asked · {settled} settled · {open} open",
+    "thin": "Thin: {reason}"
+  },
+  "reopenArea": {
+    "reopened": "Area {area} reopened",
+    "trigger": "Reopen one area",
+    "title": "Reopen one planning area",
+    "description": "The system stays where it is and planning stays complete. Only this area accepts new questions, and the system cannot move to a done column until it is completed again.",
+    "area": "Area",
+    "reason": "Reason",
+    "reasonPlaceholder": "What changed since planning was completed?",
+    "submit": "Reopen area"
+  }
+}

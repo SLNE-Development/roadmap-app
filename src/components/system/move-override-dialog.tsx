@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -28,6 +29,8 @@ export function MoveOverrideDialog({
   onConfirm: (reason: string) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("system.moveOverride");
+  const tc = useTranslations("common");
   const [reason, setReason] = useState("");
   const ready = reason.trim().length >= 3;
   return (
@@ -42,12 +45,12 @@ export function MoveOverrideDialog({
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Move anyway?</AlertDialogTitle>
+          <AlertDialogTitle>{t("title")}</AlertDialogTitle>
           <AlertDialogDescription>{message}</AlertDialogDescription>
         </AlertDialogHeader>
-        <Textarea aria-label="Reason for moving anyway" placeholder="Why move it anyway?" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+        <Textarea aria-label={t("reasonLabel")} placeholder={t("reasonPlaceholder")} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
           <AlertDialogAction
             disabled={!ready || pending}
             onClick={() => {
@@ -55,7 +58,7 @@ export function MoveOverrideDialog({
               setReason("");
             }}
           >
-            Move anyway
+            {t("confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

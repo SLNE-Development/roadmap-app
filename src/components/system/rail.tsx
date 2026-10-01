@@ -1,20 +1,24 @@
 import { Check, Lock } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ConfirmationQuote } from "@/components/planning-rounds";
 import { formatAdrNumber } from "@/lib/adr-number";
 import type { AdrSummary } from "@/lib/ops/adrs";
 import type { PlanningView } from "@/lib/ops/planning";
 import type { QuestionItem } from "@/lib/ops/questions";
-import { gapLine } from "./text";
+import { useGapText } from "./text";
 
 /** "2 rounds · 7 answers · 1 accepted risk" for a planning interview. */
-function planningStats(planning: PlanningView): string {
-  const items = planning.rounds.flatMap((r) => r.items);
-  const answers = items.filter((i) => i.status === "answered").length;
-  const risks = items.filter((i) => i.status === "accepted-risk").length;
-  const parts = [`${planning.rounds.length} ${planning.rounds.length === 1 ? "round" : "rounds"}`, `${answers} ${answers === 1 ? "answer" : "answers"}`];
-  if (risks) parts.push(`${risks} accepted ${risks === 1 ? "risk" : "risks"}`);
-  return parts.join(" · ");
+function usePlanningStats(): (planning: PlanningView) => string {
+  const t = useTranslations("system.planningPanel");
+  return (planning) => {
+    const items = planning.rounds.flatMap((r) => r.items);
+    const answers = items.filter((i) => i.status === "answered").length;
+    const risks = items.filter((i) => i.status === "accepted-risk").length;
+    const parts = [t("rounds", { count: planning.rounds.length }), t("answers", { count: answers })];
+    if (risks) parts.push(t("acceptedRisks", { count: risks }));
+    return parts.join(" · ");
+  };
 }
 
 /**
@@ -23,6 +27,9 @@ function planningStats(planning: PlanningView): string {
  * system in planning, in planning colours.
  */
 export function PlanningPanel({ planning, href }: { planning: PlanningView; href: string }) {
+  const t = useTranslations("system.planningPanel");
+  const stats = usePlanningStats();
+  const { line } = useGapText();
   const complete = planning.completedAt !== null;
   return (
     <section className="flex flex-col gap-2.5 border bg-card p-4">
@@ -36,12 +43,12 @@ export function PlanningPanel({ planning, href }: { planning: PlanningView; href
             <Lock aria-hidden className="size-[13px]" strokeWidth={2.4} />
           </span>
         )}
-        <h2 className="flex-1 text-sm font-semibold">{complete ? "Planning complete" : "In planning"}</h2>
+        <h2 className="flex-1 text-sm font-semibold">{complete ? t("complete") : t("inPlanning")}</h2>
         <Link href={href} className="text-[12.5px] font-medium text-brand-strong hover:underline">
-          Rounds
+          {t("roundsLink")}
         </Link>
       </div>
-      <span className="text-[12.5px] text-fg-2">{planningStats(planning)}</span>
+      <span className="text-[12.5px] text-fg-2">{stats(planning)}</span>
       {complete ? (
         planning.confirmation && (
           <ConfirmationQuote confirmation={planning.confirmation} completedAt={planning.completedAt?.toISOString() ?? null} />
@@ -50,11 +57,11 @@ export function PlanningPanel({ planning, href }: { planning: PlanningView; href
         <div className="flex flex-col gap-1.5 bg-cat-planning-soft px-3 py-2.5 text-[13px] leading-[1.45] text-cat-planning">
           <span className="flex items-center gap-2 font-medium">
             <Lock aria-hidden className="size-3.5 shrink-0" />
-            Still missing before it can leave planning
+            {t("stillMissing")}
           </span>
           <ul className="flex flex-col gap-1 pl-[22px]">
             {planning.gaps.map((g) => (
-              <li key={g}>{gapLine(g)}</li>
+              <li key={g}>{line(g)}</li>
             ))}
           </ul>
         </div>
@@ -65,9 +72,10 @@ export function PlanningPanel({ planning, href }: { planning: PlanningView; href
 
 /** The Decisions panel: linked ADRs as mono number and title, then this system's open questions. */
 export function DecisionsPanel({ projectSlug, systemSlug, adrs, questions }: { projectSlug: string; systemSlug: string; adrs: AdrSummary[]; questions: QuestionItem[] }) {
+  const t = useTranslations("system.decisionsPanel");
   return (
     <section className="flex flex-col gap-2 border bg-card p-4">
-      <h2 className="text-sm font-semibold">Decisions</h2>
+      <h2 className="text-sm font-semibold">{t("decisions")}</h2>
       {adrs.length > 0 ? (
         <ul className="flex flex-col gap-1.5">
           {adrs.map((a) => (
@@ -80,9 +88,9 @@ export function DecisionsPanel({ projectSlug, systemSlug, adrs, questions }: { p
           ))}
         </ul>
       ) : (
-        <p className="text-[12.5px] text-fg-2">No decision records link to this system.</p>
+        <p className="text-[12.5px] text-fg-2">{t("noDecisions")}</p>
       )}
-      <h2 className="mt-2 text-sm font-semibold">{questions.length === 1 ? "Open question" : "Open questions"}</h2>
+      <h2 className="mt-2 text-sm font-semibold">{questions.length === 1 ? t("openQuestion") : t("openQuestions")}</h2>
       {questions.length > 0 ? (
         <ul className="flex flex-col gap-1.5">
           {questions.map((q) => (
@@ -94,7 +102,7 @@ export function DecisionsPanel({ projectSlug, systemSlug, adrs, questions }: { p
           ))}
         </ul>
       ) : (
-        <p className="text-[12.5px] text-fg-2">Nothing open for this system.</p>
+        <p className="text-[12.5px] text-fg-2">{t("nothingOpen")}</p>
       )}
     </section>
   );

@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, ChevronDown, Link2, MoreHorizontal, RotateCcw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CategoryDot, StatusChip } from "@/components/chips";
@@ -34,13 +35,14 @@ const STATUS_BUTTON: Record<ColumnCategory, string> = {
 
 /** The status as a chip-styled button with a chevron that opens the column menu; a plain chip for viewers. */
 function StatusButton({ data, className }: { data: SystemControlsData; className?: string }) {
+  const t = useTranslations("system.header");
   const column = currentColumn(data);
   if (!data.canEdit) return <StatusChip category={column.category} name={column.name} className={cn("h-[34px] px-3 text-[13.5px]", className)} />;
   return (
     <StatusMenu data={data}>
       <button
         type="button"
-        aria-label={`Status: ${column.name}. Change status`}
+        aria-label={t("changeStatus", { name: column.name })}
         className={cn(
           "inline-flex h-[34px] shrink-0 items-center gap-2 border pr-2.5 pl-3 text-[13.5px] font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
           STATUS_BUTTON[column.category],
@@ -57,13 +59,14 @@ function StatusButton({ data, className }: { data: SystemControlsData; className
 
 /** The primary contextual action: "Move to <next column>", or nothing when there is no sensible next step. */
 function PrimaryMove({ data, className }: { data: SystemControlsData; className?: string }) {
+  const t = useTranslations("system.header");
   const { pending, move, dialog } = useMoveSystem(data);
   const next = nextColumn(data);
   if (!data.canEdit || !next) return null;
   return (
     <>
       <Button className={className} disabled={pending} onClick={() => move(next)}>
-        Move to {next.name}
+        {t("moveTo", { name: next.name })}
       </Button>
       {dialog}
     </>
@@ -72,16 +75,18 @@ function PrimaryMove({ data, className }: { data: SystemControlsData; className?
 
 /** The overflow menu: copy the link, and for editors reopen planning (after a confirmation) and archive or restore the system. */
 function OverflowMenu({ data, canArchive }: { data: SystemControlsData; canArchive: boolean }) {
+  const t = useTranslations("system.header");
+  const tc = useTranslations("common");
   const [confirm, setConfirm] = useState(false);
   const trpc = useTRPC();
   const setArchived = useMutation(
-    trpc.systems.setArchived.mutationOptions({ onSuccess: (_data, { archived }) => toast.success(archived ? "System archived" : "System restored") }),
+    trpc.systems.setArchived.mutationOptions({ onSuccess: (_data, { archived }) => toast.success(archived ? t("archived") : t("restored")) }),
   );
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" aria-label="More actions" className="text-fg-2">
+          <Button variant="outline" size="icon" aria-label={t("moreActions")} className="text-fg-2">
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
@@ -89,18 +94,18 @@ function OverflowMenu({ data, canArchive }: { data: SystemControlsData; canArchi
           <DropdownMenuItem
             onSelect={() =>
               void navigator.clipboard.writeText(window.location.href.split("?")[0]).then(
-                () => toast.success("Link copied"),
-                () => toast.error("Could not copy the link"),
+                () => toast.success(t("linkCopied")),
+                () => toast.error(t("linkCopyFailed")),
               )
             }
           >
             <Link2 />
-            Copy link
+            {t("copyLink")}
           </DropdownMenuItem>
           {data.canEdit && data.planningComplete && (
             <DropdownMenuItem onSelect={() => setConfirm(true)}>
               <RotateCcw />
-              Reopen planning
+              {t("reopenPlanning")}
             </DropdownMenuItem>
           )}
           {canArchive && (
@@ -109,7 +114,7 @@ function OverflowMenu({ data, canArchive }: { data: SystemControlsData; canArchi
               onSelect={() => setArchived.mutate({ project: data.projectSlug, system: data.systemSlug, archived: !data.archived })}
             >
               {data.archived ? <ArchiveRestore /> : <Archive />}
-              {data.archived ? "Restore" : "Archive"}
+              {data.archived ? tc("restore") : tc("archive")}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -143,7 +148,7 @@ export function SystemActionBar({ data }: { data: SystemControlsData }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 flex gap-2 border-t bg-background px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
       <StatusButton data={data} className={cn("h-12 px-4 text-sm", !hasNext && "flex-1 justify-center")} />
-      <PrimaryMove data={data} className="h-12 flex-1 text-[15px]" />
+      <PrimaryMove data={data} className="h-12 min-w-0 flex-1 text-[15px]" />
     </div>
   );
 }
@@ -160,22 +165,23 @@ function ReopenPlanningDialog({
   projectSlug: string;
   systemSlug: string;
 }) {
+  const t = useTranslations("system.header");
   const trpc = useTRPC();
   // Reopening hides the planning tab's button with this dialog, so the toast lives on the mutation.
-  const reopen = useMutation(trpc.planning.reopen.mutationOptions({ onSuccess: () => toast.success("Planning reopened") }));
+  const reopen = useMutation(trpc.planning.reopen.mutationOptions({ onSuccess: () => toast.success(t("planningReopened")) }));
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Reopen planning?</AlertDialogTitle>
+          <AlertDialogTitle>{t("reopenTitle")}</AlertDialogTitle>
           <AlertDialogDescription>
-            The system moves back to the planning column and stays there until the planning interview is confirmed again.
+            {t("reopenDescription")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep it closed</AlertDialogCancel>
+          <AlertDialogCancel>{t("keepClosed")}</AlertDialogCancel>
           <AlertDialogAction onClick={() => reopen.mutate({ project: projectSlug, system: systemSlug })}>
-            Reopen planning
+            {t("reopenPlanning")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -185,12 +191,13 @@ function ReopenPlanningDialog({
 
 /** Reopens planning after a confirmation, as an outline button (planning tab). Editors only. */
 export function ReopenPlanningButton({ projectSlug, systemSlug }: { projectSlug: string; systemSlug: string }) {
+  const t = useTranslations("system.header");
   const [confirm, setConfirm] = useState(false);
   return (
     <>
       <Button variant="outline" onClick={() => setConfirm(true)}>
         <RotateCcw />
-        Reopen planning
+        {t("reopenPlanning")}
       </Button>
       <ReopenPlanningDialog open={confirm} onOpenChange={setConfirm} projectSlug={projectSlug} systemSlug={systemSlug} />
     </>

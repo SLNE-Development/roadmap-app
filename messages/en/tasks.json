@@ -1,1 +1,64 @@
-{}
+{
+  "move": {
+    "moved": "Moved to {system}",
+    "title": "Move to system",
+    "description": "Choose the system to move “{task}” to",
+    "search": "Search systems…",
+    "loading": "Loading systems…",
+    "none": "No other systems."
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save"
+  },
+  "checklist": {
+    "label": "Checklist of {task}",
+    "remove": "Remove {item}",
+    "addLabel": "Add item to checklist of {task}",
+    "add": "Add item"
+  },
+  "row": {
+    "stateLabel": "Task state: {state}",
+    "deleted": "Task deleted",
+    "dragToReorder": "Drag to reorder",
+    "changeState": "Task state: {state}. Change state of {task}",
+    "state": "State",
+    "blockedEllipsis": "Blocked…",
+    "planningLocked": "Tasks can start once planning is complete.",
+    "owner": "Owner",
+    "ownerSet": "{name} owns “{task}”",
+    "ownerCleared": "“{task}” has no owner",
+    "nobody": "Nobody",
+    "estimate": "Estimate",
+    "addChecklist": "Add checklist",
+    "notes": "Notes",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "moveToSystem": "Move to system…",
+    "deleteTask": "Delete task",
+    "pullRequest": "PR #{number}",
+    "checksFailing": "Checks failing",
+    "checklistProgress": "Checklist of {task}, {done} of {total} done",
+    "notesFor": "Notes for {task}",
+    "estimateValue": "Estimate {value}",
+    "noOwner": "No owner",
+    "blockTitle": "Block this task",
+    "blockLabel": "What is it waiting for?",
+    "deleteTitle": "Delete this task?",
+    "keep": "Keep"
+  },
+  "list": {
+    "title": "Tasks",
+    "progress": "{done} of {total} done",
+    "points": "{done} / {total} pts",
+    "unestimated": "{count} unestimated",
+    "hideDone": "Hide done",
+    "showDone": "Show {count} done",
+    "planningLocked": "Tasks can start once planning is complete.",
+    "emptyEditable": "No tasks yet. They come from the implementation plan, or add one below.",
+    "empty": "No tasks yet. They come from the implementation plan.",
+    "addTask": "Add a task",
+    "enter": "Enter"
+  }
+}

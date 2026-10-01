@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { TaskStateChip } from "@/components/chips";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -42,37 +43,38 @@ export function PlanStepsPanel({
   systemSlug: string;
   viewingVersion?: number;
 }) {
-  const href = (t: TaskItem) => `/p/${projectSlug}/systems/${systemSlug}?tab=overview#task-${t.id}`;
-  const steps = tasks.filter((t) => t.planStep !== null).sort((a, b) => (a.planStep as number) - (b.planStep as number));
-  const loose = tasks.filter((t) => t.planStep === null);
-  const done = steps.filter((t) => t.state === "done").length;
+  const t = useTranslations("planning.steps");
+  const href = (task: TaskItem) => `/p/${projectSlug}/systems/${systemSlug}?tab=overview#task-${task.id}`;
+  const steps = tasks.filter((task) => task.planStep !== null).sort((a, b) => (a.planStep as number) - (b.planStep as number));
+  const loose = tasks.filter((task) => task.planStep === null);
+  const done = steps.filter((task) => task.state === "done").length;
   return (
-    <section aria-label="Plan steps" className="flex flex-col border bg-card">
+    <section aria-label={t("label")} className="flex flex-col border bg-card">
       <header className="flex items-baseline justify-between gap-2 px-4 py-3">
-        <h2 className="font-display text-[15px] font-semibold">Steps</h2>
+        <h2 className="font-display text-[15px] font-semibold">{t("title")}</h2>
         <span className="text-[12.5px] text-muted-foreground">
-          {done} of {steps.length} done
+          {t("progress", { done, total: steps.length })}
         </span>
       </header>
       {viewingVersion !== undefined && (
-        <p className="px-4 pb-2.5 text-[12.5px] text-cat-review">Task state is live; you are viewing plan v{viewingVersion}</p>
+        <p className="px-4 pb-2.5 text-[12.5px] text-cat-review">{t("liveNote", { version: viewingVersion })}</p>
       )}
       {steps.length > 0 ? (
         <ul>
-          {steps.map((t) => (
-            <StepRow key={t.id} task={t} href={href(t)} />
+          {steps.map((task) => (
+            <StepRow key={task.id} task={task} href={href(task)} />
           ))}
         </ul>
       ) : (
-        <p className="border-t px-4 py-3 text-[13px] text-fg-2">No task is linked to a plan step yet.</p>
+        <p className="border-t px-4 py-3 text-[13px] text-fg-2">{t("noneLinked")}</p>
       )}
       {loose.length > 0 && (
         <>
-          <p className="border-t px-4 pt-3 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Not in the plan</p>
-          <p className="px-4 pb-2 text-[12.5px] text-muted-foreground">Added by hand, so no plan step shows their state.</p>
+          <p className="border-t px-4 pt-3 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">{t("notInPlan")}</p>
+          <p className="px-4 pb-2 text-[12.5px] text-muted-foreground">{t("notInPlanNote")}</p>
           <ul>
-            {loose.map((t) => (
-              <StepRow key={t.id} task={t} href={href(t)} />
+            {loose.map((task) => (
+              <StepRow key={task.id} task={task} href={href(task)} />
             ))}
           </ul>
         </>

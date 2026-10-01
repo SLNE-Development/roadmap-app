@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { z } from "zod";
@@ -15,12 +16,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { priorityKey } from "@/i18n/enums";
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
 import type { updateSystemInput } from "@/lib/ops/systems";
 import { useTRPC } from "@/trpc/client";
 import { isGateRefusal, moveErrorKind } from "./move-error";
 import { MoveOverrideDialog } from "./move-override-dialog";
-import { describeGaps } from "./text";
+import { useGapText } from "./text";
 
 /** A column of the system's board as the controls need it. */
 export interface ColumnOption {
@@ -68,8 +70,8 @@ export function nextColumn(data: SystemControlsData): ColumnOption | null {
 }
 
 /** Shows the planning notice as a toast: the lock and what is still missing, in planning colours. */
-export function planningGateToast(gaps: string[]) {
-  toast(`Still in planning: ${describeGaps(gaps)}.`, {
+export function planningGateToast(message: string) {
+  toast(message, {
     icon: <Lock className="size-4" />,
     classNames: { toast: "border-transparent! bg-cat-planning-soft! text-cat-planning!" },
   });
@@ -82,6 +84,8 @@ export function planningGateToast(gaps: string[]) {
  * is an owner, `dialog` (render it once) asks for a reason and retries with it.
  */
 export function useMoveSystem(data: SystemControlsData) {
+  const t = useTranslations("system.controls");
+  const { stillInPlanning } = useGapText();
   const trpc = useTRPC();
   // Quiet: a refused move shows the planning notice instead of the error.
   const mutation = useMutation({ ...trpc.systems.move.mutationOptions(), meta: { quiet: true } });
@@ -89,7 +93,7 @@ export function useMoveSystem(data: SystemControlsData) {
   // still runs then, unlike a callback passed to `mutate`. Errors toast globally.
   const undo = useMutation(
     trpc.systems.move.mutationOptions({
-      onSuccess: (_data, { to }) => toast.success(`Moved back to ${data.columns.find((c) => c.id === to.column)?.name ?? to.column}`),
+      onSuccess: (_data, { to }) => toast.success(t("movedBack", { name: data.columns.find((c) => c.id === to.column)?.name ?? to.column })),
     }),
   );
   const ref = { project: data.projectSlug, system: data.systemSlug };
@@ -103,15 +107,15 @@ export function useMoveSystem(data: SystemControlsData) {
       { ...ref, to: { column: target.id, overrideReason } },
       {
         onError: (error) => {
-          if (moveErrorKind(error) === "planning-gate") planningGateToast(data.gaps);
+          if (moveErrorKind(error) === "planning-gate") planningGateToast(stillInPlanning(data.gaps));
           else if (canOwn && !overrideReason && isGateRefusal(error)) setRefused({ target, message: error.message });
           else toast.error(error.message);
         },
         onSuccess: () => {
           setRefused(null);
-          toast.success(`Moved to ${target.name}`, {
+          toast.success(t("movedTo", { name: target.name }), {
             action: {
-              label: "Undo",
+              label: t("undo"),
               onClick: () => undo.mutate({ ...ref, to: { column: from.id } }),
             },
           });
@@ -135,6 +139,7 @@ export function useMoveSystem(data: SystemControlsData) {
  * is incomplete, every column but planning is disabled with a hint.
  */
 export function StatusMenu({ data, children, align = "end" }: { data: SystemControlsData; children: React.ReactNode; align?: "start" | "end" }) {
+  const t = useTranslations("system.controls");
   const { pending, move, dialog } = useMoveSystem(data);
   return (
     <>
@@ -143,7 +148,7 @@ export function StatusMenu({ data, children, align = "end" }: { data: SystemCont
           {children}
         </DropdownMenuTrigger>
         <DropdownMenuContent align={align} className="w-60">
-          <DropdownMenuLabel>Move to</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("moveToLabel")}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={data.columnId}
             onValueChange={(id) => {
@@ -163,7 +168,7 @@ export function StatusMenu({ data, children, align = "end" }: { data: SystemCont
               <DropdownMenuSeparator />
               <p className="flex gap-2 px-1.5 py-1 text-xs leading-normal text-cat-planning">
                 <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-                Other columns unlock when the planning interview is complete.
+                {t("columnsLocked")}
               </p>
             </>
           )}
@@ -190,6 +195,7 @@ function FieldMenu({
   onChoose: (value: string) => z.input<typeof updateSystemInput>;
   children: React.ReactNode;
 }) {
+  const t = useTranslations("system.controls");
   const trpc = useTRPC();
   const update = useMutation(trpc.systems.update.mutationOptions());
   return (
@@ -206,7 +212,7 @@ function FieldMenu({
             const chosen = options.find((o) => o.value === v)?.label ?? v;
             update.mutate(
               { project: data.projectSlug, system: data.systemSlug, patch: onChoose(v) },
-              { onSuccess: () => toast.success(`${label} set to ${chosen}`) },
+              { onSuccess: () => toast.success(t("fieldSet", { label, value: chosen })) },
             );
           }}
         >
@@ -223,12 +229,14 @@ function FieldMenu({
 
 /** The priority menu around `children`. */
 export function PriorityMenu({ data, children }: { data: SystemControlsData; children: React.ReactNode }) {
+  const t = useTranslations("system.fields");
+  const te = useTranslations("enums.priority");
   return (
     <FieldMenu
       data={data}
-      label="Priority"
+      label={t("priority")}
       value={data.priority}
-      options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+      options={PRIORITIES.map((p) => ({ value: p, label: te(priorityKey(p)) }))}
       onChoose={(v) => ({ priority: v as Priority })}
     >
       {children}
@@ -238,12 +246,13 @@ export function PriorityMenu({ data, children }: { data: SystemControlsData; chi
 
 /** The owner menu around `children`: nobody or a project member. */
 export function OwnerMenu({ data, children }: { data: SystemControlsData; children: React.ReactNode }) {
+  const t = useTranslations("system.fields");
   return (
     <FieldMenu
       data={data}
-      label="Owner"
+      label={t("owner")}
       value={data.ownerUserId ?? ""}
-      options={[{ value: "", label: "Nobody" }, ...data.members.map((m) => ({ value: m.userId, label: m.name }))]}
+      options={[{ value: "", label: t("nobody") }, ...data.members.map((m) => ({ value: m.userId, label: m.name }))]}
       onChoose={(v) => ({ ownerUserId: v || null })}
     >
       {children}
@@ -253,12 +262,14 @@ export function OwnerMenu({ data, children }: { data: SystemControlsData; childr
 
 /** The domain menu around `children`. */
 export function DomainMenu({ data, children }: { data: SystemControlsData; children: React.ReactNode }) {
+  const t = useTranslations("system.fields");
+  const tc = useTranslations("common");
   return (
     <FieldMenu
       data={data}
-      label="Domain"
+      label={t("domain")}
       value={data.domainId ?? ""}
-      options={[{ value: "", label: "None" }, ...data.domains.map((d) => ({ value: d.id, label: d.name }))]}
+      options={[{ value: "", label: tc("none") }, ...data.domains.map((d) => ({ value: d.id, label: d.name }))]}
       onChoose={(v) => ({ domainId: v || null })}
     >
       {children}
@@ -268,12 +279,14 @@ export function DomainMenu({ data, children }: { data: SystemControlsData; child
 
 /** The phase menu around `children`. */
 export function PhaseMenu({ data, children }: { data: SystemControlsData; children: React.ReactNode }) {
+  const t = useTranslations("system.fields");
+  const tc = useTranslations("common");
   return (
     <FieldMenu
       data={data}
-      label="Phase"
+      label={t("phase")}
       value={data.phaseId ?? ""}
-      options={[{ value: "", label: "None" }, ...data.phases.map((p) => ({ value: p.id, label: p.name }))]}
+      options={[{ value: "", label: tc("none") }, ...data.phases.map((p) => ({ value: p.id, label: p.name }))]}
       onChoose={(v) => ({ phaseId: v || null })}
     >
       {children}

@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { GateResult } from "@/lib/ops/gates";
 
@@ -8,14 +9,15 @@ import type { GateResult } from "@/lib/ops/gates";
  * "Review rules: 2 of 3 met", followed by the unmet rules.
  */
 export function GateStatus({ gate }: { gate: GateResult }) {
+  const t = useTranslations("system.gate");
   const ready = gate.met === gate.total;
-  const unmet = gate.unmet.length > 0 ? `. Unmet: ${gate.unmet.join("; ")}` : "";
-  const reader = <span className="sr-only">{`${gate.column} rules: ${gate.met} of ${gate.total} met${unmet}`}</span>;
+  const counts = { column: gate.column, met: gate.met, total: gate.total };
+  const reader = <span className="sr-only">{gate.unmet.length > 0 ? t("readerUnmet", { ...counts, rules: gate.unmet.join("; ") }) : t("reader", counts)}</span>;
   if (ready) {
     return (
       <span className="flex items-center gap-1 text-[11.5px] text-cat-done">
         <Check aria-hidden className="size-3" />
-        <span aria-hidden>{gate.column} ready</span>
+        <span aria-hidden>{t("ready", { column: gate.column })}</span>
         {reader}
       </span>
     );
@@ -24,9 +26,7 @@ export function GateStatus({ gate }: { gate: GateResult }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="text-[11.5px] text-muted-foreground">
-          <span aria-hidden>
-            {gate.column} {gate.met}/{gate.total}
-          </span>
+          <span aria-hidden>{t("progress", counts)}</span>
           {reader}
         </span>
       </TooltipTrigger>

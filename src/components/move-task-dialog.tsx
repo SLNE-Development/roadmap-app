@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useTRPC } from "@/trpc/client";
@@ -24,21 +25,22 @@ export function MoveTaskDialog({
   systemSlug: string;
   task: { id: number; title: string };
 }) {
+  const t = useTranslations("tasks.move");
   const trpc = useTRPC();
   const systems = useQuery({ ...trpc.systems.list.queryOptions({ project: projectSlug }), enabled: open });
   const others = (systems.data ?? []).filter((s) => s.slug !== systemSlug);
   const move = useMutation(
     trpc.tasks.move.mutationOptions({
-      onSuccess: (_data, vars) => toast.success(`Moved to ${others.find((s) => s.slug === vars.to.system)?.title ?? vars.to.system}`),
+      onSuccess: (_data, vars) => toast.success(t("moved", { system: others.find((s) => s.slug === vars.to.system)?.title ?? vars.to.system })),
     }),
   );
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title="Move to system" description={`Choose the system to move “${task.title}” to`}>
+    <CommandDialog open={open} onOpenChange={onOpenChange} title={t("title")} description={t("description", { task: task.title })}>
       <Command>
-        <CommandInput placeholder="Search systems…" />
+        <CommandInput placeholder={t("search")} />
         <CommandList>
-          <CommandEmpty>{systems.isPending ? "Loading systems…" : "No other systems."}</CommandEmpty>
-          <CommandGroup heading="Move to system">
+          <CommandEmpty>{systems.isPending ? t("loading") : t("none")}</CommandEmpty>
+          <CommandGroup heading={t("title")}>
             {others.map((s) => (
               <CommandItem
                 key={s.slug}

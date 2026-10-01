@@ -1,1 +1,37 @@
-{}
+{
+  "spec": {
+    "title": "Spezifikation",
+    "emptyTitle": "Noch keine Spezifikation",
+    "emptyDescription": "Die Spezifikation wird am Ende des Planungsinterviews geschrieben."
+  },
+  "plan": {
+    "title": "Umsetzungsplan",
+    "emptyTitle": "Noch kein Plan",
+    "emptyDescription": "Ein Agent schreibt den Umsetzungsplan, sobald die Spezifikation steht; seine Schritte werden zu Aufgaben."
+  },
+  "preview": {
+    "readFull": "Die ganze Spezifikation lesen",
+    "noSpec": "Noch keine Spezifikation. Sie wird am Ende des Planungsinterviews geschrieben."
+  },
+  "olderVersion": "Eine ältere Version. Die neueste ist v{latest}.",
+  "outline": {
+    "contents": "Inhalt"
+  },
+  "versions": {
+    "choose": "Version {version}. Version wählen",
+    "latest": "neueste",
+    "version": "Version {version}"
+  },
+  "compare": {
+    "view": "Dokumentansicht",
+    "read": "Lesen",
+    "compare": "Vergleichen",
+    "from": "Von",
+    "to": "Bis"
+  },
+  "diff": {
+    "added": "Hinzugefügt",
+    "removed": "Entfernt",
+    "noChanges": "Keine Änderungen zwischen v{from} und v{to}"
+  }
+}

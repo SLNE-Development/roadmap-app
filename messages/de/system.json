@@ -1,1 +1,214 @@
-{}
+{
+  "tabs": {
+    "sections": "Bereiche des Systems",
+    "overview": "Übersicht",
+    "spec": "Spezifikation",
+    "plan": "Plan",
+    "planning": "Planung",
+    "activity": "Aktivität"
+  },
+  "meta": {
+    "rounds": "{count, plural, one {# Runde} other {# Runden}}"
+  },
+  "gaps": {
+    "areaNames": {
+      "failureModes": "Fehlerfälle",
+      "dependencies": "Abhängigkeiten",
+      "scope": "Umfang",
+      "opsTesting": "Betrieb und Tests"
+    },
+    "areaNoAnswerOne": "{areas} hat noch keine Antwort",
+    "areasNoAnswer": "{areas} haben noch keine Antwort",
+    "questionsOpen": "{count, plural, one {# Frage ist} other {# Fragen sind}} noch offen",
+    "noSpec": "es wurde noch keine Spezifikation geschrieben",
+    "notComplete": "das Planungsinterview ist nicht abgeschlossen",
+    "areaNoAnswer": "Noch keine Antwort zu {area}",
+    "openQuestion": "Offene Frage: {title}",
+    "noSpecYet": "Es wurde noch keine Spezifikation geschrieben",
+    "stillInPlanning": "Noch in Planung: {gaps}."
+  },
+  "planningPanel": {
+    "rounds": "{count, plural, one {# Runde} other {# Runden}}",
+    "answers": "{count, plural, one {# Antwort} other {# Antworten}}",
+    "acceptedRisks": "{count, plural, one {# akzeptiertes Risiko} other {# akzeptierte Risiken}}",
+    "complete": "Planung abgeschlossen",
+    "inPlanning": "In Planung",
+    "roundsLink": "Runden",
+    "stillMissing": "Das fehlt noch, damit es die Planung verlassen kann"
+  },
+  "decisionsPanel": {
+    "decisions": "Entscheidungen",
+    "noDecisions": "Keine Entscheidung ist mit diesem System verknüpft.",
+    "openQuestion": "Offene Frage",
+    "openQuestions": "Offene Fragen",
+    "nothingOpen": "Für dieses System ist nichts offen."
+  },
+  "header": {
+    "changeStatus": "Status: {name}. Status ändern",
+    "moveTo": "Nach {name} verschieben",
+    "archived": "System archiviert",
+    "restored": "System wiederhergestellt",
+    "moreActions": "Weitere Aktionen",
+    "linkCopied": "Link kopiert",
+    "linkCopyFailed": "Der Link konnte nicht kopiert werden",
+    "copyLink": "Link kopieren",
+    "reopenPlanning": "Planung wieder öffnen",
+    "planningReopened": "Planung wieder geöffnet",
+    "reopenTitle": "Planung wieder öffnen?",
+    "reopenDescription": "Das System wandert zurück in die Planungsspalte und bleibt dort, bis das Planungsinterview erneut bestätigt wird.",
+    "keepClosed": "Geschlossen lassen"
+  },
+  "moveOverride": {
+    "title": "Trotzdem verschieben?",
+    "reasonLabel": "Grund für das Verschieben",
+    "reasonPlaceholder": "Warum verschiebst du es trotzdem?",
+    "confirm": "Trotzdem verschieben"
+  },
+  "controls": {
+    "movedBack": "Zurück nach {name} verschoben",
+    "movedTo": "Nach {name} verschoben",
+    "undo": "Rückgängig",
+    "moveToLabel": "Verschieben nach",
+    "columnsLocked": "Die anderen Spalten werden frei, sobald das Planungsinterview abgeschlossen ist.",
+    "fieldSet": "{label} auf {value} gesetzt"
+  },
+  "fields": {
+    "properties": "Eigenschaften",
+    "status": "Status",
+    "priority": "Priorität",
+    "owner": "Verantwortlich",
+    "domain": "Bereich",
+    "phase": "Phase",
+    "board": "Board",
+    "release": "Release",
+    "dependsOn": "Hängt ab von",
+    "neededBy": "Benötigt von",
+    "nobody": "Niemand",
+    "nobodyLower": "niemand",
+    "planning": "Planung",
+    "planningDone": "Abgeschlossen",
+    "inPlanning": "In Planung",
+    "changeStatus": "Status: {name}. Status ändern",
+    "changePriority": "Priorität: {value}. Priorität ändern",
+    "changeOwner": "Verantwortlich: {name}. Verantwortlichen ändern",
+    "changeDomain": "Bereich: {name}. Bereich ändern",
+    "changePhase": "Phase: {name}. Phase ändern"
+  },
+  "properties": {
+    "changeDependencies": "Abhängigkeiten ändern",
+    "searchSystems": "Systeme suchen…",
+    "noOtherSystems": "Keine weiteren Systeme.",
+    "dependsOn": "Hängt ab von"
+  },
+  "author": {
+    "via": "über"
+  },
+  "activity": {
+    "postedUpdate": "hat eine Fortschrittsmeldung gepostet",
+    "next": "Als Nächstes:",
+    "task": "Aufgabe {title}",
+    "commit": "Commit {hash}",
+    "compare": "Mit v{from} vergleichen",
+    "emptyTitle": "Noch keine Aktivität",
+    "emptyDescription": "Meldungen von Agents und jede Änderung an diesem System erscheinen hier.",
+    "change": {
+      "quoted": "„{title}“",
+      "aTask": "eine Aufgabe",
+      "nowhere": "nirgendwo",
+      "theOwner": "den Verantwortlichen",
+      "removedDomain": "ein entfernter Bereich",
+      "removedPhase": "eine entfernte Phase",
+      "itsRelease": "seinem Release",
+      "planningArea": "Planung",
+      "systemCreated": "hat das System angelegt",
+      "systemColumn": "hat es von {from} nach {to} verschoben",
+      "systemPriority": "hat die Priorität von {from} auf {to} geändert",
+      "systemOwnerSet": "hat die Verantwortung an {name} übergeben",
+      "systemOwnerRemoved": "hat die Verantwortung von {name} entfernt",
+      "systemTitle": "hat es von {from} in {to} umbenannt",
+      "systemSummary": "hat die Zusammenfassung bearbeitet",
+      "systemNotes": "hat die Notizen bearbeitet",
+      "domainSet": "hat den Bereich auf {name} gesetzt",
+      "domainCleared": "hat den Bereich entfernt",
+      "phaseSet": "hat die Phase auf {name} gesetzt",
+      "phaseCleared": "hat die Phase entfernt",
+      "releaseSet": "hat es dem Release {name} zugeordnet",
+      "releaseRemoved": "hat es aus {name} entfernt",
+      "gateOverrideBare": "hat es trotz unerfüllter Regeln der Spalte verschoben",
+      "gateOverride": "hat es trotz unerfüllter Regeln nach {column} verschoben: {reason}",
+      "columnRulesSet": "hat die Eintrittsregeln der Spalte festgelegt: {rules}",
+      "columnRulesRemoved": "hat die Eintrittsregeln der Spalte entfernt",
+      "taskCreated": "hat die Aufgabe {title} hinzugefügt",
+      "taskDeleted": "hat die Aufgabe {title} gelöscht",
+      "taskTitle": "hat die Aufgabe {from} in {to} umbenannt",
+      "taskState": "hat {title} auf {state} gesetzt",
+      "taskPriority": "hat die Priorität von {title} auf {priority} geändert",
+      "taskOwnerSet": "hat {title} an {name} übergeben",
+      "taskUnassigned": "hat die Zuweisung von {title} aufgehoben",
+      "planningRound": "hat Planungsrunde {round} gestartet ({count, plural, one {# Frage} other {# Fragen}})",
+      "planningRoundBare": "hat eine Planungsrunde gestartet",
+      "planningAnswers": "hat {count, plural, one {# Planungsantwort} other {# Planungsantworten}} festgehalten",
+      "planningAnswersBare": "hat Planungsantworten festgehalten",
+      "planningCompleted": "hat die Planung abgeschlossen",
+      "planningReopened": "hat die Planung wieder geöffnet",
+      "areaReopened": "hat den Bereich {area} wieder geöffnet",
+      "areaCompleted": "hat den Bereich {area} abgeschlossen",
+      "specWritten": "hat Spezifikation {version} geschrieben",
+      "planWritten": "hat Plan {version} geschrieben",
+      "questionAsked": "hat {title} gefragt",
+      "questionAnswered": "hat eine Frage beantwortet",
+      "questionResolved": "hat eine Frage erledigt",
+      "questionReopened": "hat eine Frage wieder geöffnet",
+      "fallback": "hat {entity} {field} geändert"
+    }
+  },
+  "gate": {
+    "ready": "{column} bereit",
+    "progress": "{column} {met}/{total}",
+    "reader": "Regeln für {column}: {met} von {total} erfüllt",
+    "readerUnmet": "Regeln für {column}: {met} von {total} erfüllt. Offen: {rules}"
+  },
+  "code": {
+    "title": "Code",
+    "empty": "Noch erwähnt kein Pull Request und kein Commit dieses System. Schreibe {example} in einen PR-Titel, um ihn zu verknüpfen.",
+    "githubSettings": "GitHub-Einstellungen",
+    "unknownAuthor": "unbekannt",
+    "states": {
+      "open": "Offen",
+      "merged": "Gemergt",
+      "closed": "Geschlossen"
+    },
+    "checksRunning": "Prüfungen laufen",
+    "checksFailing": "Prüfungen schlagen fehl"
+  },
+  "mentions": {
+    "members": "Mitglieder",
+    "loading": "Mitglieder werden geladen…",
+    "noMatch": "Kein Mitglied passt."
+  },
+  "notes": {
+    "saved": "Notizen gespeichert",
+    "title": "Notizen",
+    "edit": "Notizen bearbeiten",
+    "add": "Notizen hinzufügen",
+    "markdownHint": "Markdown funktioniert hier.",
+    "changedElsewhere": "Die Notizen wurden woanders geändert, seit du mit dem Bearbeiten begonnen hast.",
+    "save": "Notizen speichern",
+    "showLess": "Weniger anzeigen",
+    "showAll": "Alles anzeigen",
+    "emptyHint": "Halte hier Kontext für Menschen und Agents fest: Links, Randbedingungen, laufende Entscheidungen."
+  },
+  "view": {
+    "noOwner": "Niemand verantwortlich",
+    "planningComplete": "Planung abgeschlossen",
+    "inPlanning": "In Planung",
+    "agentCost": "Agent-Kosten",
+    "agentCostValue": "{tokens} Tokens · {runs, plural, one {# Lauf} other {# Läufe}}",
+    "archived": "Dieses System ist archiviert und schreibgeschützt.",
+    "about": "Über dieses System",
+    "ready": "Bereit zum Abschließen",
+    "readyThin": "Bereit zum Abschließen · Dünn besetzt: {areas}",
+    "areaReopened": "Bereich {area} am {date} wieder geöffnet: {reason}",
+    "areaReopenedHint": "Ein Agent schließt diesen Bereich mit {tool}, sobald seine Fragen beantwortet sind."
+  }
+}

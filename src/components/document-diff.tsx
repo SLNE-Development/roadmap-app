@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { EmptyState } from "@/components/page";
 import { cn } from "@/lib/utils";
 import type { DiffHunk, DiffLine } from "@/lib/diff";
@@ -8,11 +9,12 @@ const SIGN: Record<DiffLine["kind"], string> = { same: " ", add: "+", del: "−"
 
 /** One diff row: both line numbers, the sign and the text with changed words marked. */
 function Row({ line }: { line: DiffLine }) {
+  const t = useTranslations("documents.diff");
   return (
     <tr className={ROW[line.kind]}>
       <td className="w-10 px-2 text-right text-muted-foreground select-none">{line.oldNo}</td>
       <td className="w-10 px-2 text-right text-muted-foreground select-none">{line.newNo}</td>
-      <td className="w-5 text-center select-none" aria-label={line.kind === "add" ? "Added" : line.kind === "del" ? "Removed" : undefined}>
+      <td className="w-5 text-center select-none" aria-label={line.kind === "add" ? t("added") : line.kind === "del" ? t("removed") : undefined}>
         {SIGN[line.kind]}
       </td>
       <td className="pr-4 whitespace-pre">
@@ -38,7 +40,8 @@ function Row({ line }: { line: DiffLine }) {
  * @param props.to the newer version number
  */
 export function DocumentDiff({ hunks, added, removed, from, to }: { hunks: DiffHunk[]; added: number; removed: number; from: number; to: number }) {
-  if (hunks.length === 0) return <EmptyState title={`No changes between v${from} and v${to}`} />;
+  const t = useTranslations("documents.diff");
+  if (hunks.length === 0) return <EmptyState title={t("noChanges", { from, to })} />;
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <p className="text-[13px] font-medium tabular-nums">

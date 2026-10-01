@@ -1,1 +1,41 @@
-{}
+{
+  "steps": {
+    "label": "Planschritte",
+    "title": "Schritte",
+    "progress": "{done} von {total} erledigt",
+    "liveNote": "Der Aufgabenstatus ist aktuell; du siehst Plan v{version}",
+    "noneLinked": "Noch ist keine Aufgabe mit einem Planschritt verknüpft.",
+    "notInPlan": "Nicht im Plan",
+    "notInPlanNote": "Von Hand hinzugefügt, deshalb zeigt kein Planschritt ihren Status."
+  },
+  "rounds": {
+    "confirmedOn": "Vom Nutzer bestätigt · {date}",
+    "confirmed": "Vom Nutzer bestätigt",
+    "emptyTitle": "Das Planungsinterview hat noch nicht begonnen",
+    "emptyDescription": "Ein Agent stellt die erste Runde Fragen zu Umfang, Abhängigkeiten, Fehlerfälle und Tests.",
+    "round": "Runde {number}",
+    "questions": "{count, plural, one {# Frage} other {# Fragen}}",
+    "risk": "Risiko",
+    "noAnswer": "Noch keine Antwort."
+  },
+  "itemStatus": {
+    "open": "Offen",
+    "answered": "Beantwortet",
+    "acceptedRisk": "Risiko akzeptiert"
+  },
+  "coverage": {
+    "settledLabel": "{area}: {settled} von {asked} geklärt",
+    "counts": "{asked} gefragt · {settled} geklärt · {open} offen",
+    "thin": "Dünn: {reason}"
+  },
+  "reopenArea": {
+    "reopened": "Bereich {area} wieder geöffnet",
+    "trigger": "Einen Bereich wieder öffnen",
+    "title": "Einen Planungsbereich wieder öffnen",
+    "description": "Das System bleibt, wo es ist, und die Planung bleibt abgeschlossen. Nur dieser Bereich nimmt neue Fragen an, und das System kann erst wieder in eine Erledigt-Spalte wandern, wenn er erneut abgeschlossen ist.",
+    "area": "Bereich",
+    "reason": "Grund",
+    "reasonPlaceholder": "Was hat sich seit dem Abschluss der Planung geändert?",
+    "submit": "Bereich wieder öffnen"
+  }
+}

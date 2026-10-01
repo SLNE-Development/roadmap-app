@@ -1,1 +1,37 @@
-{}
+{
+  "spec": {
+    "title": "Specification",
+    "emptyTitle": "No spec yet",
+    "emptyDescription": "The spec is written at the end of the planning interview."
+  },
+  "plan": {
+    "title": "Implementation plan",
+    "emptyTitle": "No plan yet",
+    "emptyDescription": "An agent writes the implementation plan once the spec is agreed; its steps become tasks."
+  },
+  "preview": {
+    "readFull": "Read the full spec",
+    "noSpec": "No spec yet. It is written at the end of the planning interview."
+  },
+  "olderVersion": "An older version. The latest is v{latest}.",
+  "outline": {
+    "contents": "Contents"
+  },
+  "versions": {
+    "choose": "Version {version}. Choose a version",
+    "latest": "latest",
+    "version": "Version {version}"
+  },
+  "compare": {
+    "view": "Document view",
+    "read": "Read",
+    "compare": "Compare",
+    "from": "From",
+    "to": "To"
+  },
+  "diff": {
+    "added": "Added",
+    "removed": "Removed",
+    "noChanges": "No changes between v{from} and v{to}"
+  }
+}

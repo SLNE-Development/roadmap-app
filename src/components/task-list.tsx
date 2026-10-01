@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { ArrowDown, ArrowRightLeft, ArrowUp, Check, Gauge, GripVertical, ListChecks, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -43,7 +44,7 @@ import type { TaskItem } from "@/lib/ops/systems";
 import { rollup } from "@/lib/rollup";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
-import { CATEGORY_CLASS, CATEGORY_TEXT, CategoryDot, STATE_CATEGORY, STATE_LABEL } from "./chips";
+import { CATEGORY_CLASS, CATEGORY_TEXT, CategoryDot, STATE_CATEGORY } from "./chips";
 import { PersonAvatar } from "./person-avatar";
 
 /** Above this many tasks, done tasks start hidden behind a "Show N done" toggle. */
@@ -87,8 +88,10 @@ function boxClass(state: TaskState): string {
 
 /** The read-only square state box of a task, for lists outside the task list. */
 export function TaskStateBox({ state }: { state: TaskState }) {
+  const t = useTranslations("tasks.row");
+  const te = useTranslations("enums.taskState");
   return (
-    <span role="img" aria-label={`Task state: ${STATE_LABEL[state]}`} className={boxClass(state)}>
+    <span role="img" aria-label={t("stateLabel", { state: te(state) })} className={boxClass(state)}>
       <StateGlyph state={state} />
     </span>
   );
@@ -129,6 +132,7 @@ function TextDialog({
   onSave?: () => void;
   mentionsIn?: string;
 }) {
+  const t = useTranslations("tasks.dialog");
   const empty = required && !draft.trim();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -170,12 +174,12 @@ function TextDialog({
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
-                {onSave ? "Cancel" : "Close"}
+                {onSave ? t("cancel") : t("close")}
               </Button>
             </DialogClose>
             {onSave && (
               <Button type="submit" disabled={saving || empty}>
-                Save
+                {t("save")}
               </Button>
             )}
           </DialogFooter>
@@ -187,6 +191,7 @@ function TextDialog({
 
 /** The expanded checklist under a task row: a checkbox and remove button per item, and an add field for editors. */
 function Checklist({ task, canEdit }: { task: TaskItem; canEdit: boolean }) {
+  const t = useTranslations("tasks.checklist");
   const trpc = useTRPC();
   const add = useMutation(trpc.tasks.checks.add.mutationOptions());
   const update = useMutation(trpc.tasks.checks.update.mutationOptions());
@@ -195,7 +200,7 @@ function Checklist({ task, canEdit }: { task: TaskItem; canEdit: boolean }) {
   const pending = add.isPending;
   return (
     <div className="flex flex-col pb-1 pl-9 sm:pl-[68px]">
-      <ul aria-label={`Checklist of ${task.title}`} className="flex flex-col">
+      <ul aria-label={t("label", { task: task.title })} className="flex flex-col">
         {task.checks.map((c) => (
           <li key={c.id} className="flex min-h-9 items-center gap-3 py-1 lg:min-h-0">
             <Checkbox
@@ -208,7 +213,7 @@ function Checklist({ task, canEdit }: { task: TaskItem; canEdit: boolean }) {
             {canEdit && (
               <button
                 type="button"
-                aria-label={`Remove ${c.title}`}
+                aria-label={t("remove", { item: c.title })}
                 disabled={remove.isPending}
                 onClick={() => remove.mutate({ id: c.id })}
                 className="flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -231,8 +236,8 @@ function Checklist({ task, canEdit }: { task: TaskItem; canEdit: boolean }) {
         >
           <Plus aria-hidden className="size-4 shrink-0" />
           <input
-            aria-label={`Add item to checklist of ${task.title}`}
-            placeholder="Add item"
+            aria-label={t("addLabel", { task: task.title })}
+            placeholder={t("add")}
             value={title}
             maxLength={200}
             readOnly={pending}
@@ -280,10 +285,13 @@ function TaskRow({
   /** The pull requests linked to this task. */
   code: CodeLinkView[];
 }) {
+  const t = useTranslations("tasks.row");
+  const te = useTranslations("enums.taskState");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const update = useMutation(trpc.tasks.update.mutationOptions());
   // A deleted task's row unmounts, so the toast lives on the mutation.
-  const remove = useMutation(trpc.tasks.delete.mutationOptions({ onSuccess: () => toast.success("Task deleted") }));
+  const remove = useMutation(trpc.tasks.delete.mutationOptions({ onSuccess: () => toast.success(t("deleted")) }));
   const pending = update.isPending || remove.isPending;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
@@ -304,7 +312,7 @@ function TaskRow({
   };
   const locked = (s: TaskState) => !planningComplete && (s === "doing" || s === "done");
   const category = STATE_CATEGORY[task.state];
-  const label = STATE_LABEL[task.state];
+  const label = te(task.state);
 
   return (
     <li
@@ -320,7 +328,7 @@ function TaskRow({
           <span
             draggable
             aria-hidden
-            title="Drag to reorder"
+            title={t("dragToReorder")}
             onDragStart={order.onDragStart}
             onDragEnd={order.onDragEnd}
             className="-mr-1 flex size-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
@@ -333,14 +341,14 @@ function TaskRow({
             <DropdownMenuTrigger asChild disabled={pending}>
               <button
                 type="button"
-                aria-label={`Task state: ${label}. Change state of ${task.title}`}
+                aria-label={t("changeState", { state: label, task: task.title })}
                 className={cn(boxClass(task.state), "outline-none focus-visible:ring-3 focus-visible:ring-ring/50")}
               >
                 <StateGlyph state={task.state} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>State</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("state")}</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={task.state}
                 onValueChange={(v) => {
@@ -354,21 +362,21 @@ function TaskRow({
                 {TASK_STATES.map((s) => (
                   <DropdownMenuRadioItem key={s} value={s} disabled={locked(s)} onSelect={s === "blocked" ? openBlock : undefined}>
                     <CategoryDot category={STATE_CATEGORY[s]} />
-                    {s === "blocked" ? "Blocked…" : STATE_LABEL[s]}
+                    {s === "blocked" ? t("blockedEllipsis") : te(s)}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
               {!planningComplete && (
                 <p className="flex gap-2 px-1.5 py-1 text-xs leading-normal text-cat-planning">
                   <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-                  Tasks can start once planning is complete.
+                  {t("planningLocked")}
                 </p>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <UserRound />
-                  Owner
+                  {t("owner")}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-52">
                   <DropdownMenuRadioGroup
@@ -378,12 +386,12 @@ function TaskRow({
                       update.mutate(
                         { id: task.id, patch: { ownerUserId: v || null } },
                         {
-                          onSuccess: () => toast.success(name ? `${name} owns “${task.title}”` : `“${task.title}” has no owner`),
+                          onSuccess: () => toast.success(name ? t("ownerSet", { name, task: task.title }) : t("ownerCleared", { task: task.title })),
                         },
                       );
                     }}
                   >
-                    <DropdownMenuRadioItem value="">Nobody</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="">{t("nobody")}</DropdownMenuRadioItem>
                     {members.map((m) => (
                       <DropdownMenuRadioItem key={m.userId} value={m.userId}>
                         {m.name}
@@ -395,7 +403,7 @@ function TaskRow({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Gauge />
-                  Estimate
+                  {t("estimate")}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-40">
                   <DropdownMenuRadioGroup
@@ -407,7 +415,7 @@ function TaskRow({
                       })
                     }
                   >
-                    <DropdownMenuRadioItem value="">None</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="">{tc("none")}</DropdownMenuRadioItem>
                     {TASK_ESTIMATES.map((e) => (
                       <DropdownMenuRadioItem key={e} value={e}>
                         {e}
@@ -419,34 +427,34 @@ function TaskRow({
               {task.checks.length === 0 && (
                 <DropdownMenuItem onSelect={() => setChecksOpen(true)}>
                   <ListChecks />
-                  Add checklist
+                  {t("addChecklist")}
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onSelect={openNotes}>
                 <StickyNote />
-                Notes
+                {t("notes")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={!order.canUp} onSelect={() => order.onShift(-1)}>
                 <ArrowUp />
-                Move up
+                {t("moveUp")}
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!order.canDown} onSelect={() => order.onShift(1)}>
                 <ArrowDown />
-                Move down
+                {t("moveDown")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setMoveOpen(true)}>
                 <ArrowRightLeft />
-                Move to system…
+                {t("moveToSystem")}
               </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
                 <TrashIcon />
-                Delete task
+                {t("deleteTask")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <span role="img" aria-label={`Task state: ${label}`} className={boxClass(task.state)}>
+          <span role="img" aria-label={t("stateLabel", { state: label })} className={boxClass(task.state)}>
             <StateGlyph state={task.state} />
           </span>
         )}
@@ -466,8 +474,8 @@ function TaskRow({
                   rel="noreferrer"
                   className={cn("inline-flex items-center gap-1 px-1.5 font-mono text-[11px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", CODE_CHIP[l.state])}
                 >
-                  PR #{l.number}
-                  {l.checks === "failure" && <span role="img" aria-label="Checks failing" title="Checks failing" className="size-1.5 rounded-full bg-cat-blocked" />}
+                  {t("pullRequest", { number: l.number ?? 0 })}
+                  {l.checks === "failure" && <span role="img" aria-label={t("checksFailing")} title={t("checksFailing")} className="size-1.5 rounded-full bg-cat-blocked" />}
                 </a>
               ))}
             </span>
@@ -480,7 +488,7 @@ function TaskRow({
                   href={`/p/${projectSlug}/adrs/${n}`}
                   className="border px-1.5 font-mono text-[11px] text-fg-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  ADR-{formatAdrNumber(n)}
+                  {`ADR-${formatAdrNumber(n)}`}
                 </Link>
               ))}
             </span>
@@ -489,7 +497,7 @@ function TaskRow({
         {task.checks.length > 0 && (
           <button
             type="button"
-            aria-label={`Checklist of ${task.title}, ${checksDone} of ${task.checks.length} done`}
+            aria-label={t("checklistProgress", { task: task.title, done: checksDone, total: task.checks.length })}
             aria-expanded={checksOpen}
             onClick={() => setChecksOpen((v) => !v)}
             className="shrink-0 border px-1.5 font-mono text-[11px] text-fg-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -500,7 +508,7 @@ function TaskRow({
         {task.notes && (
           <button
             type="button"
-            aria-label={`Notes for ${task.title}`}
+            aria-label={t("notesFor", { task: task.title })}
             onClick={openNotes}
             className="flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
@@ -508,23 +516,23 @@ function TaskRow({
           </button>
         )}
         {task.estimate && (
-          <span title={`Estimate ${task.estimate}`} className="shrink-0 border px-1.5 font-mono text-[11px] text-fg-2">
+          <span title={t("estimateValue", { value: task.estimate })} className="shrink-0 border px-1.5 font-mono text-[11px] text-fg-2">
             {task.estimate}
           </span>
         )}
-        <span className="hidden size-[22px] shrink-0 sm:inline-flex" title={task.ownerName ?? "No owner"}>
+        <span className="hidden size-[22px] shrink-0 sm:inline-flex" title={task.ownerName ?? t("noOwner")}>
           {task.ownerName && <PersonAvatar name={task.ownerName} size="sm" />}
         </span>
-        <span className={cn("hidden w-14 shrink-0 text-right text-xs font-semibold sm:inline", CATEGORY_TEXT[category])}>{label}</span>
+        <span className={cn("hidden w-[72px] shrink-0 text-right text-xs font-semibold sm:inline", CATEGORY_TEXT[category])}>{label}</span>
       </div>
       {checksOpen && <Checklist task={task} canEdit={canEdit} />}
       {canEdit && (
         <TextDialog
           open={blockOpen}
           onOpenChange={setBlockOpen}
-          title="Block this task"
+          title={t("blockTitle")}
           description={task.title}
-          label="What is it waiting for?"
+          label={t("blockLabel")}
           draft={reason}
           onDraftChange={setReason}
           maxLength={300}
@@ -544,9 +552,9 @@ function TaskRow({
       <TextDialog
         open={notesOpen}
         onOpenChange={setNotesOpen}
-        title="Notes"
+        title={t("notes")}
         description={task.title}
-        label="Notes"
+        label={t("notes")}
         draft={notes}
         onDraftChange={setNotes}
         maxLength={5000}
@@ -558,13 +566,13 @@ function TaskRow({
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>{task.title}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
+            <AlertDialogCancel>{t("keep")}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={() => remove.mutate({ id: task.id })}>
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -600,6 +608,7 @@ export function TaskList({
   /** The system's code links; pull requests of a task get a chip on its row. */
   code?: CodeLinkView[];
 }) {
+  const t = useTranslations("tasks.list");
   const trpc = useTRPC();
   const add = useMutation(trpc.tasks.add.mutationOptions());
   const reorder = useMutation(trpc.tasks.reorder.mutationOptions());
@@ -613,15 +622,15 @@ export function TaskList({
   const [dragging, setDragging] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [ordered, setOrder] = useOptimistic(tasks, (state, ids: number[]) =>
-    ids.flatMap((id) => state.find((t) => t.id === id) ?? []),
+    ids.flatMap((id) => state.find((task) => task.id === id) ?? []),
   );
-  const visible = showDone ? ordered : ordered.filter((t) => t.state !== "done");
+  const visible = showDone ? ordered : ordered.filter((task) => task.state !== "done");
 
   /** Puts a task where the target task is and persists it; a refusal restores the order and shows why. */
   const place = (id: number, targetId: number) => {
     if (!canEdit || ordering || id === targetId) return;
-    const ids = ordered.map((t) => t.id).filter((x) => x !== id);
-    ids.splice(ordered.findIndex((t) => t.id === targetId), 0, id);
+    const ids = ordered.map((task) => task.id).filter((x) => x !== id);
+    ids.splice(ordered.findIndex((task) => task.id === targetId), 0, id);
     startOrdering(async () => {
       setOrder(ids);
       // A refusal is toasted by the mutation cache; the rows fall back once the transition ends.
@@ -632,19 +641,19 @@ export function TaskList({
   return (
     <section className="flex flex-col border bg-card">
       <header className="flex flex-wrap items-center gap-x-3.5 gap-y-1 px-4 py-3.5 sm:px-[18px] sm:py-4">
-        <h2 className="font-display text-[19px] font-semibold">Tasks</h2>
+        <h2 className="font-display text-[19px] font-semibold">{t("title")}</h2>
         {tasks.length > 0 && (
           <>
             <span className="text-[13px] text-fg-2 tabular-nums">
-              {done} of {tasks.length} done
+              {t("progress", { done, total: tasks.length })}
             </span>
             <ProgressBar value={done} total={tasks.length} colorClass={CATEGORY_CLASS[category]} className="h-1.5 max-w-[200px]" />
             {points > 0 && (
               <span className="text-[13px] text-fg-2 tabular-nums">
-                {pointsDone} / {points} pts
+                {t("points", { done: pointsDone, total: points })}
               </span>
             )}
-            {unestimated > 0 && <span className="text-[13px] text-muted-foreground tabular-nums">{unestimated} unestimated</span>}
+            {unestimated > 0 && <span className="text-[13px] text-muted-foreground tabular-nums">{t("unestimated", { count: unestimated })}</span>}
           </>
         )}
         {collapsible && (
@@ -654,39 +663,39 @@ export function TaskList({
             aria-expanded={showDone}
             className="ml-auto text-[13px] font-medium text-brand-strong hover:underline"
           >
-            {showDone ? "Hide done" : `Show ${done} done`}
+            {showDone ? t("hideDone") : t("showDone", { count: done })}
           </button>
         )}
       </header>
       {!planningComplete && (
         <p className="flex items-center gap-2 border-t bg-cat-planning-soft px-4 py-2 text-[12.5px] text-cat-planning sm:px-[18px]">
           <Lock aria-hidden className="size-3.5 shrink-0" />
-          Tasks can start once planning is complete.
+          {t("planningLocked")}
         </p>
       )}
       <ul className="flex flex-col">
-        {visible.map((t, i) => (
+        {visible.map((task, i) => (
           <TaskRow
-            key={t.id}
-            task={t}
+            key={task.id}
+            task={task}
             projectSlug={projectSlug}
             systemSlug={systemSlug}
             members={members}
             canEdit={canEdit}
             planningComplete={planningComplete}
-            code={code.filter((l) => l.kind === "pr" && l.taskId === t.id)}
+            code={code.filter((l) => l.kind === "pr" && l.taskId === task.id)}
             order={{
               canUp: i > 0 && !ordering,
               canDown: i < visible.length - 1 && !ordering,
-              onShift: (delta) => place(t.id, visible[i + delta].id),
-              dragging: dragging === t.id,
-              over: dragOver === t.id && dragging !== t.id,
+              onShift: (delta) => place(task.id, visible[i + delta].id),
+              dragging: dragging === task.id,
+              over: dragOver === task.id && dragging !== task.id,
               onDragStart: (e) => {
                 const row = e.currentTarget.closest("li");
                 if (row) e.dataTransfer.setDragImage(row, 0, 0);
                 e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", String(t.id));
-                setDragging(t.id);
+                e.dataTransfer.setData("text/plain", String(task.id));
+                setDragging(task.id);
               },
               onDragEnd: () => {
                 setDragging(null);
@@ -696,25 +705,24 @@ export function TaskList({
                 if (!canEdit || dragging === null) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
-                if (dragOver !== t.id) setDragOver(t.id);
+                if (dragOver !== task.id) setDragOver(task.id);
               },
               onDragLeave: (e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver((v) => (v === t.id ? null : v));
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver((v) => (v === task.id ? null : v));
               },
               onDrop: (e) => {
                 e.preventDefault();
                 const from = dragging;
                 setDragging(null);
                 setDragOver(null);
-                if (from !== null) place(from, t.id);
+                if (from !== null) place(from, task.id);
               },
             }}
           />
         ))}
         {tasks.length === 0 && (
           <li className="border-t px-4 py-6 text-center text-[13px] text-fg-2 sm:px-[18px]">
-            No tasks yet. They come from the implementation plan
-            {canEdit ? ", or add one below" : ""}.
+            {canEdit ? t("emptyEditable") : t("empty")}
           </li>
         )}
       </ul>
@@ -742,15 +750,15 @@ export function TaskList({
         >
           <Plus aria-hidden className="size-[18px] shrink-0" />
           <input
-            aria-label="Add a task"
-            placeholder="Add a task"
+            aria-label={t("addTask")}
+            placeholder={t("addTask")}
             ref={inputRef}
             value={title}
             readOnly={pending}
             onChange={(e) => setTitle(e.target.value)}
             className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground lg:text-[13.5px]"
           />
-          <Kbd className="hidden border bg-transparent font-mono text-[11px] sm:inline-flex">Enter</Kbd>
+          <Kbd className="hidden border bg-transparent font-mono text-[11px] sm:inline-flex">{t("enter")}</Kbd>
         </form>
       )}
     </section>

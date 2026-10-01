@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -25,16 +26,17 @@ function useSearchEdit() {
  * @param props.comparing whether the diff is shown
  */
 export function CompareToggle({ param, versions, comparing }: { param: string; versions: number[]; comparing: boolean }) {
+  const t = useTranslations("documents.compare");
   const edit = useSearchEdit();
   return (
-    <div role="group" aria-label="Document view" className="flex">
+    <div role="group" aria-label={t("view")} className="flex">
       <Button
         variant={comparing ? "outline" : "secondary"}
         size="sm"
         aria-pressed={!comparing}
         onClick={() => edit((p) => p.delete("compare"))}
       >
-        Read
+        {t("read")}
       </Button>
       <Button
         variant={comparing ? "secondary" : "outline"}
@@ -47,7 +49,7 @@ export function CompareToggle({ param, versions, comparing }: { param: string; v
           })
         }
       >
-        Compare
+        {t("compare")}
       </Button>
     </div>
   );
@@ -60,29 +62,30 @@ export function CompareToggle({ param, versions, comparing }: { param: string; v
  * @param props.versions all version numbers, newest first
  */
 export function CompareSelects({ versions, from, to }: { versions: number[]; from: number; to: number }) {
+  const t = useTranslations("documents.compare");
   const edit = useSearchEdit();
   return (
     <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
       <label className="flex items-center gap-1.5">
-        From
+        {t("from")}
         <NativeSelect size="sm" value={from} onChange={(e) => edit((p) => p.set("compare", `${e.target.value}..${to}`))}>
           {versions
             .filter((v) => v < to)
             .map((v) => (
               <NativeSelectOption key={v} value={v}>
-                v{v}
+                {`v${v}`}
               </NativeSelectOption>
             ))}
         </NativeSelect>
       </label>
       <label className="flex items-center gap-1.5">
-        To
+        {t("to")}
         <NativeSelect size="sm" value={to} onChange={(e) => edit((p) => p.set("compare", `${from}..${e.target.value}`))}>
           {versions
             .filter((v) => v > from)
             .map((v) => (
               <NativeSelectOption key={v} value={v}>
-                v{v}
+                {`v${v}`}
               </NativeSelectOption>
             ))}
         </NativeSelect>

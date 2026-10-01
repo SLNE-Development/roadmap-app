@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Heading } from "@/lib/headings";
@@ -58,13 +59,14 @@ function OutlineList({ headings, active }: { headings: Heading[]; active: string
  * Renders nothing for documents with fewer than three headings.
  */
 export function DocumentOutline({ headings }: { headings: Heading[] }) {
+  const t = useTranslations("documents.outline");
   const active = useActiveHeading(headings.map((h) => h.id));
   if (headings.length < MIN_OUTLINE_HEADINGS) return null;
   return (
-    <nav aria-label="Contents">
+    <nav aria-label={t("contents")}>
       <Collapsible className="lg:hidden">
         <CollapsibleTrigger className="group flex items-center gap-1.5 text-[13px] font-semibold">
-          Contents
+          {t("contents")}
           <ChevronDown aria-hidden className="size-4 transition-transform group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3">
@@ -72,7 +74,7 @@ export function DocumentOutline({ headings }: { headings: Heading[] }) {
         </CollapsibleContent>
       </Collapsible>
       <div className="sticky top-4 hidden max-h-[calc(100vh-2rem)] overflow-y-auto lg:block">
-        <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Contents</p>
+        <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">{t("contents")}</p>
         <OutlineList headings={headings} active={active} />
       </div>
     </nav>
