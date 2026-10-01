@@ -26,6 +26,7 @@ const SPEC_TOOLS = [
   "list_questions", "add_question", "answer_question", "answer_questions", "set_question_priority",
   "list_activity", "get_progress", "list_releases", "get_release",
   "start_agent_run", "report_agent_usage",
+  "ask_requester", "get_request",
 ];
 
 describe("tool registry", () => {
@@ -48,6 +49,13 @@ describe("tool registry", () => {
     const read = TOOLS.find((t) => t.name === "list_systems")!;
     expect(Object.keys(inputSchema(write).shape)).toContain("agent");
     expect(Object.keys(inputSchema(read).shape)).not.toContain("agent");
+  });
+
+  it("makes ask_requester a write tool and get_request a read tool", () => {
+    expect(Object.keys(inputSchema(TOOLS.find((t) => t.name === "ask_requester")!).shape)).toContain("agent");
+    expect(Object.keys(inputSchema(TOOLS.find((t) => t.name === "get_request")!).shape)).not.toContain("agent");
+    expect(matchRoute("GET", ["requests", "abc"])?.def.name).toBe("get_request");
+    expect(matchRoute("POST", ["requests", "abc", "questions"])?.def.name).toBe("ask_requester");
   });
 
   it("matches routes and decodes parameters", () => {

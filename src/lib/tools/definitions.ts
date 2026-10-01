@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DOCUMENT_KINDS, QUESTION_PRIORITIES } from "@/db/schema";
-import { slugSchema } from "@/lib/ops/access";
+import { askRoundInput } from "@/lib/event-questions";
+import { projectAccess, slugSchema } from "@/lib/ops/access";
 import { listActivity } from "@/lib/ops/activity";
 import { recordUsage, recordUsageInput, startRun, startRunInput } from "@/lib/ops/agent-runs";
 import {
@@ -27,6 +28,9 @@ import {
   updateBoardInput,
 } from "@/lib/ops/boards";
 import { InvalidError } from "@/lib/ops/errors";
+import { findSystem } from "@/lib/ops/lookup";
+import { askRequester, requestForAgent } from "@/lib/ops/request-agent";
+import { recordSpecBasis, requestOfSystem } from "@/lib/ops/request-link";
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
 import { GATE_RULES } from "@/lib/ops/gates";
 import { deleteGlossaryTerm, listGlossary, setGlossaryTerm, setGlossaryTermInput } from "@/lib/ops/glossary";
@@ -568,11 +572,18 @@ register(
   defineTool({
     name: "write_spec",
     description: "Write a new version of a system's spec (markdown).",
-    input: { ...S, ...writeSpecInput.shape },
+    input: { ...S, ...writeSpecInput.shape, brief: z.number().int().positive().optional().describe("Brief version this spec is based on") },
     write: true,
     method: "POST",
     path: "/projects/:project/systems/:system/spec",
-    run: (db, actor, { project, system, ...input }) => writeSpec(db, actor, project, system, input),
+    run: async (db, actor, { project, system, brief, ...input }) => {
+      if (brief === undefined) return writeSpec(db, actor, project, system, input);
+      const access = await projectAccess(db, actor, project, "editor");
+      const requestId = await requestOfSystem(db, (await findSystem(db, access.project.id, system)).id, brief);
+      const written = await writeSpec(db, actor, project, system, input);
+      await recordSpecBasis(db, requestId, written.version, brief);
+      return written;
+    },
   }),
   defineTool({
     name: "write_plan",
@@ -809,6 +820,24 @@ register(
     },
   }),
 
+  defineTool({
+    name: "ask_requester",
+    description: "Ask the event planner up to 5 typed questions about a request; answers come back through get_request.",
+    input: { request: z.string().min(1).max(64), ...askRoundInput.shape },
+    write: true,
+    method: "POST",
+    path: "/requests/:request/questions",
+    run: (db, actor, { request, ...input }) => askRequester(db, actor, request, input),
+  }),
+  defineTool({
+    name: "get_request",
+    description: "Read an event request: brief, event data, typed answers, fallback and progress. sinceBrief returns a brief diff.",
+    input: { request: z.string().min(1).max(64), sinceBrief: z.number().int().positive().optional() },
+    write: false,
+    method: "GET",
+    path: "/requests/:request",
+    run: (db, actor, { request, sinceBrief }) => requestForAgent(db, actor, request, sinceBrief),
+  }),
   defineTool({
     name: "start_agent_run",
     description: "Start an agent run for this key that its next calls join; a known clientSessionId returns that run.",
