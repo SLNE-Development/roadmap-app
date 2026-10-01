@@ -3,22 +3,16 @@
 import { useMutation, useSuspenseQueries } from "@tanstack/react-query";
 import { FolderKanban } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useNow } from "@/components/clock";
 import { MyWorkPanel } from "@/components/my-work-panel";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { ProjectMark } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
-import { relativeAge } from "@/lib/time";
 import { useTRPC } from "@/trpc/client";
 import { ProjectGrid, type ProjectCardItem } from "./project-grid";
-
-/** Formats a count with the singular or plural noun: "1 project", "3 projects". */
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
 
 /** An archived project in the home list. */
 interface ArchivedProjectItem {
@@ -29,19 +23,21 @@ interface ArchivedProjectItem {
 
 /** The "Archived (N)" toggle under the grid; open, it lists the archived projects greyed, with Restore for owners. */
 function ArchivedProjects({ projects }: { projects: ArchivedProjectItem[] }) {
+  const t = useTranslations("home");
+  const common = useTranslations("common");
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
-  const restore = useMutation(trpc.projects.restore.mutationOptions({ onSuccess: () => toast.success("Project restored") }));
+  const restore = useMutation(trpc.projects.restore.mutationOptions({ onSuccess: () => toast.success(t("projectRestored")) }));
   if (projects.length === 0) return null;
   return (
-    <section aria-label="Archived projects" className="flex flex-col gap-3">
+    <section aria-label={t("archivedProjects")} className="flex flex-col gap-3">
       <button
         type="button"
         aria-expanded={open}
         className="self-start text-[13px] font-medium text-brand-strong outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         onClick={() => setOpen((o) => !o)}
       >
-        Archived ({projects.length})
+        {t("archivedToggle", { count: projects.length })}
       </button>
       {open && (
         <ul className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -54,8 +50,8 @@ function ArchivedProjects({ projects }: { projects: ArchivedProjectItem[] }) {
                 </Link>
               </span>
               {(p.role === "owner" || p.role === "admin") && (
-                <Button size="sm" variant="outline" aria-label={`Restore ${p.name}`} disabled={restore.isPending} onClick={() => restore.mutate({ project: p.slug })}>
-                  Restore
+                <Button size="sm" variant="outline" aria-label={t("restoreProject", { name: p.name })} disabled={restore.isPending} onClick={() => restore.mutate({ project: p.slug })}>
+                  {common("restore")}
                 </Button>
               )}
             </li>
@@ -68,12 +64,12 @@ function ArchivedProjects({ projects }: { projects: ArchivedProjectItem[] }) {
 
 /** The home page body: the project cards with their state, or an empty state with project creation, and the archived projects. */
 export function HomeView() {
+  const t = useTranslations("home");
   const trpc = useTRPC();
   const [{ data: cards }, { data: archived }, { data: mine }] = useSuspenseQueries({
     queries: [trpc.projects.cards.queryOptions(), trpc.projects.list.queryOptions({ archived: "only" }), trpc.account.myWork.queryOptions()],
   });
   const archivedItems = archived.map((p) => ({ slug: p.slug, name: p.name, role: p.role }));
-  const now = useNow();
   const projects = cards.map((p): ProjectCardItem => {
     const s = p.summary;
     const last = (s?.lastChange ?? p.createdAt).toISOString();
@@ -87,7 +83,6 @@ export function HomeView() {
       openQuestions: s?.openQuestions ?? 0,
       byCategory: s?.byCategory ?? {},
       lastActivity: last,
-      lastActivityLabel: relativeAge(last, now),
       health: s?.health ?? { status: "empty", reasons: [] },
     };
   });
@@ -96,20 +91,20 @@ export function HomeView() {
   const open = projects.reduce((n, p) => n + p.openQuestions, 0);
   const waiting = mine.items.filter((i) => i.section === "waiting").length;
   const summary = [
-    waiting === 0 ? "Nothing is waiting on you" : `${waiting} ${waiting === 1 ? "thing needs" : "things need"} you`,
-    plural(projects.length, "project", "projects"),
-    plural(blocked, "blocked system", "blocked systems"),
-    plural(open, "open question", "open questions"),
+    waiting === 0 ? t("summaryNothingWaiting") : t("summaryWaiting", { count: waiting }),
+    t("summaryProjects", { count: projects.length }),
+    t("summaryBlocked", { count: blocked }),
+    t("summaryQuestions", { count: open }),
   ].join(" · ");
 
   if (projects.length === 0) {
     return (
       <Page>
-        <PageHeader title="Projects" actions={<NewProjectDialog />} />
+        <PageHeader title={t("title")} actions={<NewProjectDialog />} />
         <EmptyState
           icon={<FolderKanban />}
-          title="No projects yet"
-          description="Create one, or ask a project owner to add you."
+          title={t("emptyTitle")}
+          description={t("emptyText")}
           action={<NewProjectDialog />}
         />
         <ArchivedProjects projects={archivedItems} />

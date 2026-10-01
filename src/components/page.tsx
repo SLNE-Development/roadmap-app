@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 /** Content widths: boards and tables use the full width, most pages 1120px, reading pages 760px. */
@@ -36,12 +37,13 @@ export function PageHeader({
   actions?: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  const t = useTranslations("shell");
   return (
     <header className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           {crumbs && crumbs.length > 0 && (
-            <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-foreground">
+            <nav aria-label={t("breadcrumb")} className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-foreground">
               {crumbs.map((c, i) => (
                 <span key={`${c.label}-${i}`} className="flex items-center gap-1.5">
                   {i > 0 && <span aria-hidden>/</span>}

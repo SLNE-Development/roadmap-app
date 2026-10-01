@@ -4,13 +4,13 @@ import { useSuspenseQueries } from "@tanstack/react-query";
 import { ChevronRight, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Fragment, useState, useTransition } from "react";
 import { withQuery } from "@/components/activity/url-tabs";
 import { FilterChip } from "@/components/filter-chip";
 import { EmptyState, Page, PageHeader, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
 import { overloaded } from "@/lib/workload";
-import { plural } from "@/lib/text";
 import { useTRPC } from "@/trpc/client";
 
 const HEAD = "px-3 py-2";
@@ -22,6 +22,7 @@ const HEAD = "px-3 py-2";
  * @param props.project the project slug the page is narrowed to, validated by the page
  */
 export function WorkloadView({ project }: { project: string | undefined }) {
+  const t = useTranslations("home.workload");
   const trpc = useTRPC();
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -41,42 +42,42 @@ export function WorkloadView({ project }: { project: string | undefined }) {
   return (
     <Page width="medium">
       <PageHeader
-        crumbs={[{ label: "Account" }]}
-        title="Workload"
-        description="What each person owns and has open across the projects you share. Points add up the estimates of their unfinished tasks."
+        crumbs={[{ label: t("account") }]}
+        title={t("title")}
+        description={t("description")}
       />
       <div className="flex flex-wrap items-center gap-2">
         <FilterChip
-          label="Project"
+          label={t("project")}
           options={projects.map((p) => ({ value: p.slug, label: p.name }))}
           value={project ?? ""}
           onChange={(value) => startTransition(() => router.replace(withQuery("/workload", {}, { project: value }), { scroll: false }))}
         />
       </div>
       {rows.length === 0 ? (
-        <EmptyState icon={<Users />} title="No one to show yet" description="Workload lists the members of the projects you belong to." />
+        <EmptyState icon={<Users />} title={t("emptyTitle")} description={t("emptyText")} />
       ) : (
         <div className="overflow-x-auto border">
           <table className="w-full min-w-[640px] text-[13px]">
             <thead>
               <tr className="border-b bg-secondary text-left text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
                 <th scope="col" className={HEAD}>
-                  Person
+                  {t("person")}
                 </th>
                 <th scope="col" className={`${HEAD} text-right`}>
-                  Systems
+                  {t("systems")}
                 </th>
                 <th scope="col" className={`${HEAD} text-right`}>
-                  Blocked
+                  {t("blocked")}
                 </th>
                 <th scope="col" className={`${HEAD} text-right`}>
-                  Doing
+                  {t("doing")}
                 </th>
                 <th scope="col" className={`${HEAD} text-right`}>
-                  Points
+                  {t("points")}
                 </th>
                 <th scope="col" className={`${HEAD} w-40`}>
-                  <span className="sr-only">Points compared with the busiest person</span>
+                  <span className="sr-only">{t("pointsCompared")}</span>
                 </th>
               </tr>
             </thead>
@@ -91,7 +92,7 @@ export function WorkloadView({ project }: { project: string | undefined }) {
                           <button
                             type="button"
                             aria-expanded={expanded}
-                            aria-label={`${expanded ? "Hide" : "Show"} projects of ${r.name}`}
+                            aria-label={t(expanded ? "hideProjects" : "showProjects", { name: r.name })}
                             onClick={() => toggle(r.userId)}
                             className="text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                           >
@@ -99,7 +100,7 @@ export function WorkloadView({ project }: { project: string | undefined }) {
                           </button>
                           <PersonAvatar name={r.name} size="sm" />
                           <span className="font-medium">{r.name}</span>
-                          {over.has(r.userId) && <span className="bg-cat-review-soft px-1.5 py-px text-[11px] font-semibold text-cat-review">Overloaded</span>}
+                          {over.has(r.userId) && <span className="bg-cat-review-soft px-1.5 py-px text-[11px] font-semibold text-cat-review">{t("overloaded")}</span>}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{r.systemsOwned}</td>
@@ -114,7 +115,7 @@ export function WorkloadView({ project }: { project: string | undefined }) {
                       <tr className="border-b bg-secondary/40 last:border-b-0">
                         <td colSpan={6} className="px-3 py-2 pl-12">
                           {r.projects.length === 0 ? (
-                            <span className="text-muted-foreground">Nothing owned in these projects.</span>
+                            <span className="text-muted-foreground">{t("nothingOwned")}</span>
                           ) : (
                             <ul className="flex flex-col gap-1">
                               {r.projects.map((p) => (
@@ -123,7 +124,7 @@ export function WorkloadView({ project }: { project: string | undefined }) {
                                     <span className="font-medium">{p.name}</span>
                                     <span className="text-fg-2">
                                       {" "}
-                                      · {plural(p.systems, "system")}, {p.tasksDoing} doing
+                                      · {t("projectLine", { systems: p.systems, doing: p.tasksDoing })}
                                     </span>
                                   </Link>
                                 </li>

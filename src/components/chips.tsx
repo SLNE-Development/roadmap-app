@@ -1,5 +1,7 @@
 import { Bot } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { AdrStatus, ColumnCategory, Priority, TaskState } from "@/db/schema";
+import { priorityKey } from "@/i18n/enums";
 import { cn } from "@/lib/utils";
 
 /*
@@ -70,18 +72,20 @@ export function StatusChip({ category, name, className }: { category: ColumnCate
 
 /** A task's state as a status chip in its category colour. */
 export function TaskStateChip({ state, className }: { state: TaskState; className?: string }) {
-  return <StatusChip category={STATE_CATEGORY[state]} name={STATE_LABEL[state]} className={className} />;
+  const t = useTranslations("enums.taskState");
+  return <StatusChip category={STATE_CATEGORY[state]} name={t(state)} className={className} />;
 }
 
 /** Priority: MVP is a filled Tide tag, Later is outlined, Nice to have is plain text. */
 export function PriorityTag({ priority, className }: { priority: Priority; className?: string }) {
+  const t = useTranslations("enums.priority");
   const style =
     priority === "MVP"
       ? "bg-brand-soft px-1.5 py-0.5 font-bold tracking-[0.02em] text-brand-strong"
       : priority === "Later"
         ? "border border-border px-1.5 py-px font-semibold text-fg-2"
         : "font-medium text-muted-foreground";
-  return <span className={cn("inline-block w-fit text-[10.5px] leading-4 whitespace-nowrap", style, className)}>{priority}</span>;
+  return <span className={cn("inline-block w-fit text-[10.5px] leading-4 whitespace-nowrap", style, className)}>{t(priorityKey(priority))}</span>;
 }
 
 /** The name of the agent that made a change, in mono on a sunken tag. */
@@ -102,17 +106,26 @@ export function Tag({ children, className }: { children: React.ReactNode; classN
 /** Display names of project roles. */
 export const ROLE_LABEL: Record<string, string> = { owner: "Owner", editor: "Editor", viewer: "Viewer", admin: "Admin" };
 
+/** Returns a function giving the display name of a project role; `admin` (an admin acting on any project) and unknown roles fall back to their own names. */
+export function useRoleLabel(): (role: string) => string {
+  const t = useTranslations("enums.role");
+  const shell = useTranslations("shell");
+  return (role) => (role === "owner" || role === "editor" || role === "viewer" ? t(role) : role === "admin" ? shell("roleAdmin") : role);
+}
+
 /** A project role as a neutral tag. */
 export function RoleTag({ role }: { role: string }) {
-  return <Tag>{ROLE_LABEL[role] ?? role}</Tag>;
+  const label = useRoleLabel();
+  return <Tag>{label(role)}</Tag>;
 }
 
 /** An ADR status: accepted green, proposed amber, superseded muted and struck through. */
 export function AdrStatusChip({ status }: { status: AdrStatus }) {
+  const t = useTranslations("enums.adrStatus");
   const style = {
     accepted: "bg-cat-done-soft text-cat-done font-semibold",
     proposed: "bg-cat-review-soft text-cat-review font-semibold",
     superseded: "bg-secondary text-muted-foreground font-medium line-through",
   }[status];
-  return <span className={cn("inline-block px-2 py-0.5 text-xs whitespace-nowrap capitalize", style)}>{status}</span>;
+  return <span className={cn("inline-block px-2 py-0.5 text-xs whitespace-nowrap", style)}>{t(status)}</span>;
 }

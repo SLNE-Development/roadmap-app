@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Bookmark, ChevronRight, Ellipsis } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ export function viewHref(v: Pick<SidebarView, "path" | "query">): string {
  * disclosure with a Pin option. Renders nothing without views.
  */
 export function SidebarViews({ views }: { views: SidebarView[] }) {
+  const t = useTranslations("shell");
+  const common = useTranslations("common");
   const trpc = useTRPC();
   const [renaming, setRenaming] = useState<SidebarView | null>(null);
   const [name, setName] = useState("");
@@ -52,7 +55,7 @@ export function SidebarViews({ views }: { views: SidebarView[] }) {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={`Options for view ${v.name}`}
+            aria-label={t("viewOptions", { name: v.name })}
             className="mr-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground opacity-0 outline-none group-focus-within/view:opacity-100 group-hover/view:opacity-100 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-100"
           >
             <Ellipsis className="size-3.5" aria-hidden />
@@ -65,11 +68,11 @@ export function SidebarViews({ views }: { views: SidebarView[] }) {
               setRenaming(v);
             }}
           >
-            Rename
+            {common("rename")}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setPinned.mutate({ id: v.id, pinned: !v.pinned })}>{v.pinned ? "Unpin" : "Pin"}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setPinned.mutate({ id: v.id, pinned: !v.pinned })}>{v.pinned ? t("unpin") : t("pin")}</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onSelect={() => remove.mutate({ id: v.id })}>
-            Delete
+            {common("delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -77,19 +80,19 @@ export function SidebarViews({ views }: { views: SidebarView[] }) {
   );
   return (
     <div className="flex flex-col gap-0.5">
-      <div className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Views</div>
+      <div className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">{t("views")}</div>
       {pinned.map(renderView)}
       {more.length > 0 && (
         <>
           <button
             type="button"
             aria-expanded={moreOpen}
-            aria-label={`More views (${more.length})`}
+            aria-label={t("moreViews", { count: more.length })}
             onClick={() => setMoreOpen((o) => !o)}
             className="flex items-center gap-2.5 px-2.5 py-1.5 text-left text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:underline"
           >
             <ChevronRight className={`size-3.5 shrink-0 transition-transform ${moreOpen ? "rotate-90" : ""}`} aria-hidden />
-            <span>More views ({more.length})</span>
+            <span>{t("moreViews", { count: more.length })}</span>
           </button>
           {moreOpen && more.map(renderView)}
         </>
@@ -104,15 +107,15 @@ export function SidebarViews({ views }: { views: SidebarView[] }) {
             }}
           >
             <DialogHeader>
-              <DialogTitle>Rename view</DialogTitle>
+              <DialogTitle>{t("renameView")}</DialogTitle>
             </DialogHeader>
-            <Input aria-label="View name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+            <Input aria-label={t("viewName")} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setRenaming(null)}>
-                Cancel
+                {common("cancel")}
               </Button>
               <Button type="submit" disabled={rename.isPending || !name.trim()}>
-                Rename
+                {common("rename")}
               </Button>
             </DialogFooter>
           </form>

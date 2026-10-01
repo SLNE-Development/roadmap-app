@@ -1,7 +1,9 @@
+import { NextIntlClientProvider } from "next-intl";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { extractHeadings } from "@/lib/headings";
 import type { GlossaryTerm } from "@/lib/glossary-match";
+import en from "../../messages/en";
 import { Markdown } from "./markdown";
 import { TooltipProvider } from "./ui/tooltip";
 
@@ -68,7 +70,9 @@ describe("Markdown", () => {
 
   it("shows a state chip after the heading of a step with a task", () => {
     const html = renderToStaticMarkup(
-      <Markdown stepStates={new Map([[1, { taskId: 9, state: "doing" }]])}>{"## Step 1: Build\n## Step 2: Ship"}</Markdown>,
+      <NextIntlClientProvider locale="en" messages={en} timeZone="UTC">
+        <Markdown stepStates={new Map([[1, { taskId: 9, state: "doing" }]])}>{"## Step 1: Build\n## Step 2: Ship"}</Markdown>
+      </NextIntlClientProvider>,
     );
     expect(html.match(/Doing/g)).toHaveLength(1);
     expect(html.indexOf("Doing")).toBeLessThan(html.indexOf("Step 2"));

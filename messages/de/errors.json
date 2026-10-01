@@ -1,1 +1,12 @@
-{}
+{
+  "title": "Etwas ist schiefgelaufen",
+  "text": "Diese Seite konnte nicht angezeigt werden. Versuche es erneut oder geh zurück.",
+  "reference": "Referenz: {digest}",
+  "goHome": "Zur Startseite",
+  "notFoundTitle": "Seite nicht gefunden",
+  "notFoundText": "Die Adresse passt zu keiner Seite.",
+  "goToProjects": "Zu deinen Projekten",
+  "projectNotFoundTitle": "Nicht gefunden",
+  "projectNotFoundText": "Dieses System, dieses Board oder diese Entscheidung gibt es in diesem Projekt nicht, oder sie wurde umbenannt oder gelöscht.",
+  "backToOverview": "Zurück zur Übersicht"
+}

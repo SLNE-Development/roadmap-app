@@ -1,1 +1,17 @@
-{}
+{
+  "title": "Anmelden",
+  "subtitle": "Nutze das Discord-Konto, das ein Admin zur Zugangsliste hinzugefügt hat.",
+  "headline": "Pläne, die dein Team und deine Agents gleichermaßen lesen.",
+  "tagline": "Boards, Planungsinterviews, Spezifikationen und Entscheidungen für jedes Surf-Projekt an einem Ort.",
+  "apiKeyHint": "Agents verbinden sich stattdessen mit einem API-Schlüssel. Erstelle ihn nach der Anmeldung unter API-Schlüssel.",
+  "continueWithDiscord": "Weiter mit Discord",
+  "redirecting": "Weiterleitung …",
+  "signInFailed": "Anmeldung fehlgeschlagen.",
+  "errors": {
+    "notOnAllowlist": "Dieses Discord-Konto steht noch nicht auf der Zugangsliste. Bitte einen Admin, es hinzuzufügen, und versuche es dann erneut.",
+    "cancelled": "Die Anmeldung mit Discord wurde abgebrochen. Versuche es erneut, wenn du so weit bist.",
+    "restart": "Die Anmeldung hat zu lange gedauert oder wurde in einem anderen Tab gestartet. Bitte versuche es erneut.",
+    "noUserInfo": "Discord hat deine Kontodaten nicht übermittelt. Bitte versuche es erneut.",
+    "generic": "Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut oder frage einen Admin, falls das Problem bleibt."
+  }
+}

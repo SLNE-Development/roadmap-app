@@ -3,6 +3,7 @@
 import { Activity, BookOpen, Bot, ChevronsUpDown, CircleHelp, KanbanSquare, LayoutGrid, List, Map as MapIcon, Rocket, Scale, Search, SlidersHorizontal, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ROLE_LABEL } from "@/components/chips";
+import { useRoleLabel } from "@/components/chips";
 import { NotificationBell } from "@/components/notifications/bell";
 import { ProjectMark } from "@/components/person-avatar";
-import { plural } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import { openCommandMenu } from "./command-menu";
 import { SidebarViews, type SidebarView } from "./sidebar-views";
@@ -70,28 +70,30 @@ export function AppSidebar({
   project?: SidebarProject;
   views?: SidebarView[];
 }) {
+  const t = useTranslations("shell");
+  const roleLabel = useRoleLabel();
   const pathname = usePathname();
   const base = project ? `/p/${project.slug}` : "";
   const is = (path: string, exact = false) => (exact ? pathname === path : pathname === path || pathname.startsWith(`${path}/`));
 
   const sections = project
     ? [
-        { href: base, label: "Overview", icon: LayoutGrid, active: is(base, true) },
-        { href: `${base}/boards`, label: "Boards", icon: KanbanSquare, active: is(`${base}/boards`), boards: project.boards },
-        { href: `${base}/systems`, label: "Systems", icon: List, active: is(`${base}/systems`), count: project.counts.systems },
-        { href: `${base}/roadmap`, label: "Roadmap", icon: MapIcon, active: is(`${base}/roadmap`) },
-        { href: `${base}/releases`, label: "Releases", icon: Rocket, active: is(`${base}/releases`), count: project.counts.releases },
-        { href: `${base}/adrs`, label: "Decisions", icon: Scale, active: is(`${base}/adrs`), count: project.counts.adrs },
-        { href: `${base}/pages`, label: "Pages", icon: BookOpen, active: is(`${base}/pages`), count: project.counts.pages },
-        { href: `${base}/questions`, label: "Questions", icon: CircleHelp, active: is(`${base}/questions`), count: project.counts.openQuestions },
-        { href: `${base}/activity`, label: "Activity", icon: Activity, active: is(`${base}/activity`) },
-        { href: `${base}/agents`, label: "Agents", icon: Bot, active: is(`${base}/agents`), count: project.counts.liveRuns },
+        { href: base, label: t("sectionOverview"), icon: LayoutGrid, active: is(base, true) },
+        { href: `${base}/boards`, label: t("sectionBoards"), icon: KanbanSquare, active: is(`${base}/boards`), boards: project.boards },
+        { href: `${base}/systems`, label: t("sectionSystems"), icon: List, active: is(`${base}/systems`), count: project.counts.systems },
+        { href: `${base}/roadmap`, label: t("sectionRoadmap"), icon: MapIcon, active: is(`${base}/roadmap`) },
+        { href: `${base}/releases`, label: t("sectionReleases"), icon: Rocket, active: is(`${base}/releases`), count: project.counts.releases },
+        { href: `${base}/adrs`, label: t("sectionDecisions"), icon: Scale, active: is(`${base}/adrs`), count: project.counts.adrs },
+        { href: `${base}/pages`, label: t("sectionPages"), icon: BookOpen, active: is(`${base}/pages`), count: project.counts.pages },
+        { href: `${base}/questions`, label: t("sectionQuestions"), icon: CircleHelp, active: is(`${base}/questions`), count: project.counts.openQuestions },
+        { href: `${base}/activity`, label: t("sectionActivity"), icon: Activity, active: is(`${base}/activity`) },
+        { href: `${base}/agents`, label: t("sectionAgents"), icon: Bot, active: is(`${base}/agents`), count: project.counts.liveRuns },
       ]
     : [];
   const others = projects.filter((p) => p.slug !== project?.slug);
 
   return (
-    <nav aria-label="Main" className="flex h-full w-full flex-col gap-[18px] bg-sidebar px-3 py-4 text-sidebar-foreground">
+    <nav aria-label={t("mainNavigation")} className="flex h-full w-full flex-col gap-[18px] bg-sidebar px-3 py-4 text-sidebar-foreground">
       <Link href="/" className="flex shrink-0 items-center gap-2.5 px-2 py-1">
         <span className="flex size-[26px] items-center justify-center bg-primary text-primary-foreground">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
@@ -106,15 +108,15 @@ export function AppSidebar({
         <DropdownMenuTrigger className="flex shrink-0 items-center gap-2.5 border bg-card p-2 text-left outline-none hover:bg-card/70 focus-visible:ring-2 focus-visible:ring-ring">
           {project ? <ProjectMark name={project.name} slug={project.slug} /> : <span className="size-6 border border-dashed" aria-hidden />}
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[13px] font-semibold">{project ? project.name : "All projects"}</span>
-            <span className="text-[11px] text-muted-foreground">
-              {project ? `${ROLE_LABEL[project.role] ?? project.role} · ${plural(project.memberCount, "member")}` : plural(projects.length, "project")}
+            <span className="truncate text-[13px] font-semibold">{project ? project.name : t("allProjects")}</span>
+            <span className="truncate text-[11px] text-muted-foreground">
+              {project ? t("roleAndMembers", { role: roleLabel(project.role), count: project.memberCount }) : t("projectCount", { count: projects.length })}
             </span>
           </span>
           <ChevronsUpDown className="size-3.5 text-muted-foreground" aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-60">
-          <DropdownMenuLabel>Switch project</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("switchProject")}</DropdownMenuLabel>
           {projects.map((p) => (
             <DropdownMenuItem key={p.slug} asChild>
               <Link href={`/p/${p.slug}`} className="gap-2.5">
@@ -125,7 +127,7 @@ export function AppSidebar({
           ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/">All projects</Link>
+            <Link href="/">{t("allProjects")}</Link>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -137,7 +139,7 @@ export function AppSidebar({
           className="flex min-w-0 flex-1 items-center gap-2 border bg-background px-2.5 py-[7px] text-[13px] text-muted-foreground hover:text-foreground"
         >
           <Search className="size-[15px]" aria-hidden />
-          <span className="flex-1 truncate text-left">Search or jump to…</span>
+          <span className="flex-1 truncate text-left">{t("searchOrJump")}</span>
           <kbd className="border bg-card px-[5px] py-px font-mono text-[11px]">⌘K</kbd>
         </button>
         <NotificationBell className="w-[34px] border bg-background text-muted-foreground hover:text-foreground" />
@@ -182,12 +184,12 @@ export function AppSidebar({
         <div className="flex flex-col gap-0.5">
           <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className={rowClass(pathname === "/")}>
             <LayoutGrid className="size-4 opacity-90" aria-hidden />
-            <span className="flex-1">Projects</span>
+            <span className="flex-1">{t("projects")}</span>
             <Count value={projects.length} />
           </Link>
           <Link href="/workload" aria-current={is("/workload") ? "page" : undefined} className={rowClass(is("/workload"))}>
             <Users className="size-4 opacity-90" aria-hidden />
-            <span className="flex-1">Workload</span>
+            <span className="flex-1">{t("workload")}</span>
           </Link>
         </div>
       )}
@@ -196,7 +198,7 @@ export function AppSidebar({
 
       {others.length > 0 && (
         <div className="flex flex-col gap-0.5">
-          <div className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">{project ? "Other projects" : "Your projects"}</div>
+          <div className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">{project ? t("otherProjects") : t("yourProjects")}</div>
           {others.slice(0, project ? 4 : 12).map((p) => (
             <Link key={p.slug} href={`/p/${p.slug}`} className="flex items-center gap-2.5 px-2.5 py-1.5 text-[13px] text-fg-2 hover:text-foreground">
               <ProjectMark name={p.name} slug={p.slug} size="sm" />
@@ -211,7 +213,7 @@ export function AppSidebar({
         {project && (
           <Link href={`${base}/settings`} aria-current={is(`${base}/settings`) ? "page" : undefined} className={rowClass(is(`${base}/settings`))}>
             <SlidersHorizontal className="size-4" aria-hidden />
-            Project settings
+            {t("projectSettings")}
           </Link>
         )}
         <UserArea name={actor.name} isAdmin={actor.isAdmin} />

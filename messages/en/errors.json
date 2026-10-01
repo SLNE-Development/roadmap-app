@@ -1,1 +1,12 @@
-{}
+{
+  "title": "Something went wrong",
+  "text": "This page could not be shown. Try again, or go back.",
+  "reference": "Reference: {digest}",
+  "goHome": "Go home",
+  "notFoundTitle": "Page not found",
+  "notFoundText": "The address doesn't match any page.",
+  "goToProjects": "Go to your projects",
+  "projectNotFoundTitle": "Not found",
+  "projectNotFoundText": "This system, board or decision doesn't exist in this project, or it was renamed or deleted.",
+  "backToOverview": "Back to the overview"
+}

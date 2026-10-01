@@ -2,6 +2,7 @@
 
 import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
 import { NotificationBell } from "@/components/notifications/bell";
 import { useActivityHeartbeat } from "@/hooks/use-activity-heartbeat";
@@ -33,6 +34,7 @@ export function AppShell({
   views?: SidebarView[];
   children: React.ReactNode;
 }) {
+  const t = useTranslations("shell");
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const showHelp = useCallback(() => setHelpOpen(true), []);
@@ -52,12 +54,12 @@ export function AppShell({
       <aside className="sticky top-0 hidden h-dvh w-62 shrink-0 border-r lg:block">{sidebar}</aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-sidebar px-2 lg:hidden">
-          <button type="button" aria-label="Open navigation" onClick={() => setMenuOpen(true)} className="flex size-11 items-center justify-center">
+          <button type="button" aria-label={t("openNavigation")} onClick={() => setMenuOpen(true)} className="flex size-11 items-center justify-center">
             <Menu className="size-5" />
           </button>
           <span className="min-w-0 flex-1 truncate font-display text-base font-semibold">{project?.name ?? "Roadmap"}</span>
           <NotificationBell className="size-11" />
-          <button type="button" aria-label="Search" onClick={openCommandMenu} className="flex size-11 items-center justify-center">
+          <button type="button" aria-label={t("search")} onClick={openCommandMenu} className="flex size-11 items-center justify-center">
             <Search className="size-[19px]" />
           </button>
         </header>
@@ -65,7 +67,7 @@ export function AppShell({
       </div>
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent side="left" className="w-72 p-0" showCloseButton={false}>
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetTitle className="sr-only">{t("navigation")}</SheetTitle>
           {sidebar}
         </SheetContent>
       </Sheet>

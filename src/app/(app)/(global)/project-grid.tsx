@@ -2,8 +2,10 @@
 
 import { ChevronDown, Search } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
-import { CATEGORY_CLASS, CATEGORY_LABEL, RoleTag } from "@/components/chips";
+import { CATEGORY_CLASS, RoleTag } from "@/components/chips";
+import { useNow } from "@/components/clock";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { EmptyState, PageHeader } from "@/components/page";
 import { ProjectMark } from "@/components/person-avatar";
@@ -32,8 +34,6 @@ export interface ProjectCardItem {
   byCategory: Partial<Record<ColumnCategory, number>>;
   /** ISO time of the latest change, for sorting. */
   lastActivity: string;
-  /** The latest change as "2 h ago", rendered on the server so both sides agree. */
-  lastActivityLabel: string;
   health: ProjectHealth;
 }
 
@@ -41,14 +41,18 @@ export interface ProjectCardItem {
 const SEGMENT_ORDER: ColumnCategory[] = ["done", "review", "active", "todo", "blocked", "planning"];
 
 /** Sort options of the grid. */
-const SORTS = { recent: "Recent activity", name: "Name", health: "Health" } as const;
+const SORTS = {
+  recent: { item: "sortRecent", current: "sortCurrentRecent" },
+  name: { item: "sortName", current: "sortCurrentName" },
+  health: { item: "sortHealth", current: "sortCurrentHealth" },
+} as const;
 type SortKey = keyof typeof SORTS;
 
-/** The badge of each health status; `empty` has none. */
+/** The badge of each health status (`home` message key and colours); `empty` has none. */
 const HEALTH_BADGE = {
-  "on-track": { label: "On track", className: "bg-cat-done-soft text-cat-done" },
-  "at-risk": { label: "At risk", className: "bg-cat-review-soft text-cat-review" },
-  stalled: { label: "Stalled", className: "bg-cat-blocked-soft text-cat-blocked" },
+  "on-track": { label: "healthOnTrack", className: "bg-cat-done-soft text-cat-done" },
+  "at-risk": { label: "healthAtRisk", className: "bg-cat-review-soft text-cat-review" },
+  stalled: { label: "healthStalled", className: "bg-cat-blocked-soft text-cat-blocked" },
 } as const;
 
 /** Sort position of each health status: stalled first, empty last. */
@@ -56,14 +60,17 @@ const HEALTH_RANK: Record<ProjectHealth["status"], number> = { stalled: 0, "at-r
 
 /** The health badge with the reasons in a tooltip; nothing for a project without systems. */
 function HealthBadge({ health }: { health: ProjectHealth }) {
+  const t = useTranslations("home");
   if (health.status === "empty") return null;
-  const { label, className } = HEALTH_BADGE[health.status];
+  const badge = HEALTH_BADGE[health.status];
+  const label = t(badge.label);
+  const { className } = badge;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
           role="img"
-          aria-label={`Health: ${label}. ${health.reasons.join(" ")}`}
+          aria-label={t("healthAria", { label, reasons: health.reasons.join(" ") })}
           className={`px-1.5 py-0.5 text-[11px] font-semibold ${className}`}
         >
           {label}
@@ -84,9 +91,11 @@ function HealthBadge({ health }: { health: ProjectHealth }) {
 
 /** A segmented bar with one segment per category, sized by its number of systems. */
 function StatusBar({ byCategory, total }: { byCategory: ProjectCardItem["byCategory"]; total: number }) {
+  const t = useTranslations("home");
+  const categories = useTranslations("enums.category");
   if (total === 0) return <span aria-hidden className="flex h-1.5 bg-track" />;
   const label = SEGMENT_ORDER.filter((c) => byCategory[c])
-    .map((c) => `${byCategory[c]} ${CATEGORY_LABEL[c]}`)
+    .map((c) => t("statusSegment", { count: byCategory[c] ?? 0, category: categories(c) }))
     .join(", ");
   return (
     <span role="img" aria-label={label} className="flex h-1.5 gap-0.5">
@@ -99,6 +108,9 @@ function StatusBar({ byCategory, total }: { byCategory: ProjectCardItem["byCateg
 
 /** One project as a card linking to its overview. */
 function ProjectCard({ p }: { p: ProjectCardItem }) {
+  const t = useTranslations("home");
+  const format = useFormatter();
+  const now = useNow();
   return (
     <Link
       href={`/p/${p.slug}`}
@@ -113,10 +125,10 @@ function ProjectCard({ p }: { p: ProjectCardItem }) {
       <span className="line-clamp-2 h-[39px] text-[13px] leading-normal text-fg-2">{p.description}</span>
       <StatusBar byCategory={p.byCategory} total={p.systems} />
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted-foreground">
-        <span>{p.systems === 1 ? "1 system" : `${p.systems} systems`}</span>
-        {p.blocked > 0 && <span className="font-semibold text-cat-blocked">{p.blocked} blocked</span>}
-        <span>{p.openQuestions === 1 ? "1 open question" : `${p.openQuestions} open questions`}</span>
-        <span className="ml-auto">{p.lastActivityLabel}</span>
+        <span>{t("systemCount", { count: p.systems })}</span>
+        {p.blocked > 0 && <span className="font-semibold text-cat-blocked">{t("blockedCount", { count: p.blocked })}</span>}
+        <span>{t("openQuestionCount", { count: p.openQuestions })}</span>
+        <span className="ml-auto">{format.relativeTime(new Date(p.lastActivity), now)}</span>
       </span>
     </Link>
   );
@@ -124,6 +136,7 @@ function ProjectCard({ p }: { p: ProjectCardItem }) {
 
 /** The home header with search and sort, and the grid of project cards ending in a "New project" tile. */
 export function ProjectGrid({ projects, summary }: { projects: ProjectCardItem[]; summary: string }) {
+  const t = useTranslations("home");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
 
@@ -141,7 +154,7 @@ export function ProjectGrid({ projects, summary }: { projects: ProjectCardItem[]
   return (
     <>
       <PageHeader
-        title="Projects"
+        title={t("title")}
         description={summary}
         actions={
           <>
@@ -149,8 +162,8 @@ export function ProjectGrid({ projects, summary }: { projects: ProjectCardItem[]
               <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
-                aria-label="Find a project"
-                placeholder="Find a project"
+                aria-label={t("findProject")}
+                placeholder={t("findProject")}
                 className="bg-card pl-8"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -159,7 +172,7 @@ export function ProjectGrid({ projects, summary }: { projects: ProjectCardItem[]
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="text-fg-2">
-                  Sort: {SORTS[sort].toLowerCase()}
+                  {t(SORTS[sort].current)}
                   <ChevronDown aria-hidden className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -167,7 +180,7 @@ export function ProjectGrid({ projects, summary }: { projects: ProjectCardItem[]
                 <DropdownMenuRadioGroup value={sort} onValueChange={(v) => setSort(v as SortKey)}>
                   {(Object.keys(SORTS) as SortKey[]).map((k) => (
                     <DropdownMenuRadioItem key={k} value={k}>
-                      {SORTS[k]}
+                      {t(SORTS[k].item)}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
@@ -180,11 +193,11 @@ export function ProjectGrid({ projects, summary }: { projects: ProjectCardItem[]
       {shown.length === 0 ? (
         <EmptyState
           icon={<Search />}
-          title="No matching projects"
-          description={`Nothing matches “${query.trim()}”. Try another name.`}
+          title={t("noMatchTitle")}
+          description={t("noMatchText", { query: query.trim() })}
           action={
             <Button variant="outline" onClick={() => setQuery("")}>
-              Clear search
+              {t("clearSearch")}
             </Button>
           }
         />

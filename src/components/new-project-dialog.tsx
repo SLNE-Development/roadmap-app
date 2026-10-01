@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,9 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useTRPC } from "@/trpc/client";
+
+/** A repository address as the placeholder shows it; the same in every language. */
+const REPO_PLACEHOLDER = "https://github.com/org/repo";
 
 /** Turns a name into a slug suggestion: lowercase words joined by dashes. */
 function slugify(name: string): string {
@@ -27,6 +31,7 @@ function slugify(name: string): string {
  * @param props.variant `button` for the primary header button, `tile` for the dashed last cell of the project grid
  */
 export function NewProjectDialog({ variant = "button" }: { variant?: "button" | "tile" }) {
+  const t = useTranslations("home.newProject");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const trpc = useTRPC();
@@ -36,7 +41,7 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
     trpc.projects.create.mutationOptions({
       onSuccess: ({ slug: created }, { name: createdName }) => {
         setOpen(false);
-        toast.success(`Project ${createdName.trim()} created`);
+        toast.success(t("created", { name: createdName.trim() }));
         router.push(`/p/${created}`);
       },
     }),
@@ -56,12 +61,12 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
             className="flex min-h-[150px] flex-1 flex-col items-center justify-center gap-2 border border-dashed text-[13.5px] font-medium text-fg-2 outline-none transition-colors hover:border-primary hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Plus aria-hidden className="size-[18px]" />
-            New project
+            {t("button")}
           </button>
         ) : (
           <Button>
             <Plus aria-hidden />
-            New project
+            {t("button")}
           </Button>
         )}
       </DialogTrigger>
@@ -74,12 +79,12 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
           }}
         >
           <DialogHeader>
-            <DialogTitle>New project</DialogTitle>
-            <DialogDescription>You become its owner. It starts with a Development board.</DialogDescription>
+            <DialogTitle>{t("title")}</DialogTitle>
+            <DialogDescription>{t("description")}</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="project-name">Name</FieldLabel>
+              <FieldLabel htmlFor="project-name">{t("name")}</FieldLabel>
               <Input
                 id="project-name"
                 value={name}
@@ -90,7 +95,7 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="project-slug">Slug</FieldLabel>
+              <FieldLabel htmlFor="project-slug">{t("slug")}</FieldLabel>
               <Input
                 id="project-slug"
                 className="font-mono"
@@ -100,21 +105,21 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
                   setSlug(e.target.value);
                 }}
               />
-              <FieldDescription>Used in URLs, surf-roadmap.json and by agents. Lowercase letters, digits and dashes.</FieldDescription>
+              <FieldDescription>{t("slugHint")}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="project-description">Description</FieldLabel>
+              <FieldLabel htmlFor="project-description">{t("descriptionLabel")}</FieldLabel>
               <Textarea id="project-description" value={description} onChange={(e) => setDescription(e.target.value)} />
             </Field>
             <Field>
-              <FieldLabel htmlFor="project-repo">Repository URL</FieldLabel>
-              <Input id="project-repo" placeholder="https://github.com/org/repo" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />
-              <FieldDescription>Commit hashes in progress updates link here.</FieldDescription>
+              <FieldLabel htmlFor="project-repo">{t("repoUrl")}</FieldLabel>
+              <Input id="project-repo" placeholder={REPO_PLACEHOLDER} value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />
+              <FieldDescription>{t("repoHint")}</FieldDescription>
             </Field>
           </FieldGroup>
           <DialogFooter>
             <Button type="submit" disabled={create.isPending || !name.trim() || !slug.trim()}>
-              Create project
+              {t("submit")}
             </Button>
           </DialogFooter>
         </form>

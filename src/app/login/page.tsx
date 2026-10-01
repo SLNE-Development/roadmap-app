@@ -1,40 +1,38 @@
 import type { Metadata } from "next";
 import { CircleAlert } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { SignInButton } from "./sign-in-button";
 
 /** The public entry page. */
-export const metadata: Metadata = { title: "Sign in", alternates: { canonical: "/login" } };
-
-/** The message for a Discord account that is not on the allowlist. */
-const NOT_ON_ALLOWLIST = "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.";
-
-/** The message for an expired or foreign OAuth state. */
-const RESTART = "The sign-in took too long or was started in another tab. Please try again.";
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("login");
+  return { title: t("title"), alternates: { canonical: "/login" } };
+}
 
 /**
- * Human messages for the lower-cased `?error=` codes the Better Auth OAuth callback
+ * The `login.errors` key for each lower-cased `?error=` code the Better Auth OAuth callback
  * redirects with. `not_provisioned` is the code our session hook throws for accounts
  * missing from the allowlist; `unable_to_create_session` is what Better Auth sends when a
  * hook vetoes the session without a code.
  */
-const ERROR_MESSAGES: Record<string, string> = {
-  not_provisioned: NOT_ON_ALLOWLIST,
-  unable_to_create_session: NOT_ON_ALLOWLIST,
-  access_denied: "Discord sign-in was cancelled. Try again when you’re ready.",
-  state_mismatch: RESTART,
-  state_not_found: RESTART,
-  state_invalid: RESTART,
-  please_restart_the_process: RESTART,
-  unable_to_get_user_info: "Discord didn’t send your account details. Please try again.",
-};
+const ERROR_KEYS = {
+  not_provisioned: "notOnAllowlist",
+  unable_to_create_session: "notOnAllowlist",
+  access_denied: "cancelled",
+  state_mismatch: "restart",
+  state_not_found: "restart",
+  state_invalid: "restart",
+  please_restart_the_process: "restart",
+  unable_to_get_user_info: "noUserInfo",
+} as const;
 
-/** Returns the message for an error code; unknown codes get a generic message (the code is shown separately). */
-function messageFor(code: string): { text: string; known: boolean } {
+/** Returns the `login.errors` key for an error code; unknown codes get the generic message (the code is shown separately). */
+function messageKey(code: string): { key: (typeof ERROR_KEYS)[keyof typeof ERROR_KEYS] | "generic"; known: boolean } {
   const key = code.toLowerCase();
   const provisioning = key.includes("not_been_added") || key.includes("allowlist") || key.includes("provision");
-  const text = provisioning ? NOT_ON_ALLOWLIST : ERROR_MESSAGES[key];
-  return text ? { text, known: true } : { text: "Sign-in failed. Please try again, or ask an admin if it keeps happening.", known: false };
+  const found = provisioning ? "notOnAllowlist" : ERROR_KEYS[key as keyof typeof ERROR_KEYS];
+  return found ? { key: found, known: true } : { key: "generic", known: false };
 }
 
 /** The wave lines of the brand panel: gentle quadratic waves growing taller towards the bottom. */
@@ -69,10 +67,10 @@ function Logo() {
  * @param props.searchParams carries `error` after a rejected sign-in and `next`, the page to return to
  */
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string | string[]; next?: string | string[] }> }) {
-  const params = await searchParams;
+  const [params, t] = await Promise.all([searchParams, getTranslations("login")]);
   // A repeated `error` arrives as an array; the last one is the most specific.
   const error = Array.isArray(params.error) ? params.error.at(-1) : params.error;
-  const message = error ? messageFor(error) : null;
+  const message = error ? messageKey(error) : null;
   return (
     <main className="grid min-h-dvh grid-rows-[auto_1fr] bg-background text-foreground lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:grid-rows-none">
       <section className="relative flex flex-col justify-between gap-8 overflow-hidden bg-brand-strong px-6 py-7 text-primary-foreground sm:px-10 sm:py-10 lg:px-16 lg:py-14 dark:bg-brand-soft dark:text-foreground">
@@ -94,30 +92,30 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <Logo />
         <div className="relative flex max-w-[520px] flex-col gap-4">
           <h1 className="font-display text-[30px] leading-[1.05] font-semibold tracking-[-0.03em] text-balance sm:text-[40px] lg:text-[56px] lg:leading-[1.02]">
-            Plans your team and your agents both read.
+            {t("headline")}
           </h1>
           <p className="hidden text-base leading-[1.55] opacity-80 sm:block">
-            Boards, planning interviews, specs and decisions for every Surf project, in one place.
+            {t("tagline")}
           </p>
         </div>
       </section>
       <section className="flex items-start justify-center px-4 py-10 sm:px-12 lg:items-center">
         <div className="flex w-full max-w-[380px] flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <h2 className="font-display text-[30px] font-semibold tracking-[-0.02em]">Sign in</h2>
-            <p className="text-sm leading-normal text-fg-2">Use the Discord account an admin added to the allowlist.</p>
+            <h2 className="font-display text-[30px] font-semibold tracking-[-0.02em]">{t("title")}</h2>
+            <p className="text-sm leading-normal text-fg-2">{t("subtitle")}</p>
           </div>
           <SignInButton next={safeNextPath(params.next)} />
           {message && (
             <div role="alert" className="flex gap-2.5 bg-danger-soft px-3.5 py-3 text-[13px] leading-normal text-destructive">
               <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
               <span>
-                {message.text}
+                {t(`errors.${message.key}`)}
                 {!message.known && <span className="mt-1 block font-mono text-xs">{error}</span>}
               </span>
             </div>
           )}
-          <p className="text-[12.5px] text-muted-foreground">Agents connect with an API key instead. Create one under API keys after signing in.</p>
+          <p className="text-[12.5px] text-muted-foreground">{t("apiKeyHint")}</p>
         </div>
       </section>
     </main>

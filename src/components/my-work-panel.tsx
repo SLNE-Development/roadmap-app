@@ -3,11 +3,11 @@
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { AtSign, Bell, CircleHelp, History, ListChecks, Lock, Scale } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useNow } from "@/components/clock";
 import { Panel } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import type { MyWorkItem } from "@/lib/ops/my-work";
-import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 
@@ -24,14 +24,16 @@ const GENERIC = { icon: Bell, className: "bg-secondary text-fg-2" };
 const MENTION_PREFIX = "mention-";
 
 /** The line under a row's title: who did it (for changes), the detail and the age. */
-function detailLine(item: MyWorkItem, now: Date): string {
-  const who = item.authorName ? (item.agent ? `${item.agent} for ${item.authorName}` : item.authorName) : item.agent;
-  const parts = [item.kind === "change" ? who : null, item.detail, relativeAge(item.at.toISOString(), now)];
+function detailLine(item: MyWorkItem, now: Date, t: ReturnType<typeof useTranslations<"home.myWork">>, format: ReturnType<typeof useFormatter>): string {
+  const who = item.authorName ? (item.agent ? t("agentFor", { agent: item.agent, name: item.authorName }) : item.authorName) : item.agent;
+  const parts = [item.kind === "change" ? who : null, item.detail, format.relativeTime(item.at, now)];
   return parts.filter(Boolean).join(" · ");
 }
 
 /** Rows in the look of the attention list: a soft-coloured icon square, the title, and a detail line with the age. */
 function Rows({ items, onOpen }: { items: MyWorkItem[]; onOpen?: (item: MyWorkItem) => void }) {
+  const t = useTranslations("home.myWork");
+  const format = useFormatter();
   const now = useNow();
   return (
     <ul className="flex flex-col">
@@ -51,7 +53,7 @@ function Rows({ items, onOpen }: { items: MyWorkItem[]; onOpen?: (item: MyWorkIt
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
                 <span className="font-semibold">{item.title}</span>
-                <span className="line-clamp-2 text-[13px] leading-[1.45] text-fg-2">{detailLine(item, now)}</span>
+                <span className="line-clamp-2 text-[13px] leading-[1.45] text-fg-2">{detailLine(item, now, t, format)}</span>
               </span>
               <span className="text-xs whitespace-nowrap text-muted-foreground">{item.projectName}</span>
             </Link>
@@ -68,6 +70,7 @@ function Rows({ items, onOpen }: { items: MyWorkItem[]; onOpen?: (item: MyWorkIt
  * when both lists are empty.
  */
 export function MyWorkPanel() {
+  const t = useTranslations("home.myWork");
   const trpc = useTRPC();
   const { data } = useSuspenseQuery(trpc.account.myWork.queryOptions());
   const markSeen = useMutation(trpc.account.markMyWorkSeen.mutationOptions());
@@ -82,17 +85,17 @@ export function MyWorkPanel() {
   return (
     <>
       {waiting.length > 0 && (
-        <Panel title="Waiting on you" meta={String(waiting.length)}>
+        <Panel title={t("waiting")} meta={String(waiting.length)}>
           <Rows items={waiting} onOpen={openItem} />
         </Panel>
       )}
       {changes.length > 0 && (
         <Panel
-          title="Since you were last here"
+          title={t("changes")}
           meta={String(changes.length)}
           action={
             <Button size="sm" variant="outline" disabled={markSeen.isPending} onClick={() => markSeen.mutate()}>
-              Mark all seen
+              {t("markSeen")}
             </Button>
           }
         >

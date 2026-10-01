@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
@@ -57,6 +58,9 @@ function Snippet({ text }: { text: string }) {
   });
 }
 
+/** The key that starts the "go to" shortcuts, shown beside each section. */
+const GO_KEY = "g";
+
 /** What the command menu can jump to; callers pass active projects and systems only, leaving archived ones out. */
 export interface CommandMenuData {
   isAdmin: boolean;
@@ -72,6 +76,7 @@ export interface CommandMenuData {
  * project, two or more typed characters also search its documents.
  */
 export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; onShowShortcuts: () => void }) {
+  const t = useTranslations("shell");
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
@@ -112,23 +117,23 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
   };
   const base = data.project ? `/p/${data.project.slug}` : "";
   const sections = [
-    { href: base, label: "Overview", icon: LayoutGrid, key: "o" },
-    { href: `${base}/systems`, label: "Systems", icon: List, key: "s" },
-    { href: `${base}/roadmap`, label: "Roadmap", icon: MapIcon, key: "r" },
-    { href: `${base}/releases`, label: "Releases", icon: Rocket },
-    { href: `${base}/adrs`, label: "Decisions", icon: Scale, key: "d" },
-    { href: `${base}/pages`, label: "Pages", icon: BookOpen },
-    { href: `${base}/questions`, label: "Questions", icon: CircleHelp, key: "q" },
-    { href: `${base}/activity`, label: "Activity", icon: Activity, key: "a" },
-    { href: `${base}/settings`, label: "Project settings", icon: SlidersHorizontal },
+    { href: base, label: t("sectionOverview"), icon: LayoutGrid, key: "o" },
+    { href: `${base}/systems`, label: t("sectionSystems"), icon: List, key: "s" },
+    { href: `${base}/roadmap`, label: t("sectionRoadmap"), icon: MapIcon, key: "r" },
+    { href: `${base}/releases`, label: t("sectionReleases"), icon: Rocket },
+    { href: `${base}/adrs`, label: t("sectionDecisions"), icon: Scale, key: "d" },
+    { href: `${base}/pages`, label: t("sectionPages"), icon: BookOpen },
+    { href: `${base}/questions`, label: t("sectionQuestions"), icon: CircleHelp, key: "q" },
+    { href: `${base}/activity`, label: t("sectionActivity"), icon: Activity, key: "a" },
+    { href: `${base}/settings`, label: t("projectSettings"), icon: SlidersHorizontal },
   ];
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen} title="Search" description="Jump to a project, system or page">
+    <CommandDialog open={open} onOpenChange={setOpen} title={t("commandTitle")} description={t("commandDescription")}>
       <Command>
-      <CommandInput placeholder="Search or jump to…" value={query} onValueChange={setQuery} />
+      <CommandInput placeholder={t("searchOrJump")} value={query} onValueChange={setQuery} />
       <CommandList>
-        <CommandEmpty>Nothing matches.</CommandEmpty>
+        <CommandEmpty>{t("nothingMatches")}</CommandEmpty>
         {data.project && (
           <CommandGroup heading={data.project.name}>
             {sections.map((s) => (
@@ -136,7 +141,7 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
                 <s.icon /> {s.label}
                 {s.key && (
                   <CommandShortcut className="flex gap-1">
-                    <Kbd>g</Kbd>
+                    <Kbd>{GO_KEY}</Kbd>
                     <Kbd>{s.key}</Kbd>
                   </CommandShortcut>
                 )}
@@ -144,13 +149,13 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
             ))}
             {data.project.boards.map((b) => (
               <CommandItem key={b.slug} value={`board ${b.name}`} onSelect={() => go(`${base}/boards/${b.slug}`)}>
-                <KanbanSquare /> Board: {b.name}
+                <KanbanSquare /> {t("boardItem", { name: b.name })}
               </CommandItem>
             ))}
           </CommandGroup>
         )}
         {data.systems && data.systems.length > 0 && (
-          <CommandGroup heading="Systems">
+          <CommandGroup heading={t("sectionSystems")}>
             {data.systems.map((s) => (
               <CommandItem key={s.slug} value={`system ${s.title} ${s.slug}`} onSelect={() => go(`${base}/systems/${s.slug}`)}>
                 <List /> {s.title}
@@ -159,7 +164,7 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
           </CommandGroup>
         )}
         {data.pages && data.pages.length > 0 && (
-          <CommandGroup heading="Pages">
+          <CommandGroup heading={t("sectionPages")}>
             {data.pages.map((p) => (
               <CommandItem key={p.slug} value={`page ${p.title} ${p.slug}`} onSelect={() => go(`${base}/pages/${p.slug}`)}>
                 <BookOpen /> {p.title}
@@ -168,9 +173,9 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
           </CommandGroup>
         )}
         {/* Outside the group, which cmdk hides while it has no items. */}
-        {searching && <div className="px-4 py-1.5 text-sm text-muted-foreground">Searching…</div>}
+        {searching && <div className="px-4 py-1.5 text-sm text-muted-foreground">{t("searching")}</div>}
         {hits.length > 0 && (
-          <CommandGroup heading="In documents">
+          <CommandGroup heading={t("inDocuments")}>
             {hits.map((hit, i) => {
               const Icon = HIT_ICON[hit.kind];
               return (
@@ -187,49 +192,51 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
             })}
           </CommandGroup>
         )}
-        <CommandGroup heading="Projects">
+        <CommandGroup heading={t("groupProjects")}>
           {data.projects.map((p) => (
             <CommandItem key={p.slug} value={`project ${p.name} ${p.slug}`} onSelect={() => go(`/p/${p.slug}`)}>
               <FolderKanban /> {p.name}
             </CommandItem>
           ))}
         </CommandGroup>
-        <CommandGroup heading="Account">
-          <CommandItem value="api keys" onSelect={() => go("/settings/api-keys")}>
-            <KeyRound /> API keys
+        <CommandGroup heading={t("groupAccount")}>
+          <CommandItem value="api keys" keywords={[t("apiKeys")]} onSelect={() => go("/settings/api-keys")}>
+            <KeyRound /> {t("apiKeys")}
           </CommandItem>
-          <CommandItem value="sessions devices sign out" onSelect={() => go("/settings/sessions")}>
-            <Laptop /> Sessions
+          <CommandItem value="sessions devices sign out" keywords={[t("sessions"), t("signOut")]} onSelect={() => go("/settings/sessions")}>
+            <Laptop /> {t("sessions")}
           </CommandItem>
           {data.isAdmin && (
-            <CommandItem value="accounts admin allowlist" onSelect={() => go("/admin/users")}>
-              <Users /> Accounts
+            <CommandItem value="accounts admin allowlist" keywords={[t("accounts")]} onSelect={() => go("/admin/users")}>
+              <Users /> {t("accounts")}
             </CommandItem>
           )}
           {data.isAdmin && (
-            <CommandItem value="audit admin auth events failed calls keys" onSelect={() => go("/admin/audit")}>
-              <ShieldCheck /> Audit
+            <CommandItem value="audit admin auth events failed calls keys" keywords={[t("audit")]} onSelect={() => go("/admin/audit")}>
+              <ShieldCheck /> {t("audit")}
             </CommandItem>
           )}
           <CommandItem
             value="theme dark light"
+            keywords={[t("toggleTheme")]}
             onSelect={() => {
               setTheme(resolvedTheme === "dark" ? "light" : "dark");
               setOpen(false);
             }}
           >
-            <Moon /> Toggle light and dark theme
+            <Moon /> {t("toggleTheme")}
           </CommandItem>
         </CommandGroup>
-        <CommandGroup heading="Keyboard shortcuts">
+        <CommandGroup heading={t("groupShortcuts")}>
           <CommandItem
             value="keyboard shortcuts help"
+            keywords={[t("keyboardShortcuts")]}
             onSelect={() => {
               setOpen(false);
               onShowShortcuts();
             }}
           >
-            <Keyboard /> Keyboard shortcuts
+            <Keyboard /> {t("keyboardShortcuts")}
             <CommandShortcut>
               <Kbd>?</Kbd>
             </CommandShortcut>

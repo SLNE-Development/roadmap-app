@@ -1,1 +1,17 @@
-{}
+{
+  "title": "Sign in",
+  "subtitle": "Use the Discord account an admin added to the allowlist.",
+  "headline": "Plans your team and your agents both read.",
+  "tagline": "Boards, planning interviews, specs and decisions for every Surf project, in one place.",
+  "apiKeyHint": "Agents connect with an API key instead. Create one under API keys after signing in.",
+  "continueWithDiscord": "Continue with Discord",
+  "redirecting": "Redirecting…",
+  "signInFailed": "Sign-in failed.",
+  "errors": {
+    "notOnAllowlist": "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.",
+    "cancelled": "Discord sign-in was cancelled. Try again when you’re ready.",
+    "restart": "The sign-in took too long or was started in another tab. Please try again.",
+    "noUserInfo": "Discord didn’t send your account details. Please try again.",
+    "generic": "Sign-in failed. Please try again, or ask an admin if it keeps happening."
+  }
+}
