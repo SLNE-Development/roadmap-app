@@ -5,6 +5,7 @@ import { Check, ChevronDown, Lock, Plus } from "lucide-react";
 import Link from "next/link";
 import { CATEGORY_TEXT, CategoryDot, PriorityTag } from "@/components/chips";
 import { PersonName } from "@/components/person-avatar";
+import { ReleaseSelect, type ReleaseOption } from "@/components/releases/release-select";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -173,6 +174,9 @@ function FieldRow({ data, field }: { data: SystemControlsData; field: FieldValue
  * @param props.dependencies the systems this one depends on and those depending on it
  * @param props.systems the project's systems, from which editors pick dependencies
  * @param props.fields the project's custom fields with this system's values
+ * @param props.releases the project's releases; the Release row is hidden when there are none
+ * @param props.releaseSlug the slug of the system's release
+ * @param props.isOwner whether the actor may change a frozen release's scope
  */
 export function PropertiesPanel({
   data,
@@ -183,6 +187,9 @@ export function PropertiesPanel({
   dependencies,
   systems,
   fields,
+  releases,
+  releaseSlug,
+  isOwner,
 }: {
   data: SystemControlsData;
   boardName: string;
@@ -192,6 +199,9 @@ export function PropertiesPanel({
   dependencies: SystemDependencies;
   systems: { slug: string; title: string }[];
   fields: FieldValue[];
+  releases: ReleaseOption[];
+  releaseSlug: string | null;
+  isOwner: boolean;
 }) {
   const column = currentColumn(data);
   const status = (
@@ -271,6 +281,22 @@ export function PropertiesPanel({
           phase
         )}
       </Row>
+      {releases.length > 0 && (
+        <Row label="Release">
+          {data.canEdit ? (
+            <ReleaseSelect
+              projectSlug={data.projectSlug}
+              systemSlug={data.systemSlug}
+              releases={releases}
+              current={releaseSlug}
+              isOwner={isOwner}
+              className={FIELD_BUTTON}
+            />
+          ) : (
+            (releases.find((r) => r.slug === releaseSlug)?.name ?? <span className="text-muted-foreground">None</span>)
+          )}
+        </Row>
+      )}
       <Row label="Depends on" className="items-start">
         <SystemChips projectSlug={data.projectSlug} systems={dependencies.dependsOn} />
         {data.canEdit && (

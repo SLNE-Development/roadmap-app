@@ -1,5 +1,5 @@
-import { and, asc, count, eq, inArray, isNull, max, or } from "drizzle-orm";
-import { adr, allowedAccount, board, boardColumn, changeLog, projectMember, projectPage, question, system, user, type ColumnCategory } from "@/db/schema";
+import { and, asc, count, eq, inArray, isNull, max, ne, or } from "drizzle-orm";
+import { adr, allowedAccount, board, boardColumn, changeLog, projectMember, projectPage, question, release, system, user, type ColumnCategory } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectHealth, type ProjectHealth } from "@/lib/health";
 import { projectAccess } from "./access";
@@ -100,20 +100,22 @@ export interface ProjectNav {
   pageCount: number;
   openQuestionCount: number;
   memberCount: number;
+  /** Releases that are not shipped yet. */
+  releaseCount: number;
   /** Agent runs with a call in the last 2 minutes. */
   liveRuns: number;
 }
 
 /**
  * Returns a project's systems (slug, title, board) in board order, leaving out archived ones, and the
- * sidebar's ADR, page, open-question and member counts and live agent runs, with light queries instead
+ * sidebar's ADR, page, open-question, member and unshipped-release counts and live agent runs, with light queries instead
  * of the full system listing.
  *
  * @throws NotFoundError if the actor cannot see the project
  */
 export async function projectNav(db: Executor, actor: Actor, slug: string, now: Date = new Date()): Promise<ProjectNav> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
-  const [systems, [adrs], [questions], [members], [pages], liveRuns] = await Promise.all([
+  const [systems, [adrs], [questions], [members], [pages], [releases], liveRuns] = await Promise.all([
     db
       .select({ slug: system.slug, title: system.title, boardSlug: board.slug })
       .from(system)
@@ -132,7 +134,11 @@ export async function projectNav(db: Executor, actor: Actor, slug: string, now: 
       .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
       .where(eq(projectMember.projectId, project.id)),
     db.select({ n: count() }).from(projectPage).where(eq(projectPage.projectId, project.id)),
+    db
+      .select({ n: count() })
+      .from(release)
+      .where(and(eq(release.projectId, project.id), ne(release.status, "shipped"))),
     liveRunCount(db, project.id, now),
   ]);
-  return { systems, adrCount: adrs.n, pageCount: pages.n, openQuestionCount: questions.n, memberCount: members.n, liveRuns };
+  return { systems, adrCount: adrs.n, pageCount: pages.n, openQuestionCount: questions.n, memberCount: members.n, releaseCount: releases.n, liveRuns };
 }

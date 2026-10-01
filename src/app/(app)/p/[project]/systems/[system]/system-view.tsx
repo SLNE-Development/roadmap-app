@@ -123,7 +123,7 @@ export function SystemView({
 }) {
   const trpc = useTRPC();
   const ref = { project: slug, system: systemSlug };
-  const [{ data: o }, { data: planning }, { data: history }, { data: members }, { data: domains }, { data: phases }, { data: systems }, { data: glossary }] = useSuspenseQueries({
+  const [{ data: o }, { data: planning }, { data: history }, { data: members }, { data: domains }, { data: phases }, { data: systems }, { data: glossary }, { data: releases }] = useSuspenseQueries({
     queries: [
       trpc.systems.overview.queryOptions(ref),
       trpc.planning.get.queryOptions(ref),
@@ -133,6 +133,7 @@ export function SystemView({
       trpc.structure.phases.queryOptions({ project: slug }),
       trpc.systems.list.queryOptions({ project: slug }),
       trpc.glossary.list.queryOptions({ project: slug }),
+      trpc.releases.list.queryOptions({ project: slug }),
     ],
   });
   const { data: agentCost } = useQuery(trpc.agents.systemCost.queryOptions(ref));
@@ -273,6 +274,9 @@ export function SystemView({
               dependencies={o.dependencies}
               systems={systems}
               fields={o.fields}
+              releases={releases}
+              releaseSlug={releases.find((r) => r.id === o.system.releaseId)?.slug ?? null}
+              isOwner={o.role === "owner" || o.role === "admin"}
             />
             <PlanningPanel planning={planning} href={tabHref(base, "planning")} />
             <DecisionsPanel projectSlug={slug} systemSlug={systemSlug} adrs={o.adrs} questions={openQuestions} />

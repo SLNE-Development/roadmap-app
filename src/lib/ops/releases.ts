@@ -243,6 +243,8 @@ export interface ReleaseSystem {
   tasksTotal: number;
   /** Failing rules of the board's first done column. */
   gatesUnmet: number;
+  /** How many rules the board's first done column has. */
+  gatesTotal: number;
 }
 
 /** A release with its scope, readiness and slip risk. */
@@ -289,7 +291,7 @@ export async function getRelease(db: Db, actor: Actor, projectSlug: string, rele
   const members = await systemsOf(db, row.id);
   const ids = members.map((m) => m.id);
   const tasks = ids.length ? await db.select({ systemId: task.systemId, state: task.state, estimate: task.estimate }).from(task).where(inArray(task.systemId, ids)) : [];
-  const gates = new Map<string, number>();
+  const gates = new Map<string, { unmet: number; total: number }>();
   for (const boardId of new Set(members.map((m) => m.boardId))) {
     const [done] = await db
       .select({ id: boardColumn.id, name: boardColumn.name })
@@ -300,7 +302,7 @@ export async function getRelease(db: Db, actor: Actor, projectSlug: string, rele
     if (!done) continue;
     const rules = (await columnRulesOf(db, [done.id])).get(done.id) ?? [];
     const subjects: GateSubject[] = members.filter((m) => m.boardId === boardId).map((m) => ({ id: m.id, slug: m.slug, projectId: project.id }));
-    for (const [id, result] of await evaluateGates(db, subjects, done.name, rules, now)) gates.set(id, result.unmet.length);
+    for (const [id, result] of await evaluateGates(db, subjects, done.name, rules, now)) gates.set(id, { unmet: result.unmet.length, total: result.total });
   }
   const counts = Object.fromEntries(COLUMN_CATEGORIES.map((c) => [c, 0])) as Record<ColumnCategory, number>;
   for (const m of members) counts[m.category] += 1;
@@ -323,7 +325,7 @@ export async function getRelease(db: Db, actor: Actor, projectSlug: string, rele
     release: row,
     systems: members.map((m) => {
       const own = rollup(tasks.filter((t) => t.systemId === m.id));
-      return { slug: m.slug, title: m.title, category: m.category, ownerName: m.ownerName, tasksDone: own.done, tasksTotal: own.tasks, gatesUnmet: gates.get(m.id) ?? 0 };
+      return { slug: m.slug, title: m.title, category: m.category, ownerName: m.ownerName, tasksDone: own.done, tasksTotal: own.tasks, gatesUnmet: gates.get(m.id)?.unmet ?? 0, gatesTotal: gates.get(m.id)?.total ?? 0 };
     }),
     counts,
     estimates: rollup(tasks),

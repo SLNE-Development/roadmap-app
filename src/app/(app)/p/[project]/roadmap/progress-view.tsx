@@ -17,6 +17,7 @@ export interface ProgressParams {
   phase?: string;
   board?: string;
   domain?: string;
+  release?: string;
 }
 
 /**
@@ -31,18 +32,19 @@ export function ProgressView({ slug, params }: { slug: string; params: ProgressP
   const trpc = useTRPC();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const { days, phase, board, domain } = params;
-  const [{ data: detail }, { data: phases }, { data: domains }, { data: progress }, { data: times }] = useSuspenseQueries({
+  const { days, phase, board, domain, release } = params;
+  const [{ data: detail }, { data: phases }, { data: domains }, { data: releases }, { data: progress }, { data: times }] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.structure.phases.queryOptions({ project: slug }),
       trpc.structure.domains.queryOptions({ project: slug }),
-      trpc.insight.progress.queryOptions({ project: slug, filter: { days, phase, board, domain } }),
+      trpc.releases.list.queryOptions({ project: slug }),
+      trpc.insight.progress.queryOptions({ project: slug, filter: { days, phase, board, domain, release } }),
       trpc.insight.columnTimes.queryOptions({ project: slug, filter: { board } }),
     ],
   });
   const path = `/p/${slug}/roadmap`;
-  const query = { view: "progress", days: days === 42 ? undefined : String(days), phase, board, domain };
+  const query = { view: "progress", days: days === 42 ? undefined : String(days), phase, board, domain, release };
   /** Replaces the URL with the current query changed by `patch`. */
   const go = (patch: Record<string, string | null>) => startTransition(() => router.replace(withQuery(path, query, patch), { scroll: false }));
   const range = RANGES.find((r) => r.days === days)?.label ?? `${days} days`;
@@ -53,6 +55,9 @@ export function ProgressView({ slug, params }: { slug: string; params: ProgressP
         <FilterChip label="Phase" value={phase ?? ""} onChange={(v) => go({ phase: v || null })} options={phases.map((p) => ({ value: p.id, label: p.name }))} />
         <FilterChip label="Board" value={board ?? ""} onChange={(v) => go({ board: v || null })} options={detail.boards.map((b) => ({ value: b.slug, label: b.name }))} />
         <FilterChip label="Domain" value={domain ?? ""} onChange={(v) => go({ domain: v || null })} options={domains.map((d) => ({ value: d.id, label: d.name }))} />
+        {releases.length > 0 && (
+          <FilterChip label="Release" value={release ?? ""} onChange={(v) => go({ release: v || null })} options={releases.map((r) => ({ value: r.slug, label: r.name }))} />
+        )}
         <SegmentedLinks
           label="Range"
           items={RANGES.map((r) => ({ label: r.label, href: withQuery(path, query, { days: r.days === 42 ? null : String(r.days) }), active: r.days === days }))}

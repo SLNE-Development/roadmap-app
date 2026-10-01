@@ -24,7 +24,10 @@ export default async function RoadmapPage({
   const view = one(sp.view);
   const mode: RoadmapMode = view === "graph" || view === "progress" ? view : "rail";
   const days = [14, 42, 90, 180, 365].find((d) => String(d) === one(sp.days)) ?? 42;
-  const progress: ProgressParams = { days: days as ProgressParams["days"], phase: one(sp.phase), board: one(sp.board), domain: one(sp.domain) };
+  // A release that no longer exists (a stale link) is dropped, so the view shows no release filter.
+  const [releases] = await prefetch(trpc.releases.list.queryOptions({ project: slug }));
+  const release = releases.find((r) => r.slug === one(sp.release))?.slug;
+  const progress: ProgressParams = { days: days as ProgressParams["days"], phase: one(sp.phase), board: one(sp.board), domain: one(sp.domain), release };
   await prefetch(
     trpc.projects.get.queryOptions({ project: slug }),
     trpc.structure.phases.queryOptions({ project: slug }),
@@ -32,7 +35,7 @@ export default async function RoadmapPage({
     ...(mode === "progress"
       ? [
           trpc.structure.domains.queryOptions({ project: slug }),
-          trpc.insight.progress.queryOptions({ project: slug, filter: { days: progress.days, phase: progress.phase, board: progress.board, domain: progress.domain } }),
+          trpc.insight.progress.queryOptions({ project: slug, filter: { days: progress.days, phase: progress.phase, board: progress.board, domain: progress.domain, release: progress.release } }),
           trpc.insight.columnTimes.queryOptions({ project: slug, filter: { board: progress.board } }),
         ]
       : []),

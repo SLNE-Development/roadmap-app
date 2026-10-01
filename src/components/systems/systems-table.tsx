@@ -32,11 +32,12 @@ export interface SystemSelection {
 /**
  * The systems table: one row per system with status, priority, owner, phase,
  * task progress and the age of its latest update, under group header rows,
- * followed by one column per custom field.
+ * followed by one column per custom field. A Release column shows when the project has releases.
  *
  * @param props.fields the project's custom fields, one column each
  * @param props.phaseName the phase name of a phase id
  * @param props.updatedAt the ISO time of each system's latest update, by id
+ * @param props.showRelease adds the Release column
  * @param props.selection when given, adds a checkbox column
  */
 export function SystemsTable({
@@ -45,6 +46,7 @@ export function SystemsTable({
   phaseName,
   updatedAt,
   fields,
+  showRelease = false,
   selection,
 }: {
   groups: SystemGroup[];
@@ -52,13 +54,14 @@ export function SystemsTable({
   phaseName: Record<string, string>;
   updatedAt: Record<string, string>;
   fields: { key: string; name: string }[];
+  showRelease?: boolean;
   selection?: SystemSelection;
 }) {
   const now = useNow();
   const visible = groups.reduce((n, g) => n + g.items.length, 0);
   const picked = groups.reduce((n, g) => n + g.items.filter((s) => selection?.selected.has(s.slug)).length, 0);
   const template = {
-    gridTemplateColumns: `${selection ? "16px " : ""}minmax(0,2.4fr) 130px 110px 170px 130px 130px 80px${` ${FIELD_WIDTH}px`.repeat(fields.length)}`,
+    gridTemplateColumns: `${selection ? "16px " : ""}minmax(0,2.4fr) 130px 110px 170px 130px ${showRelease ? "120px " : ""}130px 80px${` ${FIELD_WIDTH}px`.repeat(fields.length)}`,
   };
   return (
     <div className="overflow-x-auto border bg-card">
@@ -79,6 +82,7 @@ export function SystemsTable({
             <span role="columnheader">Priority</span>
             <span role="columnheader">Owner</span>
             <span role="columnheader">Phase</span>
+            {showRelease && <span role="columnheader">Release</span>}
             <span role="columnheader">Tasks</span>
             <span role="columnheader" className="text-right">
               Updated
@@ -134,6 +138,11 @@ export function SystemsTable({
                 <span role="cell" className="truncate text-fg-2">
                   {s.phaseId ? (phaseName[s.phaseId] ?? "—") : <span className="text-muted-foreground">—</span>}
                 </span>
+                {showRelease && (
+                  <span role="cell" className="truncate text-fg-2">
+                    {s.releaseName ?? <span className="text-muted-foreground">—</span>}
+                  </span>
+                )}
                 <span role="cell" className="flex items-center gap-2">
                   <ProgressBar value={s.tasksDone} total={s.tasksTotal} colorClass={CATEGORY_CLASS[s.columnCategory]} className="w-16 flex-none" />
                   <span className="font-mono text-xs text-muted-foreground">

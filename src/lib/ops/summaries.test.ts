@@ -7,6 +7,7 @@ import { createBoard, updateBoard } from "./boards";
 import { setMember } from "./members";
 import { listProjects } from "./projects";
 import { addQuestion, answerQuestion } from "./questions";
+import { createRelease, shipRelease } from "./releases";
 import { projectNav, projectSummaries } from "./summaries";
 import { createSystem, moveSystem } from "./systems";
 import { removeAllowedAccount } from "./users";
@@ -78,6 +79,16 @@ describe("projectNav", () => {
     expect(nav.systems.map((s) => s.title)).toEqual(["Beta", "Alpha"]);
     expect(nav.systems[0].boardSlug).toBe("development");
     expect(nav).toMatchObject({ adrCount: 1, pageCount: 0, openQuestionCount: 1, memberCount: 2 });
+  });
+
+  it("counts the releases that are not shipped", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db, "rel");
+    await createRelease(db, owner, slug, { slug: "a", name: "A" });
+    await createRelease(db, owner, slug, { slug: "b", name: "B" });
+    expect((await projectNav(db, owner, slug)).releaseCount).toBe(2);
+    await shipRelease(db, owner, slug, "b", {});
+    expect((await projectNav(db, owner, slug)).releaseCount).toBe(1);
   });
 
   it("counts the runs live within 2 minutes", async () => {

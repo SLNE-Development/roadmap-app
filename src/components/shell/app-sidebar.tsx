@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BookOpen, Bot, ChevronsUpDown, CircleHelp, KanbanSquare, LayoutGrid, List, Map as MapIcon, Scale, Search, SlidersHorizontal, Users } from "lucide-react";
+import { Activity, BookOpen, Bot, ChevronsUpDown, CircleHelp, KanbanSquare, LayoutGrid, List, Map as MapIcon, Rocket, Scale, Search, SlidersHorizontal, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -33,7 +33,7 @@ export interface SidebarProject {
   role: string;
   memberCount: number;
   boards: { slug: string; name: string; count: number }[];
-  counts: { systems: number; adrs: number; pages: number; openQuestions: number; liveRuns: number };
+  counts: { systems: number; adrs: number; pages: number; openQuestions: number; releases: number; liveRuns: number };
 }
 
 /** A project in the switcher. */
@@ -80,6 +80,7 @@ export function AppSidebar({
         { href: `${base}/boards`, label: "Boards", icon: KanbanSquare, active: is(`${base}/boards`), boards: project.boards },
         { href: `${base}/systems`, label: "Systems", icon: List, active: is(`${base}/systems`), count: project.counts.systems },
         { href: `${base}/roadmap`, label: "Roadmap", icon: MapIcon, active: is(`${base}/roadmap`) },
+        { href: `${base}/releases`, label: "Releases", icon: Rocket, active: is(`${base}/releases`), count: project.counts.releases },
         { href: `${base}/adrs`, label: "Decisions", icon: Scale, active: is(`${base}/adrs`), count: project.counts.adrs },
         { href: `${base}/pages`, label: "Pages", icon: BookOpen, active: is(`${base}/pages`), count: project.counts.pages },
         { href: `${base}/questions`, label: "Questions", icon: CircleHelp, active: is(`${base}/questions`), count: project.counts.openQuestions },

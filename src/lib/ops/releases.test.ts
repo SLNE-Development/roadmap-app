@@ -179,9 +179,9 @@ describe("getRelease and listReleases", () => {
     await setColumnRules(db, owner, slug, "development", { column: "Done", rules: [{ rule: "all-tasks-done" }] });
     await markDone(db, ["a"]);
     const detail = await getRelease(db, owner, slug, "1-0");
-    expect(detail.systems.map((s) => [s.slug, s.category, s.tasksTotal, s.gatesUnmet])).toEqual([
-      ["a", "done", 1, 1],
-      ["b", "planning", 1, 1],
+    expect(detail.systems.map((s) => [s.slug, s.category, s.tasksTotal, s.gatesUnmet, s.gatesTotal])).toEqual([
+      ["a", "done", 1, 1, 1],
+      ["b", "planning", 1, 1, 1],
     ]);
     expect(detail.counts).toMatchObject({ done: 1, planning: 1, todo: 0 });
     expect(detail.estimates).toMatchObject({ tasks: 2, points: 3, unestimated: 1 });

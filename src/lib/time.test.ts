@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayLabel, formatDate, formatTime, relativeAge } from "./time";
+import { dayLabel, daysUntil, formatDate, formatTime, relativeAge } from "./time";
 
 const NOW = new Date("2026-09-27T12:00:00Z");
 
@@ -40,5 +40,13 @@ describe("dayLabel", () => {
     expect(dayLabel("2026-09-27T01:00:00Z", NOW)).toBe("Today");
     expect(dayLabel("2026-09-26T23:00:00Z", NOW)).toBe("Yesterday");
     expect(dayLabel("2026-09-20T10:00:00Z", NOW)).toBe("20 Sep");
+  });
+});
+
+describe("daysUntil", () => {
+  it("counts UTC days, ignoring the time of day", () => {
+    expect(daysUntil("2026-10-21", NOW)).toBe(24);
+    expect(daysUntil("2026-09-27", NOW)).toBe(0);
+    expect(daysUntil("2026-09-25", NOW)).toBe(-2);
   });
 });

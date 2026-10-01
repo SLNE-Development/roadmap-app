@@ -3,7 +3,7 @@ import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import { SystemsView } from "./systems-view";
 
 /** Query keys the page reads; the filter keys match {@link systemFilter}. */
-const KEYS = ["q", "board", "domain", "phase", "category", "priority", "owner", "archived", "group", "view"] as const;
+const KEYS = ["q", "board", "domain", "phase", "category", "priority", "owner", "release", "archived", "group", "view"] as const;
 
 /** Reads one string search parameter, or an empty string. */
 function param(value: string | string[] | undefined): string {
@@ -12,7 +12,7 @@ function param(value: string | string[] | undefined): string {
 
 /**
  * All systems of a project as a table or card grid, searchable, filterable by
- * board, domain, phase, status, priority, owner and archive state, and grouped
+ * board, domain, phase, status, priority, owner, release and archive state, and grouped
  * by domain, phase or board. Every control lives in the URL query.
  */
 export default async function SystemsPage({
@@ -24,7 +24,10 @@ export default async function SystemsPage({
 }) {
   const { project: slug } = await params;
   const sp = await searchParams;
+  const [releases] = await prefetch(trpc.releases.list.queryOptions({ project: slug }));
   const current = Object.fromEntries(KEYS.map((k) => [k, param(sp[k])]).filter(([, v]) => v)) as Record<string, string>;
+  // A release that no longer exists (a stale link) is dropped instead of filtering everything out.
+  if (current.release && !releases.some((r) => r.slug === current.release)) delete current.release;
   const parsed = systemFilter.safeParse(Object.fromEntries(Object.entries(current).filter(([k]) => !["q", "group", "view"].includes(k))));
   const filter = parsed.success ? parsed.data : systemFilter.parse({});
   await prefetch(

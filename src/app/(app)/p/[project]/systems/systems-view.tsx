@@ -35,7 +35,7 @@ export function SystemsView({
   filter: z.output<typeof systemFilter>;
 }) {
   const trpc = useTRPC();
-  const [{ data: detail }, { data: systems }, { data: all }, { data: domains }, { data: phases }, { data: members }, { data: latest }, { data: fields }] =
+  const [{ data: detail }, { data: systems }, { data: all }, { data: domains }, { data: phases }, { data: members }, { data: latest }, { data: fields }, { data: releases }] =
     useSuspenseQueries({
       queries: [
         trpc.projects.get.queryOptions({ project: slug }),
@@ -46,6 +46,7 @@ export function SystemsView({
         trpc.members.list.queryOptions({ project: slug }),
         trpc.systems.latestUpdates.queryOptions({ project: slug }),
         trpc.fields.list.queryOptions({ project: slug }),
+        trpc.releases.list.queryOptions({ project: slug }),
       ],
     });
   const data = { detail, systems, total: all.length, domains, phases, members, latest, fields };
@@ -74,6 +75,7 @@ export function SystemsView({
       label: "Owner",
       options: [{ value: "none", label: "Unowned" }, ...data.members.map((m) => ({ value: m.userId, label: m.name }))],
     },
+    { key: "release", label: "Release", options: releases.map((r) => ({ value: r.slug, label: r.name })) },
     {
       key: "archived",
       label: "Archived",
@@ -167,6 +169,7 @@ export function SystemsView({
           phaseName={phaseName}
           updatedAt={updatedAt}
           fields={data.fields}
+          showRelease={releases.length > 0}
           selection={
             canEdit
               ? {
