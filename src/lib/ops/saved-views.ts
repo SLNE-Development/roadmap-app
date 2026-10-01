@@ -44,6 +44,7 @@ async function ownView(tx: Executor, actor: Actor, id: string): Promise<SavedVie
  *
  * @throws InvalidError if the path is not a page views can be saved for
  * @throws NotFoundError if the path names a project the actor cannot see
+ * @throws InvalidError if the actor sees the project but is not an active member
  * @throws ConflictError if the actor already has {@link SAVED_VIEW_LIMIT} views
  */
 export async function createSavedView(db: Db, actor: Actor, raw: z.input<typeof savedViewInput>): Promise<SavedViewRow> {
@@ -54,6 +55,16 @@ export async function createSavedView(db: Db, actor: Actor, raw: z.input<typeof 
   }
   return db.transaction(async (tx) => {
     const projectId = slug ? (await projectAccess(tx, actor, slug, "viewer")).project.id : null;
+    if (projectId) {
+      // An admin sees every project but lists views only of the ones they belong to.
+      const [member] = await tx
+        .select({ id: projectMember.userId })
+        .from(projectMember)
+        .innerJoin(user, eq(user.id, projectMember.userId))
+        .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
+        .where(and(eq(projectMember.projectId, projectId), eq(projectMember.userId, actor.userId)));
+      if (!member) throw new InvalidError("Join the project to save views of it.");
+    }
     // Serialises this user's creates so the limit and the sort order hold.
     await tx.select({ id: user.id }).from(user).where(eq(user.id, actor.userId)).for("update");
     const [{ n, last }] = await tx

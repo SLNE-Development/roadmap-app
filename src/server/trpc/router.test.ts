@@ -51,6 +51,14 @@ describe("appRouter", () => {
     await expect(caller(db, owner).account.accounts()).rejects.toMatchObject({ code: "FORBIDDEN", message: "Only admins can manage accounts." });
   });
 
+  it("rejects unknown preference keys and bad values as BAD_REQUEST", async () => {
+    const db = await createTestDb();
+    const owner = await insertUser(db);
+    const api = caller(db, owner);
+    await expect(api.prefs.set({ key: "nope.key", value: 1 })).rejects.toMatchObject({ code: "BAD_REQUEST", message: "Unknown preference." });
+    await expect(api.prefs.set({ key: "overview.panels", value: { order: "x" } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("reports invalid input as BAD_REQUEST with readable zod issues", async () => {
     const db = await createTestDb();
     const owner = await insertUser(db);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { changeLog, savedView } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { allowedAccount, changeLog, savedView, user } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { archiveProject } from "./archive";
@@ -38,6 +39,16 @@ describe("saved views", () => {
     await expect(createSavedView(db, outsider, { name: "x", path: "/p/demo/systems", query: "" })).rejects.toMatchObject({ status: 404 });
   });
 
+  it("refuses an admin who is not a member of the project", async () => {
+    const db = await createTestDb();
+    await createProjectFixture(db);
+    const admin = await insertUser(db, { isAdmin: true });
+    await expect(createSavedView(db, admin, { name: "x", path: "/p/demo/systems", query: "" })).rejects.toMatchObject({
+      status: 400,
+      message: "Join the project to save views of it.",
+    });
+  });
+
   it("refuses a 31st view with the exact message", async () => {
     const db = await createTestDb();
     const a = await insertUser(db);
@@ -74,6 +85,34 @@ describe("saved views", () => {
     expect((await listSavedViews(db, member, {})).map((v) => v.name)).toEqual(["Global"]);
     await setMember(db, owner, slug, { userId: member.userId, role: "viewer" });
     expect((await listSavedViews(db, member, {})).map((v) => v.name)).toEqual(["Mine", "Global"]);
+  });
+
+  it("omits a project's views once the actor is removed from it", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const member = await addMemberFixture(db, owner, slug, "editor");
+    await createSavedView(db, member, { name: "Mine", path: "/p/demo/systems", query: "" });
+    expect(await listSavedViews(db, member, { projectId })).toHaveLength(1);
+    await removeMember(db, owner, slug, member.userId);
+    expect(await listSavedViews(db, member, { projectId })).toEqual([]);
+  });
+
+  it("omits a project's views once the actor's allowed account is deleted", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const member = await addMemberFixture(db, owner, slug, "editor");
+    await createSavedView(db, member, { name: "Mine", path: "/p/demo/systems", query: "" });
+    const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, member.userId));
+    await db.delete(allowedAccount).where(eq(allowedAccount.discordId, row.discordId!));
+    expect(await listSavedViews(db, member, { projectId })).toEqual([]);
+  });
+
+  it("omits a project's views once the project is archived", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    await createSavedView(db, owner, { name: "Mine", path: "/p/demo/systems", query: "" });
+    await archiveProject(db, owner, slug);
+    expect(await listSavedViews(db, owner, { projectId })).toEqual([]);
   });
 
   it("leaves out views of archived projects", async () => {

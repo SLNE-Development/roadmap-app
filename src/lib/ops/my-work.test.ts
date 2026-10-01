@@ -137,8 +137,15 @@ describe("myWork", () => {
   });
 
   it("does not list a project where the actor is only an admin", async () => {
-    const { db, now } = await setup();
+    const { db, owner, slug, now } = await setup();
+    await addQuestion(db, owner, slug, { title: "Q", system: "api" });
     const admin = await insertUser(db, { isAdmin: true });
+    expect(await myWork(db, admin, { now })).toEqual([]);
+    // As a member who owns a system with a waiting item, then removed: nothing from that project remains.
+    await setMember(db, owner, slug, { userId: admin.userId, role: "editor" });
+    await updateSystem(db, owner, slug, "api", { ownerUserId: admin.userId });
+    expect((await myWork(db, admin, { now })).filter((i) => i.section === "waiting").map((i) => i.title)).toEqual(["Q"]);
+    await removeMember(db, owner, slug, admin.userId);
     expect(await myWork(db, admin, { now })).toEqual([]);
   });
 });

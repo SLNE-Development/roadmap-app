@@ -20,7 +20,7 @@ export function GlobalShell({ children }: { children: React.ReactNode }) {
     <AppShell
       actor={{ name: me.name, isAdmin: me.isAdmin }}
       projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}
-      views={views.filter((v) => v.pinned && v.projectId === null)}
+      views={views.filter((v) => v.projectId === null)}
     >
       {children}
     </AppShell>
@@ -61,7 +61,7 @@ export function ProjectShell({ slug, children }: { slug: string; children: React
       projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}
       project={project}
       systems={systems.map((s) => ({ slug: s.slug, title: s.title }))}
-      views={views.filter((v) => v.pinned)}
+      views={views}
     >
       {children}
     </AppShell>

@@ -32,6 +32,11 @@ describe("INVALIDATES", () => {
     expect(affectedRouters([["questions", "setPriority"]])).toContain("planning");
   });
 
+  it("refetches saved views after membership and project changes", () => {
+    expect(affectedRouters([["members", "set"]])).toContain("views");
+    expect(affectedRouters([["projects", "archive"]])).toContain("views");
+  });
+
   it("scopes a board mutation to the planning gaps too", () => {
     expect(affectedRouters([["boards", "update"]])).toContain("planning");
   });

@@ -9,7 +9,7 @@ import { withQuery } from "@/components/activity/url-tabs";
 import { FilterChip } from "@/components/filter-chip";
 import { EmptyState, Page, PageHeader, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
-import { overloaded } from "@/lib/ops/workload";
+import { overloaded } from "@/lib/workload";
 import { plural } from "@/lib/text";
 import { useTRPC } from "@/trpc/client";
 

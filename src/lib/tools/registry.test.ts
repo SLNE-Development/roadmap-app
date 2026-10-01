@@ -3,6 +3,8 @@ import { createTestDb } from "@/test/db";
 import { ForbiddenError } from "@/lib/ops/errors";
 import { ZodError } from "zod";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
+import { addQuestion } from "@/lib/ops/questions";
+import { updateSystem } from "@/lib/ops/systems";
 import { TOOLS } from "./definitions";
 import { inputSchema, matchRoute, runTool } from "./registry";
 
@@ -96,5 +98,15 @@ describe("tool registry", () => {
     const { owner, slug } = await createProjectFixture(db);
     const create = TOOLS.find((t) => t.name === "create_system")!;
     await expect(runTool(db, owner, create, { project: slug })).rejects.toBeInstanceOf(ZodError);
+  });
+
+  it("returns only waiting items from my_work, without hrefs or dates", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await runTool(db, owner, TOOLS.find((t) => t.name === "create_system")!, { project: slug, slug: "s", title: "S" });
+    await updateSystem(db, owner, slug, "s", { ownerUserId: owner.userId });
+    await addQuestion(db, await addMemberFixture(db, owner, slug, "editor"), slug, { title: "Q", system: "s" });
+    const items = (await runTool(db, owner, TOOLS.find((t) => t.name === "my_work")!, {})) as Record<string, unknown>[];
+    expect(items).toEqual([{ kind: "question", project: slug, system: "s", title: "Q", detail: "S" }]);
   });
 });

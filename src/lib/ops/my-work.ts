@@ -1,9 +1,8 @@
-import { and, desc, eq, inArray, isNotNull, isNull, max, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, max, ne, or, sql } from "drizzle-orm";
 import {
   adr,
   adrSystem,
   allowedAccount,
-  board,
   boardColumn,
   changeLog,
   planningItem,
@@ -95,7 +94,6 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
     .select({ id: system.id, slug: system.slug, title: system.title, projectId: system.projectId, category: boardColumn.category })
     .from(system)
     .innerJoin(boardColumn, eq(boardColumn.id, system.columnId))
-    .innerJoin(board, eq(board.id, system.boardId))
     .where(and(eq(system.ownerUserId, actor.userId), inArray(system.projectId, projectIds), isNull(system.archivedAt)));
   const ownedIds = owned.map((s) => s.id);
   const ownedById = new Map(owned.map((s) => [s.id, s]));
@@ -181,7 +179,7 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
           isNull(question.agent),
           inArray(question.projectId, projectIds),
           isNotNull(question.answeredAt),
-          sql`${question.answeredAt} > ${since}`,
+          gt(question.answeredAt, since),
           or(isNull(question.systemId), isNull(system.archivedAt)),
         ),
       ),
@@ -224,7 +222,7 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
           .where(
             and(
               inArray(changeLog.systemId, ownedIds),
-              sql`${changeLog.createdAt} > ${since}`,
+              gt(changeLog.createdAt, since),
               or(isNull(changeLog.authorUserId), ne(changeLog.authorUserId, actor.userId), isNotNull(changeLog.agent)),
             ),
           )

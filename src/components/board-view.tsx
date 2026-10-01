@@ -848,6 +848,7 @@ function BoardSearch({ value, onCommit }: { value: string; onCommit: (q: string)
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Filter systems"
         aria-label="Filter systems"
+        maxLength={100}
         className="w-full min-w-0 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
       />
     </label>
