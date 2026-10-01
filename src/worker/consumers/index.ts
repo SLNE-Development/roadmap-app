@@ -2,3 +2,4 @@
 // registerFeedConsumer. Later parts add one import line each.
 import "../feed-prune";
 import "../jobs/retention";
+import "./notifications";
