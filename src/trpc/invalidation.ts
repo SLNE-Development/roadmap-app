@@ -24,6 +24,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   pages: ["pages", "history", "projects", "search"],
   search: ["search"],
   agents: ["agents"],
+  admin: ["admin"],
 };
 
 /**

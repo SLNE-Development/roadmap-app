@@ -17,6 +17,7 @@ import {
   Keyboard,
   Moon,
   Scale,
+  ShieldCheck,
   SlidersHorizontal,
   Users,
   type LucideIcon,
@@ -201,6 +202,11 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
           {data.isAdmin && (
             <CommandItem value="accounts admin allowlist" onSelect={() => go("/admin/users")}>
               <Users /> Accounts
+            </CommandItem>
+          )}
+          {data.isAdmin && (
+            <CommandItem value="audit admin auth events failed calls keys" onSelect={() => go("/admin/audit")}>
+              <ShieldCheck /> Audit
             </CommandItem>
           )}
           <CommandItem

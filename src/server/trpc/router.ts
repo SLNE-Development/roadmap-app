@@ -1,6 +1,7 @@
 import "server-only";
 import { router } from "./init";
 import { accountRouter } from "./routers/account";
+import { adminRouter } from "./routers/admin";
 import { adrsRouter } from "./routers/adrs";
 import { agentsRouter } from "./routers/agents";
 import { boardsRouter } from "./routers/boards";
@@ -44,6 +45,7 @@ export const appRouter = router({
   pages: pagesRouter,
   search: searchRouter,
   agents: agentsRouter,
+  admin: adminRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

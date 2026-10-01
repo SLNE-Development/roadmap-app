@@ -5,6 +5,13 @@ import { DELETE, GET, POST } from "./route";
 const { verifyApiKey } = vi.hoisted(() => ({ verifyApiKey: vi.fn() }));
 vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: { verifyApiKey } }) }));
 
+/** Stand-ins for auth event recording; the database finds the rate-limited key as `k1`. */
+const { recordThrottled } = vi.hoisted(() => ({ recordThrottled: vi.fn() }));
+vi.mock("@/lib/ops/audit", () => ({ recordThrottled }));
+vi.mock("@/db/client", () => ({
+  getDb: () => ({ select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: "k1", userId: "u1" }] }) }) }) }),
+}));
+
 /** Sends an MCP POST with a bearer key. */
 function post(): Promise<Response> {
   return POST(new Request("http://test/api/mcp", { method: "POST", headers: { authorization: "Bearer rmk_test" }, body: "{}" }));
@@ -16,7 +23,10 @@ function failure(code: string, message: string, details?: unknown) {
 }
 
 describe("MCP route", () => {
-  beforeEach(() => verifyApiKey.mockReset());
+  beforeEach(() => {
+    verifyApiKey.mockReset();
+    recordThrottled.mockReset();
+  });
 
   it("answers GET with 405 and an Allow header", async () => {
     const response = await GET();
@@ -41,6 +51,31 @@ describe("MCP route", () => {
       expect(response.status).toBe(401);
       expect((await response.json()).error).toContain("Missing or invalid API key");
     }
+  });
+
+  it("records a rejected key throttled by its first 12 characters, never the key itself", async () => {
+    verifyApiKey.mockResolvedValueOnce(failure("INVALID_API_KEY", "Invalid API key."));
+    await POST(new Request("http://test/api/mcp", { method: "POST", headers: { authorization: "Bearer rmk_abcdefghijklmnop" }, body: "{}" }));
+    expect(recordThrottled).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ kind: "key-rejected", detail: "INVALID_API_KEY" }),
+      "audit:rej:rmk_abcdefgh",
+      60,
+    );
+    expect(JSON.stringify(recordThrottled.mock.calls[0][2])).not.toContain("rmk_abcdefghijklmnop");
+  });
+
+  it("records a rate-limited key throttled by its id", async () => {
+    verifyApiKey.mockResolvedValueOnce(failure("RATE_LIMITED", "Rate limit exceeded."));
+    await post();
+    expect(recordThrottled).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ kind: "key-rate-limited", apiKeyId: "k1", userId: "u1" }),
+      "audit:rl:k1",
+      60,
+    );
   });
 
   it("answers a rate-limited key with 429 and Retry-After in whole seconds", async () => {

@@ -162,6 +162,13 @@
       "when": 1790830634876,
       "tag": "0022_agent-runs",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790832675574,
+      "tag": "0023_auth-events",
+      "breakpoints": true
     }
   ]
 }

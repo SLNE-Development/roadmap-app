@@ -8,6 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { account, apikey, session, user, verification } from "@/db/schema";
 import type { Db } from "@/db/types";
+import { recordAuthEvent } from "@/lib/ops/audit";
 import { isAllowed, linkDiscordAccount } from "@/lib/ops/users";
 import { API_KEY_RATE_LIMIT } from "./rate-limit";
 
@@ -50,6 +51,11 @@ async function discordIdOf(db: Db, userId: string): Promise<string | null> {
   await linkDiscordAccount(db, userId, linked.accountId);
   const [after] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, userId)).limit(1);
   return after?.discordId ?? null;
+}
+
+/** The auth event fields a session row carries: its user, address and user agent. */
+function sessionEvent(data: { userId: string; ipAddress?: string | null; userAgent?: string | null }) {
+  return { userId: data.userId, discordId: null, apiKeyId: null, ip: data.ipAddress ?? null, userAgent: data.userAgent ?? null, detail: null };
 }
 
 /** Better Auth's own API key endpoints; keys are managed through the app's tRPC procedures instead. */
@@ -98,8 +104,18 @@ function createAuth() {
           before: async (data) => {
             const discordId = await discordIdOf(db, data.userId);
             if (!discordId || !(await isAllowed(db, discordId))) {
+              await recordAuthEvent(db, { ...sessionEvent(data), kind: "sign-in-refused", discordId });
               throw new APIError("FORBIDDEN", { code: NOT_PROVISIONED_CODE, message: NOT_PROVISIONED });
             }
+          },
+          after: async (data) => {
+            await recordAuthEvent(db, { ...sessionEvent(data), kind: "sign-in" });
+          },
+        },
+        // Fires for Better Auth's own deletes (sign-out, expiry); the sessions page deletes rows itself and records there.
+        delete: {
+          after: async (data, ctx) => {
+            await recordAuthEvent(db, { ...sessionEvent(data), kind: "session-ended", detail: ctx?.path === "/sign-out" ? "Signed out" : null });
           },
         },
       },

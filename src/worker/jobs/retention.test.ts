@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentCall, agentRun } from "@/db/schema";
+import { agentCall, agentRun, authEvent } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { createProjectFixture } from "@/test/fixtures";
 import { createTestDb } from "@/test/db";
@@ -38,6 +38,19 @@ describe("pruneTelemetry", () => {
     expect(result).toEqual({ calls: 2, runs: 1, events: 0 });
     expect((await db.select().from(agentRun)).map((r) => r.id)).toEqual(["fresh"]);
     expect(await db.select().from(agentCall)).toHaveLength(1);
+  });
+
+  it("removes auth events older than 90 days and keeps newer ones", async () => {
+    const db = await createTestDb();
+    await db.insert(authEvent).values([
+      { kind: "sign-in", at: daysAgo(91) },
+      { kind: "key-rejected", at: daysAgo(60) },
+    ]);
+
+    const result = await pruneTelemetry(testDeps(db, { now: () => NOW }));
+
+    expect(result.events).toBe(1);
+    expect((await db.select().from(authEvent)).map((e) => e.kind)).toEqual(["key-rejected"]);
   });
 
   it("removes more than one batch of old calls", async () => {
