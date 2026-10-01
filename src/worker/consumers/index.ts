@@ -10,3 +10,4 @@ import "./discord";
 import "../github/events";
 import "../github/prune";
 import "../github/installations";
+import "../github/pulls";
