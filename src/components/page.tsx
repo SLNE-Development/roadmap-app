@@ -41,7 +41,7 @@ export function PageHeader({
   return (
     <header className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex min-w-0 basis-full flex-col gap-1.5 sm:flex-1 sm:basis-0">
           {crumbs && crumbs.length > 0 && (
             <nav aria-label={t("breadcrumb")} className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-foreground">
               {crumbs.map((c, i) => (

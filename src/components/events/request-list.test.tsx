@@ -56,7 +56,7 @@ describe("RequestList", () => {
     expect(within(section("Upcoming")).getByText("Summer party")).toBeTruthy();
     expect(within(section("Drafts and submitted")).getByText("Idea")).toBeTruthy();
     expect(within(section("Drafts and submitted")).getByText("No date")).toBeTruthy();
-    expect(within(section("Upcoming")).getByText("20:00-22:00")).toBeTruthy();
+    expect(within(section("Upcoming")).getByText("20:00–22:00")).toBeTruthy();
   });
 
   it("keeps the past section closed by default", () => {
@@ -86,5 +86,16 @@ describe("RequestList", () => {
     view([]);
     expect(screen.getByText("No requests")).toBeTruthy();
     expect(screen.getByText("Requests you file or follow appear here.")).toBeTruthy();
+  });
+
+  // Testing Library collapses the thin spaces of the range to plain ones.
+  it("always shows the start time, over midnight and across days", () => {
+    const at = (iso: string) => new Date(iso);
+    view([
+      row({ title: "Overnight", status: "accepted", startsAt: at("2026-11-07T21:17:00Z"), endsAt: at("2026-11-08T00:00:00Z") }),
+      row({ title: "Weekend", status: "accepted", startsAt: at("2026-11-07T21:17:00Z"), endsAt: at("2026-11-09T18:00:00Z") }),
+    ]);
+    expect(screen.getByText("21:17 – Sun 00:00")).toBeTruthy();
+    expect(screen.getByText("Nov 7, 21:17 – Nov 9, 18:00")).toBeTruthy();
   });
 });

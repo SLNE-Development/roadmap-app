@@ -47,16 +47,21 @@ function DateBlock({ startsAt }: { startsAt: Date | null }) {
   );
 }
 
-/** "20:00-22:00" for one day, a date range for several days, the start time alone without an end. */
+/**
+ * The start time always shows: "21:17–23:47" within one day, "21:17 – Sun 00:00" when the end is on the next day within 24 hours,
+ * "3 Oct, 21:17 – 5 Oct, 18:00" for longer events. The start time alone without an end.
+ */
 function useWhen(r: Pick<RequestListItem, "startsAt" | "endsAt">): string | null {
   const format = useFormatter();
   if (!r.startsAt) return null;
-  const time = { hour: "2-digit", minute: "2-digit", hour12: false } as const;
-  if (!r.endsAt) return format.dateTime(r.startsAt, time);
+  const time = (d: Date) => format.dateTime(d, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  if (!r.endsAt) return time(r.startsAt);
   const day = (d: Date) => format.dateTime(d, { year: "numeric", month: "numeric", day: "numeric" });
-  if (day(r.startsAt) === day(r.endsAt)) return `${format.dateTime(r.startsAt, time)}-${format.dateTime(r.endsAt, time)}`;
-  const short = { day: "numeric", month: "short" } as const;
-  return `${format.dateTime(r.startsAt, short)} - ${format.dateTime(r.endsAt, short)}`;
+  if (day(r.startsAt) === day(r.endsAt)) return `${time(r.startsAt)}–${time(r.endsAt)}`;
+  const dash = " – ";
+  if (r.endsAt.getTime() - r.startsAt.getTime() < 86_400_000) return `${time(r.startsAt)}${dash}${format.dateTime(r.endsAt, { weekday: "short" })} ${time(r.endsAt)}`;
+  const stamp = (d: Date) => `${format.dateTime(d, { day: "numeric", month: "short" })}, ${time(d)}`;
+  return `${stamp(r.startsAt)}${dash}${stamp(r.endsAt)}`;
 }
 
 /** One request of the list: date block, title, status, time, requester, project and what needs attention. */
