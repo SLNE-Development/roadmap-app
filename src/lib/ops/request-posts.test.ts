@@ -31,9 +31,9 @@ describe("savePostDraft", () => {
     expect(rows[0]).toMatchObject({ text: "Zwei", pingRole: true, status: "draft", attempt: 0 });
   });
 
-  it("refuses a text over 20,000 characters", async () => {
+  it("refuses a text over 40,000 characters", async () => {
     const w = await postWorld();
-    await expect(savePostDraft(w.db, w.manager, w.request.id, "announcement", { text: "a".repeat(20_001) })).rejects.toBeInstanceOf(InvalidError);
+    await expect(savePostDraft(w.db, w.manager, w.request.id, "announcement", { text: "a".repeat(40_001) })).rejects.toBeInstanceOf(InvalidError);
   });
 
   it("refuses an edit once the post is sending, partial or posted", async () => {

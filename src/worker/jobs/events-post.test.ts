@@ -303,7 +303,7 @@ describe("events.post", () => {
     await runJob("deliver", "events.post", { postId: post.id, attempt: 1 }, deps);
     expect(calls[0].multipart).toBe(false);
     expect(calls[1].multipart).toBe(true);
-    expect((calls[1].body.embeds as { image: { url: string } }[])[0].image.url).toBe("attachment://image.png");
+    expect((calls[1].body.embeds as { thumbnail: { url: string } }[])[0].thumbnail.url).toBe("attachment://image.png");
 
     await w.db.update(eventPost).set({ status: "sending", attempt: 2, parts: post.parts }).where(eq(eventPost.id, post.id));
     await w.db.update(eventUpload).set({ storageKey: "0123abcd-9999.png" });
@@ -441,9 +441,9 @@ describe("events.edit", () => {
     await s.runLast("events.edit");
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ method: "PATCH", url: `${PUBLIC_URL}/messages/m3`, multipart: true });
-    const embed = (calls[0].body.embeds as { title: string; image: { url: string } }[])[0];
+    const embed = (calls[0].body.embeds as { title: string; thumbnail: { url: string } }[])[0];
     expect(embed.title).toBe("Neuer Titel");
-    expect(embed.image.url).toBe("attachment://image.png");
+    expect(embed.thumbnail.url).toBe("attachment://image.png");
     expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
   });
 
@@ -635,7 +635,7 @@ describe("disaster and resolve", () => {
     expect(embed.description).toContain("https://example.com/docs");
     expect(embed.description).toContain("https://example.com/regeln");
     expect(embed.description).toContain("1 Stunde 30 Minuten");
-    expect(embed.description).toContain("Uhr");
+    expect(embed.description).toMatch(/<t:\d+:t>/);
     expect(embed.description).toContain("[{note}]");
     expect(embed.description).not.toMatch(/\{(date|time|duration|where|docs|rules|event)\}/);
     expect((await s.row(row.id)).status).toBe("posted");
@@ -653,7 +653,7 @@ describe("disaster and resolve", () => {
     const calls = stubFetch([ok("d1")]);
     await s.run("events.post", { postId: row.id, attempt: row.attempt });
     expect(calls[0].multipart).toBe(true);
-    expect((calls[0].body.embeds as { image: { url: string } }[])[0].image.url).toBe("attachment://image.png");
+    expect((calls[0].body.embeds as { thumbnail: { url: string } }[])[0].thumbnail.url).toBe("attachment://image.png");
   });
 
   it("resolves: patches the disaster message with the note, then posts the German back-online message, stores its id", async () => {

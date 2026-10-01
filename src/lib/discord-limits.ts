@@ -17,6 +17,8 @@ export interface Embed {
   description: string;
   color: string;
   imageUploadId: string | null;
+  /** Where the image is shown: full width (default) or as the small thumbnail. */
+  imageAs?: "image" | "thumbnail";
   fields: { name: string; value: string }[];
   footer: string;
   /** The title's link. */

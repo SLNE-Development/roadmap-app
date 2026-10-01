@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deleteMessage, editMessage, sendMessage, type DiscordBody, type Webhook } from "./discord-webhook";
+import { deleteMessage, editMessage, sendMessage, toDiscordEmbed, type DiscordBody, type Webhook } from "./discord-webhook";
 
 const MARKER = "SECRETMARKER123";
 const hook: Webhook = { kind: "team", url: `https://discord.com/api/webhooks/111111111111111111/${MARKER}` };
@@ -102,5 +102,19 @@ describe("editMessage and deleteMessage", () => {
     expect(await deleteMessage(hook, "77")).toEqual({ kind: "ok", id: "77" });
     expect(calls[0].url).toBe(`${hook.url}/messages/77`);
     expect(calls[0].init.method).toBe("DELETE");
+  });
+});
+
+describe("toDiscordEmbed", () => {
+  const embed = { title: "t", description: "d", color: "#2a5db0", imageUploadId: "up1", fields: [], footer: "" };
+
+  it("sends the image as the embed image by default", () => {
+    expect(toDiscordEmbed(embed, "image.png").image?.url).toBe("attachment://image.png");
+  });
+
+  it("sends the image as the thumbnail when asked", () => {
+    const out = toDiscordEmbed({ ...embed, imageAs: "thumbnail" }, "image.png");
+    expect(out.thumbnail?.url).toBe("attachment://image.png");
+    expect(out.image).toBeUndefined();
   });
 });

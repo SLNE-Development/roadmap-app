@@ -21,6 +21,7 @@ export interface DiscordEmbed {
   footer?: { text: string };
   author?: { name: string };
   image?: { url: string };
+  thumbnail?: { url: string };
 }
 
 /** What a message may mention: nothing parsed, and at most the listed roles. */
@@ -64,7 +65,7 @@ export async function retryAfterSeconds(res: Response): Promise<number> {
   return Number.isFinite(fromHeader) && fromHeader >= 0 ? fromHeader : 1;
 }
 
-/** Turns a stored embed into Discord's shape; the image becomes `attachment://<imageName>` when there is one. */
+/** Turns a stored embed into Discord's shape; the image becomes `attachment://<imageName>` when there is one, as the thumbnail when the embed asks for it. */
 export function toDiscordEmbed(embed: Embed, imageName: string | null): DiscordEmbed {
   return {
     ...(embed.title ? { title: embed.title } : {}),
@@ -74,7 +75,7 @@ export function toDiscordEmbed(embed: Embed, imageName: string | null): DiscordE
     ...(embed.fields.length > 0 ? { fields: embed.fields } : {}),
     ...(embed.footer ? { footer: { text: embed.footer } } : {}),
     ...(embed.author ? { author: { name: embed.author } } : {}),
-    ...(imageName ? { image: { url: `attachment://${imageName}` } } : {}),
+    ...(imageName ? { [embed.imageAs === "thumbnail" ? "thumbnail" : "image"]: { url: `attachment://${imageName}` } } : {}),
   };
 }
 

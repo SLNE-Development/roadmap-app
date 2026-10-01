@@ -3,6 +3,7 @@ import { z } from "zod";
 import { eventSettings } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { DEFAULT_EVENT_TIME_ZONE } from "@/lib/event-prep-template";
+import { MAX_POST_TEXT } from "@/lib/event-messages";
 import { buildPrompts, describeAnswer, MODERATION_PREFIX, PROMPT_KINDS, type PromptKind } from "@/lib/event-prompts";
 import type { Actor } from "./actor";
 import { InvalidError } from "./errors";
@@ -13,7 +14,7 @@ import { listRounds } from "./request-questions";
 import { getBrief, logRequest } from "./requests";
 
 /** Input of {@link savePasteBack}: the text the planner pasted back. */
-export const savePasteBackInput = z.object({ kind: z.enum(PROMPT_KINDS), text: z.string().max(20_000) });
+export const savePasteBackInput = z.object({ kind: z.enum(PROMPT_KINDS), text: z.string().max(MAX_POST_TEXT) });
 
 /**
  * The only settings columns a prompt reads: styles, examples, time zone and rulebook link. Never a secret (`*Enc`)
@@ -60,7 +61,7 @@ export async function getPrompts(db: Db, actor: Actor, requestId: string): Promi
  * Stores the text pasted back from a chat assistant as the draft of the matching post, for review in the composer.
  * Sends nothing and changes no status.
  *
- * @throws InvalidError for an empty paste or a text over 20,000 characters, ConflictError once the post is sending, partial or posted
+ * @throws InvalidError for an empty paste or a text over 40,000 characters, ConflictError once the post is sending, partial or posted
  * (use Edit), NotFoundError / ForbiddenError as {@link savePostDraft}
  */
 export async function savePasteBack(db: Db, actor: Actor, requestId: string, kind: PromptKind, text: string): Promise<void> {

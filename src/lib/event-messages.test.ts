@@ -27,13 +27,27 @@ describe("buildDetailsEmbed", () => {
     expect(e.title).toBe("Piratenfest");
     expect(e.url).toBe("https://example.com/infos");
     expect(e.description).toContain("Ort: Hafenwelt");
-    expect(e.description).toContain("Uhrzeit: 18:00 Uhr");
+    expect(e.description).toContain("Ende: <t:1792258200:t>");
     expect(e.footer).toBe("Viel Spaß!");
     expect(e.imageUploadId).toBeNull();
   });
 
-  it("uses the banner as the image", () => {
-    expect(buildDetailsEmbed({ ...request, bannerUploadId: "up1" }, settings).imageUploadId).toBe("up1");
+  it("uses the banner as a thumbnail", () => {
+    const e = buildDetailsEmbed({ ...request, bannerUploadId: "up1" }, settings);
+    expect(e.imageUploadId).toBe("up1");
+    expect(e.imageAs).toBe("thumbnail");
+  });
+
+  it("fills the description lines as discord timestamps and the footer as text", () => {
+    const t = { ...DEFAULT_DETAILS_TEMPLATE, lines: ["Datum: {start_date}"], footer: "{start_date}" };
+    const e = buildDetailsEmbed(request, { ...settings, detailsTemplate: t });
+    expect(e.description).toBe("Datum: <t:1792252800:D>");
+    expect(e.footer).toBe("17. Oktober 2026");
+  });
+
+  it("puts the summary before the lines when the request has one", () => {
+    const e = buildDetailsEmbed({ ...request, summary: "Ein Fest." } as typeof request, settings);
+    expect(e.description.startsWith("Ein Fest.\n\nStart: ")).toBe(true);
   });
 });
 
@@ -44,12 +58,24 @@ describe("disaster and resolved embeds", () => {
     expect(resolved.description).toBe("Piratenfest läuft wieder. Alles gut.");
     expect(resolved.title).toBe("Das Event ist nun wieder online");
   });
+
+  it("carry the disaster template image as a thumbnail", () => {
+    const withImage = { ...settings, disasterTemplate: { ...DEFAULT_DISASTER_TEMPLATE, imageUploadId: "img1" } };
+    for (const e of [buildDisasterEmbed(request, withImage), buildResolvedEmbed(request, withImage, null)]) {
+      expect(e.imageUploadId).toBe("img1");
+      expect(e.imageAs).toBe("thumbnail");
+    }
+  });
 });
 
 describe("plannedParts", () => {
   it("fills the placeholders of the text and leaves {note} and unknown names as written", () => {
-    const parts = plannedParts(post({ text: "{event} am {date} in {where} {note} {foo}" }), request, settings, none);
-    expect(parts[0].content).toBe("Piratenfest am Samstag, 17. Oktober 2026 in Hafenwelt {note} {foo}");
+    const parts = plannedParts(post({ text: "{event} am {start_date} in {where} {note} {foo}" }), request, settings, none);
+    expect(parts[0].content).toBe("Piratenfest am <t:1792252800:D> in Hafenwelt {note} {foo}");
+  });
+
+  it("fills the post text as discord timestamps", () => {
+    expect(plannedParts(post({ text: "Um {start_time}" }), request, settings, none)[0].content).toBe("Um <t:1792252800:t>");
   });
 
   it("makes 2 text parts and an event card from a 3,900 character announcement with a ping", () => {

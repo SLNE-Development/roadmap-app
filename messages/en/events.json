@@ -243,7 +243,7 @@
     "whatWeDo": "What we do",
     "whoDecides": "Who decides",
     "playerMessage": "Message for players (optional)",
-    "playerMessageHelp": "Prepared in German. It may contain placeholders such as {event} and {time}.",
+    "playerMessageHelp": "Prepared in German. It may contain placeholders such as '{event}' and '{start_date}'.",
     "save": "Save scenario",
     "saved": "Scenario saved",
     "remove": "Remove scenario",

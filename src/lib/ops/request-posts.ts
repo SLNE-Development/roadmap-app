@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eventPost, eventUpload, user, type EventPostRow, type PostStatus } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { countEmbedChars, LIMITS, textLength, type Embed } from "@/lib/discord-limits";
-import { buildDisasterEmbed, buildResolvedEmbed, discordEventUrl, keepsMention, plannedParts, POST_DUE_OFFSET_DAYS, POST_KINDS, POST_TARGET, type PostKind, type PostPart } from "@/lib/event-messages";
+import { buildDisasterEmbed, buildResolvedEmbed, discordEventUrl, keepsMention, MAX_POST_TEXT, plannedParts, POST_DUE_OFFSET_DAYS, POST_KINDS, POST_TARGET, type PostKind, type PostPart } from "@/lib/event-messages";
 import { dueFor } from "@/lib/event-prep-template";
 import type { Kv } from "@/lib/kv";
 import { addWithTimeout, type JobQueue } from "@/lib/queue";
@@ -41,7 +41,7 @@ const embedSchema = z.strictObject({
 
 /** Input of {@link savePostDraft}; an omitted key stays as it is. */
 export const savePostDraftInput = z.strictObject({
-  text: z.string().max(20_000).optional(),
+  text: z.string().max(MAX_POST_TEXT).optional(),
   embed: embedSchema.nullable().optional(),
   pingRole: z.boolean().optional(),
   note: z.string().max(2000).nullable().optional(),
@@ -280,7 +280,7 @@ export async function resumePost(db: Db, actor: Actor, requestId: string, kind: 
 
 /** Input of {@link editPost}; an omitted key stays as it is. */
 export const editPostInput = z.strictObject({
-  text: z.string().max(20_000).optional(),
+  text: z.string().max(MAX_POST_TEXT).optional(),
   embed: embedSchema.nullable().optional(),
 });
 

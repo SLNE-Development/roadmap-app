@@ -27,7 +27,7 @@ describe("buildPrompts", () => {
   const p = buildPrompts(input);
 
   it("fills the announcement with style, example, facts, answers and links", () => {
-    for (const text of ["STYLE-ANN", "EXAMPLE-ANN", "Piratenfest", "Samstag, 17. Oktober 2026", "20:00 Uhr", "Hafenwelt", "BRIEF-TEXT", "https://example.com/infos", "https://example.com/regeln"]) {
+    for (const text of ["STYLE-ANN", "EXAMPLE-ANN", "Piratenfest", "17. Oktober 2026", "20:00 Uhr", "Hafenwelt", "BRIEF-TEXT", "https://example.com/infos", "https://example.com/regeln"]) {
       expect(p.announcement).toContain(text);
     }
     expect(p.announcement).toContain("Gibt es Preise?: Ja");

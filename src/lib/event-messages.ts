@@ -3,6 +3,9 @@ import type { ScheduledEventBody } from "./discord-bot";
 import { messageProblems, splitText, textLength, LIMITS, type Embed } from "./discord-limits";
 import { fillPlaceholders, placeholderValues, PLACEHOLDERS, type Placeholder } from "./event-placeholders";
 
+/** The most characters a post text may hold: 20 messages and the card. */
+export const MAX_POST_TEXT = 40_000;
+
 /** The kinds of post a request has. */
 export const POST_KINDS = ["team", "announcement", "reminder", "disaster", "resolved"] as const;
 
@@ -58,36 +61,52 @@ const GERMAN_SERVER = "Auf dem Server";
 
 const NO_NOTE: readonly Placeholder[] = PLACEHOLDERS.filter((p) => p !== "note");
 
-/** The details card: title and link of the event, the filled template lines, the banner as image. */
-export function buildDetailsEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "detailsTemplate">, now?: Date): Embed {
-  const values = placeholderValues(request, settings, now);
-  const fill = (text: string) => fillPlaceholders(text, values, { allow: NO_NOTE });
+/** The details card: title and link of the event, the short description and the filled template lines, the banner as thumbnail. */
+export function buildDetailsEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "detailsTemplate">): Embed {
+  const values = placeholderValues(request, settings);
   const t = settings.detailsTemplate;
+  const lines = t.lines.map((line) => fillPlaceholders(line, values, { allow: NO_NOTE, mode: "discord" })).join("\n");
+  const summary = "summary" in request && typeof request.summary === "string" ? request.summary : "";
   return {
     title: request.title,
     url: request.eventDocsUrl,
-    description: t.lines.map(fill).join("\n"),
+    description: summary.trim() === "" ? lines : `${summary}\n\n${lines}`,
     color: t.color,
     imageUploadId: request.bannerUploadId,
+    imageAs: "thumbnail",
     fields: [],
-    footer: fill(t.footer),
+    footer: fillPlaceholders(t.footer, values, { allow: NO_NOTE, mode: "text" }),
   };
 }
 
-/** The embed of the disaster message from the settings' template. */
-export function buildDisasterEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "disasterTemplate">, now?: Date): Embed {
+/** The embed of the disaster message from the settings' template; the generic image is shown as thumbnail. */
+export function buildDisasterEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "disasterTemplate">): Embed {
   const t = settings.disasterTemplate;
-  const values = placeholderValues(request, settings, now);
-  const fill = (text: string) => fillPlaceholders(text, values, { allow: NO_NOTE });
-  return { title: fill(t.title), description: fill(t.text), color: t.color, imageUploadId: t.imageUploadId, fields: [], footer: "" };
+  const values = placeholderValues(request, settings);
+  return {
+    title: fillPlaceholders(t.title, values, { allow: NO_NOTE, mode: "text" }),
+    description: fillPlaceholders(t.text, values, { allow: NO_NOTE, mode: "discord" }),
+    color: t.color,
+    imageUploadId: t.imageUploadId,
+    imageAs: "thumbnail",
+    fields: [],
+    footer: "",
+  };
 }
 
-/** The embed of the resolved message; `{note}` is filled here only. */
-export function buildResolvedEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "resolvedTemplate">, note: string | null, now?: Date): Embed {
+/** The embed of the resolved message; `{note}` is filled here only. It shows the disaster template's image (spec 5.2). */
+export function buildResolvedEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "resolvedTemplate" | "disasterTemplate">, note: string | null): Embed {
   const t = settings.resolvedTemplate;
-  const values = placeholderValues(request, settings, now, note ?? "");
-  const fill = (text: string) => fillPlaceholders(text, values, { allow: PLACEHOLDERS });
-  return { title: fill(t.title), description: fill(t.text), color: t.color, imageUploadId: t.imageUploadId, fields: [], footer: "" };
+  const values = placeholderValues(request, settings, note ?? "");
+  return {
+    title: fillPlaceholders(t.title, values, { allow: PLACEHOLDERS, mode: "text" }),
+    description: fillPlaceholders(t.text, values, { allow: PLACEHOLDERS, mode: "discord" }),
+    color: t.color,
+    imageUploadId: settings.disasterTemplate.imageUploadId,
+    imageAs: "thumbnail",
+    fields: [],
+    footer: "",
+  };
 }
 
 /** Whether a post of `kind` may carry the role ping. */
@@ -112,7 +131,7 @@ const unsent = (fields: Pick<PostPart, "kind" | "content"> & Partial<PostPart>):
  */
 export function plannedParts(post: PlanPost, request: PlanRequest, settings: PlanSettings, opts: { discordEventUrl: string | null }): PostPart[] {
   const mention = mayPing(post.kind, post.pingRole) && settings.pingRoleId ? `<@&${settings.pingRoleId}>\n` : "";
-  const text = fillPlaceholders(post.text, placeholderValues(request, settings), { allow: NO_NOTE });
+  const text = fillPlaceholders(post.text, placeholderValues(request, settings), { allow: NO_NOTE, mode: "discord" });
   const chunks = splitText(text, LIMITS.content, LIMITS.content - textLength(mention));
   const parts: PostPart[] = chunks.map((c, i) => unsent({ kind: "text", content: i === 0 ? mention + c : c }));
   if (post.kind === "disaster" || post.kind === "resolved") {

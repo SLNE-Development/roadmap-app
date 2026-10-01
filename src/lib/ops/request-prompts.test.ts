@@ -65,9 +65,9 @@ describe("savePasteBack", () => {
     await expect(savePasteBack(w.db, w.requester, w.request.id, "team", "   ")).rejects.toBeInstanceOf(InvalidError);
   });
 
-  it("refuses a text over 20,000 characters", async () => {
+  it("refuses a text over 40,000 characters", async () => {
     const w = await postWorld();
-    await expect(savePasteBack(w.db, w.requester, w.request.id, "team", "a".repeat(20_001))).rejects.toBeInstanceOf(InvalidError);
+    await expect(savePasteBack(w.db, w.requester, w.request.id, "team", "a".repeat(40_001))).rejects.toBeInstanceOf(InvalidError);
   });
 
   it("refuses once the post is posted", async () => {

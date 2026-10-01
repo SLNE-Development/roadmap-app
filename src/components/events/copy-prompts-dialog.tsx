@@ -9,10 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { MAX_POST_TEXT } from "@/lib/event-messages";
 import { PROMPT_KINDS, type PromptKind } from "@/lib/event-prompts";
 import { useTRPC } from "@/trpc/client";
-
-const MAX_TEXT = 20_000;
 
 /**
  * One tab of the dialog: the read-only prompt with its Copy button, and the paste-back box that saves the pasted text as
@@ -61,7 +60,7 @@ function PromptPanel({ requestId, kind, prompt, tabId, panelId, onClose }: { req
       </Field>
       <Field>
         <FieldLabel htmlFor={`${ids}-paste`}>{t("pasteLabel")}</FieldLabel>
-        <Textarea id={`${ids}-paste`} value={pasted} onChange={(e) => setPasted(e.target.value)} rows={8} maxLength={MAX_TEXT} />
+        <Textarea id={`${ids}-paste`} value={pasted} onChange={(e) => setPasted(e.target.value)} rows={8} maxLength={MAX_POST_TEXT} />
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" disabled={save.isPending || !pasted.trim()} onClick={() => save.mutate({ id: requestId, kind, text: pasted })}>
             {t("saveDraft")}

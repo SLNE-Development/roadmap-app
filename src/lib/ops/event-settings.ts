@@ -4,7 +4,7 @@ import { eventSettings, eventUpload, type BotStatus, type EventRequestRow, type 
 import type { Db, Executor } from "@/db/types";
 import { encryptSecret } from "@/lib/crypto";
 import { scheduledEventUrl } from "@/lib/discord-bot";
-import { fillPlaceholders, placeholderValues, PLACEHOLDERS, type Placeholder } from "@/lib/event-placeholders";
+import { fillPlaceholders, placeholderValues, PLACEHOLDERS, type FillMode, type Placeholder } from "@/lib/event-placeholders";
 import { DEFAULT_EVENT_TIME_ZONE } from "@/lib/event-prep-template";
 import { detailsTemplateSchema, embedTemplateSchema, type DetailsTemplate, type EmbedTemplate } from "@/lib/event-templates";
 import { timeZoneSchema } from "@/lib/notify-rules-schema";
@@ -274,10 +274,10 @@ export async function previewTemplate(db: Db, actor: Actor, raw: unknown): Promi
   await requireReader(db, actor);
   const input = parse(previewTemplateInput, raw);
   const settings = await ensureSettings(db);
-  const values = placeholderValues(SAMPLE_REQUEST, settings, undefined, SAMPLE_NOTE);
+  const values = placeholderValues(SAMPLE_REQUEST, settings, SAMPLE_NOTE);
   const allow: readonly Placeholder[] = input.kind === "resolved" ? PLACEHOLDERS : PLACEHOLDERS.filter((p) => p !== "note");
-  const fill = (text: string) => fillPlaceholders(text, values, { allow });
-  if (input.kind === "details") return { kind: "details", lines: input.template.lines.map(fill), color: input.template.color, footer: fill(input.template.footer) };
+  const fill = (text: string, mode: FillMode) => fillPlaceholders(text, values, { allow, mode });
+  if (input.kind === "details") return { kind: "details", lines: input.template.lines.map((line) => fill(line, "discord")), color: input.template.color, footer: fill(input.template.footer, "text") };
   const { title, text, color, imageUploadId } = input.template;
-  return { kind: "embed", title: fill(title), text: fill(text), color, imageUploadId };
+  return { kind: "embed", title: fill(title, "text"), text: fill(text, "discord"), color, imageUploadId };
 }

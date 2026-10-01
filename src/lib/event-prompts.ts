@@ -90,8 +90,8 @@ const join = (parts: string[]): string => parts.filter((p) => p.trim() !== "").j
 
 /** The essentials of the event: name, date, time, duration and place; empty facts are left out. */
 function facts(input: PromptInput, withDuration: boolean): string[] {
-  const v = placeholderValues(input.request, input.settings);
-  return [...line("Name", v.event), ...line("Datum", v.date), ...line("Uhrzeit", v.time), ...(withDuration ? line("Dauer", v.duration) : []), ...line("Ort", v.where)];
+  const v = placeholderValues(input.request, input.settings).text;
+  return [...line("Name", v.event), ...line("Datum", v.start_date), ...line("Uhrzeit", v.start_time), ...(withDuration ? line("Dauer", v.duration) : []), ...line("Ort", v.where)];
 }
 
 /** The docs and rulebook links, each on its own line. */

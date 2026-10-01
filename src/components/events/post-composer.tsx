@@ -11,16 +11,14 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { textLength } from "@/lib/discord-limits";
-import { POST_TARGET } from "@/lib/event-messages";
-import { DEFAULT_ALLOWED } from "@/lib/event-placeholders";
+import { MAX_POST_TEXT, POST_TARGET } from "@/lib/event-messages";
+import { VISIBLE_PLACEHOLDERS } from "@/lib/event-placeholders";
 import type { PostsView, PostView } from "@/lib/ops/request-posts";
 import { useTRPC } from "@/trpc/client";
 
 /** The kinds this tab writes; disaster and resolved posts live elsewhere. */
 const KINDS = ["team", "announcement", "reminder"] as const;
 type Kind = (typeof KINDS)[number];
-
-const MAX_TEXT = 20_000;
 
 /** Statuses in which the text can no longer be edited as a draft; a posted or partial post is changed through Edit. */
 const LOCKED = ["sending", "partial", "posted"];
@@ -138,19 +136,19 @@ function PostCard({ requestId, kind, post, view, requestStatus, canEdit }: { req
           ref={area}
           value={text}
           disabled={!editable}
-          maxLength={MAX_TEXT}
+          maxLength={MAX_POST_TEXT}
           className="min-h-40 font-mono text-[13px]"
           onChange={(e) => setText(e.target.value)}
         />
         <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-muted-foreground">
           <div role="group" aria-label={t("placeholders")} className="flex flex-wrap gap-1">
-            {DEFAULT_ALLOWED.map((name) => (
+            {VISIBLE_PLACEHOLDERS.map((name) => (
               <Button key={name} type="button" size="xs" variant="outline" disabled={!editable} aria-label={t("insert", { name })} onClick={() => insert(`{${name}}`)}>
                 {`{${name}}`}
               </Button>
             ))}
           </div>
-          <span>{t("counter", { count: format.number(textLength(text)), max: format.number(MAX_TEXT) })}</span>
+          <span>{t("counter", { count: format.number(textLength(text)), max: format.number(MAX_POST_TEXT) })}</span>
         </div>
       </Field>
       {canPing && (

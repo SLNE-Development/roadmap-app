@@ -40,7 +40,7 @@ describe("getEventSettings", () => {
     const s = await getEventSettings(db, manager);
     expect(s).toMatchObject({ postAs: "Event-Team", timeZone: "Europe/Berlin", pingRoleId: null, rulebookUrl: null, announcementStyle: "" });
     expect(s.disasterTemplate.title).toBe("Wir arbeiten an einer Lösung");
-    expect(s.detailsTemplate.lines).toHaveLength(6);
+    expect(s.detailsTemplate.lines).toHaveLength(5);
     expect(s.secrets.publicWebhook).toEqual({ set: false, hint: null });
     expect(await db.select().from(eventSettings)).toHaveLength(1);
   });
@@ -209,7 +209,7 @@ describe("previewTemplate", () => {
     const resolved = await previewTemplate(db, developer, { kind: "resolved", template: { title: "x", text: "{event}: {note}", color: "#1a7048", imageUploadId: null } });
     expect(resolved).toMatchObject({ kind: "embed", text: expect.stringMatching(/^Piratenfest: .+/) });
     const details = await previewTemplate(db, developer, { kind: "details", template: { lines: ["Datum: {date}", "Ort: {where}"], color: "#112233", footer: "Hi" } });
-    expect(details).toMatchObject({ kind: "details", lines: ["Datum: Samstag, 17. Oktober 2026", "Ort: Hafenwelt"], footer: "Hi" });
+    expect(details).toMatchObject({ kind: "details", lines: ["Datum: <t:1792260000:D>", "Ort: Hafenwelt"], footer: "Hi" });
   });
 
   it("is closed to strangers and to a template of the wrong shape", async () => {

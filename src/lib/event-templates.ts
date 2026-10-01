@@ -27,7 +27,7 @@ export type DetailsTemplate = z.infer<typeof detailsTemplateSchema>;
 /** The disaster message until the managers change it. German, because it is posted as written. */
 export const DEFAULT_DISASTER_TEMPLATE: EmbedTemplate = {
   title: "Wir arbeiten an einer Lösung",
-  text: "{event} ist gerade nicht erreichbar. Wir arbeiten an einer Lösung und melden uns hier, sobald es weitergeht.",
+  text: "{event} ist gerade nicht erreichbar. Wir arbeiten an einer Lösung und melden uns hier, sobald es weitergeht.\n\n{note}",
   color: "#c23636",
   imageUploadId: null,
 };
@@ -42,7 +42,7 @@ export const DEFAULT_RESOLVED_TEMPLATE: EmbedTemplate = {
 
 /** The details embed until the managers change it. */
 export const DEFAULT_DETAILS_TEMPLATE: DetailsTemplate = {
-  lines: ["Datum: {date}", "Uhrzeit: {time}", "Dauer: {duration}", "Ort: {where}", "Infos: {docs}", "Regeln: {rules}"],
+  lines: ["Start: {start}", "Ende: {end_time}", "Ort: {where}", "Infos: {docs}", "Regeln: {rules}"],
   color: "#2a5db0",
   footer: "Viel Spaß!",
 };

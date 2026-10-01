@@ -243,7 +243,7 @@
     "whatWeDo": "Was wir tun",
     "whoDecides": "Wer entscheidet",
     "playerMessage": "Nachricht an die Spieler (optional)",
-    "playerMessageHelp": "Auf Deutsch vorbereitet. Sie darf Platzhalter wie {event} und {time} enthalten.",
+    "playerMessageHelp": "Auf Deutsch vorbereitet. Sie darf Platzhalter wie '{event}' und '{start_date}' enthalten.",
     "save": "Szenario speichern",
     "saved": "Szenario gespeichert",
     "remove": "Szenario entfernen",
