@@ -22,6 +22,10 @@
   "dependencies": {
     "@better-auth/api-key": "^1.7.6",
     "@modelcontextprotocol/sdk": "^1.31.0",
+    "@octokit/app": "^16.1.4",
+    "@octokit/core": "^7.0.8",
+    "@octokit/plugin-paginate-rest": "^15.0.0",
+    "@octokit/request": "^10.0.16",
     "@tanstack/react-query": "^5.104.0",
     "@trpc/client": "^11.19.0",
     "@trpc/server": "^11.19.0",
