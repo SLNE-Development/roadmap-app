@@ -96,6 +96,7 @@ you belong to.
   Tasks are added in batches: `POST /projects/{p}/systems/{s}/tasks` takes
   `{ "tasks": [{ "title": "Write tests", "clientRef": "step-1" }] }` (1 to 50 tasks);
   a retry with the same `clientRef`s returns the existing tasks with `created: false`.
+  The OpenAPI 3.1 document is at `/api/v1/openapi.json` and a readable reference at `/api/docs`, both without a key.
 
 **Tools added in v2:**
 
