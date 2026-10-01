@@ -11,6 +11,7 @@ import { GateStatus } from "@/components/gate-status";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { PageHeader, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
+import { PresenceStack } from "@/components/presence/presence-stack";
 import { SaveViewButton } from "@/components/save-view-button";
 import { isGateRefusal } from "@/components/system/move-error";
 import { MoveOverrideDialog } from "@/components/system/move-override-dialog";
@@ -30,6 +31,7 @@ import type { BoardCardView } from "@/lib/board-card";
 import type { CardField } from "@/lib/card-fields";
 import { focusReady, moveKey, moveTargets } from "@/lib/board-moves";
 import type { GateResult } from "@/lib/ops/gates";
+import type { SystemPresence } from "@/lib/ops/presence";
 import { groupIntoLanes, LANE_KEYS, type LaneKey } from "@/lib/lanes";
 import { BOARD_COLLAPSED_SCHEMA } from "@/lib/pref-keys";
 import { plural } from "@/lib/text";
@@ -113,6 +115,7 @@ export function BoardView({
   // Quiet: `move` toasts the refusal itself, unless an owner is asked whether to move anyway.
   const moveSystem = useMutation({ ...trpc.systems.move.mutationOptions(), meta: { quiet: true } });
   const { data: gates } = useQuery(trpc.gates.board.queryOptions({ project: projectSlug, board: board.slug }));
+  const { data: presence } = useQuery(trpc.presence.board.queryOptions({ project: projectSlug, board: board.slug }, { refetchInterval: 30_000 }));
   const [overriding, setOverriding] = useState<{ slug: string; columnId: string; message: string } | null>(null);
   const [announce, setAnnounce] = useState("");
   const [showHint, setShowHint] = useState(false);
@@ -290,6 +293,7 @@ export function BoardView({
       phase={c.phaseId ? (phaseName.get(c.phaseId) ?? null) : null}
       fields={cardFields}
       gate={gates?.[c.id]}
+      present={presence?.[c.slug]}
       customName={customName}
       projectSlug={projectSlug}
       columns={columns}
@@ -629,6 +633,7 @@ function SystemCard({
   phase,
   fields,
   gate,
+  present,
   customName,
   projectSlug,
   columns,
@@ -651,6 +656,8 @@ function SystemCard({
   fields: CardField[];
   /** How far the card is from the next gated column, when there is one. */
   gate: GateResult | undefined;
+  /** Who is on the system now, when anyone is. */
+  present: SystemPresence | undefined;
   /** Names of the custom fields by key. */
   customName: Map<string, string>;
   projectSlug: string;
@@ -805,6 +812,11 @@ function SystemCard({
         {card.failingChecks && (
           <span className="bg-cat-blocked-soft px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-cat-blocked" title="An open pull request has failing checks">
             checks
+          </span>
+        )}
+        {present && (
+          <span className="ml-auto flex">
+            <PresenceStack people={present.people} agents={present.agents} size="xs" max={2} />
           </span>
         )}
       </div>

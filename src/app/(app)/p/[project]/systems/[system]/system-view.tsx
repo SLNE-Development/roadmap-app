@@ -18,6 +18,8 @@ import { PlanStepsPanel } from "@/components/plan-steps-panel";
 import { CoverageMap } from "@/components/planning/coverage-map";
 import { ReopenAreaDialog } from "@/components/planning/reopen-area-dialog";
 import { PlanningRounds } from "@/components/planning-rounds";
+import { PresenceStack } from "@/components/presence/presence-stack";
+import { usePresenceHeartbeat } from "@/components/presence/use-presence-heartbeat";
 import { SystemNotes } from "@/components/system-editor";
 import { ActivityFeed } from "@/components/system/activity-feed";
 import type { SystemControlsData } from "@/components/system/controls";
@@ -137,6 +139,9 @@ export function SystemView({
     ],
   });
   const { data: agentCost } = useQuery(trpc.agents.systemCost.queryOptions(ref));
+  // A plain query, so presence never blocks the page.
+  const { data: presence } = useQuery(trpc.presence.system.queryOptions(ref, { refetchInterval: 30_000 }));
+  usePresenceHeartbeat(slug, systemSlug);
   // Editors of an active project may archive or restore; edits also need the system itself active.
   const canArchive = o.role !== "viewer" && !o.project.archivedAt;
   const archived = o.system.archivedAt !== null;
@@ -196,7 +201,12 @@ export function SystemView({
       <PageHeader
         crumbs={[{ label: o.project.name, href: `/p/${slug}` }, { label: o.board.name, href: boardHref }, { label: o.system.title }]}
         title={o.system.title}
-        actions={<SystemHeaderActions data={controls} canArchive={canArchive} />}
+        actions={
+          <>
+            {presence && <PresenceStack people={presence.people} agents={presence.agents} />}
+            <SystemHeaderActions data={controls} canArchive={canArchive} />
+          </>
+        }
       >
         <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-fg-2 lg:flex">
           <PriorityTag priority={o.system.priority} />

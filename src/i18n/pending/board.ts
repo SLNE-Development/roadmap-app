@@ -7,6 +7,7 @@ export const PENDING_BOARD: string[] = [
   "src/components/filter-chip.tsx",
   "src/components/new-board-dialog.tsx",
   "src/components/new-system-dialog.tsx",
+  "src/components/presence/presence-stack.tsx",
   "src/components/save-view-button.tsx",
   "src/components/system-card.tsx",
   "src/components/systems/bulk-bar.tsx",

@@ -3,11 +3,13 @@ import Link from "next/link";
 import { useNow } from "@/components/clock";
 import { GateStatus } from "@/components/gate-status";
 import type { GateResult } from "@/lib/ops/gates";
+import type { SystemPresence } from "@/lib/ops/presence";
 import type { SystemListItem } from "@/lib/ops/systems";
 import { relativeAge } from "@/lib/time";
 import { CATEGORY_CLASS, PriorityTag, StatusChip } from "./chips";
 import { ProgressBar } from "./page";
 import { PersonAvatar } from "./person-avatar";
+import { PresenceStack } from "./presence/presence-stack";
 
 /**
  * A Tide card for one system: domain and priority, title, status, task
@@ -22,12 +24,15 @@ export function SystemCard({
   projectSlug,
   domainName,
   gate,
+  present,
 }: {
   system: SystemListItem;
   latest?: { summary: string; createdAt: string };
   projectSlug: string;
   domainName?: string | null;
   gate?: GateResult;
+  /** Who is on the system now, shown as a small stack in the footer. */
+  present?: SystemPresence;
 }) {
   const now = useNow();
   return (
@@ -65,6 +70,7 @@ export function SystemCard({
         <span className="font-mono text-[11.5px] text-muted-foreground">
           {system.tasksDone}/{system.tasksTotal}
         </span>
+        {present && <PresenceStack people={present.people} agents={present.agents} size="xs" max={2} />}
         {system.ownerName ? (
           <span title={system.ownerName} className="flex">
             <PersonAvatar name={system.ownerName} size="sm" />
