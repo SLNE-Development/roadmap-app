@@ -2,6 +2,7 @@
 
 import { useMutation, useSuspenseQueries } from "@tanstack/react-query";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useNow } from "@/components/clock";
@@ -24,16 +25,11 @@ import { Switch } from "@/components/ui/switch";
 import type { RepoRules } from "@/db/schema";
 import { repoFullNameSchema } from "@/lib/github/repo-name";
 import type { LinkedRepoView, RepoWebhook } from "@/lib/ops/github-repos";
-import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 
-/** The three automation rules, in the order the settings show them. */
-const RULES: { key: keyof RepoRules; label: string }[] = [
-  { key: "closeOnMerge", label: "Close tasks when a PR merges" },
-  { key: "reviewOnOpen", label: "Move to review when a PR opens" },
-  { key: "checksWarning", label: "Warn when checks fail" },
-];
+/** The three automation rules, in the order the settings show them; each is labelled by `integrations.github.rules.<key>`. */
+const RULES: { key: keyof RepoRules }[] = [{ key: "closeOnMerge" }, { key: "reviewOnOpen" }, { key: "checksWarning" }];
 
 /** A small square status pill. */
 function Pill({ tone, children }: { tone: "done" | "blocked" | "muted"; children: React.ReactNode }) {
@@ -42,24 +38,26 @@ function Pill({ tone, children }: { tone: "done" | "blocked" | "muted"; children
 }
 
 /** Copies `text` to the clipboard and says whether it worked. */
-async function copy(text: string): Promise<void> {
+async function copy(text: string, messages: { copied: string; failed: string }): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success("Copied");
+    toast.success(messages.copied);
   } catch {
-    toast.error("Copying failed. Select the text and copy it by hand.");
+    toast.error(messages.failed);
   }
 }
 
 /** A labelled read-only value with a Copy button. */
 function CopyField({ label, value }: { label: string; value: string }) {
+  const t = useTranslations("integrations");
+  const tc = useTranslations("common");
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[12.5px] font-semibold text-fg-2">{label}</span>
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate border bg-muted px-2 py-1.5 font-mono text-[12.5px]">{value}</code>
-        <Button type="button" variant="outline" size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => copy(value)}>
-          Copy
+        <Button type="button" variant="outline" size="sm" aria-label={t("github.copyLabel", { label })} onClick={() => copy(value, { copied: tc("copied"), failed: t("github.copyFailed") })}>
+          {tc("copy")}
         </Button>
       </div>
     </div>
@@ -68,12 +66,13 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 /** The payload URL and secret of a manual webhook, with what to do with them on GitHub. */
 function WebhookSettings({ webhook, hint }: { webhook: RepoWebhook; hint?: string }) {
+  const t = useTranslations("integrations");
   return (
     <div className="flex flex-col gap-2.5 border bg-background p-3">
-      <CopyField label="Payload URL" value={webhook.webhookUrl} />
-      <CopyField label="Secret" value={webhook.secret} />
+      <CopyField label={t("github.payloadUrl")} value={webhook.webhookUrl} />
+      <CopyField label={t("github.secret")} value={webhook.secret} />
       <p className="text-[12.5px] text-muted-foreground">
-        Paste into the repository&apos;s Settings → Webhooks, content type application/json, events: pull requests and pushes.
+        {t("github.webhookInstructions")}
       </p>
       {hint && <p className="text-[12.5px] font-medium text-cat-review">{hint}</p>}
     </div>
@@ -82,52 +81,54 @@ function WebhookSettings({ webhook, hint }: { webhook: RepoWebhook; hint?: strin
 
 /** One linked repository: its name, mode, last event and pills, its rule switches for owners, and its actions. */
 function RepoRow({ repo, canOwn, canLink }: { repo: LinkedRepoView; canOwn: boolean; canLink: boolean }) {
+  const t = useTranslations("integrations");
+  const format = useFormatter();
   const trpc = useTRPC();
   const now = useNow();
   const [webhook, setWebhook] = useState<RepoWebhook | null>(null);
   const setRules = useMutation(trpc.github.setRules.mutationOptions());
   const reveal = useMutation(trpc.github.revealSecret.mutationOptions({ onSuccess: setWebhook }));
-  const unlink = useMutation(trpc.github.unlink.mutationOptions({ onSuccess: () => toast.success(`${repo.fullName} unlinked`) }));
-  const lastEvent = repo.lastEventAt ? `last event ${relativeAge(repo.lastEventAt.toISOString(), now)}` : "no events yet";
+  const unlink = useMutation(trpc.github.unlink.mutationOptions({ onSuccess: () => toast.success(t("github.unlinked", { name: repo.fullName })) }));
+  const lastEvent = repo.lastEventAt ? t("github.lastEvent", { age: format.relativeTime(repo.lastEventAt, now) }) : t("github.noEvents");
   const isApp = repo.mode === "app";
-  const activeRules = RULES.filter((r) => repo.rules[r.key]).map((r) => r.label);
+  const activeRules = RULES.filter((r) => repo.rules[r.key]).map((r) => t(`github.rules.${r.key}`));
   return (
     <li className="flex flex-col gap-3 border-t px-4 py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[13.5px] font-semibold break-all">{repo.fullName}</span>
-            {isApp ? <Pill tone="done">App</Pill> : <Pill tone="muted">webhook</Pill>}
-            {repo.access === "lost" && <Pill tone="blocked">access lost</Pill>}
+            {isApp ? <Pill tone="done">{t("github.pillApp")}</Pill> : <Pill tone="muted">{t("github.pillWebhook")}</Pill>}
+            {repo.access === "lost" && <Pill tone="blocked">{t("github.accessLost")}</Pill>}
           </div>
           <p className="text-[12.5px] text-muted-foreground">
-            {isApp ? "GitHub App" : "Webhook only"} · {lastEvent}
+            {isApp ? t("github.modeApp") : t("github.modeWebhook")} · {lastEvent}
           </p>
         </div>
         {canLink && (
           <span className="flex shrink-0 items-center gap-1">
             {!isApp && (
               <Button variant="outline" size="sm" disabled={reveal.isPending} onClick={() => (webhook ? setWebhook(null) : reveal.mutate({ id: repo.id }))}>
-                {webhook ? "Hide webhook settings" : "Show webhook settings"}
+                {webhook ? t("github.hideWebhook") : t("github.showWebhook")}
               </Button>
             )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" disabled={unlink.isPending}>
-                  Unlink
+                  {t("github.unlink")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Unlink {repo.fullName}?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("github.unlinkTitle", { name: repo.fullName })}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Its pull requests and commits disappear from tasks and systems, and new events from it are ignored.
+                    {t("github.unlinkDescription")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Keep</AlertDialogCancel>
+                  <AlertDialogCancel>{t("github.keep")}</AlertDialogCancel>
                   <AlertDialogAction variant="destructive" onClick={() => unlink.mutate({ id: repo.id })}>
-                    Unlink
+                    {t("github.unlink")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -141,7 +142,7 @@ function RepoRow({ repo, canOwn, canLink }: { repo: LinkedRepoView; canOwn: bool
             const needsApp = rule.key === "checksWarning" && !isApp;
             const id = `rule-${repo.id}-${rule.key}`;
             return (
-              <div key={rule.key} className="flex items-center gap-2.5" title={needsApp ? "Needs the GitHub App" : undefined}>
+              <div key={rule.key} className="flex items-center gap-2.5" title={needsApp ? t("github.needsApp") : undefined}>
                 <Switch
                   id={id}
                   checked={repo.rules[rule.key]}
@@ -149,7 +150,7 @@ function RepoRow({ repo, canOwn, canLink }: { repo: LinkedRepoView; canOwn: bool
                   onCheckedChange={(on) => setRules.mutate({ id: repo.id, rules: { [rule.key]: on } })}
                 />
                 <Label htmlFor={id} className={cn(needsApp && "text-muted-foreground")}>
-                  {rule.label}
+                  {t(`github.rules.${rule.key}`)}
                 </Label>
               </div>
             );
@@ -165,6 +166,7 @@ function RepoRow({ repo, canOwn, canLink }: { repo: LinkedRepoView; canOwn: bool
 
 /** The "Add by hand" panel: links `owner/repo` through its own webhook and shows the settings to paste on GitHub. */
 function ManualForm({ slug, inputRef }: { slug: string; inputRef: React.Ref<HTMLInputElement> }) {
+  const t = useTranslations("integrations");
   const trpc = useTRPC();
   const [fullName, setFullName] = useState("");
   const [linked, setLinked] = useState<{ fullName: string; webhook: RepoWebhook; hint?: string } | null>(null);
@@ -173,7 +175,7 @@ function ManualForm({ slug, inputRef }: { slug: string; inputRef: React.Ref<HTML
       onSuccess: ({ repo, webhookUrl, secret, hint }) => {
         setLinked({ fullName: repo.fullName, webhook: { webhookUrl, secret }, hint });
         setFullName("");
-        toast.success(`${repo.fullName} linked`);
+        toast.success(t("github.linked", { name: repo.fullName }));
       },
     }),
   );
@@ -182,8 +184,8 @@ function ManualForm({ slug, inputRef }: { slug: string; inputRef: React.Ref<HTML
   return (
     <section className="flex flex-col gap-3 border bg-card px-4 py-3.5">
       <div>
-        <h2 className="font-display text-[19px] font-semibold">Add by hand</h2>
-        <p className="text-[12.5px] text-muted-foreground">Link a repository through its own webhook, without the GitHub App</p>
+        <h2 className="font-display text-[19px] font-semibold">{t("github.manualTitle")}</h2>
+        <p className="text-[12.5px] text-muted-foreground">{t("github.manualHint")}</p>
       </div>
       <form
         className="flex flex-col gap-1.5"
@@ -192,12 +194,12 @@ function ManualForm({ slug, inputRef }: { slug: string; inputRef: React.Ref<HTML
           if (parsed.success) link.mutate({ project: slug, repo: { fullName: parsed.data } });
         }}
       >
-        <Label htmlFor="manual-repo">Repository</Label>
+        <Label htmlFor="manual-repo">{t("github.repository")}</Label>
         <div className="flex flex-wrap gap-2">
           <Input
             id="manual-repo"
             ref={inputRef}
-            placeholder="owner/repo"
+            placeholder={t("github.repoPlaceholder")}
             autoComplete="off"
             className="max-w-sm flex-1 font-mono text-[13px]"
             aria-invalid={showError || undefined}
@@ -206,18 +208,18 @@ function ManualForm({ slug, inputRef }: { slug: string; inputRef: React.Ref<HTML
             onChange={(e) => setFullName(e.target.value)}
           />
           <Button type="submit" disabled={!parsed.success || link.isPending}>
-            Link repository
+            {t("github.linkRepository")}
           </Button>
         </div>
         {showError && (
           <p id="manual-repo-error" className="text-[12.5px] text-destructive">
-            {parsed.error.issues[0]?.message}
+            {t("github.invalidName")}
           </p>
         )}
       </form>
       {linked && (
         <div className="flex flex-col gap-2">
-          <p className="text-[13.5px] font-medium">Webhook settings for {linked.fullName}</p>
+          <p className="text-[13.5px] font-medium">{t("github.webhookFor", { name: linked.fullName })}</p>
           <WebhookSettings webhook={linked.webhook} hint={linked.hint} />
         </div>
       )}
@@ -232,6 +234,7 @@ function ManualForm({ slug, inputRef }: { slug: string; inputRef: React.Ref<HTML
  * @param props.slug the project slug
  */
 export function GitHubSettingsView({ slug }: { slug: string }) {
+  const t = useTranslations("integrations");
   const trpc = useTRPC();
   const [{ data: detail }, { data: repos }, { data: status }] = useSuspenseQueries({
     queries: [
@@ -247,17 +250,18 @@ export function GitHubSettingsView({ slug }: { slug: string }) {
     <div className="flex flex-col gap-5">
       {!appConfigured && (
         <section className="border bg-card px-4 py-3.5">
-          <h2 className="font-display text-[19px] font-semibold">GitHub</h2>
+          <h2 className="font-display text-[19px] font-semibold">{t("github.title")}</h2>
           <p className="mt-1 text-[13.5px] text-muted-foreground">
-            GitHub isn&apos;t set up on this instance. An admin can set it up under{" "}
-            {status.isAdmin ? (
-              <Link href="/admin/github" className="font-medium text-brand-strong hover:underline">
-                Admin → GitHub App
-              </Link>
-            ) : (
-              "Admin → GitHub App"
-            )}
-            .
+            {t.rich("github.notConfigured", {
+              place: (chunks) =>
+                status.isAdmin ? (
+                  <Link href="/admin/github" className="font-medium text-brand-strong hover:underline">
+                    {chunks}
+                  </Link>
+                ) : (
+                  chunks
+                ),
+            })}
           </p>
         </section>
       )}
@@ -265,8 +269,8 @@ export function GitHubSettingsView({ slug }: { slug: string }) {
         <section className="flex flex-col border bg-card">
           <header className="flex flex-col gap-3 px-4 py-3.5">
             <div>
-              <h2 className="font-display text-[19px] font-semibold">Linked repositories</h2>
-              <p className="text-[12.5px] text-muted-foreground">Pull requests and commits that mention a task show up on it</p>
+              <h2 className="font-display text-[19px] font-semibold">{t("github.linkedTitle")}</h2>
+              <p className="text-[12.5px] text-muted-foreground">{t("github.linkedHint")}</p>
             </div>
             {appConfigured && canLink && <RepoPicker slug={slug} onManual={() => manualInput.current?.focus()} />}
           </header>
@@ -274,7 +278,7 @@ export function GitHubSettingsView({ slug }: { slug: string }) {
             {repos.map((r) => (
               <RepoRow key={r.id} repo={r} canOwn={canOwn} canLink={canLink} />
             ))}
-            {repos.length === 0 && <li className="border-t px-4 py-4 text-[13.5px] text-muted-foreground">No repositories linked yet.</li>}
+            {repos.length === 0 && <li className="border-t px-4 py-4 text-[13.5px] text-muted-foreground">{t("github.empty")}</li>}
           </ul>
         </section>
       )}

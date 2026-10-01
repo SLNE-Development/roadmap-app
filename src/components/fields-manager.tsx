@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { ArrowDownIcon, ArrowUpIcon, PencilIcon, PlusIcon, XIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -33,15 +34,14 @@ export interface FieldItem {
   options: string[];
 }
 
-/** Display names of the field types. */
-const TYPE_LABEL: Record<FieldType, string> = { text: "Text", select: "Select", number: "Number", date: "Date" };
-
 /**
  * The form of the create and edit dialogs. Creating picks key and type (the
  * key follows the name until edited); editing changes the name and, for select
  * fields, the options only. Options are one per line.
  */
 function FieldForm({ projectSlug, initial, onDone }: { projectSlug: string; initial: FieldItem | null; onDone: () => void }) {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const create = useMutation(trpc.fields.create.mutationOptions());
   const update = useMutation(trpc.fields.update.mutationOptions());
@@ -62,7 +62,7 @@ function FieldForm({ projectSlug, initial, onDone }: { projectSlug: string; init
         { project: projectSlug, key: initial.key, patch: { name, ...(hasOptions ? { options: list } : {}) } },
         {
           onSuccess: () => {
-            toast.success(`Field ${name.trim()} saved`);
+            toast.success(t("fields.saved", { name: name.trim() }));
             onDone();
           },
         },
@@ -72,7 +72,7 @@ function FieldForm({ projectSlug, initial, onDone }: { projectSlug: string; init
         { project: projectSlug, field: { key, name, type, options: hasOptions ? list : [] } },
         {
           onSuccess: () => {
-            toast.success(`Field ${name.trim()} added`);
+            toast.success(t("fields.added", { name: name.trim() }));
             onDone();
           },
         },
@@ -88,15 +88,15 @@ function FieldForm({ projectSlug, initial, onDone }: { projectSlug: string; init
       }}
     >
       <DialogHeader>
-        <DialogTitle>{initial ? `Edit ${initial.name}` : "New field"}</DialogTitle>
-        <DialogDescription>A value every system of the project can carry. The type cannot change later.</DialogDescription>
+        <DialogTitle>{initial ? t("fields.editTitle", { name: initial.name }) : t("fields.newTitle")}</DialogTitle>
+        <DialogDescription>{t("fields.formDescription")}</DialogDescription>
       </DialogHeader>
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="field-name">Name</FieldLabel>
+          <FieldLabel htmlFor="field-name">{t("fields.name")}</FieldLabel>
           <Input
             id="field-name"
-            placeholder="e.g. Risk"
+            placeholder={t("fields.namePlaceholder")}
             autoFocus
             value={name}
             onChange={(e) => {
@@ -106,7 +106,7 @@ function FieldForm({ projectSlug, initial, onDone }: { projectSlug: string; init
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="field-key">Key</FieldLabel>
+          <FieldLabel htmlFor="field-key">{t("fields.key")}</FieldLabel>
           <Input
             id="field-key"
             className="font-mono text-[13px]"
@@ -117,32 +117,32 @@ function FieldForm({ projectSlug, initial, onDone }: { projectSlug: string; init
               setKey(e.target.value);
             }}
           />
-          <FieldDescription>Agents set the value by this key; lowercase letters, digits and dashes.</FieldDescription>
+          <FieldDescription>{t("fields.keyHelp")}</FieldDescription>
         </Field>
         <Field>
-          <FieldLabel htmlFor="field-type">Type</FieldLabel>
+          <FieldLabel htmlFor="field-type">{t("fields.type")}</FieldLabel>
           <NativeSelect id="field-type" value={type} disabled={initial !== null} onChange={(e) => setType(e.target.value as FieldType)}>
-            {FIELD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABEL[t]}
+            {FIELD_TYPES.map((ft) => (
+              <option key={ft} value={ft}>
+                {t(`fields.types.${ft}`)}
               </option>
             ))}
           </NativeSelect>
         </Field>
         {hasOptions && (
           <Field>
-            <FieldLabel htmlFor="field-options">Options</FieldLabel>
-            <Textarea id="field-options" rows={4} placeholder={"low\nmedium\nhigh"} value={options} onChange={(e) => setOptions(e.target.value)} />
-            <FieldDescription>One per line. An option that systems still use cannot be removed.</FieldDescription>
+            <FieldLabel htmlFor="field-options">{t("fields.options")}</FieldLabel>
+            <Textarea id="field-options" rows={4} placeholder={t("fields.optionsPlaceholder")} value={options} onChange={(e) => setOptions(e.target.value)} />
+            <FieldDescription>{t("fields.optionsHelp")}</FieldDescription>
           </Field>
         )}
       </FieldGroup>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
-          Cancel
+          {tc("cancel")}
         </Button>
         <Button type="submit" disabled={pending || !name.trim() || !key.trim() || (hasOptions && list.length === 0)}>
-          {initial ? "Save field" : "Create field"}
+          {initial ? t("fields.saveField") : t("fields.createField")}
         </Button>
       </DialogFooter>
     </form>
@@ -155,13 +155,15 @@ function FieldForm({ projectSlug, initial, onDone }: { projectSlug: string; init
  * deletion behind a confirmation.
  */
 export function FieldsManager({ projectSlug, fields, canEdit }: { projectSlug: string; fields: FieldItem[]; canEdit: boolean }) {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const reorder = useMutation(trpc.fields.reorder.mutationOptions());
   // The toast lives on the hook: the deleted row is gone once the refetch settles.
   const remove = useMutation(
     trpc.fields.delete.mutationOptions({
       onMutate: ({ key }) => fields.find((f) => f.key === key)?.name,
-      onSuccess: (_data, _input, name) => toast.success(`Field ${name ?? ""} deleted`),
+      onSuccess: (_data, _input, name) => toast.success(t("fields.deleted", { name: name ?? "" })),
     }),
   );
   const pending = reorder.isPending || remove.isPending;
@@ -174,8 +176,8 @@ export function FieldsManager({ projectSlug, fields, canEdit }: { projectSlug: s
   return (
     <section className="flex flex-col border bg-card">
       <header className="flex items-baseline gap-2 px-4 py-3.5">
-        <h2 className="flex-1 font-display text-[19px] font-semibold">Fields</h2>
-        <span className="text-[12.5px] text-muted-foreground">Extra properties of every system</span>
+        <h2 className="flex-1 font-display text-[19px] font-semibold">{t("fields.title")}</h2>
+        <span className="text-[12.5px] text-muted-foreground">{t("fields.hint")}</span>
       </header>
       <ul aria-busy={pending}>
         {fields.map((f, i) => (
@@ -185,40 +187,40 @@ export function FieldsManager({ projectSlug, fields, canEdit }: { projectSlug: s
               <span className="font-mono text-[12px] text-muted-foreground">{f.key}</span>
               {f.options.length > 0 && <span className="text-[12.5px] text-muted-foreground">{f.options.join(", ")}</span>}
             </span>
-            <span className="pt-0.5 text-xs whitespace-nowrap text-muted-foreground">{TYPE_LABEL[f.type]}</span>
+            <span className="pt-0.5 text-xs whitespace-nowrap text-muted-foreground">{t(`fields.types.${f.type}`)}</span>
             {canEdit && (
               <span className="-my-1 flex shrink-0 items-center">
-                <Button variant="ghost" size="icon-sm" aria-label={`Move ${f.name} up`} disabled={pending || i === 0} onClick={() => move(i, -1)} className="text-muted-foreground">
+                <Button variant="ghost" size="icon-sm" aria-label={t("moveUp", { name: f.name })} disabled={pending || i === 0} onClick={() => move(i, -1)} className="text-muted-foreground">
                   <ArrowUpIcon />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={`Move ${f.name} down`}
+                  aria-label={t("moveDown", { name: f.name })}
                   disabled={pending || i === fields.length - 1}
                   onClick={() => move(i, 1)}
                   className="text-muted-foreground"
                 >
                   <ArrowDownIcon />
                 </Button>
-                <Button variant="ghost" size="icon-sm" aria-label={`Edit ${f.name}`} disabled={pending} onClick={() => setDialog({ field: f })} className="text-muted-foreground">
+                <Button variant="ghost" size="icon-sm" aria-label={t("fields.edit", { name: f.name })} disabled={pending} onClick={() => setDialog({ field: f })} className="text-muted-foreground">
                   <PencilIcon />
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label={`Delete ${f.name}`} disabled={pending} className="text-muted-foreground">
+                    <Button variant="ghost" size="icon-sm" aria-label={t("fields.delete", { name: f.name })} disabled={pending} className="text-muted-foreground">
                       <XIcon />
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete field {f.name}?</AlertDialogTitle>
-                      <AlertDialogDescription>Every system loses its value for this field.</AlertDialogDescription>
+                      <AlertDialogTitle>{t("fields.deleteTitle", { name: f.name })}</AlertDialogTitle>
+                      <AlertDialogDescription>{t("fields.deleteDescription")}</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Keep</AlertDialogCancel>
+                      <AlertDialogCancel>{t("fields.keep")}</AlertDialogCancel>
                       <AlertDialogAction variant="destructive" onClick={() => remove.mutate({ project: projectSlug, key: f.key })}>
-                        Delete
+                        {tc("delete")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -228,7 +230,7 @@ export function FieldsManager({ projectSlug, fields, canEdit }: { projectSlug: s
           </li>
         ))}
         {fields.length === 0 && (
-          <li className="border-t px-4 py-4 text-[13px] text-muted-foreground">No fields yet.{canEdit && " Add one such as Risk or Effort."}</li>
+          <li className="border-t px-4 py-4 text-[13px] text-muted-foreground">{canEdit ? t("fields.emptyOwner") : t("fields.empty")}</li>
         )}
       </ul>
       {canEdit && (
@@ -238,7 +240,7 @@ export function FieldsManager({ projectSlug, fields, canEdit }: { projectSlug: s
           className="flex items-center gap-2 border-t px-4 py-2.5 text-left text-[13px] font-semibold text-brand-strong outline-none hover:bg-muted focus-visible:bg-muted"
         >
           <PlusIcon className="size-3.5" aria-hidden />
-          Add field
+          {t("fields.add")}
         </button>
       )}
       <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>

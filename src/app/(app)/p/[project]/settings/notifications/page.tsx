@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import { WebhooksView } from "./webhooks-view";
 
@@ -7,10 +8,11 @@ export default async function SettingsNotificationsPage({ params }: { params: Pr
   const [detail] = await prefetch(trpc.projects.get.queryOptions({ project: slug }));
   const canOwn = detail.role === "owner" || detail.role === "admin";
   if (!canOwn) {
+    const t = await getTranslations("integrations");
     return (
       <section className="border bg-card px-4 py-3.5">
-        <h2 className="font-display text-[19px] font-semibold">Notifications</h2>
-        <p className="mt-1 text-[13.5px] text-muted-foreground">Only owners can manage the project&apos;s Discord webhooks.</p>
+        <h2 className="font-display text-[19px] font-semibold">{t("notifications.title")}</h2>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">{t("notifications.ownersOnly")}</p>
       </section>
     );
   }

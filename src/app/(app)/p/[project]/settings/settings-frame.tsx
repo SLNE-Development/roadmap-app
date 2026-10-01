@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useSuspenseQueries } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { Page, PageHeader } from "@/components/page";
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { useTRPC } from "@/trpc/client";
@@ -14,6 +15,7 @@ import { useTRPC } from "@/trpc/client";
  * @param props.children the settings page
  */
 export function SettingsFrame({ slug, children }: { slug: string; children: React.ReactNode }) {
+  const t = useTranslations("settings");
   const trpc = useTRPC();
   const [{ data: detail }, { data: members }, { data: fields }] = useSuspenseQueries({
     queries: [
@@ -25,7 +27,7 @@ export function SettingsFrame({ slug, children }: { slug: string; children: Reac
   const { data: repos } = useQuery(trpc.github.repos.queryOptions({ project: slug }));
   return (
     <Page width="wide">
-      <PageHeader crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]} title="Project settings" />
+      <PageHeader crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]} title={t("frame.title")} />
       <div className="grid items-start gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
         <SettingsNav
           projectSlug={slug}

@@ -1,1 +1,21 @@
-{}
+{
+  "title": "Glossary",
+  "hint": "Terms highlighted in specs and plans",
+  "term": "Term",
+  "aliases": "Aliases",
+  "aliasesPlaceholder": "e.g. outbox table, event queue",
+  "aliasesHelp": "Other spellings that count as the term; comma-separated.",
+  "definition": "Definition",
+  "saveTerm": "Save term",
+  "addTerm": "Add term",
+  "saved": "Term {term} saved",
+  "deleted": "Term {term} deleted",
+  "actions": "Actions",
+  "edit": "Edit {term}",
+  "delete": "Delete {term}",
+  "deleteTitle": "Delete term {term}?",
+  "deleteDescription": "It is no longer highlighted in documents.",
+  "keep": "Keep",
+  "empty": "No terms yet.",
+  "emptyEditor": "No terms yet. Add the words your specs and plans keep using."
+}

@@ -3,6 +3,7 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { KanbanIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ColumnEditor } from "@/components/column-editor";
 import { NewBoardDialog } from "@/components/new-board-dialog";
 import { BoardNameForm } from "@/components/settings/board-name-form";
@@ -10,9 +11,6 @@ import { EmptyState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
-
-/** "1 system" or "N systems". */
-const systemsLabel = (n: number) => (n === 1 ? "1 system" : `${n} systems`);
 
 /**
  * The board settings body: the board list and the column editor of the
@@ -22,6 +20,7 @@ const systemsLabel = (n: number) => (n === 1 ? "1 system" : `${n} systems`);
  * @param props.wanted the `?board=` slug to select; the first board when absent or unknown
  */
 export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: string }) {
+  const t = useTranslations("settings");
   const trpc = useTRPC();
   const [{ data: detail }, { data: systems }, { data: withRules }] = useSuspenseQueries({
     queries: [trpc.projects.get.queryOptions({ project: slug }), trpc.systems.list.queryOptions({ project: slug }), trpc.boards.list.queryOptions({ project: slug })],
@@ -33,9 +32,9 @@ export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: st
     return (
       <EmptyState
         icon={<KanbanIcon />}
-        title="No boards yet"
-        description={canOwn ? "A board is a workstream with its own columns, such as Development or Operations." : "An owner can add the first board."}
-        action={canOwn && <NewBoardDialog projectSlug={slug} openIn="settings" trigger={<Button>New board</Button>} />}
+        title={t("boards.emptyTitle")}
+        description={canOwn ? t("boards.emptyOwner") : t("boards.emptyViewer")}
+        action={canOwn && <NewBoardDialog projectSlug={slug} openIn="settings" trigger={<Button>{t("boards.new")}</Button>} />}
       />
     );
   }
@@ -47,7 +46,7 @@ export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: st
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <nav aria-label="Boards" className="flex flex-col border bg-card">
+      <nav aria-label={t("boards.navLabel")} className="flex flex-col border bg-card">
         {boards.map((b) => {
           const active = b.slug === selected.slug;
           return (
@@ -62,7 +61,7 @@ export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: st
             >
               <span className="font-semibold">{b.name}</span>
               <span className="text-xs text-muted-foreground">
-                {b.columns.length} columns · {systemsLabel(systems.filter((s) => s.boardSlug === b.slug).length)}
+                {t("boards.counts", { columns: b.columns.length, systems: systems.filter((s) => s.boardSlug === b.slug).length })}
               </span>
             </Link>
           );
@@ -77,25 +76,25 @@ export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: st
                 className="flex items-center gap-2 px-4 py-3 text-left text-[13px] font-semibold text-brand-strong outline-none hover:bg-muted focus-visible:bg-muted"
               >
                 <PlusIcon className="size-3.5" aria-hidden />
-                New board
+                {t("boards.new")}
               </button>
             }
           />
         )}
       </nav>
 
-      <section aria-label={`Board ${selected.name}`} className="flex flex-col gap-3.5 border bg-card p-4 sm:p-[18px]">
+      <section aria-label={t("boards.sectionLabel", { name: selected.name })} className="flex flex-col gap-3.5 border bg-card p-4 sm:p-[18px]">
         <div className="flex flex-wrap items-end gap-3">
           {canOwn ? (
             <BoardNameForm key={selected.slug} projectSlug={slug} boardSlug={selected.slug} name={selected.name} />
           ) : (
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-[12.5px] font-semibold text-fg-2">Board</span>
+              <span className="text-[12.5px] font-semibold text-fg-2">{t("boards.board")}</span>
               <h2 className="font-display text-[19px] font-semibold">{selected.name}</h2>
             </div>
           )}
           <Button variant="outline" asChild>
-            <Link href={`/p/${slug}/boards/${selected.slug}`}>Open board</Link>
+            <Link href={`/p/${slug}/boards/${selected.slug}`}>{t("boards.open")}</Link>
           </Button>
         </div>
         <ColumnEditor

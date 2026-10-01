@@ -3,9 +3,10 @@
 import { useMutation } from "@tanstack/react-query";
 import { ChevronDownIcon, SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { RoleTag, ROLE_LABEL } from "@/components/chips";
+import { RoleTag } from "@/components/chips";
 import { PersonAvatar } from "@/components/person-avatar";
 import {
   AlertDialog,
@@ -23,7 +24,6 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PROJECT_ROLES, type ProjectRole } from "@/db/schema";
-import { formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 
@@ -41,11 +41,12 @@ function RoleMenu({
   disabled?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("enums");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" aria-label={label} disabled={disabled} className={cn("justify-between font-normal", className)}>
-          {ROLE_LABEL[value]}
+          {t(`role.${value}`)}
           <ChevronDownIcon className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
@@ -53,7 +54,7 @@ function RoleMenu({
         <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as ProjectRole)}>
           {PROJECT_ROLES.map((r) => (
             <DropdownMenuRadioItem key={r} value={r}>
-              {ROLE_LABEL[r]}
+              {t(`role.${r}`)}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -72,6 +73,7 @@ function UserPicker({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const t = useTranslations("settings");
   const [open, setOpen] = useState(false);
   const chosen = candidates.find((c) => c.id === value);
   return (
@@ -79,7 +81,7 @@ function UserPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Person to add"
+          aria-label={t("members.personToAdd")}
           className="flex h-[34px] min-w-0 flex-1 items-center gap-2 border border-input bg-background px-2.5 text-left text-[13.5px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {chosen ? (
@@ -90,16 +92,16 @@ function UserPicker({
           ) : (
             <>
               <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="flex-1 truncate text-muted-foreground">Add someone from the allowlist</span>
+              <span className="flex-1 truncate text-muted-foreground">{t("members.addFromAllowlist")}</span>
             </>
           )}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-64 p-0">
         <Command>
-          <CommandInput placeholder="Search people…" />
+          <CommandInput placeholder={t("members.searchPeople")} />
           <CommandList>
-            <CommandEmpty>Nobody matches.</CommandEmpty>
+            <CommandEmpty>{t("members.nobodyMatches")}</CommandEmpty>
             {candidates.map((c) => (
               <CommandItem
                 key={c.id}
@@ -139,6 +141,10 @@ export function MemberManager({
   currentUserId: string;
   canOwn: boolean;
 }) {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
+  const te = useTranslations("enums");
+  const format = useFormatter();
   const trpc = useTRPC();
   const router = useRouter();
   // Follow-ups live on the hooks: adding the last candidate replaces the form, and the
@@ -151,24 +157,23 @@ export function MemberManager({
         added: users.find((u) => u.id === member.userId)?.name,
       }),
       onSuccess: (_data, { member }, names) => {
-        const label = ROLE_LABEL[member.role].toLowerCase();
-        if (names?.existing) return void toast.success(`${names.existing} is now ${label}`);
+        if (names?.existing) return void toast.success(t("members.roleChanged", { name: names.existing, role: te(`role.${member.role}`) }));
         setUserId("");
-        toast.success(`${names?.added ?? "Member"} added as ${label}`);
+        toast.success(t("members.added", { name: names?.added ?? t("members.fallbackName"), role: te(`role.${member.role}`) }));
       },
     }),
   );
   const remove = useMutation(
     trpc.members.remove.mutationOptions({
       onMutate: ({ userId: removed }) => members.find((m) => m.userId === removed)?.name,
-      onSuccess: (_data, _variables, name) => toast.success(`${name ?? "Member"} removed`),
+      onSuccess: (_data, _variables, name) => toast.success(t("members.removed", { name: name ?? t("members.fallbackName") })),
     }),
   );
   // Removing yourself drops the project's queries, which would only fail once access is gone.
   const leave = useMutation({
     ...trpc.members.remove.mutationOptions({
       onSuccess: () => {
-        toast.success("You left the project");
+        toast.success(t("members.left"));
         router.push("/");
       },
     }),
@@ -182,16 +187,15 @@ export function MemberManager({
   return (
     <section className="flex flex-col gap-4" aria-busy={pending}>
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-[22px] font-semibold">Members</h2>
+        <h2 className="font-display text-[22px] font-semibold">{t("members.title")}</h2>
         <p className="text-[13.5px] leading-normal text-fg-2">
-          Owners manage settings and members. Editors change systems, tasks and documents. Viewers only read. Admins can do everything
-          everywhere.
+          {t("members.description")}
         </p>
       </div>
 
       {canOwn &&
         (candidates.length === 0 ? (
-          <p className="border bg-card px-3.5 py-3 text-[13.5px] text-muted-foreground">Everyone on the allowlist is already a member.</p>
+          <p className="border bg-card px-3.5 py-3 text-[13.5px] text-muted-foreground">{t("members.allAdded")}</p>
         ) : (
           <form
             className="flex flex-col gap-2 border bg-card p-3.5 sm:flex-row"
@@ -202,9 +206,9 @@ export function MemberManager({
           >
             <UserPicker candidates={candidates} value={userId} onChange={setUserId} />
             <div className="flex gap-2">
-              <RoleMenu value={role} onChange={setRole} label="Role of the new member" className="h-[34px] w-[130px]" />
+              <RoleMenu value={role} onChange={setRole} label={t("members.newRole")} className="h-[34px] w-[130px]" />
               <Button type="submit" disabled={pending || !userId} className="flex-1 sm:flex-none">
-                Add member
+                {t("members.add")}
               </Button>
             </div>
           </form>
@@ -223,10 +227,10 @@ export function MemberManager({
                 <span className="flex min-w-0 flex-col">
                   <span className="flex min-w-0 items-baseline gap-2">
                     <span className="truncate font-medium">{m.name}</span>
-                    {you && <span className="text-xs text-muted-foreground">you</span>}
+                    {you && <span className="text-xs text-muted-foreground">{t("members.you")}</span>}
                   </span>
                   <time dateTime={m.joinedAt} className="text-xs text-muted-foreground">
-                    Since {formatDate(m.joinedAt)}
+                    {t("members.since", { date: format.dateTime(new Date(m.joinedAt), { day: "numeric", month: "short", year: "numeric" }) })}
                   </time>
                 </span>
               </span>
@@ -234,7 +238,7 @@ export function MemberManager({
                 <span className="flex items-center gap-1 sm:contents">
                   <RoleMenu
                     value={m.role}
-                    label={`Role of ${m.name}`}
+                    label={t("members.roleOf", { name: m.name })}
                     disabled={pending}
                     className="w-[110px] sm:w-full"
                     onChange={(r) => {
@@ -244,24 +248,24 @@ export function MemberManager({
                   />
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label={`Remove ${m.name}`} disabled={pending} className="text-muted-foreground">
+                      <Button variant="ghost" size="icon-sm" aria-label={t("members.remove", { name: m.name })} disabled={pending} className="text-muted-foreground">
                         <XIcon />
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>{you ? "Leave this project?" : `Remove ${m.name} from the project?`}</AlertDialogTitle>
+                        <AlertDialogTitle>{you ? t("members.leaveTitle") : t("members.removeTitle", { name: m.name })}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          {you ? "You lose access unless someone adds you again." : "They lose access to this project unless they are added again."}
+                          {you ? t("members.leaveDescription") : t("members.removeDescription")}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Keep</AlertDialogCancel>
+                        <AlertDialogCancel>{t("members.keep")}</AlertDialogCancel>
                         <AlertDialogAction
                           variant="destructive"
                           onClick={() => (you ? leave : remove).mutate({ project: projectSlug, userId: m.userId })}
                         >
-                          Remove
+                          {tc("remove")}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

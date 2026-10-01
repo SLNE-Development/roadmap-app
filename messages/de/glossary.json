@@ -1,1 +1,21 @@
-{}
+{
+  "title": "Glossar",
+  "hint": "Begriffe, die in Spezifikationen und Plänen hervorgehoben werden",
+  "term": "Begriff",
+  "aliases": "Aliase",
+  "aliasesPlaceholder": "z. B. Outbox-Tabelle, Event-Queue",
+  "aliasesHelp": "Andere Schreibweisen, die als der Begriff gelten; durch Kommas getrennt.",
+  "definition": "Definition",
+  "saveTerm": "Begriff speichern",
+  "addTerm": "Begriff hinzufügen",
+  "saved": "Begriff {term} gespeichert",
+  "deleted": "Begriff {term} gelöscht",
+  "actions": "Aktionen",
+  "edit": "{term} bearbeiten",
+  "delete": "{term} löschen",
+  "deleteTitle": "Begriff {term} löschen?",
+  "deleteDescription": "Er wird in Dokumenten nicht mehr hervorgehoben.",
+  "keep": "Behalten",
+  "empty": "Noch keine Begriffe.",
+  "emptyEditor": "Noch keine Begriffe. Füge die Wörter hinzu, die deine Spezifikationen und Pläne immer wieder verwenden."
+}

@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -44,11 +45,12 @@ export function ProjectSettings({
   canEdit: boolean;
   archived: boolean;
 }) {
+  const t = useTranslations("settings");
   if (!canEdit) return <ProjectSettingsReadOnly slug={slug} name={name} description={description} repoUrl={repoUrl} />;
   return (
     <div className="flex max-w-[720px] flex-col gap-5">
       {archived ? (
-        <ProjectSettingsReadOnly slug={slug} name={name} description={description} repoUrl={repoUrl} note="Restore the project to change these settings." />
+        <ProjectSettingsReadOnly slug={slug} name={name} description={description} repoUrl={repoUrl} note={t("general.archivedNote")} />
       ) : (
         <GeneralForm slug={slug} name={name} description={description} repoUrl={repoUrl} />
       )}
@@ -59,6 +61,7 @@ export function ProjectSettings({
 
 /** The editable General panel. */
 function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name: string; description: string; repoUrl: string | null }) {
+  const t = useTranslations("settings");
   const trpc = useTRPC();
   const update = useMutation(trpc.projects.update.mutationOptions());
   const pending = update.isPending;
@@ -72,28 +75,28 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
         e.preventDefault();
         update.mutate(
           { project: slug, patch: { ...draft, repoUrl: draft.repoUrl.trim() || null } },
-          { onSuccess: () => toast.success("Settings saved") },
+          { onSuccess: () => toast.success(t("general.saved")) },
         );
       }}
     >
-      <h2 className="font-display text-[19px] font-semibold">General</h2>
+      <h2 className="font-display text-[19px] font-semibold">{t("general.title")}</h2>
       <div className="grid gap-3.5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="settings-name" className={LABEL}>
-            Name
+            {t("general.name")}
           </Label>
           <Input id="settings-name" required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="settings-slug" className={LABEL}>
-            Slug
+            {t("general.slug")}
           </Label>
           <Input id="settings-slug" value={slug} disabled className="font-mono text-[13px]" />
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="settings-description" className={LABEL}>
-          Description
+          {t("general.description")}
         </Label>
         <Textarea
           id="settings-description"
@@ -104,23 +107,23 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="settings-repo" className={LABEL}>
-          Repository
+          {t("general.repository")}
         </Label>
         <Input
           id="settings-repo"
           type="url"
-          placeholder="https://github.com/…"
+          placeholder={t("general.repositoryPlaceholder")}
           aria-describedby="settings-repo-help"
           value={draft.repoUrl}
           onChange={(e) => setDraft({ ...draft, repoUrl: e.target.value })}
         />
         <p id="settings-repo-help" className="text-xs text-muted-foreground">
-          Commit hashes in updates link here.
+          {t("general.repositoryHelp")}
         </p>
       </div>
       <div className="flex justify-end">
         <Button type="submit" disabled={pending || !dirty || !draft.name.trim()}>
-          Save changes
+          {t("general.saveChanges")}
         </Button>
       </div>
     </form>
@@ -129,29 +132,30 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
 
 /** Archives the project after a confirmation; it stays readable and an owner can restore it. */
 function ArchiveProject({ slug }: { slug: string }) {
+  const t = useTranslations("settings");
   const trpc = useTRPC();
-  const archive = useMutation(trpc.projects.archive.mutationOptions({ onSuccess: () => toast.success("Project archived") }));
+  const archive = useMutation(trpc.projects.archive.mutationOptions({ onSuccess: () => toast.success(t("general.archived")) }));
   return (
     <div className="flex flex-col gap-2 border-b pb-3 sm:flex-row sm:items-center sm:gap-4">
       <p className="flex-1 text-[13.5px] leading-normal text-fg-2">
-        Archiving hides the project from the project list and makes it read-only. An owner can restore it.
+        {t("general.archiveHint")}
       </p>
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="outline" disabled={archive.isPending}>
-            Archive project
+            {t("general.archiveButton")}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive project?</AlertDialogTitle>
+            <AlertDialogTitle>{t("general.archiveTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              The project leaves the project list and becomes read-only for everyone until an owner restores it. Nothing is deleted.
+              {t("general.archiveDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep it active</AlertDialogCancel>
-            <AlertDialogAction onClick={() => archive.mutate({ project: slug })}>Archive project</AlertDialogAction>
+            <AlertDialogCancel>{t("general.keepActive")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => archive.mutate({ project: slug })}>{t("general.archiveButton")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -161,6 +165,7 @@ function ArchiveProject({ slug }: { slug: string }) {
 
 /** The danger zone: archive the project (while it is active), or type the slug, then delete it. */
 function DangerZone({ slug, archived }: { slug: string; archived: boolean }) {
+  const t = useTranslations("settings");
   const router = useRouter();
   const trpc = useTRPC();
   const remove = useMutation({ ...trpc.projects.delete.mutationOptions(), meta: { leavesProject: slug } });
@@ -168,10 +173,10 @@ function DangerZone({ slug, archived }: { slug: string; archived: boolean }) {
   const [confirm, setConfirm] = useState("");
   return (
     <section aria-busy={pending} className="flex flex-col gap-3 border border-destructive bg-card p-4 sm:p-5">
-      <h2 className="font-display text-[19px] font-semibold text-destructive">Danger zone</h2>
+      <h2 className="font-display text-[19px] font-semibold text-destructive">{t("general.dangerZone")}</h2>
       {!archived && <ArchiveProject slug={slug} />}
       <p className="text-[13.5px] leading-normal text-fg-2">
-        Deleting the project removes its boards, systems, documents, decisions, questions and history for everyone. This can’t be undone.
+        {t("general.deleteHint")}
       </p>
       <form
         className="flex flex-col gap-2 sm:flex-row sm:items-end"
@@ -182,7 +187,7 @@ function DangerZone({ slug, archived }: { slug: string; archived: boolean }) {
             { project: slug },
             {
               onSuccess: () => {
-                toast.success("Project deleted");
+                toast.success(t("general.deleted"));
                 router.push("/");
               },
             },
@@ -191,9 +196,7 @@ function DangerZone({ slug, archived }: { slug: string; archived: boolean }) {
       >
         <div className="flex flex-1 flex-col gap-1.5">
           <Label htmlFor="settings-delete-confirm" className={LABEL}>
-            <span>
-              Type <span className="font-mono">{slug}</span> to confirm
-            </span>
+            <span>{t.rich("general.confirmDelete", { slug, code: (chunks) => <span className="font-mono">{chunks}</span> })}</span>
           </Label>
           <Input
             id="settings-delete-confirm"
@@ -205,7 +208,7 @@ function DangerZone({ slug, archived }: { slug: string; archived: boolean }) {
           />
         </div>
         <Button type="submit" variant="destructive" disabled={pending || confirm !== slug}>
-          Delete project
+          {t("general.deleteButton")}
         </Button>
       </form>
     </section>
@@ -218,7 +221,7 @@ function ProjectSettingsReadOnly({
   name,
   description,
   repoUrl,
-  note = "Only owners can change these settings.",
+  note,
 }: {
   slug: string;
   name: string;
@@ -226,26 +229,27 @@ function ProjectSettingsReadOnly({
   repoUrl: string | null;
   note?: string;
 }) {
+  const t = useTranslations("settings");
   const rows: [string, React.ReactNode][] = [
-    ["Name", name],
-    ["Slug", <span key="slug" className="font-mono text-[13px]">{slug}</span>],
-    ["Description", description || <span key="d" className="text-muted-foreground">No description.</span>],
+    [t("general.name"), name],
+    [t("general.slug"), <span key="slug" className="font-mono text-[13px]">{slug}</span>],
+    [t("general.description"), description || <span key="d" className="text-muted-foreground">{t("general.noDescription")}</span>],
     [
-      "Repository",
+      t("general.repository"),
       repoUrl ? (
         <a key="r" href={repoUrl} target="_blank" rel="noreferrer" className="break-all text-brand-strong hover:underline">
           {repoUrl}
         </a>
       ) : (
-        <span key="r" className="text-muted-foreground">Not linked.</span>
+        <span key="r" className="text-muted-foreground">{t("general.notLinked")}</span>
       ),
     ],
   ];
   return (
     <section className="flex max-w-[720px] flex-col gap-4 border bg-card p-4 sm:p-5">
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-[19px] font-semibold">General</h2>
-        <p className="text-[12.5px] text-muted-foreground">{note}</p>
+        <h2 className="font-display text-[19px] font-semibold">{t("general.title")}</h2>
+        <p className="text-[12.5px] text-muted-foreground">{note ?? t("general.ownersOnly")}</p>
       </div>
       <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[140px_minmax(0,1fr)]">
         {rows.map(([label, value]) => (

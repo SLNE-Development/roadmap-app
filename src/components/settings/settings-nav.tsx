@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,20 +26,21 @@ export function SettingsNav({
   fieldCount: number;
   canOwn: boolean;
 }) {
+  const t = useTranslations("settings");
   const pathname = usePathname();
   const base = `/p/${projectSlug}/settings`;
   const items = [
-    { href: base, label: "General", count: null },
-    { href: `${base}/members`, label: "Members", count: memberCount },
-    { href: `${base}/structure`, label: "Structure", count: null },
-    { href: `${base}/glossary`, label: "Glossary", count: null },
-    { href: `${base}/boards`, label: "Boards", count: boardCount },
-    { href: `${base}/github`, label: "GitHub", count: repoCount },
-    { href: `${base}/fields`, label: "Fields", count: fieldCount },
-    ...(canOwn ? [{ href: `${base}/notifications`, label: "Notifications", count: null }] : []),
+    { href: base, label: t("nav.general"), count: null },
+    { href: `${base}/members`, label: t("nav.members"), count: memberCount },
+    { href: `${base}/structure`, label: t("nav.structure"), count: null },
+    { href: `${base}/glossary`, label: t("nav.glossary"), count: null },
+    { href: `${base}/boards`, label: t("nav.boards"), count: boardCount },
+    { href: `${base}/github`, label: t("nav.github"), count: repoCount },
+    { href: `${base}/fields`, label: t("nav.fields"), count: fieldCount },
+    ...(canOwn ? [{ href: `${base}/notifications`, label: t("nav.notifications"), count: null }] : []),
   ];
   return (
-    <nav aria-label="Settings" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
+    <nav aria-label={t("nav.label")} className="-mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
       <ul className="flex gap-0.5 md:flex-col">
         {items.map((item) => {
           const active = pathname === item.href;

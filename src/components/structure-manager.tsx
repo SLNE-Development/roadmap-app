@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, PencilIcon, PlusIcon, XIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -116,12 +117,13 @@ function RowControls({
   onMove: (index: number, dir: -1 | 1) => void;
   onEdit: () => void;
 }) {
+  const t = useTranslations("settings");
   return (
     <span className="-my-1 flex shrink-0 items-center">
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label={`Move ${name} up`}
+        aria-label={t("moveUp", { name })}
         data-move={`${id}:-1`}
         disabled={disabled || index === 0}
         onClick={() => onMove(index, -1)}
@@ -132,7 +134,7 @@ function RowControls({
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label={`Move ${name} down`}
+        aria-label={t("moveDown", { name })}
         data-move={`${id}:1`}
         disabled={disabled || index === count - 1}
         onClick={() => onMove(index, 1)}
@@ -140,7 +142,7 @@ function RowControls({
       >
         <ArrowDownIcon />
       </Button>
-      <Button variant="ghost" size="icon-sm" aria-label={`Edit ${name}`} disabled={disabled} onClick={onEdit} className="text-muted-foreground">
+      <Button variant="ghost" size="icon-sm" aria-label={t("structure.edit", { name })} disabled={disabled} onClick={onEdit} className="text-muted-foreground">
         <PencilIcon />
       </Button>
     </span>
@@ -149,6 +151,8 @@ function RowControls({
 
 /** A confirm-then-delete icon button for a domain or phase row. */
 function DeleteButton({ label, title, description, disabled, onConfirm }: { label: string; title: string; description: string; disabled: boolean; onConfirm: () => void }) {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -162,9 +166,9 @@ function DeleteButton({ label, title, description, disabled, onConfirm }: { labe
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep</AlertDialogCancel>
+          <AlertDialogCancel>{t("structure.keep")}</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            Delete
+            {tc("delete")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -210,6 +214,8 @@ function DomainForm({
   onSubmit: (value: { name: string; description: string }) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   return (
@@ -221,16 +227,16 @@ function DomainForm({
       }}
       onKeyDown={(e) => e.key === "Escape" && onCancel()}
     >
-      <Input aria-label="Domain name" placeholder="Name, e.g. Vehicles" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+      <Input aria-label={t("structure.domainName")} placeholder={t("structure.domainNamePlaceholder")} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
       <Input
-        aria-label="Domain description"
-        placeholder="What belongs here (optional)"
+        aria-label={t("structure.domainDescription")}
+        placeholder={t("structure.domainDescriptionPlaceholder")}
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
+          {tc("cancel")}
         </Button>
         <Button type="submit" size="sm" disabled={pending || !name.trim()}>
           {submitLabel}
@@ -242,6 +248,7 @@ function DomainForm({
 
 /** Domains: name, description and system count per row; add, edit, reorder and delete. */
 function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; domains: StructureDomain[]; canEdit: boolean }) {
+  const t = useTranslations("settings");
   const trpc = useTRPC();
   const create = useMutation(trpc.structure.createDomain.mutationOptions());
   const update = useMutation(trpc.structure.updateDomain.mutationOptions());
@@ -249,7 +256,7 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
   const remove = useMutation(
     trpc.structure.deleteDomain.mutationOptions({
       onMutate: ({ id }) => domains.find((d) => d.id === id)?.name,
-      onSuccess: (_data, _input, name) => toast.success(`Domain ${name ?? ""} deleted`),
+      onSuccess: (_data, _input, name) => toast.success(t("structure.domainDeleted", { name: name ?? "" })),
     }),
   );
   const reorder = useMutation(trpc.structure.reorderDomains.mutationOptions());
@@ -262,14 +269,14 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
     (orderedIds) => reorder.mutate({ project: projectSlug, orderedIds }),
   );
   return (
-    <StructurePanel title="Domains" hint="Group systems by area">
+    <StructurePanel title={t("structure.domains")} hint={t("structure.domainsHint")}>
       <ul aria-busy={pending}>
         {domains.map((d, i) =>
           editing === d.id ? (
             <li key={d.id}>
               <DomainForm
                 initial={d}
-                submitLabel="Save domain"
+                submitLabel={t("structure.saveDomain")}
                 pending={pending}
                 onCancel={() => setEditing(null)}
                 onSubmit={(value) =>
@@ -277,7 +284,7 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
                     { project: projectSlug, id: d.id, patch: value },
                     {
                       onSuccess: () => {
-                        toast.success(`Domain ${value.name.trim()} saved`);
+                        toast.success(t("structure.domainSaved", { name: value.name.trim() }));
                         setEditing(null);
                       },
                     },
@@ -292,19 +299,15 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
                 {d.description && <span className="text-[12.5px] text-muted-foreground">{d.description}</span>}
               </span>
               <span className="pt-0.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                {d.systemCount === 0 ? "No systems" : d.systemCount === 1 ? "1 system" : `${d.systemCount} systems`}
+                {d.systemCount === 0 ? t("structure.noSystems") : t("structure.systemCount", { count: d.systemCount })}
               </span>
               {canEdit && (
                 <>
                   <RowControls id={d.id} name={d.name} index={i} count={domains.length} disabled={pending} onMove={move} onEdit={() => setEditing(d.id)} />
                   <DeleteButton
-                    label={`Delete ${d.name}`}
-                    title={`Delete domain ${d.name}?`}
-                    description={
-                      d.systemCount > 0
-                        ? `Its ${d.systemCount === 1 ? "system keeps" : `${d.systemCount} systems keep`} existing without a domain.`
-                        : "No systems use it."
-                    }
+                    label={t("structure.delete", { name: d.name })}
+                    title={t("structure.deleteDomainTitle", { name: d.name })}
+                    description={d.systemCount > 0 ? t("structure.deleteDomainDescription", { count: d.systemCount }) : t("structure.deleteDomainUnused")}
                     disabled={pending}
                     onConfirm={() =>
                       remove.mutate({ project: projectSlug, id: d.id })
@@ -317,7 +320,7 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
         )}
         {domains.length === 0 && (
           <li className="border-t px-4 py-4 text-[13px] text-muted-foreground">
-            No domains yet.{canEdit && " Add areas such as Police or Vehicles to group systems."}
+            {canEdit ? t("structure.domainsEmptyEditor") : t("structure.domainsEmpty")}
           </li>
         )}
       </ul>
@@ -325,7 +328,7 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
         (adding ? (
           <DomainForm
             initial={{ name: "", description: "" }}
-            submitLabel="Add domain"
+            submitLabel={t("structure.addDomainSubmit")}
             pending={pending}
             onCancel={() => setAdding(false)}
             onSubmit={(value) =>
@@ -333,7 +336,7 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
                 { project: projectSlug, domain: value },
                 {
                   onSuccess: () => {
-                    toast.success(`Domain ${value.name.trim()} added`);
+                    toast.success(t("structure.domainAdded", { name: value.name.trim() }));
                     setAdding(false);
                   },
                 },
@@ -341,7 +344,7 @@ function DomainsPanel({ projectSlug, domains, canEdit }: { projectSlug: string; 
             }
           />
         ) : (
-          <AddRow label="Add domain" onClick={() => setAdding(true)} />
+          <AddRow label={t("structure.addDomain")} onClick={() => setAdding(true)} />
         ))}
     </StructurePanel>
   );
@@ -385,6 +388,8 @@ function PhaseForm({
   onSubmit: (value: { name: string; goal: string; dependsOn: string[] }) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
   const [name, setName] = useState(initial.name);
   const [goal, setGoal] = useState(initial.goal);
   const [dependsOn, setDependsOn] = useState<string[]>(initial.dependsOn);
@@ -403,15 +408,15 @@ function PhaseForm({
     >
       <div className="flex items-center gap-2">
         <span className="w-[18px] font-mono text-[11.5px] text-muted-foreground">{phaseNumber(index)}</span>
-        <Input aria-label="Phase name" placeholder="Name, e.g. Closed beta" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+        <Input aria-label={t("structure.phaseName")} placeholder={t("structure.phaseNamePlaceholder")} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
       </div>
-      <Textarea aria-label="Phase goal" placeholder="Goal: what is true when this phase is done (optional)" rows={2} value={goal} onChange={(e) => setGoal(e.target.value)} />
+      <Textarea aria-label={t("structure.phaseGoal")} placeholder={t("structure.phaseGoalPlaceholder")} rows={2} value={goal} onChange={(e) => setGoal(e.target.value)} />
       <div className="flex flex-wrap items-center justify-end gap-2">
         {choices.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline" size="sm" className="mr-auto font-normal">
-                {chosen.length === 0 ? "Builds on nothing" : `Builds on: ${chosen.join(", ")}`}
+                {chosen.length === 0 ? t("structure.buildsOnNothing") : t("structure.buildsOn", { numbers: chosen.join(", ") })}
                 <ChevronDownIcon className="text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
@@ -426,14 +431,14 @@ function PhaseForm({
                 >
                   <span className="font-mono text-[11.5px] text-muted-foreground">{p.number}</span>
                   {p.name}
-                  {blocked.has(p.id) && <span className="ml-auto text-xs text-muted-foreground">builds on this</span>}
+                  {blocked.has(p.id) && <span className="ml-auto text-xs text-muted-foreground">{t("structure.dependsOnThis")}</span>}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
+          {tc("cancel")}
         </Button>
         <Button type="submit" size="sm" disabled={pending || !name.trim()}>
           {submitLabel}
@@ -445,6 +450,7 @@ function PhaseForm({
 
 /** Phases: number, name, goal and dependencies per row; add (with dependencies), edit, reorder and delete. */
 function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; phases: StructurePhase[]; canEdit: boolean }) {
+  const t = useTranslations("settings");
   const trpc = useTRPC();
   const create = useMutation(trpc.structure.createPhase.mutationOptions());
   const update = useMutation(trpc.structure.updatePhase.mutationOptions());
@@ -452,7 +458,7 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
   const remove = useMutation(
     trpc.structure.deletePhase.mutationOptions({
       onMutate: ({ id }) => phases.find((p) => p.id === id)?.name,
-      onSuccess: (_data, _input, name) => toast.success(`Phase ${name ?? ""} deleted`),
+      onSuccess: (_data, _input, name) => toast.success(t("structure.phaseDeleted", { name: name ?? "" })),
     }),
   );
   const reorder = useMutation(trpc.structure.reorderPhases.mutationOptions());
@@ -467,13 +473,15 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
   const numberOf = new Map(phases.map((p, i) => [p.id, phaseNumber(i)]));
   /** "After 03, 04" for a phase's dependencies, in phase order. */
   const after = (ids: string[]) =>
-    `After ${phases
-      .filter((p) => ids.includes(p.id))
-      .map((p) => numberOf.get(p.id))
-      .join(", ")}`;
+    t("structure.after", {
+      numbers: phases
+        .filter((p) => ids.includes(p.id))
+        .map((p) => numberOf.get(p.id))
+        .join(", "),
+    });
 
   return (
-    <StructurePanel title="Phases" hint="In delivery order">
+    <StructurePanel title={t("structure.phases")} hint={t("structure.phasesHint")}>
       <ol aria-busy={pending}>
         {phases.map((p, i) =>
           editing === p.id ? (
@@ -482,7 +490,7 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
                 phases={phases}
                 editing={p.id}
                 initial={p}
-                submitLabel="Save phase"
+                submitLabel={t("structure.savePhase")}
                 pending={pending}
                 onCancel={() => setEditing(null)}
                 onSubmit={(value) =>
@@ -490,7 +498,7 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
                     { project: projectSlug, id: p.id, patch: value },
                     {
                       onSuccess: () => {
-                        toast.success(`Phase ${value.name.trim()} saved`);
+                        toast.success(t("structure.phaseSaved", { name: value.name.trim() }));
                         setEditing(null);
                       },
                     },
@@ -507,19 +515,19 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
               </span>
               <span
                 className={cn(
-                  "flex h-[26px] shrink-0 items-center border px-2 text-xs whitespace-nowrap",
+                  "flex min-h-[26px] max-w-[9rem] shrink-0 items-center border px-2 py-0.5 text-xs",
                   p.dependsOn.length === 0 ? "border-dashed text-muted-foreground" : "text-fg-2",
                 )}
               >
-                {p.dependsOn.length === 0 ? "No dependencies" : after(p.dependsOn)}
+                {p.dependsOn.length === 0 ? t("structure.noDependencies") : after(p.dependsOn)}
               </span>
               {canEdit && (
                 <>
                   <RowControls id={p.id} name={p.name} index={i} count={phases.length} disabled={pending} onMove={move} onEdit={() => setEditing(p.id)} />
                   <DeleteButton
-                    label={`Delete ${p.name}`}
-                    title={`Delete phase ${p.name}?`}
-                    description="Its systems keep existing without a phase, and phases that build on it lose that dependency."
+                    label={t("structure.delete", { name: p.name })}
+                    title={t("structure.deletePhaseTitle", { name: p.name })}
+                    description={t("structure.deletePhaseDescription")}
                     disabled={pending}
                     onConfirm={() =>
                       remove.mutate({ project: projectSlug, id: p.id })
@@ -532,7 +540,7 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
         )}
         {phases.length === 0 && (
           <li className="border-t px-4 py-4 text-[13px] text-muted-foreground">
-            No phases yet.{canEdit && " Phases order delivery on the roadmap."}
+            {canEdit ? t("structure.phasesEmptyEditor") : t("structure.phasesEmpty")}
           </li>
         )}
       </ol>
@@ -542,7 +550,7 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
             phases={phases}
             editing={null}
             initial={{ name: "", goal: "", dependsOn: [] }}
-            submitLabel="Add phase"
+            submitLabel={t("structure.addPhaseSubmit")}
             pending={pending}
             onCancel={() => setAdding(false)}
             onSubmit={(value) =>
@@ -550,7 +558,7 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
                 { project: projectSlug, phase: value },
                 {
                   onSuccess: () => {
-                    toast.success(`Phase ${value.name.trim()} added`);
+                    toast.success(t("structure.phaseAdded", { name: value.name.trim() }));
                     setAdding(false);
                   },
                 },
@@ -558,7 +566,7 @@ function PhasesPanel({ projectSlug, phases, canEdit }: { projectSlug: string; ph
             }
           />
         ) : (
-          <AddRow label="Add phase" onClick={() => setAdding(true)} />
+          <AddRow label={t("structure.addPhase")} onClick={() => setAdding(true)} />
         ))}
     </StructurePanel>
   );
