@@ -126,7 +126,8 @@
       "where": "den Ort",
       "eventDocsUrl": "den Dokumentenlink",
       "requesterId": "die anfragende Person",
-      "summary": "die Kurzbeschreibung"
+      "summary": "die Kurzbeschreibung",
+      "banner": "das Banner"
     },
     "showAll": "Alle anzeigen",
     "sheetDescription": "Alle Änderungen an dieser Anfrage, die neueste zuerst."

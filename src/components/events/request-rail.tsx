@@ -57,7 +57,7 @@ export function useHistorySentence(): (row: RequestHistoryItem) => string {
       if (isStatus(r.oldValue) && !isStatus(r.newValue)) return t("history.cancelled", { name, reason: r.newValue ?? "" });
       return t("history.status", { name, from: status(r.oldValue), to: status(r.newValue) });
     }
-    const known = ["title", "startsAt", "durationMinutes", "where", "summary", "eventDocsUrl", "requesterId"] as const;
+    const known = ["title", "startsAt", "durationMinutes", "where", "summary", "banner", "eventDocsUrl", "requesterId"] as const;
     const field = known.find((k) => k === r.field);
     return t("history.entry", { name, field: field ? t(`history.field.${field}`) : r.field });
   };

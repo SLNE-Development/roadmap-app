@@ -103,7 +103,7 @@ export function RequestHeader({ detail, incomplete, tab }: { detail: RequestDeta
   else if (status === "submitted" && canAccept) primary = { label: t("accept.button"), onClick: () => setAcceptOpen(true) };
   else if (status === "accepted" && (canEdit || canDevelop)) primary = { label: t("actions.startEventWeek"), onClick: () => setConfirm("startWeek"), blocked };
   else if (status === "event_week" && canEdit) primary = { label: t("actions.complete"), onClick: () => setConfirm("complete") };
-  else if ((status === "cancelled" || status === "withdrawn") && canReopen) primary = { label: t("actions.reopen"), onClick: () => setConfirm("reopen") };
+  // A cancelled or withdrawn request has Reopen on its strip under the header.
 
   const live = status === "accepted" || status === "event_week";
   const items: MenuItem[] = [];

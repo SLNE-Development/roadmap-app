@@ -126,7 +126,8 @@
       "where": "the place",
       "eventDocsUrl": "the documents link",
       "requesterId": "the requester",
-      "summary": "the short description"
+      "summary": "the short description",
+      "banner": "the banner"
     },
     "showAll": "Show all",
     "sheetDescription": "Every change to this request, newest first."

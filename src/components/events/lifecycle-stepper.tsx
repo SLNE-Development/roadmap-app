@@ -61,7 +61,8 @@ export function LifecycleStepper({ requestId, status, cancelNote, canReopen, onR
   if (status === "cancelled" || status === "withdrawn") return <ClosedStrip requestId={requestId} status={status} cancelNote={cancelNote} canReopen={canReopen} onReopen={onReopen} />;
   const reached = STEPS.indexOf(status);
   return (
-    <ol aria-label={t("statusBar.label")} className="grid grid-cols-5 border bg-card px-2 py-3.5 sm:px-4">
+    <div className="flex flex-col gap-2 border bg-card px-2 py-3.5 sm:px-4">
+    <ol aria-label={t("statusBar.label")} className="grid grid-cols-5">
       {STEPS.map((step, i) => {
         const state = i < reached || status === "done" ? "done" : i === reached ? "current" : "upcoming";
         const label = t(`status.${step}`);
@@ -79,11 +80,13 @@ export function LifecycleStepper({ requestId, status, cancelNote, canReopen, onR
             >
               {state === "done" ? <Check className="size-3" strokeWidth={3} /> : i + 1}
             </span>
-            <span className={cn("max-w-full truncate px-0.5 text-center text-[12.5px]", state === "current" ? "font-semibold text-foreground" : state === "done" ? "font-medium text-fg-2" : "text-muted-foreground")}>{label}</span>
+            <span className={cn("max-w-full truncate px-0.5 text-center text-[12.5px] max-sm:sr-only", state === "current" ? "font-semibold text-foreground" : state === "done" ? "font-medium text-fg-2" : "text-muted-foreground")}>{label}</span>
             <span className="sr-only">{t(`statusBar.${state}`, { status: label })}</span>
           </li>
         );
       })}
     </ol>
+    <p aria-hidden className="text-center text-[13px] font-semibold sm:hidden">{t(`status.${status}`)}</p>
+    </div>
   );
 }
