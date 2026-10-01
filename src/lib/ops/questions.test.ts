@@ -1,6 +1,7 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
-import { changeLog } from "@/db/schema";
+import { changeLog, notification } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { withAgent } from "./actor";
@@ -119,5 +120,30 @@ describe("questions", () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);
     await expect(addQuestion(db, owner, slug, { title: "A?", priority: "urgent" as "nice" })).rejects.toBeInstanceOf(ZodError);
+  });
+});
+
+describe("mentions in questions", () => {
+  it("stores @Jules in a question's text as a token and notifies Jules", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const jules = await addMemberFixture(db, owner, slug, "editor", "Jules");
+    const { id } = await addQuestion(db, owner, slug, { title: "Q?", text: "@Jules can you check" });
+    const [q] = await listQuestions(db, owner, slug);
+    expect(q.text).toBe(`[@Jules](user:${jules.userId}) can you check`);
+    const rows = await db.select().from(notification).where(eq(notification.userId, jules.userId));
+    expect(rows.map((r) => [r.kind, r.href, r.sourceKey])).toEqual([["mention", `/p/demo/questions#q-${id}`, `question:${id}:text:mention:${jules.userId}`]]);
+  });
+
+  it("stores @Jules in an answer as a token and notifies Jules", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const jules = await addMemberFixture(db, owner, slug, "editor", "Jules");
+    const { id } = await addQuestion(db, owner, slug, { title: "Q?" });
+    await answerQuestion(db, owner, slug, { id, answer: "Ask @Jules" });
+    const [q] = await listQuestions(db, owner, slug);
+    expect(q.answer).toBe(`Ask [@Jules](user:${jules.userId})`);
+    const rows = await db.select().from(notification).where(eq(notification.userId, jules.userId));
+    expect(rows.map((r) => [r.kind, r.sourceKey])).toEqual([["mention", `question:${id}:answer:mention:${jules.userId}`]]);
   });
 });

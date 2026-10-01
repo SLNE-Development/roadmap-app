@@ -21,6 +21,8 @@ import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, loadBoards, systemAccess, type SystemRow } from "./lookup";
+import { notifyMentions, resolveMentionsIn } from "./mentions";
+import { actorLabel } from "./notifications";
 
 /** One question of a planning round. */
 export const planningItemInput = z.object({
@@ -268,7 +270,7 @@ export async function answerPlanningItems(
     const parent = await lockForPlanning(tx, actor, projectSlug, systemSlug);
     const ids = input.answers.map((a) => a.itemId);
     const found = await tx
-      .select({ id: planningItem.id, isRisk: planningItem.isRisk, area: planningItem.area })
+      .select({ id: planningItem.id, isRisk: planningItem.isRisk, area: planningItem.area, answer: planningItem.answer })
       .from(planningItem)
       .innerJoin(planningRound, eq(planningRound.id, planningItem.roundId))
       .where(and(eq(planningRound.systemId, parent.id), inArray(planningItem.id, ids)));
@@ -284,7 +286,16 @@ export async function answerPlanningItems(
       }
     }
     for (const a of input.answers) {
-      await tx.update(planningItem).set({ answer: a.answer, status: a.status }).where(eq(planningItem.id, a.itemId));
+      const answer = await resolveMentionsIn(tx, parent.projectId, a.answer);
+      await tx.update(planningItem).set({ answer, status: a.status }).where(eq(planningItem.id, a.itemId));
+      await notifyMentions(tx, actor, {
+        projectId: parent.projectId,
+        before: byId.get(a.itemId)!.answer,
+        after: answer,
+        title: `${actorLabel(actor.name, actor.agent)} mentioned you in planning on ${parent.title}`,
+        href: `/p/${projectSlug}/systems/${parent.slug}?tab=planning`,
+        source: `planning:${a.itemId}`,
+      });
     }
     await logChange(tx, actor, { projectId: parent.projectId, systemId: parent.id, entity: "planning", entityId: parent.id, field: "answers", newValue: `${input.answers.length} answered` });
     return { answered: input.answers.length };

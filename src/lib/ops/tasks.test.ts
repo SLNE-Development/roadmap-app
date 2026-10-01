@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { notification } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { listActivity } from "./activity";
@@ -263,5 +265,20 @@ describe("reorder and move", () => {
     await postUpdate(db, owner, slug, "a", { summary: "did it", taskId: t2 });
     await moveTask(db, owner, t2, { system: "b" });
     expect((await listUpdates(db, owner, slug, { system: "a" }))[0].taskId).toBe(t2);
+  });
+});
+
+describe("mentions in task notes", () => {
+  it("stores @Jules in notes as a token and notifies Jules", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const jules = await addMemberFixture(db, owner, slug, "editor", "Jules");
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+    await updateTask(db, owner, id, { notes: "@Jules knows" });
+    const { tasks } = await getSystem(db, owner, slug, "s");
+    expect(tasks[0].notes).toBe(`[@Jules](user:${jules.userId}) knows`);
+    const rows = await db.select().from(notification).where(eq(notification.userId, jules.userId));
+    expect(rows.map((r) => [r.kind, r.href, r.sourceKey])).toEqual([["mention", `/p/demo/systems/s#task-${id}`, `task:${id}:notes:mention:${jules.userId}`]]);
   });
 });

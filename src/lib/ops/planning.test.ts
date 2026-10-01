@@ -1,5 +1,6 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { changeLog } from "@/db/schema";
+import { changeLog, notification } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture } from "@/test/fixtures";
 import { setSystemArchived } from "./archive";
@@ -316,5 +317,18 @@ describe("planning area reopen", () => {
     const { db, owner, slug } = await completed();
     const viewer = await addMemberFixture(db, owner, slug, "viewer");
     await expect(reopenPlanningArea(db, viewer, slug, "s", { area: "scope", reason: "new partner API" })).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("mentions in planning answers", () => {
+  it("stores @Jules in an answer as a token and notifies Jules", async () => {
+    const { db, owner, slug } = await setup();
+    const jules = await addMemberFixture(db, owner, slug, "editor", "Jules");
+    const { itemIds } = await addPlanningRound(db, owner, slug, "s", { items: [{ area: "scope", question: "Who decides?" }] });
+    await answerPlanningItems(db, owner, slug, "s", { answers: [{ itemId: itemIds[0], answer: "@Jules decides" }] });
+    const { rounds } = await getPlanning(db, owner, slug, "s");
+    expect(rounds[0].items[0].answer).toBe(`[@Jules](user:${jules.userId}) decides`);
+    const rows = await db.select().from(notification).where(eq(notification.userId, jules.userId));
+    expect(rows.map((r) => [r.kind, r.href, r.sourceKey])).toEqual([["mention", "/p/demo/systems/s?tab=planning", `planning:${itemIds[0]}:mention:${jules.userId}`]]);
   });
 });

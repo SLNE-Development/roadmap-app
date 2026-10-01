@@ -1,6 +1,8 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { notification } from "@/db/schema";
 import { createTestDb } from "@/test/db";
-import { createProjectFixture } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { withAgent } from "./actor";
 import { updateProject } from "./projects";
 import { createSystem } from "./systems";
@@ -44,5 +46,19 @@ describe("progress updates", () => {
       status: 400,
       message: `Task ${id} does not belong to system a.`,
     });
+  });
+});
+
+describe("mentions in updates", () => {
+  it("stores @Jules in an update as a token and notifies Jules once", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const jules = await addMemberFixture(db, owner, slug, "editor", "Jules");
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const { id } = await postUpdate(db, owner, slug, "s", { summary: "Done, @Jules", nextStep: "@Jules reviews" });
+    const [u] = await listUpdates(db, owner, slug);
+    expect([u.summary, u.nextStep]).toEqual([`Done, [@Jules](user:${jules.userId})`, `[@Jules](user:${jules.userId}) reviews`]);
+    const rows = await db.select().from(notification).where(eq(notification.userId, jules.userId));
+    expect(rows.map((r) => [r.kind, r.href, r.sourceKey])).toEqual([["mention", "/p/demo/systems/s", `update:${id}:mention:${jules.userId}`]]);
   });
 });

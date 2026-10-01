@@ -8,6 +8,8 @@ import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { InvalidError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, systemAccess } from "./lookup";
+import { notifyMentions, resolveMentionsIn } from "./mentions";
+import { actorLabel } from "./notifications";
 
 /** Input of {@link postUpdate}. */
 export const postUpdateInput = z.object({
@@ -66,17 +68,27 @@ export async function postUpdate(
       if (rows.length === 0) throw new InvalidError(`Task ${input.taskId} does not belong to system ${systemSlug}.`);
     }
     const id = newId();
+    const summary = await resolveMentionsIn(tx, project.id, input.summary);
+    const nextStep = input.nextStep ? await resolveMentionsIn(tx, project.id, input.nextStep) : null;
     await tx.insert(progressUpdate).values({
       id,
       systemId: parent.id,
       taskId: input.taskId ?? null,
-      summary: input.summary,
-      nextStep: input.nextStep || null,
+      summary,
+      nextStep,
       commitHash: input.commit ?? null,
       authorUserId: actor.userId,
       agent: actor.agent ?? null,
     });
-    await logChange(tx, actor, { projectId: project.id, systemId: parent.id, entity: "update", entityId: id, field: "posted", newValue: input.summary });
+    await logChange(tx, actor, { projectId: project.id, systemId: parent.id, entity: "update", entityId: id, field: "posted", newValue: summary });
+    await notifyMentions(tx, actor, {
+      projectId: project.id,
+      before: null,
+      after: nextStep ? `${summary}\n${nextStep}` : summary,
+      title: `${actorLabel(actor.name, actor.agent)} mentioned you in an update on ${parent.title}`,
+      href: `/p/${project.slug}/systems/${parent.slug}`,
+      source: `update:${id}`,
+    });
     return { id, commitUrl: commitUrl(project.repoUrl, input.commit ?? null) };
   });
 }

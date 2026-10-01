@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { allowedAccount, user } from "@/db/schema";
+import { allowedAccount, notification, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
-import { resolveMentionsIn } from "./mentions";
+import { notifyMentions, resolveMentionsIn } from "./mentions";
 
 let db: Db;
 beforeEach(async () => {
@@ -27,5 +27,21 @@ describe("resolveMentionsIn", () => {
     const { projectId } = await createProjectFixture(db);
     await insertUser(db, { name: "Stranger" });
     expect(await resolveMentionsIn(db, projectId, "@Stranger hi")).toBe("@Stranger hi");
+  });
+});
+
+describe("notifyMentions", () => {
+  it("notifies newly mentioned members once, never the author", async () => {
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const e = await addMemberFixture(db, owner, slug, "editor", "E");
+    const after = `[@E](user:${e.userId}) [@Owner](user:${owner.userId})`;
+    const notice = { projectId, title: "Owner mentioned you", href: "/p/demo/systems/auth", source: "system:s1:notes" };
+    await notifyMentions(db, owner, { ...notice, before: null, after });
+    const rows = await db.select().from(notification);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ userId: e.userId, kind: "mention", entity: "system", entityId: "s1", body: "@E @Owner", sourceKey: `system:s1:notes:mention:${e.userId}` });
+
+    await notifyMentions(db, owner, { ...notice, before: after, after });
+    expect(await db.select().from(notification)).toHaveLength(1);
   });
 });

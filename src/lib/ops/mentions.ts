@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { allowedAccount, projectMember, user } from "@/db/schema";
 import type { Executor } from "@/db/types";
-import { resolveMentionNames, type MentionMember } from "@/lib/mentions";
+import { newMentions, resolveMentionNames, type MentionMember } from "@/lib/mentions";
 import type { Actor } from "./actor";
+import { actorLabel, notify } from "./notifications";
 
 /** Active members of a project (removed accounts left out) as `{ userId, name }`. */
 async function memberNames(tx: Executor, projectId: string): Promise<MentionMember[]> {
@@ -31,8 +32,25 @@ export interface MentionNotice {
   source: string;
 }
 
-/** Notifies each newly mentioned user except the actor. */
+/**
+ * Notifies each user `after` mentions and `before` did not, except the actor; the body is `after`.
+ * The entity and its id are the first two parts of `source`, such as `question:<id>:text`.
+ */
 export async function notifyMentions(tx: Executor, actor: Actor, input: MentionNotice): Promise<void> {
-  // Task 2 completes this: `notify` per id from `newMentions`, excluding the actor.
-  void [tx, actor, input];
+  const [entity, entityId] = input.source.split(":");
+  for (const userId of newMentions(input.before, input.after)) {
+    if (userId === actor.userId) continue;
+    await notify(tx, {
+      userId,
+      projectId: input.projectId,
+      kind: "mention",
+      entity,
+      entityId,
+      title: input.title,
+      body: input.after,
+      href: input.href,
+      actorName: actorLabel(actor.name, actor.agent),
+      sourceKey: `${input.source}:mention:${userId}`,
+    });
+  }
 }

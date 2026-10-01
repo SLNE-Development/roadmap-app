@@ -7,9 +7,14 @@ export interface MentionMember {
   name: string;
 }
 
-/** Returns the stored token for a mention; `[`, `]` and newlines are stripped from the name. */
+/** Returns a name as tokens store it: `[`, `]` and newlines stripped, at most 64 characters. */
+function tokenName(name: string): string {
+  return name.replace(/[[\]\r\n]/g, "").slice(0, 64);
+}
+
+/** Returns the stored token for a mention; the name is stripped of `[`, `]` and newlines and capped at 64 characters. */
 export function formatMention(name: string, userId: string): string {
-  return `[@${name.replace(/[[\]\r\n]/g, "")}](user:${userId})`;
+  return `[@${tokenName(name)}](user:${userId})`;
 }
 
 /** Returns the mentioned users, unique by id, in order of first appearance. */
@@ -44,12 +49,15 @@ const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
  * Longest names win, a boundary must follow, and code, emails and existing tokens are left alone.
  */
 export function resolveMentionNames(text: string, members: MentionMember[]): string {
+  // Members whose name leaves nothing for a token can never be mentioned.
   const byName = new Map<string, MentionMember[]>();
-  for (const m of members) {
+  for (const m of members.filter((m) => tokenName(m.name).length > 0)) {
     const key = m.name.toLowerCase();
     byName.set(key, [...(byName.get(key) ?? []), m]);
   }
-  const names = [...byName.keys()].filter((n) => n.length > 0).sort((a, b) => b.length - a.length);
+  // Matched by the length of the name as written, since lowercasing can change the length.
+  const names = [...byName.entries()].map(([key, group]) => ({ key, length: group[0].name.length, group }));
+  names.sort((a, b) => b.length - a.length);
   if (names.length === 0) return text;
 
   const resolvePlain = (segment: string): string => {
@@ -63,11 +71,9 @@ export function resolveMentionNames(text: string, members: MentionMember[]): str
         continue;
       }
       const rest = segment.slice(i + 1);
-      const lower = rest.toLowerCase();
-      const hit = names.find((n) => lower.startsWith(n) && BOUNDARY_RE.test(rest.slice(n.length)));
-      const matched = hit ? byName.get(hit)! : [];
-      if (hit && matched.length === 1) {
-        out += formatMention(matched[0].name, matched[0].userId);
+      const hit = names.find((n) => rest.slice(0, n.length).toLowerCase() === n.key && BOUNDARY_RE.test(rest.slice(n.length)));
+      if (hit && hit.group.length === 1) {
+        out += formatMention(hit.group[0].name, hit.group[0].userId);
         i += 1 + hit.length;
       } else {
         out += ch;

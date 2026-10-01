@@ -2,12 +2,14 @@ import { asc, eq, inArray, max } from "drizzle-orm";
 import { z } from "zod";
 import { PRIORITIES, system, task, TASK_ESTIMATES, TASK_STATES } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
-import { projectAccess, projectAccessById, slugSchema } from "./access";
+import { projectAccess, projectAccessById, slugSchema, type ProjectRow } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { assertSystemActive, findSystem, systemColumns, userName, type SystemRow } from "./lookup";
 import { isMember } from "./members";
+import { notifyMentions, resolveMentionsIn } from "./mentions";
+import { actorLabel } from "./notifications";
 import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
 import { claimSystem, planningGateMessage } from "./systems";
@@ -45,7 +47,7 @@ function logNote(note: string): string {
 
 /**
  * Loads a task with its system, locking both rows, and checks the actor's role
- * in its project. Refuses a task of an archived system or project.
+ * in its project, which it returns too. Refuses a task of an archived system or project.
  */
 export async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
   const unknown = () => new NotFoundError(`Unknown task ${taskId}.`);
@@ -56,14 +58,15 @@ export async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
   if (!parent) throw unknown();
   const [current] = await tx.select().from(task).where(eq(task.id, taskId)).limit(1).for("no key update");
   if (!current || current.systemId !== parent.id) throw unknown();
+  let project: ProjectRow;
   try {
-    await projectAccessById(tx, actor, parent.projectId, "editor");
+    ({ project } = await projectAccessById(tx, actor, parent.projectId, "editor"));
   } catch (error) {
     if (error instanceof NotFoundError) throw unknown();
     throw error;
   }
   assertSystemActive(parent);
-  return { task: current, system: parent };
+  return { task: current, system: parent, project };
 }
 
 /** A task row as stored. */
@@ -130,7 +133,7 @@ export async function updateTask(db: Db, actor: Actor, taskId: number, raw: z.in
 
 /** {@link updateTask} inside the caller's transaction; returns the task as changed. */
 export async function updateTaskInTx(tx: Executor, actor: Actor, taskId: number, patch: z.output<typeof updateTaskInput>): Promise<TaskRow> {
-  const { task: current, system: parent } = await taskAccess(tx, actor, taskId);
+  const { task: current, system: parent, project } = await taskAccess(tx, actor, taskId);
   if ((patch.state === "doing" || patch.state === "done") && !parent.planningCompletedAt) {
     const gaps = await planningGaps(tx, parent.id);
     const head = `Task ${taskId} cannot be ${patch.state} while system ${parent.slug} is still in planning.`;
@@ -150,6 +153,7 @@ export async function updateTaskInTx(tx: Executor, actor: Actor, taskId: number,
     if (patch.ownerUserId === undefined && current.ownerUserId === null) patch.ownerUserId = actor.userId;
     await claimSystem(tx, actor, parent);
   }
+  if (patch.notes !== undefined) patch.notes = await resolveMentionsIn(tx, parent.projectId, patch.notes);
   const changes: Partial<typeof task.$inferSelect> = {};
   for (const field of ["title", "state", "priority", "ownerUserId", "notes", "blockedReason", "estimate"] as const) {
     const next = field === "blockedReason" ? blockedReason : patch[field];
@@ -168,6 +172,16 @@ export async function updateTaskInTx(tx: Executor, actor: Actor, taskId: number,
     });
   }
   if (Object.keys(changes).length > 0) await tx.update(task).set(changes).where(eq(task.id, taskId));
+  if (changes.notes !== undefined) {
+    await notifyMentions(tx, actor, {
+      projectId: parent.projectId,
+      before: current.notes,
+      after: changes.notes,
+      title: `${actorLabel(actor.name, actor.agent)} mentioned you on task #${taskId}`,
+      href: `/p/${project.slug}/systems/${parent.slug}#task-${taskId}`,
+      source: `task:${taskId}:notes`,
+    });
+  }
   return { ...current, ...changes };
 }
 

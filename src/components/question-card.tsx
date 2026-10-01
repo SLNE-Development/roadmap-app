@@ -80,6 +80,7 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
 
   return (
     <article
+      id={`q-${q.id}`}
       tabIndex={0}
       data-nav-item
       aria-busy={pending}

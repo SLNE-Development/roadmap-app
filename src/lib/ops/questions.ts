@@ -9,6 +9,8 @@ import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem } from "./lookup";
+import { notifyMentions, resolveMentionsIn } from "./mentions";
+import { actorLabel } from "./notifications";
 
 /** Input of {@link addQuestion}. */
 export const addQuestionInput = z.object({
@@ -73,17 +75,26 @@ export async function addQuestion(db: Db, actor: Actor, projectSlug: string, raw
     // Locking takes the write path, which refuses an archived system.
     const parent = input.system ? await findSystem(tx, project.id, input.system, true) : null;
     const id = newId();
+    const text = await resolveMentionsIn(tx, project.id, input.text);
     await tx.insert(question).values({
       id,
       projectId: project.id,
       systemId: parent?.id ?? null,
       title: input.title,
-      text: input.text,
+      text,
       priority: input.priority,
       authorUserId: actor.userId,
       agent: actor.agent ?? null,
     });
     await logChange(tx, actor, { projectId: project.id, systemId: parent?.id, entity: "question", entityId: id, field: "created", newValue: input.title });
+    await notifyMentions(tx, actor, {
+      projectId: project.id,
+      before: null,
+      after: text,
+      title: `${actorLabel(actor.name, actor.agent)} mentioned you in a question`,
+      href: `/p/${project.slug}/questions#q-${id}`,
+      source: `question:${id}:text`,
+    });
     return { id };
   });
 }
@@ -101,13 +112,19 @@ export async function answerQuestion(db: Db, actor: Actor, projectSlug: string, 
 }
 
 /** {@link answerQuestion} inside the caller's transaction, for a project the caller has checked editor access to. */
-export async function answerQuestionInTx(tx: Executor, actor: Actor, project: { id: string }, input: z.output<typeof answerQuestionInput>): Promise<void> {
+export async function answerQuestionInTx(
+  tx: Executor,
+  actor: Actor,
+  project: { id: string; slug: string },
+  input: z.output<typeof answerQuestionInput>,
+): Promise<void> {
   const current = await findQuestion(tx, project.id, input.id, true);
+  const answer = await resolveMentionsIn(tx, project.id, input.answer);
   const now = new Date();
   await tx
     .update(question)
     .set({
-      answer: input.answer,
+      answer,
       resolved: input.resolved,
       resolvedAt: input.resolved ? (current.resolvedAt ?? now) : null,
       answeredByUserId: actor.userId,
@@ -115,10 +132,18 @@ export async function answerQuestionInTx(tx: Executor, actor: Actor, project: { 
       answeredAt: now,
     })
     .where(eq(question.id, current.id));
-  await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "answer", oldValue: current.answer, newValue: input.answer });
+  await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "answer", oldValue: current.answer, newValue: answer });
   if (current.resolved !== input.resolved) {
     await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "resolved", oldValue: String(current.resolved), newValue: String(input.resolved) });
   }
+  await notifyMentions(tx, actor, {
+    projectId: project.id,
+    before: current.answer,
+    after: answer,
+    title: `${actorLabel(actor.name, actor.agent)} mentioned you in an answer`,
+    href: `/p/${project.slug}/questions#q-${current.id}`,
+    source: `question:${current.id}:answer`,
+  });
 }
 
 /** Marks a question resolved or unresolved. Editor or higher. */

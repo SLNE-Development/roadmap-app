@@ -32,6 +32,8 @@ import { columnRulesOf, evaluateGates, gateMessage } from "./gates";
 import { logChange } from "./log";
 import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, systemColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
+import { notifyMentions, resolveMentionsIn } from "./mentions";
+import { actorLabel } from "./notifications";
 import { nullableEntityId } from "./params";
 import { openAreaReopens, planningGaps } from "./planning";
 import { systemRollups } from "./rollups";
@@ -429,9 +431,10 @@ export async function applySystemPatch(
   actor: Actor,
   project: ProjectRow,
   parent: SystemRow,
-  patch: z.output<typeof updateSystemInput>,
+  raw: z.output<typeof updateSystemInput>,
 ): Promise<SystemRow> {
   const current = parent;
+  const patch = raw.notes === undefined ? raw : { ...raw, notes: await resolveMentionsIn(tx, project.id, raw.notes) };
   if (patch.ownerUserId && !(await isMember(tx, project.id, patch.ownerUserId))) {
     throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);
   }
@@ -454,6 +457,16 @@ export async function applySystemPatch(
   }
   if (Object.keys(changes).length === 0) return current;
   const [row] = await tx.update(system).set(changes).where(eq(system.id, current.id)).returning(systemColumns);
+  if (changes.notes !== undefined) {
+    await notifyMentions(tx, actor, {
+      projectId: project.id,
+      before: current.notes,
+      after: row.notes,
+      title: `${actorLabel(actor.name, actor.agent)} mentioned you in notes on ${row.title}`,
+      href: `/p/${project.slug}/systems/${row.slug}`,
+      source: `system:${row.id}:notes`,
+    });
+  }
   return row;
 }
 

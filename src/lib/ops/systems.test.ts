@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { changeLog } from "@/db/schema";
+import { changeLog, notification } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createBoard, setColumnRules } from "./boards";
@@ -399,5 +399,18 @@ describe("updateSystems", () => {
     const error = await updateSystems(db, owner, slug, { systems: ["a"], patch: {} }).catch((e) => e);
     expect(statusOf(error)).toBe(400);
     expect(messageOf(error)).toContain("Choose at least one change.");
+  });
+});
+
+describe("mentions in system notes", () => {
+  it("stores @Jules in notes as a token and notifies Jules", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const jules = await addMemberFixture(db, owner, slug, "editor", "Jules");
+    const created = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await updateSystem(db, owner, slug, "s", { notes: "Pair with @Jules" });
+    expect((await getSystem(db, owner, slug, "s")).system.notes).toBe(`Pair with [@Jules](user:${jules.userId})`);
+    const rows = await db.select().from(notification).where(eq(notification.userId, jules.userId));
+    expect(rows.map((r) => [r.kind, r.href, r.sourceKey])).toEqual([["mention", "/p/demo/systems/s", `system:${created.id}:notes:mention:${jules.userId}`]]);
   });
 });

@@ -169,6 +169,13 @@
       "when": 1790832675574,
       "tag": "0023_auth-events",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790835310169,
+      "tag": "0024_notifications",
+      "breakpoints": true
     }
   ]
 }

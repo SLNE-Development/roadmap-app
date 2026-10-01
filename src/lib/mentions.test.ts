@@ -17,6 +17,12 @@ describe("mention tokens", () => {
     expect(formatMention("Ri]k\n", C)).toBe(`[@Rik](user:${C})`);
   });
 
+  it("caps the name at 64 characters so the token still parses", () => {
+    const token = formatMention("x".repeat(80), C);
+    expect(token).toBe(`[@${"x".repeat(64)}](user:${C})`);
+    expect(parseMentions(token)).toEqual([{ userId: C, name: "x".repeat(64) }]);
+  });
+
   it("parses unique mentions in order", () => {
     const found = parseMentions(`hi [@Rik](user:${C}) and [@Rik](user:${C}) and [@Jules](user:${A})`);
     expect(found).toEqual([
@@ -63,6 +69,35 @@ describe("resolveMentionNames", () => {
 
   it("requires a boundary after the name", () => {
     expect(resolveMentionNames("@Julesx hi", members)).toBe("@Julesx hi");
+  });
+
+  it("ignores an @ after a digit", () => {
+    expect(resolveMentionNames("1@Jules hi", members)).toBe("1@Jules hi");
+  });
+
+  it("accepts a closing parenthesis as a boundary", () => {
+    expect(resolveMentionNames("(cc @Jules)", members)).toBe(`(cc ${formatMention("Jules", A)})`);
+  });
+
+  it("falls back to a shorter name when the longer one has no boundary", () => {
+    expect(resolveMentionNames("@Jules Laurentx hi", members)).toBe(`${formatMention("Jules", A)} Laurentx hi`);
+  });
+
+  it("matches names containing regex characters literally", () => {
+    const odd = [{ userId: A, name: "C++ (dev)" }];
+    expect(resolveMentionNames("@C++ (dev) ok", odd)).toBe(`${formatMention("C++ (dev)", A)} ok`);
+    expect(resolveMentionNames("@Cxx (dev) ok", odd)).toBe("@Cxx (dev) ok");
+  });
+
+  it("matches names whose lowercase form is longer", () => {
+    expect(resolveMentionNames("@İsa hi", [{ userId: A, name: "İsa" }])).toBe(`${formatMention("İsa", A)} hi`);
+  });
+
+  it("writes only tokens that parse back", () => {
+    const long = "L".repeat(70);
+    const out = resolveMentionNames(`@${long} hi`, [{ userId: A, name: long }]);
+    expect(parseMentions(out)).toEqual([{ userId: A, name: "L".repeat(64) }]);
+    expect(resolveMentionNames("@[] hi", [{ userId: B, name: "[]" }])).toBe("@[] hi");
   });
 
   it("leaves existing tokens alone", () => {
