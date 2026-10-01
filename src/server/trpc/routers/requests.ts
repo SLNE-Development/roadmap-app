@@ -44,6 +44,7 @@ import {
   updateRequestInput,
   withdrawRequest,
 } from "@/lib/ops/requests";
+import { getEventSettings, previewTemplate, setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
 import { deleteUpload, setBanner, setBannerInput } from "@/lib/ops/uploads";
 import { protectedProcedure, router } from "../init";
 
@@ -209,4 +210,19 @@ export const requestsRouter = router({
 
   /** The event-day page: event, checklist, fallback scenarios and check-ins; open to every signed-in user in the event week. */
   eventDay: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => eventDayView(ctx.db, ctx.actor, input.id)),
+
+  /** The event settings. Secrets are write-only for admins; no procedure here returns one. */
+  settings: router({
+    /** The settings with secrets masked (event managers, developers, admins). */
+    get: protectedProcedure.query(({ ctx }) => getEventSettings(ctx.db, ctx.actor)),
+
+    /** Changes the managed settings (event managers, admins); a secret key is refused. Inputs are parsed by the op, after the role check. */
+    update: protectedProcedure.input(z.unknown()).mutation(({ ctx, input }) => updateEventSettings(ctx.db, ctx.actor, input)),
+
+    /** Sets or clears the webhooks and the bot token (admins only). */
+    setSecrets: protectedProcedure.input(z.unknown()).mutation(({ ctx, input }) => setEventSecrets(ctx.db, ctx.actor, input)),
+
+    /** Renders a template with a sample event for the editor preview; sends nothing. */
+    preview: protectedProcedure.input(z.unknown()).query(({ ctx, input }) => previewTemplate(ctx.db, ctx.actor, input)),
+  }),
 });

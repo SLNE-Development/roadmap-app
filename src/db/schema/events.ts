@@ -1,4 +1,5 @@
 import { bigserial, type AnyPgColumn, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { DEFAULT_DETAILS_TEMPLATE, DEFAULT_DISASTER_TEMPLATE, DEFAULT_RESOLVED_TEMPLATE, type DetailsTemplate, type EmbedTemplate } from "@/lib/event-templates";
 import { QUESTION_TYPES, type QuestionConfig, type QuestionType } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { tz, user } from "./auth";
@@ -264,3 +265,39 @@ export const eventCheckin = pgTable(
   },
   (t) => [primaryKey({ columns: [t.requestId, t.userId] })],
 );
+
+/**
+ * The event settings: one row with the id `default`, created on first read. The `*Enc` columns hold encrypted webhook
+ * URLs and the bot token (written by admins only, decrypted only by the worker); the `*Hint` columns the last four
+ * characters. Everything else is written by event managers and admins.
+ */
+export const eventSettings = pgTable("event_settings", {
+  id: text("id").primaryKey(),
+  publicWebhookEnc: text("public_webhook_enc"),
+  publicWebhookHint: text("public_webhook_hint"),
+  teamWebhookEnc: text("team_webhook_enc"),
+  teamWebhookHint: text("team_webhook_hint"),
+  staffWebhookEnc: text("staff_webhook_enc"),
+  staffWebhookHint: text("staff_webhook_hint"),
+  botTokenEnc: text("bot_token_enc"),
+  botTokenHint: text("bot_token_hint"),
+  postAs: text("post_as").notNull().default("Event-Team"),
+  pingRoleId: text("ping_role_id"),
+  guildId: text("guild_id"),
+  timeZone: text("time_zone").notNull().default("Europe/Berlin"),
+  rulebookUrl: text("rulebook_url"),
+  /** Style guides and examples for the copy prompts; an empty style means the default text. */
+  announcementStyle: text("announcement_style").notNull().default(""),
+  announcementExample: text("announcement_example").notNull().default(""),
+  reminderExample: text("reminder_example").notNull().default(""),
+  teamStyle: text("team_style").notNull().default(""),
+  teamExample: text("team_example").notNull().default(""),
+  disasterTemplate: jsonb("disaster_template").notNull().$type<EmbedTemplate>().default(DEFAULT_DISASTER_TEMPLATE),
+  resolvedTemplate: jsonb("resolved_template").notNull().$type<EmbedTemplate>().default(DEFAULT_RESOLVED_TEMPLATE),
+  detailsTemplate: jsonb("details_template").notNull().$type<DetailsTemplate>().default(DEFAULT_DETAILS_TEMPLATE),
+  updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", tz).notNull().defaultNow(),
+});
+
+/** The row of {@link eventSettings}. */
+export type EventSettingsRow = typeof eventSettings.$inferSelect;

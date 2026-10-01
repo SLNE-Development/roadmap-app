@@ -13,12 +13,15 @@ import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 
 /** The webhook URLs Discord hands out, on any of its hosts. */
-const DISCORD_WEBHOOK_URL = /^https:\/\/(discord\.com|discordapp\.com|canary\.discord\.com|ptb\.discord\.com)\/api\/webhooks\/\d+\/[\w-]+$/;
+export const DISCORD_WEBHOOK_URL = /^https:\/\/(discord\.com|discordapp\.com|canary\.discord\.com|ptb\.discord\.com)\/api\/webhooks\/\d+\/[\w-]+$/;
+
+/** The message shown for a URL that is no Discord webhook. */
+export const DISCORD_WEBHOOK_URL_MESSAGE = "Use a Discord webhook URL from Channel settings → Integrations → Webhooks.";
 
 /** The webhook fields without defaults. Each carries a message that reads on its own, since errors drop the field path. */
 const webhookFields = z.object({
   name: z.string().trim().min(1, "Give the webhook a name.").max(64, "Keep the name to 64 characters."),
-  url: z.string().trim().regex(DISCORD_WEBHOOK_URL, "Use a Discord webhook URL from Channel settings → Integrations → Webhooks."),
+  url: z.string().trim().regex(DISCORD_WEBHOOK_URL, DISCORD_WEBHOOK_URL_MESSAGE),
   events: z.array(z.enum(DISCORD_EVENTS, "Unknown event.")).min(1, "Pick at least one event."),
   boardIds: z.array(z.string().min(1).max(64)).max(100),
   digest: z.boolean(),

@@ -110,7 +110,16 @@ export function RequestsView() {
         crumbs={[{ label: t("crumb") }]}
         title={t("list.title")}
         description={t("list.description")}
-        actions={me.isAdmin || me.isEventManager ? <NewRequestDialog /> : undefined}
+        actions={
+          me.isAdmin || me.isEventManager || me.isEventDeveloper ? (
+            <>
+              <Button asChild variant="outline">
+                <Link href="/requests/settings">{t("list.settings")}</Link>
+              </Button>
+              {me.isAdmin || me.isEventManager ? <NewRequestDialog /> : null}
+            </>
+          ) : undefined
+        }
       />
       <div role="group" aria-label={t("list.filterLabel")} className="flex flex-wrap gap-2">
         {CHIPS.map((chip) => {
