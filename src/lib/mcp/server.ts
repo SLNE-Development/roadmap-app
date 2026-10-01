@@ -14,6 +14,7 @@ export const MCP_INSTRUCTIONS = [
   "2. Specs, plans, ADRs and open questions live here, never as repository files: write_spec, write_plan, create_adr/accept_adr/supersede_adr, add_question.",
   "3. When you start a task, update_task with state doing (this makes the key's user owner of the task and of an unowned system). After every commit, post_update with the commit hash. When finished, set tasks done and move the system to a review or done column. When stuck, set the task blocked and add_question.",
   "4. Pass agent with your name on writes; it defaults to Claude Code.",
+  "5. get_system, list_adrs and list_activity are brief by default; use get_document or get_adr for full text.",
 ].join("\n");
 
 /** Wraps a tool result, or an error message, as MCP text content. */

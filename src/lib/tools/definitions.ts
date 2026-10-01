@@ -83,6 +83,7 @@ import { setSystemFields } from "@/lib/ops/fields";
 import { setSystemArchived } from "@/lib/ops/archive";
 import { moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
+import { BRIEF, briefActivity, briefAdrs, briefOverview } from "./brief";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
 
 /** The project a tool acts in. */
@@ -316,12 +317,15 @@ register(
   }),
   defineTool({
     name: "get_system",
-    description: "Get one system: board and column, tasks (with ids), latest spec and plan, planning state and gaps, questions, linked ADRs and recent updates.",
-    input: S,
+    description: "Get one system: column, tasks (with ids), planning state, questions, ADRs, updates; brief by default, use get_document for spec and plan text.",
+    input: { ...S, ...BRIEF },
     write: false,
     method: "GET",
     path: "/projects/:project/systems/:system",
-    run: (db, actor, i) => getSystemOverview(db, actor, i.project, i.system),
+    run: async (db, actor, i) => {
+      const overview = await getSystemOverview(db, actor, i.project, i.system);
+      return i.brief === false ? overview : briefOverview(overview);
+    },
   }),
   defineTool({
     name: "create_system",
@@ -635,12 +639,15 @@ register(
 
   defineTool({
     name: "list_adrs",
-    description: "List a project's ADRs by number, optionally by status or linked system.",
-    input: { ...P, ...adrFilter.shape },
+    description: "List a project's ADRs by number, optionally by status or linked system; brief by default, use get_adr for full text.",
+    input: { ...P, ...adrFilter.shape, ...BRIEF },
     write: false,
     method: "GET",
     path: "/projects/:project/adrs",
-    run: (db, actor, { project, ...filter }) => listAdrs(db, actor, project, filter),
+    run: async (db, actor, { project, brief, ...filter }) => {
+      const rows = await listAdrs(db, actor, project, filter);
+      return brief === false ? rows : briefAdrs(rows);
+    },
   }),
   defineTool({
     name: "get_adr",
@@ -737,12 +744,15 @@ register(
 
   defineTool({
     name: "list_activity",
-    description: "List the project's change log, newest first, optionally one system's history.",
-    input: { ...P, system: z.string().optional(), limit },
+    description: "List the project's change log, newest first, optionally one system's history; brief by default, long values are cut.",
+    input: { ...P, system: z.string().optional(), limit, ...BRIEF },
     write: false,
     method: "GET",
     path: "/projects/:project/activity",
-    run: (db, actor, { project, ...filter }) => listActivity(db, actor, project, filter),
+    run: async (db, actor, { project, brief, ...filter }) => {
+      const rows = await listActivity(db, actor, project, filter);
+      return brief === false ? rows : briefActivity(rows);
+    },
   }),
 );
 

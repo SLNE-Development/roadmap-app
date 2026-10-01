@@ -50,7 +50,8 @@ Example of the register:
 ## Step 0 — Locate
 
 1. Read `surf-roadmap.json` for `project` (and default `board`).
-2. If the argument is an existing system slug, `get_system` and `get_planning`, and
+2. If the argument is an existing system slug, `get_system`, `get_planning` and
+   `get_document` (`kind: "spec"`), and
    resume from the gaps. Otherwise ask for a title, slug and board if they are not
    obvious, and `create_system`.
 3. Load context: `list_systems`, `list_adrs`, `list_questions`, and read the code

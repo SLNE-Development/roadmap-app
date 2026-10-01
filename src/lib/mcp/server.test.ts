@@ -64,7 +64,7 @@ describe("MCP server", () => {
     const system = await call(client, "get_system", { project: slug, system: "shop" });
     expect(system.json.tasks[0]).toMatchObject({ state: "doing", ownerName: "Owner" });
     expect(system.json.ownerName).toBe("Owner");
-    expect(system.json.updates[0].author).toBe("Claude Code (for Owner)");
+    expect(system.json.updates[0]).toMatchObject({ authorName: "Owner", agent: "Claude Code" });
   });
 
   it("reports a system without a spec as a null document", async () => {

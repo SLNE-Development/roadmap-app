@@ -11,7 +11,7 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 - Preconditions, all checked with `get_system`, stated and stopped on if any fails: `planning.complete` is true (otherwise run `surf-roadmap:plan-system`); no unresolved question tied to the system; every decision in the spec that meets the ADR criteria has an accepted ADR (otherwise `surf-roadmap:new-adr`).
 - The plan is never saved as a file. Save it with `write_plan`: `body` is the whole plan markdown, `steps` lists every task as `{ step, title }` with the same numbers as the plan's `### Task N` headings. Each new step becomes a roadmap task; report `missingSteps` if a rewrite dropped steps. Tasks outside the plan's steps go in one `add_tasks` call, each with a short stable slug as `clientRef`.
-- The plan's header names the spec as "the spec of system `<slug>` in project `<project>` (get_system)" instead of a file path.
+- The plan's header names the spec as "the spec of system `<slug>` in project `<project>` (`get_document` `kind: "spec"`)" instead of a file path.
 - Besides the sections below, every plan contains: **Goal** as an observable end state; **Out of scope** (never empty); per task **Ends in** (observable state), **Verified by** (exact command) and **Pushes** (`no`, or `yes` with why CI output is needed); a final **Verification** task; **Push points** (or `none`); **Risk** (the step most likely to go wrong and what the agent does then); and the sentence "If reality contradicts this plan, the agent stops and asks; it does not silently rewrite the plan."
 - The execution handoff offers `surf-roadmap:subagent-driven-development` or `surf-roadmap:execute-plan`, respecting the execution-mode block of CLAUDE.md (if it says inline, only offer inline).
 
@@ -77,7 +77,7 @@ independently testable deliverable.
 
 **Tech Stack:** [Key technologies/libraries]
 
-**Spec:** the spec of system `<slug>` in project `<project>` (get_system) — the plan
+**Spec:** the spec of system `<slug>` in project `<project>` (`get_document` `kind: "spec"`) — the plan
 argues from the spec, so the spec travels with it; executors read both
 
 ## Global Constraints
