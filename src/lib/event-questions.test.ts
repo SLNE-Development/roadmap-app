@@ -28,6 +28,9 @@ describe("validateAsked", () => {
 
   it("rejects bounds that do not fit the type", () => {
     expect(validateAsked({ type: "multi", text: "x", options: ["a", "b", "c"], min: 3, max: 2 })).toEqual([expect.stringContaining("min")]);
+    expect(validateAsked({ type: "multi", text: "x", options: ["a", "b"], min: 3 })).toEqual([expect.stringContaining("min")]);
+    expect(validateAsked({ type: "multi", text: "x", options: ["a", "b"], other: true, min: 3 })).toEqual([]);
+    expect(validateAsked({ type: "multi", text: "x", options: ["a", "b"], other: true, min: 4 })).toEqual([expect.stringContaining("min")]);
     expect(validateAsked({ type: "scale", text: "x", max: 7 })).toEqual([expect.stringContaining("max")]);
     expect(validateAsked({ type: "scale", text: "x", min: 2 })).toEqual([expect.stringContaining("min")]);
     expect(validateAsked({ type: "number", text: "x", min: 5, max: 1 })).toEqual([expect.stringContaining("min")]);

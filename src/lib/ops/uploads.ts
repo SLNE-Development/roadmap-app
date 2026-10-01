@@ -106,16 +106,16 @@ export async function storeUpload(
   });
 }
 
-/** Loads an upload and checks the actor may act on it with `need`; a request upload follows the request, a template upload the event roles. */
+/**
+ * Loads an upload and checks the actor may act on it with `need`; a request upload follows the request. A template upload
+ * (the banner and disaster images) may be viewed by every signed-in user, because requesters see the disaster preview and
+ * the images are posted publicly anyway; only event managers change it.
+ */
 async function accessibleUpload(tx: Tx | Db, actor: Actor, id: string, need: "view" | "edit"): Promise<EventUploadRow> {
   const [row] = await tx.select().from(eventUpload).where(eq(eventUpload.id, id)).limit(1);
   if (!row) throw new NotFoundError(`Unknown upload ${id}.`);
   if (row.requestId) await requestAccess(tx, actor, row.requestId, need);
-  else {
-    const flags = await eventFlags(tx, actor);
-    if (need === "edit") requireEventManager(flags);
-    else if (!flags.isAdmin && !flags.isEventManager && !flags.isEventDeveloper) throw new NotFoundError(`Unknown upload ${id}.`);
-  }
+  else if (need === "edit") requireEventManager(await eventFlags(tx, actor));
   return row;
 }
 

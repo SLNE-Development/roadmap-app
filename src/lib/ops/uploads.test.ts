@@ -120,10 +120,11 @@ describe("openUpload", () => {
     expect(new Uint8Array(await new Response(opened.stream).arrayBuffer())).toEqual(png());
   });
 
-  it("shows template images to event managers, hides them from requesters", async () => {
+  it("shows template images to every signed-in user (the disaster preview needs them), but only event managers change them", async () => {
     const view = await store({ requestId: null, purpose: "template" }, manager);
     await expect(openUpload(db, manager, view.id, dir)).resolves.toBeDefined();
-    await expect(openUpload(db, requester, view.id, dir)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(openUpload(db, requester, view.id, dir)).resolves.toBeDefined();
+    await expect(deleteUpload(db, requester, view.id, dir)).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it("says not found for an unknown id", async () => {

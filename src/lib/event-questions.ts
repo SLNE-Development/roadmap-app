@@ -83,6 +83,7 @@ export function validateAsked(q: AskedLike): string[] {
     if (q.min !== undefined && (!Number.isInteger(q.min) || q.min < 0)) errors.push("min must be a whole number of 0 or more.");
     if (q.max !== undefined && (!Number.isInteger(q.max) || q.max < 1 || q.max > limit)) errors.push("max must be a whole number between 1 and the number of choices.");
     if (q.min !== undefined && q.max !== undefined && q.min > q.max) errors.push("min must not be greater than max.");
+    if (q.min !== undefined && Number.isInteger(q.min) && q.min > limit) errors.push("min must not be greater than the number of choices.");
   }
   if (q.type === "number" && q.min !== undefined && q.max !== undefined && q.min > q.max) errors.push("min must not be greater than max.");
   if (q.type === "scale" && q.max !== undefined && !SCALE_MAXES.includes(q.max)) errors.push("max must be 5 or 10 for a scale question.");
