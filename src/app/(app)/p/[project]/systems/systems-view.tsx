@@ -3,11 +3,13 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { Boxes } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import type { z } from "zod";
 import { CATEGORY_LABEL } from "@/components/chips";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { SystemCard } from "@/components/system-card";
+import { BulkBar } from "@/components/systems/bulk-bar";
 import { SystemsTable, type SystemGroup } from "@/components/systems/systems-table";
 import { SystemsToolbar, type FilterDef } from "@/components/systems/systems-toolbar";
 import { Button } from "@/components/ui/button";
@@ -50,9 +52,16 @@ export function SystemsView({
   const q = current.q ?? "";
   const canEdit = data.detail.role !== "viewer" && !data.detail.project.archivedAt;
   const needle = q.toLowerCase();
+  const [selection, setSelection] = useState<{ key: string; slugs: ReadonlySet<string> }>({ key: "", slugs: new Set() });
   const shown = needle
     ? data.systems.filter((s) => s.title.toLowerCase().includes(needle) || s.summary.toLowerCase().includes(needle))
     : data.systems;
+
+  // The selection belongs to one set of filters: drop it when they change (adjusting state while rendering).
+  const filterKey = JSON.stringify(current);
+  if (selection.key !== filterKey) setSelection({ key: filterKey, slugs: new Set() });
+  const picked = shown.filter((s) => selection.slugs.has(s.slug)).map((s) => s.slug);
+  const select = (slugs: Iterable<string>) => setSelection({ key: filterKey, slugs: new Set(slugs) });
 
   const filters: FilterDef[] = [
     { key: "board", label: "Board", options: data.detail.boards.map((b) => ({ value: b.slug, label: b.name })) },
@@ -152,7 +161,34 @@ export function SystemsView({
           ))}
         </div>
       ) : (
-        <SystemsTable groups={groups} projectSlug={slug} phaseName={phaseName} updatedAt={updatedAt} fields={data.fields} />
+        <SystemsTable
+          groups={groups}
+          projectSlug={slug}
+          phaseName={phaseName}
+          updatedAt={updatedAt}
+          fields={data.fields}
+          selection={
+            canEdit
+              ? {
+                  selected: selection.slugs,
+                  onToggle: (s, checked) => select(checked ? [...picked, s] : picked.filter((p) => p !== s)),
+                  onToggleAll: (checked) => select(checked ? shown.map((s) => s.slug) : []),
+                }
+              : undefined
+          }
+        />
+      )}
+      {canEdit && current.view !== "cards" && picked.length > 0 && (
+        <BulkBar
+          slug={slug}
+          systems={picked}
+          owners={data.members.map((m) => ({ id: m.userId, name: m.name }))}
+          phases={data.phases}
+          domains={data.domains}
+          boards={data.detail.boards.map((b) => ({ slug: b.slug, name: b.name, columns: b.columns.map((c) => ({ id: c.id, name: c.name })) }))}
+          onDone={() => select([])}
+          onClear={() => select([])}
+        />
       )}
     </Page>
   );

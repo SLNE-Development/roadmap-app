@@ -3,12 +3,13 @@ import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createBoard } from "./boards";
-import { statusOf } from "./errors";
+import { messageOf, statusOf } from "./errors";
 import { addPlanningRound, answerPlanningItems } from "./planning";
 import { addQuestion, setQuestionResolved } from "./questions";
 import { addTask, updateTask } from "./tasks";
-import { createDomain } from "./structure";
-import { createSystem, getSystem, listSystems, moveSystem, updateSystem } from "./systems";
+import { setSystemArchived } from "./archive";
+import { createDomain, createPhase } from "./structure";
+import { createSystem, getSystem, listSystems, moveSystem, updateSystem, updateSystems } from "./systems";
 
 describe("createSystem", () => {
   it("puts a new system into the planning column of the first board by default", async () => {
@@ -197,5 +198,79 @@ describe("updateSystem", () => {
       ["owner", "Owner"],
       ["notes", "n"],
     ]);
+  });
+});
+
+describe("updateSystems", () => {
+  async function three(db: Awaited<ReturnType<typeof createTestDb>>, owner: Awaited<ReturnType<typeof createProjectFixture>>["owner"], slug: string) {
+    const rows = [];
+    for (const key of ["a", "b", "c"]) rows.push(await createSystem(db, owner, slug, { slug: key, title: key.toUpperCase() }));
+    return rows;
+  }
+
+  it("sets the phase on every listed system and logs each change", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await three(db, owner, slug);
+    const alpha = await createPhase(db, owner, slug, { name: "Alpha" });
+    const result = await updateSystems(db, owner, slug, { systems: ["a", "b", "c", "a"], patch: { phaseId: alpha.id } });
+    expect(result).toEqual({ updated: ["a", "b", "c"] });
+    expect((await listSystems(db, owner, slug)).map((s) => s.phaseId)).toEqual([alpha.id, alpha.id, alpha.id]);
+    expect((await db.select().from(changeLog)).filter((c) => c.field === "phaseId")).toHaveLength(3);
+  });
+
+  it("changes nothing and names the failing system when one cannot move out of planning", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const [a, b] = await three(db, owner, slug);
+    await completePlanningFixture(db, a.id);
+    await completePlanningFixture(db, b.id);
+    const error = await updateSystems(db, owner, slug, { systems: ["a", "b", "c"], patch: { move: { column: "Todo" } } }).catch((e) => e);
+    expect(statusOf(error)).toBe(409);
+    expect(error.message).toMatch(/^Nothing was changed\. 1 systems failed: c: System c is still in planning\./);
+    expect((await listSystems(db, owner, slug)).map((s) => s.columnName)).toEqual(["Planning", "Planning", "Planning"]);
+    expect((await db.select().from(changeLog)).filter((c) => c.field === "column")).toHaveLength(0);
+  });
+
+  it("names every failing system, including an archived one", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await three(db, owner, slug);
+    await setSystemArchived(db, owner, slug, "b", true);
+    const error = await updateSystems(db, owner, slug, { systems: ["a", "b", "c"], patch: { priority: "MVP", move: { column: "Todo" } } }).catch((e) => e);
+    expect(error.message).toMatch(/^Nothing was changed\. 3 systems failed: a: .*; b: System b is archived.*; c: /);
+    expect((await db.select().from(changeLog)).filter((c) => c.field === "priority")).toHaveLength(0);
+  });
+
+  it("rejects a non-member owner with a 400 and changes nothing", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await three(db, owner, slug);
+    const outsider = await insertUser(db);
+    const error = await updateSystems(db, owner, slug, { systems: ["a", "b"], patch: { ownerUserId: outsider.userId } }).catch((e) => e);
+    expect(statusOf(error)).toBe(400);
+    expect(error.message).toContain("Nothing was changed. 2 systems failed:");
+    expect((await listSystems(db, owner, slug)).map((s) => s.ownerUserId)).toEqual([null, null, null]);
+  });
+
+  it("treats an unknown slug as a failure", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await three(db, owner, slug);
+    const error = await updateSystems(db, owner, slug, { systems: ["a", "nope"], patch: { priority: "MVP" } }).catch((e) => e);
+    expect(statusOf(error)).toBe(409);
+    expect(error.message).toBe("Nothing was changed. 1 systems failed: nope: not found");
+    expect((await listSystems(db, owner, slug)).map((s) => s.priority)).toEqual(["Later", "Later", "Later"]);
+  });
+
+  it("needs the editor role and at least one change", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await three(db, owner, slug);
+    const viewer = await addMemberFixture(db, owner, slug, "viewer");
+    await expect(updateSystems(db, viewer, slug, { systems: ["a"], patch: { priority: "MVP" } })).rejects.toMatchObject({ status: 403 });
+    const error = await updateSystems(db, owner, slug, { systems: ["a"], patch: {} }).catch((e) => e);
+    expect(statusOf(error)).toBe(400);
+    expect(messageOf(error)).toContain("Choose at least one change.");
   });
 });

@@ -5,7 +5,7 @@ import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { getProject } from "@/lib/ops/projects";
 import { similarSystems, similarSystemsInput } from "@/lib/ops/similar";
-import { createSystem, createSystemInput, listSystems, moveSystem, moveSystemInput, systemFilter, updateSystem, updateSystemInput } from "@/lib/ops/systems";
+import { createSystem, createSystemInput, listSystems, moveSystem, moveSystemInput, systemFilter, updateSystem, updateSystemInput, updateSystems, updateSystemsInput } from "@/lib/ops/systems";
 import { latestUpdates } from "@/lib/ops/updates";
 import { protectedProcedure, router } from "../init";
 import { P, S } from "./shared";
@@ -42,6 +42,11 @@ export const systemsRouter = router({
   update: protectedProcedure
     .input(z.object({ ...S, patch: updateSystemInput }))
     .mutation(async ({ ctx, input }) => void (await updateSystem(ctx.db, ctx.actor, input.project, input.system, input.patch))),
+
+  /** Applies one change to many systems at once; if any fails, nothing changes. */
+  bulkUpdate: protectedProcedure
+    .input(z.object({ ...P, ...updateSystemsInput.shape }))
+    .mutation(({ ctx, input }) => updateSystems(ctx.db, ctx.actor, input.project, { systems: input.systems, patch: input.patch })),
 
   /** Moves a system to a column; the planning gate applies. */
   move: protectedProcedure

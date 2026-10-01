@@ -26,10 +26,10 @@ import { newId } from "@/lib/id";
 import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./access";
 import type { Actor } from "./actor";
 import { dependencyMapsOf } from "./dependencies";
-import { ConflictError, InvalidError, isUniqueViolation, NotFoundError } from "./errors";
+import { ConflictError, InvalidError, isUniqueViolation, NotFoundError, OpError } from "./errors";
 import { fieldValuesByKey } from "./fields";
 import { logChange } from "./log";
-import { findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
+import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
 import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
@@ -414,30 +414,42 @@ export async function updateSystem(
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     const current = await findSystem(tx, project.id, systemSlug, true);
-    if (patch.ownerUserId && !(await isMember(tx, project.id, patch.ownerUserId))) {
-      throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);
-    }
-    await checkStructure(tx, project.id, patch.domainId, patch.phaseId);
-    const changes: Partial<SystemRow> = {};
-    for (const field of ["title", "summary", "priority", "ownerUserId", "notes", "domainId", "phaseId"] as const) {
-      const next = patch[field];
-      if (next === undefined || next === current[field]) continue;
-      Object.assign(changes, { [field]: next });
-      const owner = field === "ownerUserId";
-      await logChange(tx, actor, {
-        projectId: project.id,
-        systemId: current.id,
-        entity: "system",
-        entityId: current.id,
-        field: owner ? "owner" : field,
-        oldValue: owner ? await userName(tx, current.ownerUserId) : current[field],
-        newValue: owner ? await userName(tx, next as string | null) : (next as string | null),
-      });
-    }
-    if (Object.keys(changes).length === 0) return current;
-    const [row] = await tx.update(system).set(changes).where(eq(system.id, current.id)).returning();
-    return row;
+    return applySystemPatch(tx, actor, project, current, patch);
   });
+}
+
+/** Applies `patch` to the locked, active system `parent`, logging each changed field; returns the updated row. */
+export async function applySystemPatch(
+  tx: Executor,
+  actor: Actor,
+  project: ProjectRow,
+  parent: SystemRow,
+  patch: z.output<typeof updateSystemInput>,
+): Promise<SystemRow> {
+  const current = parent;
+  if (patch.ownerUserId && !(await isMember(tx, project.id, patch.ownerUserId))) {
+    throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);
+  }
+  await checkStructure(tx, project.id, patch.domainId, patch.phaseId);
+  const changes: Partial<SystemRow> = {};
+  for (const field of ["title", "summary", "priority", "ownerUserId", "notes", "domainId", "phaseId"] as const) {
+    const next = patch[field];
+    if (next === undefined || next === current[field]) continue;
+    Object.assign(changes, { [field]: next });
+    const owner = field === "ownerUserId";
+    await logChange(tx, actor, {
+      projectId: project.id,
+      systemId: current.id,
+      entity: "system",
+      entityId: current.id,
+      field: owner ? "owner" : field,
+      oldValue: owner ? await userName(tx, current.ownerUserId) : current[field],
+      newValue: owner ? await userName(tx, next as string | null) : (next as string | null),
+    });
+  }
+  if (Object.keys(changes).length === 0) return current;
+  const [row] = await tx.update(system).set(changes).where(eq(system.id, current.id)).returning();
+  return row;
 }
 
 /**
@@ -460,35 +472,105 @@ export async function moveSystem(
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     const current = await findSystem(tx, project.id, systemSlug, true);
-    const boards = await loadBoards(tx, project.id);
-    const from = boards.find((b) => b.id === current.boardId) as BoardWithColumns;
-    const toFirst = input.board ? await findBoard(tx, project.id, input.board) : from;
-    // Share-lock the target board so a concurrent column edit cannot delete the column used below.
-    await tx.select({ id: board.id }).from(board).where(eq(board.id, toFirst.id)).for("share");
-    const to = await findBoard(tx, project.id, toFirst.slug);
-    const wanted = input.column.toLowerCase();
-    const column = to.columns.find((c) => c.id === input.column || c.name.toLowerCase() === wanted);
-    if (!column) {
-      throw new InvalidError(`Board ${to.slug} has no column "${input.column}". Columns: ${to.columns.map((c) => c.name).join(", ")}.`);
+    return applySystemMove(tx, actor, project, current, input);
+  });
+}
+
+/** Moves the locked, active system `parent` as {@link moveSystem} describes; returns the updated row. */
+export async function applySystemMove(
+  tx: Executor,
+  actor: Actor,
+  project: ProjectRow,
+  parent: SystemRow,
+  to: z.output<typeof moveSystemInput>,
+): Promise<SystemRow> {
+  const current = parent;
+  const boards = await loadBoards(tx, project.id);
+  const from = boards.find((b) => b.id === current.boardId) as BoardWithColumns;
+  const toFirst = to.board ? await findBoard(tx, project.id, to.board) : from;
+  // Share-lock the target board so a concurrent column edit cannot delete the column used below.
+  await tx.select({ id: board.id }).from(board).where(eq(board.id, toFirst.id)).for("share");
+  const target = await findBoard(tx, project.id, toFirst.slug);
+  const wanted = to.column.toLowerCase();
+  const column = target.columns.find((c) => c.id === to.column || c.name.toLowerCase() === wanted);
+  if (!column) {
+    throw new InvalidError(`Board ${target.slug} has no column "${to.column}". Columns: ${target.columns.map((c) => c.name).join(", ")}.`);
+  }
+  if (column.category !== "planning" && !current.planningCompletedAt) {
+    throw new ConflictError(planningGateMessage(current.slug, await planningGaps(tx, current.id)));
+  }
+  if (column.id === current.columnId) return current;
+  if (column.category === "active" && (await isMember(tx, project.id, actor.userId))) {
+    await claimSystem(tx, actor, current);
+  }
+  const fromColumn = from.columns.find((c) => c.id === current.columnId);
+  const [row] = await tx.update(system).set({ boardId: target.id, columnId: column.id }).where(eq(system.id, current.id)).returning();
+  await logChange(tx, actor, {
+    projectId: project.id,
+    systemId: current.id,
+    entity: "system",
+    entityId: current.id,
+    field: "column",
+    oldValue: `${from.name} / ${fromColumn?.name}`,
+    newValue: `${target.name} / ${column.name}`,
+  });
+  return row;
+}
+
+/** Input of {@link updateSystems}: the same changes applied to every listed system. */
+export const updateSystemsInput = z.object({
+  systems: z.array(slugSchema).min(1).max(100),
+  patch: z
+    .object({
+      ownerUserId: nullableEntityId.optional(),
+      phaseId: nullableEntityId.optional(),
+      domainId: nullableEntityId.optional(),
+      priority: z.enum(PRIORITIES).optional(),
+      move: moveSystemInput.optional(),
+    })
+    .refine((p) => Object.values(p).some((v) => v !== undefined), "Choose at least one change."),
+});
+
+/**
+ * Applies one patch, then the optional move, to every listed system in a single
+ * transaction, so either all change or none do. Systems are locked in slug order
+ * so two bulk edits never deadlock. Editor or higher. Part 5 decides whether agents get a batch variant.
+ *
+ * @throws ConflictError (InvalidError when every failure is a 400) naming every failing system; nothing is changed
+ */
+export async function updateSystems(db: Db, actor: Actor, projectSlug: string, raw: z.input<typeof updateSystemsInput>): Promise<{ updated: string[] }> {
+  const input = updateSystemsInput.parse(raw);
+  const slugs = [...new Set(input.systems)].sort();
+  const { move, ...patch } = input.patch;
+  return db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, projectSlug, "editor");
+    const rows = await tx
+      .select()
+      .from(system)
+      .where(and(eq(system.projectId, project.id), inArray(system.slug, slugs)))
+      .orderBy(asc(system.slug))
+      .for("no key update");
+    const bySlug = new Map(rows.map((r) => [r.slug, r]));
+    const failures: { text: string; status: number }[] = [];
+    for (const slug of slugs) {
+      const row = bySlug.get(slug);
+      if (!row) {
+        failures.push({ text: `${slug}: not found`, status: 404 });
+        continue;
+      }
+      try {
+        assertSystemActive(row);
+        const patched = await applySystemPatch(tx, actor, project, row, patch);
+        if (move) await applySystemMove(tx, actor, project, patched, move);
+      } catch (error) {
+        if (!(error instanceof OpError)) throw error;
+        failures.push({ text: `${slug}: ${error.message}`, status: error.status });
+      }
     }
-    if (column.category !== "planning" && !current.planningCompletedAt) {
-      throw new ConflictError(planningGateMessage(current.slug, await planningGaps(tx, current.id)));
+    if (failures.length > 0) {
+      const message = `Nothing was changed. ${failures.length} systems failed: ${failures.map((f) => f.text).join("; ")}`;
+      throw failures.every((f) => f.status === 400) ? new InvalidError(message) : new ConflictError(message);
     }
-    if (column.id === current.columnId) return current;
-    if (column.category === "active" && (await isMember(tx, project.id, actor.userId))) {
-      await claimSystem(tx, actor, current);
-    }
-    const fromColumn = from.columns.find((c) => c.id === current.columnId);
-    const [row] = await tx.update(system).set({ boardId: to.id, columnId: column.id }).where(eq(system.id, current.id)).returning();
-    await logChange(tx, actor, {
-      projectId: project.id,
-      systemId: current.id,
-      entity: "system",
-      entityId: current.id,
-      field: "column",
-      oldValue: `${from.name} / ${fromColumn?.name}`,
-      newValue: `${to.name} / ${column.name}`,
-    });
-    return row;
+    return { updated: slugs };
   });
 }
