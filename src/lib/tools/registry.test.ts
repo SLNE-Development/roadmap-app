@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
-import { ForbiddenError } from "@/lib/ops/errors";
+import { ForbiddenError, InvalidError } from "@/lib/ops/errors";
 import { ZodError } from "zod";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { addQuestion } from "@/lib/ops/questions";
@@ -34,8 +34,8 @@ describe("tool registry", () => {
   });
 
   it("gives every tool a unique REST route whose parameters are tool inputs", () => {
-    const routes = TOOLS.map((t) => `${t.method} ${t.path}`);
-    expect(new Set(routes).size).toBe(routes.length);
+    const routes = TOOLS.map((t) => `${t.method} ${t.path.replace(/:[^/]+/g, ":param")}`);
+    expect(routes.filter((r, i) => routes.indexOf(r) !== i)).toEqual([]);
     for (const t of TOOLS) {
       for (const param of t.path.split("/").filter((s) => s.startsWith(":"))) {
         expect(Object.keys(t.input), `${t.name} ${param}`).toContain(param.slice(1));
@@ -101,6 +101,16 @@ describe("tool registry", () => {
     const { owner, slug } = await createProjectFixture(db);
     const create = TOOLS.find((t) => t.name === "create_system")!;
     await expect(runTool(db, owner, create, { project: slug })).rejects.toBeInstanceOf(ZodError);
+  });
+
+  it("names an invalid batch item by its 1-based number", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await runTool(db, owner, TOOLS.find((t) => t.name === "create_system")!, { project: slug, slug: "s", title: "S" });
+    const add = TOOLS.find((t) => t.name === "add_tasks")!;
+    const attempt = runTool(db, owner, add, { project: slug, system: "s", tasks: [{ title: "T1" }, { title: "T2" }, { title: "" }] });
+    await expect(attempt).rejects.toBeInstanceOf(InvalidError);
+    await expect(attempt).rejects.toThrow(/^Item 3: title: /);
   });
 
   it("returns only waiting items from my_work, without hrefs or dates", async () => {

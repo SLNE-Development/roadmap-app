@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { agentCall, agentRun, changeLog } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
@@ -131,6 +131,41 @@ describe("startRun", () => {
     const runs = await runsOf(db, "K");
     expect(runs).toHaveLength(1);
     expect(runs[0].title).toBe("Two");
+  });
+});
+
+describe("session runs", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps a started run current through usage reports", async () => {
+    const db = await createTestDb();
+    const user = await insertUser(db);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(T);
+    const { runId } = await startRun(db, user, "K", { title: "Fix login", clientSessionId: "sess-1" });
+    vi.setSystemTime(plus(5));
+    await recordUsage(db, user, "K", usage("sess-1", 1));
+    await recordCall(db, rec(user, "K", { at: plus(15) }));
+    const runs = await runsOf(db, "K");
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ id: runId, callCount: 1, lastCallAt: plus(15) });
+  });
+
+  it("gives a run with a client session id a 60-minute gap", async () => {
+    const db = await createTestDb();
+    const user = await insertUser(db);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(T);
+    const { runId } = await startRun(db, user, "K", { clientSessionId: "sess-1" });
+    await recordCall(db, rec(user, "K", { at: plus(45) }));
+    await recordCall(db, rec(user, "K", { at: plus(110) }));
+    const runs = await runsOf(db, "K");
+    expect(runs.map((r) => [r.id === runId, r.callCount])).toEqual([
+      [true, 1],
+      [false, 1],
+    ]);
   });
 });
 

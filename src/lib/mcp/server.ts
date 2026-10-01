@@ -3,7 +3,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Db } from "@/db/types";
 import { withAgent, type Actor } from "@/lib/ops/actor";
-import { notifyRecorder, type CallRecord } from "@/lib/ops/agent-runs";
+import { notifyRecorder, UNRECORDED_TOOLS, type CallRecord } from "@/lib/ops/agent-runs";
 import { projectBrief } from "@/lib/ops/brief";
 import { messageOf, statusOf } from "@/lib/ops/errors";
 import { listProjects } from "@/lib/ops/projects";
@@ -39,7 +39,7 @@ const DEFAULT_AGENT = "Claude Code";
 /**
  * Builds an MCP server exposing every registered tool except REST-only ones, acting as `actor`.
  * Write tools default to the agent name "Claude Code". With `opts.apiKeyId`, every
- * tool call goes to `opts.recordCall`; a failing recorder never changes the result.
+ * tool call except {@link UNRECORDED_TOOLS} goes to `opts.recordCall`; a failing recorder never changes the result.
  */
 export function createMcpServer(db: Db, actor: Actor, opts: { apiKeyId?: string; recordCall?: (r: CallRecord) => void } = {}): McpServer {
   const server = new McpServer({ name: "surf-roadmap", version: "1.0.0" }, { instructions: MCP_INSTRUCTIONS });
@@ -61,7 +61,7 @@ export function createMcpServer(db: Db, actor: Actor, opts: { apiKeyId?: string;
             throw error;
           }
         });
-        if (apiKeyId) {
+        if (apiKeyId && !UNRECORDED_TOOLS.has(def.name)) {
           notifyRecorder(opts.recordCall, {
             apiKeyId,
             userId: actor.userId,

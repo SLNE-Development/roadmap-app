@@ -150,6 +150,15 @@ export function gitInfo(cwd) {
 }
 
 /**
+ * Returns the name fields of an agent run for a repository and branch, each left out when
+ * empty and cut to the server's limits: title 120, repo and branch 200 characters.
+ */
+export function runNames(repo, branch) {
+  const title = [repo, branch].filter(Boolean).join(" · ").slice(0, 120);
+  return { ...(title ? { title } : {}), ...(repo ? { repo: repo.slice(0, 200) } : {}), ...(branch ? { branch: branch.slice(0, 200) } : {}) };
+}
+
+/**
  * Sums the token usage of a Claude Code transcript (JSONL). A streamed message
  * repeats under one `message.id`, so each id counts once, with its last usage.
  * Returns null when the file is missing, unreadable or bigger than `maxBytes`.

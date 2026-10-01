@@ -5,7 +5,7 @@ import { changeLog, task } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture } from "@/test/fixtures";
 import { addTasks, answerQuestions, updateTasks } from "./batch";
-import { ConflictError, ForbiddenError, NotFoundError } from "./errors";
+import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
 import { addQuestion, listQuestions } from "./questions";
 import { createSystem } from "./systems";
 import { moveTask } from "./tasks";
@@ -171,5 +171,18 @@ describe("batch tools", () => {
     await expect(addTasks(db, owner, slug, "s", { tasks: many })).rejects.toBeInstanceOf(ZodError);
     await expect(updateTasks(db, owner, { updates: Array.from({ length: 51 }, () => ({ id: 1, state: "done" as const })) })).rejects.toBeInstanceOf(ZodError);
     await expect(answerQuestions(db, owner, slug, { answers: Array.from({ length: 51 }, () => ({ id: "x", answer: "y" })) })).rejects.toBeInstanceOf(ZodError);
+  });
+
+  it("names an invalid item by its 1-based number", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const attempt = addTasks(db, owner, slug, "s", { tasks: [{ title: "T1" }, { title: "T2" }, { title: "" }] });
+    await expect(attempt).rejects.toBeInstanceOf(InvalidError);
+    await expect(attempt).rejects.toThrow(/^Item 3: title: /);
+    await expect(updateTasks(db, owner, { updates: [{ id: 1 }, { id: 2 }, { id: 3, title: "" }] })).rejects.toThrow(/^Item 3: /);
+    await expect(answerQuestions(db, owner, slug, { answers: [{ id: "a", answer: "A" }, { id: "b", answer: "B" }, { id: "c", answer: "" }] })).rejects.toThrow(
+      /^Item 3: /,
+    );
   });
 });

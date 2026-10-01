@@ -60,15 +60,25 @@ export async function recordAuthEvent(db: Executor, event: AuthEventInput): Prom
   }
 }
 
+/** Most rejected keys recorded per client address within {@link REJECTED_IP_WINDOW_SECONDS}. */
+const REJECTED_PER_IP = 5;
+
+/** The window of {@link REJECTED_PER_IP}, in seconds. */
+const REJECTED_IP_WINDOW_SECONDS = 60;
+
 /**
  * Records an auth event unless one with the same throttle key was recorded within `seconds`.
+ * Rejected keys are also capped per client address, so random keys from one client cannot flood the table.
  * When the store fails, nothing is recorded, so a flood of events cannot reach the database unthrottled.
  * Never throws.
  */
 export async function recordThrottled(db: Executor, kv: Kv, event: AuthEventInput, throttleKey: string, seconds: number): Promise<void> {
   try {
-    if (await kv.get(throttleKey)) return;
-    await kv.set(throttleKey, "1", seconds);
+    if (event.kind === "key-rejected") {
+      const fromIp = await kv.incr(`audit:rej-ip:${event.ip ?? "unknown"}`, REJECTED_IP_WINDOW_SECONDS);
+      if (fromIp > REJECTED_PER_IP) return;
+    }
+    if (!(await kv.setIfAbsent(throttleKey, "1", seconds))) return;
   } catch (error) {
     console.error(error);
     return;

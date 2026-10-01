@@ -267,10 +267,13 @@ export function auditRepo(repo, conv, gitLog = []) {
  * header and the convention blocks `expectedBlocks` selects (minus the CLAUDE.md-only
  * header), each in marked sections so reruns replace only those sections.
  *
- * @param link the parsed `surf-roadmap.json`; its `project` is named in the header
+ * @param link the parsed `surf-roadmap.json`; its `project` is named in the header when known
  */
 export function renderOtherAgents(conv, answers, link) {
-  const header = conv.read("other-agents/header.md").replace(/\{\{project\}\}/g, link?.project ?? "named in surf-roadmap.json");
+  const linked = link?.project
+    ? `This repository is linked to the roadmap project \`${link.project}\` (see \`surf-roadmap.json\`).`
+    : "This repository is linked to a roadmap project (see `surf-roadmap.json`).";
+  const header = conv.read("other-agents/header.md").replace(/\{\{linked\}\}/g, linked);
   const blocks = [{ id: "header", variant: null, text: header.trim() }, ...expectedBlocks(conv, answers).filter((b) => b.id !== "header")];
   const agentsMd = `${blocks.map((b) => renderBlock(b.id, b.text, b.variant)).join("\n\n")}\n`;
   const cursorRule = `---\ndescription: surf-roadmap conventions\nalwaysApply: true\n---\n${agentsMd}`;

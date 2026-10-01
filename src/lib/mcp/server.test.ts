@@ -99,13 +99,14 @@ describe("MCP server", () => {
     expect(missing.text).not.toContain("NaN");
   });
 
-  it("reports tool calls to the recorder", async () => {
+  it("reports tool calls except whoami to the recorder", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);
     const records: CallRecord[] = [];
     const client = await connect(db, owner, (r) => records.push(r));
     await call(client, "list_systems", { project: slug });
     await call(client, "list_systems", { project: "nope" });
+    await call(client, "whoami", {});
     expect(records.map((r) => [r.tool, r.transport, r.ok, r.status, r.apiKeyId, r.agent])).toEqual([
       ["list_systems", "mcp", true, 200, "key-1", "Claude Code"],
       ["list_systems", "mcp", false, 404, "key-1", "Claude Code"],

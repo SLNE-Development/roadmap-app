@@ -4,7 +4,7 @@ import { question, system, task } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
-import { OpError } from "./errors";
+import { numberItems, OpError } from "./errors";
 import { findSystem } from "./lookup";
 import { dbInt } from "./params";
 import { answerQuestionInput, answerQuestionInTx, questionsOf, type QuestionItem } from "./questions";
@@ -25,6 +25,15 @@ export const updateTasksInput = z.object({
 
 /** Input of {@link answerQuestions}: 1 to 50 answers. */
 export const answerQuestionsInput = z.object({ answers: z.array(answerQuestionInput).min(1).max(50) });
+
+/** Parses a batch input, naming an invalid item of the array `field` by its 1-based number. */
+function parseBatch<S extends z.ZodType>(schema: S, raw: unknown, field: string): z.output<S> {
+  try {
+    return schema.parse(raw);
+  } catch (error) {
+    throw numberItems(error, field);
+  }
+}
 
 /** Runs `step` for item `index` (0-based), prefixing an op error's message with the item's 1-based number. */
 async function forItem<T>(index: number, step: () => Promise<T>): Promise<T> {
@@ -50,7 +59,7 @@ export async function addTasks(
   systemSlug: string,
   raw: z.input<typeof addTasksInput>,
 ): Promise<{ tasks: { id: number; title: string; clientRef: string | null; created: boolean }[] }> {
-  const input = addTasksInput.parse(raw);
+  const input = parseBatch(addTasksInput, raw, "tasks");
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     // The system lock serialises batch adds to this system, so no concurrent call can insert
@@ -86,7 +95,7 @@ export async function addTasks(
  * names the failing item ("Item 2: …"). Editor or higher on every task's project.
  */
 export async function updateTasks(db: Db, actor: Actor, raw: z.input<typeof updateTasksInput>): Promise<{ tasks: TaskRow[] }> {
-  const { updates } = updateTasksInput.parse(raw);
+  const { updates } = parseBatch(updateTasksInput, raw, "updates");
   return db.transaction(async (tx) => {
     const found = await tx
       .select({ systemId: task.systemId })
@@ -115,7 +124,7 @@ export async function answerQuestions(
   projectSlug: string,
   raw: z.input<typeof answerQuestionsInput>,
 ): Promise<{ questions: QuestionItem[] }> {
-  const { answers } = answerQuestionsInput.parse(raw);
+  const { answers } = parseBatch(answerQuestionsInput, raw, "answers");
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     const ids = [...new Set(answers.map((a) => a.id))];

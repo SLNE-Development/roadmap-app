@@ -1,15 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestDb } from "@/test/db";
+import { createProjectFixture } from "@/test/fixtures";
 import { DELETE, GET, POST } from "./route";
 
 /** Stand-in for Better Auth's `verifyApiKey`, so tests choose the verification result. */
 const { verifyApiKey } = vi.hoisted(() => ({ verifyApiKey: vi.fn() }));
 vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: { verifyApiKey } }) }));
 
-/** Stand-ins for auth event recording; the database finds the rate-limited key as `k1`. */
-const { recordThrottled } = vi.hoisted(() => ({ recordThrottled: vi.fn() }));
+/**
+ * Stand-ins for auth event recording; the database finds the rate-limited key as `k1`,
+ * unless a test sets a real database in `testDb`.
+ */
+const { recordThrottled, testDb } = vi.hoisted(() => ({ recordThrottled: vi.fn(), testDb: { current: null as unknown } }));
 vi.mock("@/lib/ops/audit", () => ({ recordThrottled }));
 vi.mock("@/db/client", () => ({
-  getDb: () => ({ select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: "k1", userId: "u1" }] }) }) }) }),
+  getDb: () => testDb.current ?? { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: "k1", userId: "u1" }] }) }) }) },
+}));
+
+/** The route records calls through `after`; here every recording attempt throws. */
+vi.mock("next/server", () => ({
+  after: () => {
+    throw new Error("recorder down");
+  },
 }));
 
 /** Sends an MCP POST with a bearer key. */
@@ -26,6 +38,7 @@ describe("MCP route", () => {
   beforeEach(() => {
     verifyApiKey.mockReset();
     recordThrottled.mockReset();
+    testDb.current = null;
   });
 
   it("answers GET with 405 and an Allow header", async () => {
@@ -99,5 +112,26 @@ describe("MCP route", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBeNull();
     expect((await response.json()).error).toBe("API key rate limit exceeded: at most 600 requests per minute. Retry shortly.");
+  });
+
+  it("answers a tool call unchanged when the recorder throws", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    testDb.current = db;
+    verifyApiKey.mockResolvedValueOnce({ valid: true, error: null, key: { id: "k1", referenceId: owner.userId } });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await POST(
+      new Request("http://test/api/mcp", {
+        method: "POST",
+        headers: { authorization: "Bearer rmk_test", "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_projects", arguments: {} } }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    const { result } = await response.json();
+    expect(result.isError).toBeUndefined();
+    expect(JSON.parse(result.content[0].text).map((p: { slug: string }) => p.slug)).toEqual([slug]);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 });

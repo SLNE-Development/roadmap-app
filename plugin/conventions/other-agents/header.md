@@ -10,8 +10,7 @@ in this repository. Where this file is silent, other instructions apply.
 
 ## Roadmap MCP server
 
-This repository is linked to the roadmap project `{{project}}` (see
-`surf-roadmap.json`). Specs, plans, ADRs and open questions live in the roadmap
+{{linked}} Specs, plans, ADRs and open questions live in the roadmap
 and are read and written through its MCP server. Add it to your agent:
 
 - URL: `${ROADMAP_URL}/api/mcp` (streamable HTTP)

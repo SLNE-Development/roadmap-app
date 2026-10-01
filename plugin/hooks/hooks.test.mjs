@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { docPathDecision, findLinkedRoot, gitInfo, REPLACEMENTS, sessionContext, skillDecision, sumTranscriptUsage } from "./lib.mjs";
+import { docPathDecision, findLinkedRoot, gitInfo, REPLACEMENTS, runNames, sessionContext, skillDecision, sumTranscriptUsage } from "./lib.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 
@@ -178,6 +178,15 @@ test("stop exits 0 without output when stdin never closes", async () => {
 
 test("gitInfo gives nulls outside a git repository", () => {
   assert.deepEqual(gitInfo(mkdtempSync(join(tmpdir(), "plain-"))), { repo: null, branch: null });
+});
+
+test("runNames cuts the title to 120 and repo and branch to 200 characters", () => {
+  const names = runNames("o/" + "r".repeat(300), "b".repeat(300));
+  assert.equal(names.title.length, 120);
+  assert.equal(names.repo.length, 200);
+  assert.equal(names.branch.length, 200);
+  assert.deepEqual(runNames("o/r", null), { title: "o/r", repo: "o/r" });
+  assert.deepEqual(runNames(null, null), {});
 });
 
 test("stop never blocks or prints on a missing, malformed or unreachable setup", () => {

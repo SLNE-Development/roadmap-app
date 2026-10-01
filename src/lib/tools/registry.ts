@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Db } from "@/db/types";
 import { withAgent, type Actor } from "@/lib/ops/actor";
+import { numberItems } from "@/lib/ops/errors";
 
 /** HTTP methods REST routes use. */
 export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -20,6 +21,8 @@ export interface ToolDef {
   path: string;
   /** Where the tool is offered: everywhere (the default) or only over REST. */
   surface?: "all" | "rest";
+  /** For batch tools: the array input whose invalid items errors name by 1-based number. */
+  items?: string;
   run(db: Db, actor: Actor, input: Record<string, unknown>, ctx?: ToolContext): Promise<unknown>;
 }
 
@@ -48,7 +51,7 @@ export function inputSchema(def: ToolDef): z.ZodObject<z.ZodRawShape> {
  * Validates `raw` and runs the tool. Write tools act through the given agent,
  * or `defaultAgent` when the input names none. `ctx` carries the call's API key.
  *
- * @throws z.ZodError for invalid input, and whatever the op throws
+ * @throws z.ZodError for invalid input (InvalidError naming the item for an invalid batch item), and whatever the op throws
  */
 export async function runTool(
   db: Db,
@@ -58,7 +61,9 @@ export async function runTool(
   defaultAgent?: string,
   ctx: ToolContext = { apiKeyId: null },
 ): Promise<unknown> {
-  const { agent, ...input } = inputSchema(def).parse(raw ?? {}) as Record<string, unknown>;
+  const parsed = inputSchema(def).safeParse(raw ?? {});
+  if (!parsed.success) throw def.items ? numberItems(parsed.error, def.items) : parsed.error;
+  const { agent, ...input } = parsed.data as Record<string, unknown>;
   const who = def.write ? withAgent(actor, (agent as string | undefined) ?? defaultAgent) : actor;
   return def.run(db, who, input, ctx);
 }

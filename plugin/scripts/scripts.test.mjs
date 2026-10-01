@@ -15,6 +15,7 @@ import {
   planGitignore,
   removeSection,
   renderBlock,
+  renderOtherAgents,
 } from "./lib.mjs";
 
 const conv = loadConventions(fileURLToPath(new URL("../conventions/", import.meta.url)));
@@ -242,6 +243,14 @@ test("CLI other-agents writes AGENTS.md and the Cursor rule, and a rerun keeps t
   writeFileSync(join(repo, "AGENTS.md"), `My own paragraph.\n\n${agents}`);
   assert.equal(run("other-agents", "--repo", repo, "--targets", "agents,cursor").status, 0);
   assert.equal(readFileSync(join(repo, "AGENTS.md"), "utf8"), `My own paragraph.\n\n${agents}`);
+});
+
+test("renderOtherAgents names the linked project, or falls back to a whole sentence", () => {
+  const linked = renderOtherAgents(conv, {}, { project: "demo" }).agentsMd;
+  assert.ok(linked.includes("This repository is linked to the roadmap project `demo` (see `surf-roadmap.json`)."));
+  const unknown = renderOtherAgents(conv, {}, null).agentsMd;
+  assert.ok(unknown.includes("This repository is linked to a roadmap project (see `surf-roadmap.json`)."));
+  assert.ok(!unknown.includes("{{") && !unknown.includes("`named in"));
 });
 
 test("CLI other-agents rejects an unknown target", () => {

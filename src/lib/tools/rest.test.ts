@@ -203,7 +203,7 @@ describe("REST call recording", () => {
     error.mockRestore();
   });
 
-  it("starts runs only with a key and does not record the run tools", async () => {
+  it("starts runs only with a key and does not record the run tools or whoami", async () => {
     const db = await createTestDb();
     const { owner } = await createProjectFixture(db);
     const records: CallRecord[] = [];
@@ -213,6 +213,7 @@ describe("REST call recording", () => {
     expect(typeof started.json.runId).toBe("string");
     const usage = { clientSessionId: "sess-1", inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4 };
     expect((await send(db, owner, "POST", "/agent-runs/usage", usage, (r) => records.push(r))).status).toBe(200);
+    expect((await send(db, owner, "GET", "/whoami", undefined, (r) => records.push(r))).status).toBe(200);
     expect(records).toEqual([]);
   });
 });

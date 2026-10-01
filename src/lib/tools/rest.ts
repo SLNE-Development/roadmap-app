@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Db } from "@/db/types";
 import { ApiKeyRateLimitedError, rateLimitedResponse } from "@/lib/auth/rate-limit";
 import { withAgent, type Actor } from "@/lib/ops/actor";
-import { notifyRecorder, type CallRecord } from "@/lib/ops/agent-runs";
+import { notifyRecorder, UNRECORDED_TOOLS, type CallRecord } from "@/lib/ops/agent-runs";
 import { InvalidError, messageOf, statusOf } from "@/lib/ops/errors";
 import "./definitions";
 import { inputSchema, matchRoute, runTool, type ToolDef } from "./registry";
@@ -15,9 +15,6 @@ export interface RestDeps {
   /** Receives every tool call made with a key, except the run tools themselves; must not throw (errors are logged). */
   recordCall?: (r: CallRecord) => void;
 }
-
-/** Tools that manage agent runs; calling them is not itself recorded as a call. */
-const RUN_TOOLS = new Set(["start_agent_run", "report_agent_usage"]);
 
 /** Builds the call record of one REST tool call; the outcome is the error, or `null` on success. */
 function restRecord(
@@ -104,9 +101,9 @@ export async function handleRest(request: Request, segments: string[], deps: Res
   let input: Record<string, unknown> = { ...match.params };
   let at = new Date();
   let started = 0;
-  /** Reports the finished call, unless it was made without a key or manages runs itself. */
+  /** Reports the finished call, unless it was made without a key or its tool is not recorded. */
   const record = (error: unknown) => {
-    if (auth && !RUN_TOOLS.has(match.def.name)) notifyRecorder(deps.recordCall, restRecord(match.def, auth, input, at, started, error));
+    if (auth && !UNRECORDED_TOOLS.has(match.def.name)) notifyRecorder(deps.recordCall, restRecord(match.def, auth, input, at, started, error));
   };
   try {
     auth = await deps.resolveAuth(request);

@@ -12,6 +12,9 @@ import { findSystem } from "./lookup";
 /** A key's calls join its latest run while that run's last call is less than this old. */
 export const RUN_GAP_MS = 10 * 60_000;
 
+/** The gap for a run with a client session id, whose hooks keep it current between calls. */
+export const SESSION_RUN_GAP_MS = 60 * 60_000;
+
 /** Longest stored error message, in characters. */
 const MAX_ERROR = 300;
 
@@ -32,6 +35,12 @@ export interface CallRecord {
   durationMs: number;
   at: Date;
 }
+
+/**
+ * Tools whose calls are not recorded: the run tools manage runs themselves, and `whoami` is
+ * the plugin's session-start check, which would otherwise open a run of one call.
+ */
+export const UNRECORDED_TOOLS: ReadonlySet<string> = new Set(["start_agent_run", "report_agent_usage", "whoami"]);
 
 /** Passes a record to an optional recorder; a throwing recorder is logged and never breaks the call. */
 export function notifyRecorder(recordCall: ((r: CallRecord) => void) | undefined, record: CallRecord): void {
@@ -75,20 +84,25 @@ async function lockKey(tx: Tx, apiKeyId: string): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${apiKeyId}))`);
 }
 
-/** Returns the id of the key's latest run if its last call is less than {@link RUN_GAP_MS} before `at`. */
+/**
+ * Returns the id of the key's latest run if its last call is less than {@link RUN_GAP_MS}
+ * ({@link SESSION_RUN_GAP_MS} for a run with a client session id) before `at`.
+ */
 async function currentRun(tx: Tx, apiKeyId: string, at: Date): Promise<string | null> {
   const [run] = await tx
-    .select({ id: agentRun.id, lastCallAt: agentRun.lastCallAt })
+    .select({ id: agentRun.id, lastCallAt: agentRun.lastCallAt, clientSessionId: agentRun.clientSessionId })
     .from(agentRun)
     .where(eq(agentRun.apiKeyId, apiKeyId))
     .orderBy(desc(agentRun.lastCallAt))
     .limit(1);
-  return run && at.getTime() - run.lastCallAt.getTime() < RUN_GAP_MS ? run.id : null;
+  const gap = run?.clientSessionId ? SESSION_RUN_GAP_MS : RUN_GAP_MS;
+  return run && at.getTime() - run.lastCallAt.getTime() < gap ? run.id : null;
 }
 
 /**
  * Stores one call in the key's current run, starting a run when the key has none
- * within {@link RUN_GAP_MS}. Telemetry: never written to `change_log`.
+ * within {@link RUN_GAP_MS} ({@link SESSION_RUN_GAP_MS} for session runs).
+ * Telemetry: never written to `change_log`.
  */
 export async function recordCall(db: Db, record: CallRecord): Promise<void> {
   const slug = typeof record.input.project === "string" ? record.input.project : null;
@@ -180,7 +194,7 @@ export const recordUsageInput = z.object({
 
 /**
  * Sets the token totals of the actor's run with this client session id, replacing
- * earlier totals. An unknown session gets a new run for the key.
+ * earlier totals, and keeps the run current. An unknown session gets a new run for the key.
  *
  * @throws NotFoundError when the session id belongs to another user
  */
@@ -190,7 +204,11 @@ export async function recordUsage(db: Db, actor: Actor, apiKeyId: string, input:
     await lockKey(tx, apiKeyId);
     const existing = await sessionRun(tx, actor, clientSessionId);
     if (existing) {
-      await tx.update(agentRun).set(totals).where(and(eq(agentRun.id, existing), eq(agentRun.userId, actor.userId)));
+      const now = new Date();
+      await tx
+        .update(agentRun)
+        .set({ ...totals, lastCallAt: sql`greatest(${agentRun.lastCallAt}, ${now.toISOString()}::timestamptz)` })
+        .where(and(eq(agentRun.id, existing), eq(agentRun.userId, actor.userId)));
       return;
     }
     await tx.insert(agentRun).values({ id: newId(), apiKeyId, userId: actor.userId, clientSessionId, ...totals });

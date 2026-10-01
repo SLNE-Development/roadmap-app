@@ -1,4 +1,4 @@
-import { findLinkedRoot, gitInfo, postJson, readInput, readLink, sessionContext } from "./lib.mjs";
+import { findLinkedRoot, gitInfo, postJson, readInput, readLink, runNames, sessionContext } from "./lib.mjs";
 
 /** Returns a one-line description of the API key's user, or why it could not be checked. */
 async function whoami() {
@@ -33,8 +33,7 @@ try {
     if (who.startsWith("Signed in") && typeof input.session_id === "string" && input.session_id) {
       // Names the run after the repository and branch; only these and the session id leave the machine.
       const { repo, branch } = gitInfo(root);
-      const title = [repo, branch].filter(Boolean).join(" · ");
-      await postJson("/agent-runs", { ...(title ? { title } : {}), ...(repo ? { repo } : {}), ...(branch ? { branch } : {}), clientSessionId: input.session_id }, 2000);
+      await postJson("/agent-runs", { ...runNames(repo, branch), clientSessionId: input.session_id }, 2000);
     }
     const additionalContext = sessionContext(link, who);
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }));

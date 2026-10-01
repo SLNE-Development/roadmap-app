@@ -99,4 +99,14 @@ describe("appRouter", () => {
     const users = await caller(db, owner).account.users({ project: slug });
     expect(users.map((u) => u.id)).toContain(editor.userId);
   });
+
+  it("refuses to end the current session from the sessions list", async () => {
+    const db = await createTestDb();
+    const owner = await insertUser(db);
+    const api = createCallerFactory(appRouter)({ db, actor: owner, sessionId: "sess-current" });
+    await expect(api.account.endSession({ id: "sess-current" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Use Sign out to end this session.",
+    });
+  });
 });

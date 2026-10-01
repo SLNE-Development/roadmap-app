@@ -69,6 +69,15 @@ describe("recordThrottled", () => {
     await recordThrottled(db, kv, event("key-rejected"), "audit:rej:rmk_abcdefgh", 60);
     expect(await countEvents(db)).toBe(2);
   });
+
+  it("writes at most five rejected keys per address a minute", async () => {
+    const db = await createTestDb();
+    const kv = memoryKv();
+    for (let i = 0; i < 10; i++) await recordThrottled(db, kv, event("key-rejected", { ip: "203.0.113.9" }), `audit:rej:rmk_bogus${i}`, 60);
+    expect(await countEvents(db)).toBe(5);
+    await recordThrottled(db, kv, event("key-rejected", { ip: "198.51.100.1" }), "audit:rej:rmk_other", 60);
+    expect(await countEvents(db)).toBe(6);
+  });
 });
 
 describe("listAuditEvents", () => {

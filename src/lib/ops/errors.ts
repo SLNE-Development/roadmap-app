@@ -64,13 +64,34 @@ export function statusOf(error: unknown): number {
   return 500;
 }
 
+/** Returns a zod issue as `path: message`, or only the message when it has no path. */
+function issueText(path: PropertyKey[], message: string): string {
+  return path.length ? `${path.map(String).join(".")}: ${message}` : message;
+}
+
+/**
+ * Rewrites a zod error with issues inside items of the array input `field` into an
+ * InvalidError naming each such item by its 1-based number (`Item 3: title: …`), as
+ * batch operations name failing items. Any other error is returned unchanged.
+ */
+export function numberItems(error: unknown, field: string): unknown {
+  if (!(error instanceof ZodError)) return error;
+  const index = (path: PropertyKey[]) => (path[0] === field && typeof path[1] === "number" ? path[1] : null);
+  if (error.issues.every((i) => index(i.path) === null)) return error;
+  const texts = error.issues.map((i) => {
+    const n = index(i.path);
+    return n === null ? issueText(i.path, i.message) : `Item ${n + 1}: ${issueText(i.path.slice(2), i.message)}`;
+  });
+  return new InvalidError(texts.join("; "));
+}
+
 /**
  * Returns the message to show for an error: the op message, zod issues as
  * `path: message` joined by `; `, or a generic text that leaks nothing.
  */
 export function messageOf(error: unknown): string {
   if (error instanceof ZodError) {
-    return error.issues.map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message)).join("; ");
+    return error.issues.map((i) => issueText(i.path, i.message)).join("; ");
   }
   if (error instanceof OpError) return error.message;
   return "Something went wrong.";

@@ -7,7 +7,8 @@ import { project } from "./projects";
 export const AGENT_TRANSPORTS = ["mcp", "rest"] as const;
 
 /**
- * One agent session of an API key: its calls while they keep coming within 10 minutes.
+ * One agent session of an API key: its calls while they keep coming within 10 minutes
+ * (60 minutes for a run with a client session id).
  * Telemetry, so never logged in `change_log`.
  */
 export const agentRun = pgTable(

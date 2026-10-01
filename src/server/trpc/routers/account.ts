@@ -5,6 +5,7 @@ import { getAuth } from "@/lib/auth/server";
 import { slugSchema } from "@/lib/ops/access";
 import type { Actor } from "@/lib/ops/actor";
 import { recordAuthEvent, type AuthEventInput } from "@/lib/ops/audit";
+import { InvalidError } from "@/lib/ops/errors";
 import { endOtherSessions, endSession, listSessions } from "@/lib/ops/sessions";
 import { myWork, myWorkSeenAt, markMyWorkSeen } from "@/lib/ops/my-work";
 import { createApiKeyInput, listApiKeys, revokeApiKey, rotateApiKey } from "@/lib/ops/api-keys";
@@ -84,8 +85,9 @@ export const accountRouter = router({
   /** The actor's signed-in sessions, the current one first. */
   sessions: protectedProcedure.query(({ ctx }) => listSessions(ctx.db, ctx.actor, ctx.sessionId)),
 
-  /** Signs one of the actor's sessions out. */
+  /** Signs one of the actor's other sessions out; the current one ends through Sign out. */
   endSession: protectedProcedure.input(z.object({ id: z.string().min(1) })).mutation(async ({ ctx, input }) => {
+    if (input.id === ctx.sessionId) throw new InvalidError("Use Sign out to end this session.");
     await endSession(ctx.db, ctx.actor, input.id);
     await audit(ctx, { kind: "session-ended", detail: `Session ${input.id} signed out from another session` });
   }),
