@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { useWhen } from "@/components/events/request-row";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -20,14 +21,14 @@ const NEW_SYSTEM = "";
  * The dialog that accepts a submitted request: the "Create project" tab builds a project from the event template,
  * the "Link to an existing project" tab links a project the actor edits.
  *
- * @param props.request the request's id, title and event end (the project deadline)
+ * @param props.request the request's id, title and event start and end (the end is the project deadline)
  */
 export function AcceptDialog({
   request,
   open,
   onOpenChange,
 }: {
-  request: { id: string; title: string; end: Date | null };
+  request: { id: string; title: string; startsAt: Date | null; endsAt: Date | null };
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -36,6 +37,7 @@ export function AcceptDialog({
   const format = useFormatter();
   const trpc = useTRPC();
   const id = useId();
+  const when = useWhen(request);
   const [tab, setTab] = useState<"create" | "link">("create");
   const [name, setName] = useState(request.title);
   const [slug, setSlug] = useState<string | null>(null);
@@ -111,7 +113,7 @@ export function AcceptDialog({
                 <Input id={`${id}-slug`} value={shownSlug} maxLength={64} className="font-mono text-[13px]" onChange={(e) => setSlug(slugify(e.target.value))} />
                 <FieldDescription>{t("slugPreview", { slug: shownSlug })}</FieldDescription>
               </Field>
-              {request.end && <p className="text-[13px] text-fg-2">{t("deadlineValue", { date: format.dateTime(request.end, { dateStyle: "medium", timeStyle: "short" }) })}</p>}
+              {request.startsAt && request.endsAt && <p className="text-[13px] text-fg-2">{t("deadlineValue", { date: format.dateTime(request.startsAt, { weekday: "short", day: "numeric", month: "short" }), when: when ?? "" })}</p>}
               <p className="text-[13px] text-muted-foreground">{t("createHelp")}</p>
             </FieldGroup>
           ) : (

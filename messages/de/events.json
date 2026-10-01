@@ -47,50 +47,49 @@
     "tabQuestions": "Fragen",
     "tabQuestionsOpen": "Fragen ({count})",
     "tabOverview": "Übersicht",
-    "requestedBy": "Angefragt von {name}",
-    "readOnly": "Du kannst diese Anfrage ansehen, aber nicht ändern.",
     "tabFallback": "Notfallplan",
     "tabPrep": "Vorbereitung",
     "tabEventDay": "Eventtag",
     "tabMessages": "Nachrichten",
-    "somethingWrong": "Etwas schiefgelaufen?"
+    "somethingWrong": "Etwas schiefgelaufen?",
+    "rail": "Übersicht der Anfrage"
   },
   "statusBar": {
-    "label": "Status der Anfrage",
-    "current": "{status}, aktueller Schritt"
+    "label": "Fortschritt der Anfrage",
+    "done": "{status}, erledigt",
+    "current": "{status}, aktueller Schritt",
+    "upcoming": "{status}, steht noch aus"
   },
   "actions": {
     "submit": "Einreichen",
     "recall": "Zurückholen",
     "withdraw": "Zurückziehen",
     "cancel": "Event absagen",
-    "markDone": "Als erledigt markieren",
     "submitted": "Anfrage eingereicht",
     "recalled": "Die Anfrage ist wieder ein Entwurf",
     "withdrawn": "Anfrage zurückgezogen",
     "cancelled": "Anfrage abgesagt",
-    "done": "Anfrage als erledigt markiert",
-    "cancelTitle": "Dieses Event absagen",
-    "cancelDescription": "Die Anfrage wird endgültig geschlossen. Nenne den Grund, damit alle, die sie verfolgen, Bescheid wissen.",
-    "reason": "Grund",
-    "cancelConfirm": "Event absagen",
-    "keep": "Event behalten",
+    "done": "Event abgeschlossen",
     "startEventWeek": "Eventwoche starten",
     "eventWeekStarted": "Eventwoche gestartet",
     "fallbackGate": "Die Eventwoche kann starten, sobald der Notfallplan vollständig ist. Noch offen: {scenarios}.",
-    "openFallback": "Notfallplan öffnen"
+    "complete": "Event abschließen",
+    "reopen": "Wieder öffnen",
+    "reopened": "Anfrage wieder geöffnet",
+    "deleted": "Anfrage gelöscht"
   },
   "details": {
     "title": "Details",
     "name": "Titel",
     "startsAt": "Beginn",
-    "startsAtHelp": "Angezeigt in deiner Zeitzone.",
-    "duration": "Dauer in Minuten",
+    "startsAtHelp": "Zeitzone: {zone}.",
     "where": "Wo",
     "docs": "Link zu den Event-Dokumenten",
     "docsHelp": "Ein https-Link zu den Dokumenten des Events.",
-    "save": "Details speichern",
-    "saved": "Details gespeichert"
+    "saved": "Details gespeichert",
+    "endsAt": "Ende",
+    "endBeforeStart": "Das Ende muss nach dem Beginn liegen.",
+    "help": "Wo und wann das Event stattfindet."
   },
   "brief": {
     "label": "Brief",
@@ -126,8 +125,11 @@
       "durationMinutes": "die Dauer",
       "where": "den Ort",
       "eventDocsUrl": "den Dokumentenlink",
-      "requesterId": "die anfragende Person"
-    }
+      "requesterId": "die anfragende Person",
+      "summary": "die Kurzbeschreibung"
+    },
+    "showAll": "Alle anzeigen",
+    "sheetDescription": "Alle Änderungen an dieser Anfrage, die neueste zuerst."
   },
   "image": {
     "choose": "Bild auswählen",
@@ -187,7 +189,7 @@
     "projectSlug": "Projektadresse",
     "slugPreview": "Das Projekt öffnet sich unter /p/{slug}.",
     "deadline": "Deadline",
-    "deadlineValue": "Die Projekt-Deadline ist das Ende des Events: {date}.",
+    "deadlineValue": "Das Event läuft {date}, {when}. Die Projektfrist ist sein Ende.",
     "createHelp": "Das Projekt bekommt das Event-Board, drei Phasen und ein System mit dem Brief als erstem Spec-Entwurf.",
     "project": "Projekt",
     "projectPlaceholder": "Projekt auswählen",
@@ -210,7 +212,6 @@
     "archived": "Das Projekt ist archiviert. Das sind die letzten Zahlen."
   },
   "link": {
-    "title": "Projekt",
     "open": "Projekt {name} öffnen",
     "deleted": "Projekt gelöscht",
     "deletedHelp": "Das für diese Anfrage gebaute Projekt gibt es nicht mehr."
@@ -497,5 +498,121 @@
     "label": "Vorschau der Discord-Nachricht",
     "mention": "Event",
     "eventCard": "Discord-Event"
+  },
+  "header": {
+    "more": "Weitere Aktionen",
+    "eventDay": "Eventtag-Seite öffnen",
+    "settings": "Event-Einstellungen",
+    "viewOnly": "Nur Ansicht",
+    "viewOnlyHelp": "Du kannst diese Anfrage ansehen, aber nicht ändern.",
+    "noDate": "Noch kein Datum",
+    "requester": "Angefragt von {name}"
+  },
+  "closed": {
+    "cancelled": "Abgesagt",
+    "withdrawn": "Zurückgezogen",
+    "by": "{status} von {name} am {date}",
+    "noNote": "Es wurde keine Notiz hinterlassen."
+  },
+  "dialogs": {
+    "complete": {
+      "title": "Dieses Event abschließen?",
+      "description": "Das Event ist vorbei und die Anfrage wird als erledigt geschlossen. Das lässt sich nicht rückgängig machen.",
+      "confirm": "Event abschließen"
+    },
+    "withdraw": {
+      "title": "Diese Anfrage zurückziehen?",
+      "description": "Die Anfrage verlässt die Warteschlange. Du kannst sie später als Entwurf wieder öffnen.",
+      "confirm": "Zurückziehen"
+    },
+    "startWeek": {
+      "title": "Eventwoche starten?",
+      "description": "Die Eventwoche beginnt. Die Eventtag-Seite öffnet sich für alle, die angemeldet sind, und das Team arbeitet mit der Checkliste.",
+      "confirm": "Eventwoche starten"
+    },
+    "reopenCancelled": {
+      "title": "Dieses Event wieder öffnen?",
+      "description": "Die Anfrage geht zurück auf angenommen und die Absage-Notiz wird entfernt. Es wird keine Nachricht von selbst gepostet. Wurde die Ankündigung gepostet, wird das Discord-Event neu angelegt.",
+      "confirm": "Wieder öffnen"
+    },
+    "reopenWithdrawn": {
+      "title": "Diese Anfrage wieder öffnen?",
+      "description": "Die Anfrage wird wieder ein Entwurf, den du ändern und erneut einreichen kannst.",
+      "confirm": "Wieder öffnen"
+    },
+    "cancel": {
+      "title": "Dieses Event absagen",
+      "description": "Die Anfrage wird geschlossen und das Discord-Event entfernt. Nenne den Grund; er bleibt bei der Anfrage.",
+      "reason": "Grund",
+      "reasonHelp": "Alle, die die Anfrage verfolgen, können ihn lesen. Markdown funktioniert.",
+      "keep": "Event behalten",
+      "confirm": "Event absagen",
+      "posts": "Diese Nachricht wird im öffentlichen Kanal gepostet.",
+      "notPosted": "Es wird keine Absage gesendet, weil die Ankündigung nicht gepostet wurde.",
+      "noWebhook": "Es kann keine Absage gesendet werden: Der öffentliche Webhook ist nicht gesetzt. Das Event wird trotzdem abgesagt.",
+      "cancelled": "Anfrage abgesagt"
+    },
+    "delete": {
+      "title": "Diese Anfrage löschen",
+      "description": "Die Anfrage, ihr Verlauf und ihre hochgeladenen Bilder werden endgültig gelöscht. Nachrichten, die schon in Discord stehen, bleiben dort.",
+      "projectTitle": "Was passiert mit dem Projekt?",
+      "projectCreated": "Das Projekt „{name}“ wurde für dieses Event angelegt.",
+      "projectLinked": "Das verknüpfte Projekt „{name}“ bleibt unberührt; nur die Verknüpfung entfällt.",
+      "keep": "Projekt behalten",
+      "archive": "Projekt archivieren",
+      "delete": "Projekt mit allem Inhalt löschen",
+      "ownerOnly": "Das kann nur der Eigentümer des Projekts.",
+      "alreadyArchived": "Das Projekt ist bereits archiviert.",
+      "confirm": "Anfrage löschen"
+    }
+  },
+  "card": {
+    "unsaved": "Ungespeicherte Änderungen",
+    "save": "Speichern",
+    "discard": "Verwerfen"
+  },
+  "summary": {
+    "title": "Kurzbeschreibung",
+    "help": "Ein bis zwei Sätze, die das Event vorstellen. Sie stehen vorn im Discord-Event und in der Ankündigung.",
+    "label": "Kurzbeschreibung",
+    "counter": "{count} / {max}",
+    "empty": "Noch keine Kurzbeschreibung. Mit den Prompts kann ein Assistent eine schreiben.",
+    "saved": "Kurzbeschreibung gespeichert"
+  },
+  "rail": {
+    "attention": {
+      "title": "Braucht Aufmerksamkeit",
+      "none": "Nichts braucht Aufmerksamkeit.",
+      "questions": "{count, plural, one {# offene Frage} other {# offene Fragen}}",
+      "fallback": "Der Notfallplan ist unvollständig: {scenarios}.",
+      "lateTodos": "{count, plural, one {# überfällige Aufgabe} other {# überfällige Aufgaben}}",
+      "lateMessages": "{count, plural, one {# Nachricht ist überfällig} other {# Nachrichten sind überfällig}}"
+    },
+    "discord": {
+      "title": "Discord",
+      "open": "Discord-Event öffnen",
+      "messages": "Nachrichten",
+      "post": {
+        "team": "Team-Nachricht",
+        "announcement": "Ankündigung",
+        "reminder": "Erinnerung"
+      },
+      "state": {
+        "none": "Nicht geschrieben",
+        "draft": "Entwurf",
+        "sending": "Wird gesendet",
+        "partial": "Teilweise gesendet",
+        "posted": "Gepostet",
+        "failed": "Fehlgeschlagen",
+        "deleted": "Gelöscht"
+      }
+    },
+    "todos": {
+      "title": "Nächste Aufgaben",
+      "empty": "Keine offenen Aufgaben.",
+      "all": "Alle Aufgaben",
+      "due": "Fällig am {date}",
+      "late": "Überfällig"
+    }
   }
 }

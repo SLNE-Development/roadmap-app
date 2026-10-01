@@ -51,7 +51,7 @@ function DateBlock({ startsAt }: { startsAt: Date | null }) {
  * The start time always shows: "21:17–23:47" within one day, "21:17 – Sun 00:00" when the end is on the next day within 24 hours,
  * "3 Oct, 21:17 – 5 Oct, 18:00" for longer events. The start time alone without an end.
  */
-function useWhen(r: Pick<RequestListItem, "startsAt" | "endsAt">): string | null {
+export function useWhen(r: Pick<RequestListItem, "startsAt" | "endsAt">): string | null {
   const format = useFormatter();
   if (!r.startsAt) return null;
   const time = (d: Date) => format.dateTime(d, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });

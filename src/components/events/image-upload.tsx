@@ -63,7 +63,7 @@ export function ImageUpload({
   onRemove,
 }: {
   requestId: string | null;
-  purpose: "banner" | "embed" | "fallback" | "template";
+  purpose: "banner" | "embed" | "template";
   image: { id: string; url: string } | null;
   disabled?: boolean;
   onUploaded: (image: UploadedImage) => void | Promise<void>;

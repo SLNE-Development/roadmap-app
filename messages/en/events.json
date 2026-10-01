@@ -47,50 +47,49 @@
     "tabQuestions": "Questions",
     "tabQuestionsOpen": "Questions ({count})",
     "tabOverview": "Overview",
-    "requestedBy": "Requested by {name}",
-    "readOnly": "You can view this request but not change it.",
     "tabFallback": "Fallback",
     "tabPrep": "Prep",
     "tabEventDay": "Event day",
     "tabMessages": "Messages",
-    "somethingWrong": "Something wrong?"
+    "somethingWrong": "Something wrong?",
+    "rail": "Request overview"
   },
   "statusBar": {
-    "label": "Request status",
-    "current": "{status}, current step"
+    "label": "Request progress",
+    "done": "{status}, done",
+    "current": "{status}, current step",
+    "upcoming": "{status}, still to come"
   },
   "actions": {
     "submit": "Submit",
     "recall": "Recall",
     "withdraw": "Withdraw",
     "cancel": "Cancel event",
-    "markDone": "Mark done",
     "submitted": "Request submitted",
     "recalled": "Request is a draft again",
     "withdrawn": "Request withdrawn",
     "cancelled": "Request cancelled",
-    "done": "Request marked done",
-    "cancelTitle": "Cancel this event",
-    "cancelDescription": "The request is closed for good. Say why, so everyone who follows it knows.",
-    "reason": "Reason",
-    "cancelConfirm": "Cancel event",
-    "keep": "Keep event",
+    "done": "Event completed",
     "startEventWeek": "Start event week",
     "eventWeekStarted": "Event week started",
     "fallbackGate": "The event week can start once the fallback plan is complete. Still open: {scenarios}.",
-    "openFallback": "Open fallback plan"
+    "complete": "Complete event",
+    "reopen": "Reopen",
+    "reopened": "Request reopened",
+    "deleted": "Request deleted"
   },
   "details": {
     "title": "Details",
     "name": "Title",
-    "startsAt": "Starts",
-    "startsAtHelp": "Shown in your time zone.",
-    "duration": "Duration in minutes",
+    "startsAt": "Start",
+    "startsAtHelp": "Time zone: {zone}.",
     "where": "Where",
     "docs": "Event documents link",
     "docsHelp": "An https link to the event's documents.",
-    "save": "Save details",
-    "saved": "Details saved"
+    "saved": "Details saved",
+    "endsAt": "End",
+    "endBeforeStart": "The end must be after the start.",
+    "help": "Where and when the event takes place."
   },
   "brief": {
     "label": "Brief",
@@ -126,8 +125,11 @@
       "durationMinutes": "the duration",
       "where": "the place",
       "eventDocsUrl": "the documents link",
-      "requesterId": "the requester"
-    }
+      "requesterId": "the requester",
+      "summary": "the short description"
+    },
+    "showAll": "Show all",
+    "sheetDescription": "Every change to this request, newest first."
   },
   "image": {
     "choose": "Choose image",
@@ -187,7 +189,7 @@
     "projectSlug": "Project address",
     "slugPreview": "The project opens at /p/{slug}.",
     "deadline": "Deadline",
-    "deadlineValue": "The project deadline is the end of the event: {date}.",
+    "deadlineValue": "The event runs {date}, {when}. The project deadline is its end.",
     "createHelp": "The project gets the event board, three phases and one system with the brief as its first spec draft.",
     "project": "Project",
     "projectPlaceholder": "Choose a project",
@@ -210,7 +212,6 @@
     "archived": "The project is archived. These are the last counts."
   },
   "link": {
-    "title": "Project",
     "open": "Open project {name}",
     "deleted": "Project deleted",
     "deletedHelp": "The project built for this request no longer exists."
@@ -497,5 +498,121 @@
     "label": "Discord message preview",
     "mention": "Event",
     "eventCard": "Discord event"
+  },
+  "header": {
+    "more": "More actions",
+    "eventDay": "Open event-day page",
+    "settings": "Event settings",
+    "viewOnly": "View only",
+    "viewOnlyHelp": "You can view this request but not change it.",
+    "noDate": "No date yet",
+    "requester": "Requested by {name}"
+  },
+  "closed": {
+    "cancelled": "Cancelled",
+    "withdrawn": "Withdrawn",
+    "by": "{status} by {name} on {date}",
+    "noNote": "No note was left."
+  },
+  "dialogs": {
+    "complete": {
+      "title": "Complete this event?",
+      "description": "The event is over and the request is closed as done. This cannot be undone.",
+      "confirm": "Complete event"
+    },
+    "withdraw": {
+      "title": "Withdraw this request?",
+      "description": "The request leaves the queue. You can reopen it as a draft later.",
+      "confirm": "Withdraw"
+    },
+    "startWeek": {
+      "title": "Start the event week?",
+      "description": "The event week begins. The event-day page opens for everyone who is signed in, and the team works from the checklist.",
+      "confirm": "Start event week"
+    },
+    "reopenCancelled": {
+      "title": "Reopen this event?",
+      "description": "The request goes back to accepted and the cancel note is removed. No message is posted by itself. If the announcement was posted, the Discord event is created again.",
+      "confirm": "Reopen"
+    },
+    "reopenWithdrawn": {
+      "title": "Reopen this request?",
+      "description": "The request goes back to a draft, so it can be changed and submitted again.",
+      "confirm": "Reopen"
+    },
+    "cancel": {
+      "title": "Cancel this event",
+      "description": "The request is closed and the Discord event is removed. Say why; the reason stays with the request.",
+      "reason": "Reason",
+      "reasonHelp": "Everyone who follows the request can read it. Markdown works.",
+      "keep": "Keep event",
+      "confirm": "Cancel event",
+      "posts": "This message is posted to the public channel.",
+      "notPosted": "No cancel message is sent, because the announcement was not posted.",
+      "noWebhook": "No cancel message can be sent: the public webhook is not set. The event is still cancelled.",
+      "cancelled": "Request cancelled"
+    },
+    "delete": {
+      "title": "Delete this request",
+      "description": "The request, its history and its uploaded images are deleted for good. Messages already in Discord stay there.",
+      "projectTitle": "What happens to the project?",
+      "projectCreated": "The project \"{name}\" was created for this event.",
+      "projectLinked": "The linked project \"{name}\" is not touched; only the link goes.",
+      "keep": "Keep the project",
+      "archive": "Archive the project",
+      "delete": "Delete the project and everything in it",
+      "ownerOnly": "Only the project's owner can do this.",
+      "alreadyArchived": "The project is already archived.",
+      "confirm": "Delete request"
+    }
+  },
+  "card": {
+    "unsaved": "Unsaved changes",
+    "save": "Save",
+    "discard": "Discard"
+  },
+  "summary": {
+    "title": "Short description",
+    "help": "One or two sentences that introduce the event. They lead the Discord event and the announcement.",
+    "label": "Short description",
+    "counter": "{count} / {max}",
+    "empty": "No short description yet. Copy prompts can have an assistant write one.",
+    "saved": "Short description saved"
+  },
+  "rail": {
+    "attention": {
+      "title": "Needs attention",
+      "none": "Nothing needs attention.",
+      "questions": "{count, plural, one {# open question} other {# open questions}}",
+      "fallback": "The fallback plan is incomplete: {scenarios}.",
+      "lateTodos": "{count, plural, one {# late to-do} other {# late to-dos}}",
+      "lateMessages": "{count, plural, one {# message is late} other {# messages are late}}"
+    },
+    "discord": {
+      "title": "Discord",
+      "open": "Open Discord event",
+      "messages": "Messages",
+      "post": {
+        "team": "Team message",
+        "announcement": "Announcement",
+        "reminder": "Reminder"
+      },
+      "state": {
+        "none": "Not written",
+        "draft": "Draft",
+        "sending": "Sending",
+        "partial": "Partly sent",
+        "posted": "Posted",
+        "failed": "Failed",
+        "deleted": "Deleted"
+      }
+    },
+    "todos": {
+      "title": "Next to-dos",
+      "empty": "No open to-dos.",
+      "all": "All to-dos",
+      "due": "Due {date}",
+      "late": "Late"
+    }
   }
 }
