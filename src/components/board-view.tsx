@@ -19,9 +19,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
+import { focusReady, moveKey, moveTargets } from "@/lib/board-moves";
 import { hasFilters, withParam, type BoardQuery } from "@/lib/url-filters";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
+import { BoardAnnouncer, moveMessage, refusedMessage } from "./board/board-announcer";
+import { usePointerDrag } from "./board/use-pointer-drag";
 import { CATEGORY_CLASS, CategoryDot, PriorityTag } from "./chips";
 import { isOwnPush } from "./systems/systems-toolbar";
 
@@ -57,6 +60,9 @@ interface NamedOption {
   id: string;
   name: string;
 }
+
+/** localStorage key remembering that the keyboard-move hint was shown. */
+const CARD_MOVE_HINT_KEY = "roadmap.hint.cardMove";
 
 /** Most avatars shown in the header's member stack. */
 const STACK_SIZE = 5;
@@ -97,6 +103,10 @@ export function BoardView({
   const [newSystemOpen, setNewSystemOpen] = useState(false);
   const trpc = useTRPC();
   const moveSystem = useMutation(trpc.systems.move.mutationOptions());
+  const [announce, setAnnounce] = useState("");
+  const [showHint, setShowHint] = useState(false);
+  // The card to refocus and the column it must be in first; moving a card re-creates its element, so the effect waits for that.
+  const focusTarget = useRef<{ slug: string; columnId: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const pathname = usePathname();
@@ -112,15 +122,60 @@ export function BoardView({
   const domainName = useMemo(() => new Map(domains.map((d) => [d.id, d.name])), [domains]);
   const categoryOf = useMemo(() => new Map(columns.map((c) => [c.id, c.category])), [columns]);
 
-  /** Moves a card to a column and persists it; a refusal restores the card and shows why. */
-  const move = (slug: string, columnId: string) => {
+  /**
+   * Moves a card to a column and persists it; a refusal restores the card and shows why.
+   * Returns whether the move was accepted. A keyboard move keeps focus on the card and
+   * opens a collapsed Done column once the server accepts it.
+   */
+  const move = (slug: string, columnId: string, byKey = false): boolean => {
     const card = optimistic.find((c) => c.slug === slug);
-    if (!card || card.columnId === columnId || !canEdit) return;
+    if (!card || card.columnId === columnId || !canEdit) return false;
+    if (byKey) focusTarget.current = { slug, columnId };
     startTransition(async () => {
       moveOptimistic({ slug, columnId });
       // A refusal is toasted by the mutation cache; the card falls back once the transition ends.
-      await moveSystem.mutateAsync({ project: projectSlug, system: slug, to: { column: columnId } }).catch(() => undefined);
+      const failure = await moveSystem
+        .mutateAsync({ project: projectSlug, system: slug, to: { column: columnId } })
+        .then(() => null, (error: Error) => error);
+      // Re-armed after settling: on a refusal the card must end up back in its original column.
+      if (byKey) focusTarget.current = { slug, columnId: failure ? card.columnId : columnId };
+      if (!failure) setExpanded((prev) => (prev.has(columnId) ? prev : new Set(prev).add(columnId)));
+      const message = failure
+        ? refusedMessage(card.title, failure.message)
+        : moveMessage(card.title, columns.find((c) => c.id === columnId)?.name ?? "");
+      // A trailing zero-width space makes an identical repeat a new text for the live region.
+      setAnnounce((prev) => (prev === message ? `${message}​` : message));
     });
+    return true;
+  };
+
+  /** A keyboard move of a card to a neighbouring column. */
+  const moveByKey = (slug: string, columnId: string) => {
+    if (move(slug, columnId, true)) setShowHint(false);
+  };
+
+  const { bind, draggingSlug, overColumnId } = usePointerDrag({ enabled: canEdit, onDrop: move });
+
+  useEffect(() => {
+    const target = focusTarget.current;
+    if (!target) return;
+    const el = document.querySelector<HTMLElement>(`[data-card-slug="${CSS.escape(target.slug)}"]`);
+    if (!el || !focusReady(target, el.closest("[data-column-id]")?.getAttribute("data-column-id") ?? null)) return;
+    focusTarget.current = null;
+    el.focus();
+  });
+
+  /** Shows the keyboard-move hint on the first card focus ever; the key is written when it is shown. */
+  const hintOnce = () => {
+    if (!canEdit || showHint) return;
+    try {
+      if (localStorage.getItem(CARD_MOVE_HINT_KEY)) return;
+      localStorage.setItem(CARD_MOVE_HINT_KEY, "1");
+    } catch {
+      // Storage blocked: skip the hint rather than repeat it on every focus.
+      return;
+    }
+    setShowHint(true);
   };
 
   const needle = query.q.toLowerCase();
@@ -134,7 +189,8 @@ export function BoardView({
   );
   const blocked = visible.filter((c) => categoryOf.get(c.columnId) === "blocked").length;
   const planning = visible.filter((c) => categoryOf.get(c.columnId) === "planning").length;
-  const draggedFrom = dragging ? optimistic.find((c) => c.slug === dragging)?.columnId : undefined;
+  const draggedSlug = dragging ?? draggingSlug;
+  const draggedFrom = draggedSlug ? optimistic.find((c) => c.slug === draggedSlug)?.columnId : undefined;
 
   /** Drag-and-drop handlers shared by open columns and collapsed strips. */
   const dropTarget = (columnId: string) => ({
@@ -244,15 +300,18 @@ export function BoardView({
         </span>
       </div>
 
+      {showHint && <p className="text-[12.5px] text-muted-foreground">Alt+← / Alt+→ moves a card</p>}
+      <BoardAnnouncer message={announce} />
+
       <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:px-6 lg:-mx-9 lg:px-9" aria-busy={pending}>
         <div className="flex min-h-[calc(100dvh-15rem)] w-max items-stretch gap-3">
           {columns.map((col) => {
             const items = visible.filter((c) => c.columnId === col.id);
-            const isOver = dragOver === col.id && draggedFrom !== undefined && draggedFrom !== col.id;
+            const isOver = (dragOver ?? overColumnId) === col.id && draggedFrom !== undefined && draggedFrom !== col.id;
 
             if (col.category === "done" && !expanded.has(col.id)) {
               return (
-                <section key={col.id} aria-label={`${col.name}, collapsed`} {...dropTarget(col.id)} className="flex w-10 shrink-0">
+                <section key={col.id} data-column-id={col.id} aria-label={`${col.name}, collapsed`} {...dropTarget(col.id)} className="flex w-10 shrink-0">
                   <button
                     type="button"
                     onClick={() => toggle(col.id)}
@@ -272,7 +331,7 @@ export function BoardView({
             }
 
             return (
-              <section key={col.id} aria-label={col.name} {...dropTarget(col.id)} className="flex w-[228px] shrink-0 flex-col gap-2 bg-column p-2">
+              <section key={col.id} data-column-id={col.id} aria-label={col.name} {...dropTarget(col.id)} className="flex w-[228px] shrink-0 flex-col gap-2 bg-column p-2">
                 <header className="flex items-center gap-2 px-1 pt-1 pb-0.5">
                   <CategoryDot category={col.category} />
                   <h2 className="truncate text-[13px] font-semibold">{col.name}</h2>
@@ -300,12 +359,16 @@ export function BoardView({
                     key={c.slug}
                     card={c}
                     category={col.category}
+                    columnName={col.name}
                     domain={c.domainId ? (domainName.get(c.domainId) ?? null) : null}
                     projectSlug={projectSlug}
                     columns={columns}
                     canEdit={canEdit}
                     pending={pending}
-                    dragging={dragging === c.slug}
+                    dragging={draggedSlug === c.slug}
+                    bound={bind(c.slug)}
+                    onFocus={hintOnce}
+                    onMoveKey={(columnId) => moveByKey(c.slug, columnId)}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("text/plain", c.slug);
                       e.dataTransfer.effectAllowed = "move";
@@ -340,35 +403,68 @@ export function BoardView({
 function SystemCard({
   card,
   category,
+  columnName,
   domain,
   projectSlug,
   columns,
   canEdit,
   pending,
   dragging,
+  bound,
+  onFocus,
+  onMoveKey,
   onDragStart,
   onDragEnd,
   onMove,
 }: {
   card: BoardCardView;
   category: ColumnCategory;
+  columnName: string;
   domain: string | null;
   projectSlug: string;
   columns: BoardColumnView[];
   canEdit: boolean;
   pending: boolean;
   dragging: boolean;
+  /** Pointer handlers for touch dragging, empty when the viewer cannot edit. */
+  bound: React.HTMLAttributes<HTMLElement>;
+  onFocus: () => void;
+  onMoveKey: (columnId: string) => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onMove: (columnId: string) => void;
 }) {
+  const router = useRouter();
   return (
     <article
+      tabIndex={0}
+      data-nav-item
+      data-card-slug={card.slug}
+      aria-roledescription="card"
+      aria-label={`${card.title}, ${columnName}`}
       draggable={canEdit}
-      onDragStart={onDragStart}
+      onFocus={onFocus}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter") {
+          router.push(`/p/${projectSlug}/systems/${card.slug}`);
+          return;
+        }
+        const dir = moveKey(e);
+        if (!dir) return;
+        e.preventDefault();
+        if (!canEdit) return;
+        const target = moveTargets(columns, card.columnId)[dir];
+        if (target) onMoveKey(target);
+      }}
+      {...bound}
+      onDragStart={(e) => {
+        bound.onDragStart?.(e);
+        if (!e.defaultPrevented) onDragStart(e);
+      }}
       onDragEnd={onDragEnd}
       className={cn(
-        "flex flex-col gap-2 border bg-card p-3 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground),transparent_96%)] transition-[transform,box-shadow]",
+        "flex flex-col gap-2 border bg-card p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground),transparent_96%)] transition-[transform,box-shadow]",
         canEdit && "cursor-grab active:cursor-grabbing",
         dragging && "rotate-[1.5deg] border-primary opacity-90 shadow-lg",
       )}
