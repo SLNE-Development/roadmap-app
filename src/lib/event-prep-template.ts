@@ -1,12 +1,8 @@
 /** The time zone events are planned in until the event settings hold one. */
 export const DEFAULT_EVENT_TIME_ZONE = "Europe/Berlin";
 
-/** The three fallback scenarios every request has, created empty with the request. */
-export const REQUIRED_FALLBACKS = [
-  { key: "server-down", title: "Server dies mid-event" },
-  { key: "staff-missing", title: "Key staff missing" },
-  { key: "too-few-players", title: "Too few players" },
-] as const;
+/** The fallback scenario every request has, created empty with the request. */
+export const REQUIRED_FALLBACKS = [{ key: "server-down", title: "Server dies mid-event" }] as const;
 
 /** Who a template to-do belongs to: the requester or the developer who accepted the request. */
 export type PrepOwner = "requester" | "developer";
@@ -28,14 +24,6 @@ export const PREP_TEMPLATE: readonly PrepStep[] = [
   { key: "reminder", title: "Post the reminder", offsetDays: -1, owner: "requester" },
   { key: "recap", title: "Recap and thank-you", offsetDays: 1, owner: "requester" },
 ];
-
-/** The event-day checklist created with every request. */
-export const CHECKLIST_TEMPLATE = [
-  { key: "server-checked", label: "Server checked by the host" },
-  { key: "staff-online", label: "Staff online" },
-  { key: "rewards-ready", label: "Rewards ready" },
-  { key: "fallback-read", label: "Fallback plan read by the host" },
-] as const;
 
 /** The offset of `timeZone` from UTC at the instant `at`, in milliseconds. */
 export function zoneOffset(at: number, timeZone: string): number {

@@ -1,7 +1,7 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import { allowedAccount, eventChecklistItem, eventCheckin, eventFallback, eventTodo, projectMember, user, type EventTodoRow } from "@/db/schema";
-import type { Db, Executor, Tx } from "@/db/types";
+import { allowedAccount, eventChecklistItem, eventFallback, eventTodo, projectMember, user, type EventTodoRow } from "@/db/schema";
+import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import type { Actor } from "./actor";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
@@ -224,59 +224,11 @@ export async function removeChecklistItem(db: Db, actor: Actor, itemId: string):
   });
 }
 
-/** Someone who is checked in at the event. */
-export interface CheckinView {
-  userId: string;
-  name: string;
-  at: Date;
-}
-
-/** Lists who checked in, earliest first. */
-export async function listCheckins(db: Db, actor: Actor, requestId: string): Promise<CheckinView[]> {
-  await eventDayAccess(db, actor, requestId);
-  return checkinsOf(db, requestId);
-}
-
-const checkinsOf = async (db: Executor, requestId: string): Promise<CheckinView[]> => {
-  const rows = await db
-    .select({ userId: eventCheckin.userId, name: user.name, at: eventCheckin.at })
-    .from(eventCheckin)
-    .innerJoin(user, eq(user.id, eventCheckin.userId))
-    .where(eq(eventCheckin.requestId, requestId))
-    .orderBy(asc(eventCheckin.at));
-  return rows.map((r) => ({ ...r, name: r.name?.trim() || "unknown" }));
-};
-
-/** The event-week access of a check-in: the request must be in the event week for everyone. */
-async function checkinAccess(tx: Tx, actor: Actor, requestId: string): Promise<void> {
-  const { request } = await eventDayAccess(tx, actor, requestId);
-  if (request.status !== "event_week") throw new ConflictError("Check-in is only open in the event week.");
-}
-
-/** Checks the actor themselves in; there is no way to check in someone else. Checking in twice changes nothing. */
-export async function checkIn(db: Db, actor: Actor, requestId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await checkinAccess(tx, actor, requestId);
-    await tx.insert(eventCheckin).values({ requestId, userId: actor.userId }).onConflictDoNothing();
-  });
-}
-
-/** Checks the actor themselves out. */
-export async function checkOut(db: Db, actor: Actor, requestId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await checkinAccess(tx, actor, requestId);
-    await tx.delete(eventCheckin).where(and(eq(eventCheckin.requestId, requestId), eq(eventCheckin.userId, actor.userId)));
-  });
-}
-
-/** What the event-day page shows: the event, the checklist, the fallback scenarios and who is there; nothing else. */
+/** What the event-day page shows: the event, the checklist and the fallback scenarios; nothing else. */
 export interface EventDayView {
   request: { id: string; title: string; startsAt: Date | null; durationMinutes: number | null; where: string; status: string };
   checklist: { id: string; key: string | null; label: string; doneAt: Date | null }[];
   fallbacks: { id: string; title: string; whatWeDo: string; whoDecides: string; playerMessage: string | null }[];
-  checkins: CheckinView[];
-  /** Whether the actor is checked in. */
-  checkedIn: boolean;
   /** Whether the actor may tick the checklist (edit or develop rights). */
   canTick: boolean;
 }
@@ -289,18 +241,15 @@ export interface EventDayView {
  */
 export async function eventDayView(db: Db, actor: Actor, requestId: string): Promise<EventDayView> {
   const { request, canEdit } = await eventDayAccess(db, actor, requestId);
-  const [checklist, fallbacks, checkins] = await Promise.all([
+  const [checklist, fallbacks] = await Promise.all([
     checklistOf(db, requestId),
     db.select().from(eventFallback).where(eq(eventFallback.requestId, requestId)).orderBy(asc(eventFallback.sortOrder)),
-    checkinsOf(db, requestId),
   ]);
   const canTick = request.status === "event_week" && (canEdit || (await canDevelop(db, actor, requestId)));
   return {
     request: { id: request.id, title: request.title, startsAt: request.startsAt, durationMinutes: request.durationMinutes, where: request.where, status: request.status },
     checklist: checklist.map((c) => ({ id: c.id, key: c.key, label: c.label, doneAt: c.doneAt })),
     fallbacks: fallbacks.map((f) => ({ id: f.id, title: f.title, whatWeDo: f.whatWeDo, whoDecides: f.whoDecides, playerMessage: f.playerMessage })),
-    checkins,
-    checkedIn: checkins.some((c) => c.userId === actor.userId),
     canTick,
   };
 }

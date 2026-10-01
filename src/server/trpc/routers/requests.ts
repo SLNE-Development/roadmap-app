@@ -11,8 +11,6 @@ import {
   addChecklistItemInput,
   addTodo,
   addTodoInput,
-  checkIn,
-  checkOut,
   eventDayView,
   listChecklist,
   listOwnerChoices,
@@ -209,13 +207,7 @@ export const requestsRouter = router({
   /** Removes a custom checklist item. */
   removeChecklistItem: protectedProcedure.input(z.object({ itemId: z.string().min(1).max(64) })).mutation(({ ctx, input }) => removeChecklistItem(ctx.db, ctx.actor, input.itemId)),
 
-  /** Checks the signed-in user in at the event. */
-  checkIn: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => checkIn(ctx.db, ctx.actor, input.id)),
-
-  /** Checks the signed-in user out. */
-  checkOut: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => checkOut(ctx.db, ctx.actor, input.id)),
-
-  /** The event-day page: event, checklist, fallback scenarios and check-ins; open to every signed-in user in the event week. */
+  /** The event-day page: event, checklist, fallback scenarios; open to every signed-in user in the event week. */
   eventDay: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => eventDayView(ctx.db, ctx.actor, input.id)),
 
   /** The three copy prompts (announcement, reminder, team) built from the request; calls nothing. */

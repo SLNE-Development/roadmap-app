@@ -97,6 +97,7 @@
   },
   "versions": {
     "title": "Versions",
+    "none": "No versions yet.",
     "version": "Version {version}",
     "meta": "{name}, {date}",
     "current": "current",
@@ -280,22 +281,11 @@
     "removeItem": "Remove",
     "newItem": "New checklist item",
     "addItem": "Add item",
-    "checkins": "Checked in",
-    "nobody": "Nobody is checked in yet.",
-    "checkedInAt": "{name} since {time}",
-    "checkIn": "Check me in",
-    "checkOut": "Check me out",
     "wrong": "Something is wrong",
     "showScenarios": "Show fallback scenarios",
     "hideScenarios": "Hide fallback scenarios",
     "blank": "Not filled in",
-    "decides": "Decides: {who}",
-    "items": {
-      "server-checked": "Server checked by the host",
-      "staff-online": "Staff online",
-      "rewards-ready": "Rewards ready",
-      "fallback-read": "Fallback plan read by the host"
-    }
+    "decides": "Decides: {who}"
   },
   "settings": {
     "crumb": "Event settings",

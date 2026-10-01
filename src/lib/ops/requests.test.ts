@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventBriefVersion, eventQuestion, eventQuestionRound, eventRequest, eventSettings, eventTodo, requestLog } from "@/db/schema";
+import { eventBriefVersion, eventChecklistItem, eventFallback, eventQuestion, eventQuestionRound, eventRequest, eventSettings, eventTodo, requestLog } from "@/db/schema";
 import { newId } from "@/lib/id";
 import { memoryQueue } from "@/lib/queue";
 import { createTestDb } from "@/test/db";
@@ -46,13 +46,30 @@ describe("createRequest", () => {
     await expect(createRequest(w.db, w.R, { title: "Party", brief: "" })).rejects.toThrow(new ForbiddenError("Only event managers can create requests."));
   });
 
-  it("writes brief version 1 even when empty and logs the creation", async () => {
+  it("starts an empty brief at version 0 without a row and logs the creation", async () => {
+    const w = await world();
+    const row = await createRequest(w.db, w.M, { title: "Party", brief: "  " });
+    expect(row).toMatchObject({ status: "draft", briefVersion: 0, requesterId: w.M.userId });
+    expect(await w.db.select().from(eventBriefVersion).where(eq(eventBriefVersion.requestId, row.id))).toHaveLength(0);
+    expect((await getRequest(w.db, w.M, row.id)).brief).toBe("");
+    expect(await getBrief(w.db, w.M, row.id)).toMatchObject({ version: 0, body: "" });
+    expect(await listBriefVersions(w.db, w.M, row.id)).toEqual([]);
+    expect(await w.logFields(row.id)).toEqual(["created"]);
+  });
+
+  it("writes brief version 1 for a non-empty brief", async () => {
+    const w = await world();
+    const row = await createRequest(w.db, w.M, { title: "Party", brief: "Hello" });
+    expect(row.briefVersion).toBe(1);
+    expect(await w.db.select().from(eventBriefVersion).where(eq(eventBriefVersion.requestId, row.id))).toHaveLength(1);
+    expect((await getRequest(w.db, w.M, row.id)).brief).toBe("Hello");
+  });
+
+  it("gives a new request one required fallback and no checklist", async () => {
     const w = await world();
     const row = await createRequest(w.db, w.M, { title: "Party", brief: "" });
-    expect(row).toMatchObject({ status: "draft", briefVersion: 1, requesterId: w.M.userId });
-    const versions = await w.db.select().from(eventBriefVersion).where(eq(eventBriefVersion.requestId, row.id));
-    expect(versions).toHaveLength(1);
-    expect(await w.logFields(row.id)).toEqual(["created"]);
+    expect((await w.db.select().from(eventFallback).where(eq(eventFallback.requestId, row.id))).map((f) => [f.key, f.required])).toEqual([["server-down", true]]);
+    expect(await w.db.select().from(eventChecklistItem).where(eq(eventChecklistItem.requestId, row.id))).toHaveLength(0);
   });
 
   it("creates on behalf of another user and rejects an unknown one", async () => {
@@ -72,6 +89,15 @@ describe("createRequest", () => {
 });
 
 describe("saveBrief", () => {
+  it("writes version 1 from base version 0 and refuses submit without a brief", async () => {
+    const w = await world();
+    const row = await createRequest(w.db, w.M, { title: "Party", brief: "", startsAt: FUTURE });
+    await expect(submitRequest(w.db, w.M, row.id)).rejects.toThrow(/brief/);
+    expect(await saveBrief(w.db, w.M, row.id, { body: "First", baseVersion: 0 })).toEqual({ version: 1, changed: true });
+    expect(await getBrief(w.db, w.M, row.id)).toMatchObject({ version: 1, body: "First" });
+    expect((await submitRequest(w.db, w.M, row.id)).status).toBe("submitted");
+  });
+
   it("makes version 2 for a changed body and logs without the body", async () => {
     const w = await world();
     const req = await requestFixture(w.db, w.R);
@@ -246,6 +272,45 @@ describe("updateRequest", () => {
     const req = await requestFixture(w.db, w.R, { status: "done" });
     await expect(updateRequest(w.db, w.R, req.id, { title: "x" })).rejects.toBeInstanceOf(ConflictError);
     expect((await updateRequest(w.db, w.A, req.id, { title: "x" })).title).toBe("x");
+  });
+});
+
+describe("updateRequest with an end", () => {
+  const START = new Date("2030-05-01T18:00:00Z");
+  const at = (minutes: number) => new Date(START.getTime() + minutes * 60_000);
+
+  it("sets the duration from the end and the stored start", async () => {
+    const w = await world();
+    const req = await requestFixture(w.db, w.R, { startsAt: START });
+    const row = await updateRequest(w.db, w.R, req.id, { endsAt: at(150) });
+    expect(row.durationMinutes).toBe(150);
+    expect((await getRequest(w.db, w.R, req.id)).request.endsAt).toEqual(at(150));
+  });
+
+  it("uses the start given in the same call and clears the duration with null", async () => {
+    const w = await world();
+    const req = await requestFixture(w.db, w.R);
+    expect((await updateRequest(w.db, w.R, req.id, { startsAt: START, endsAt: at(90) })).durationMinutes).toBe(90);
+    expect((await updateRequest(w.db, w.R, req.id, { endsAt: null })).durationMinutes).toBeNull();
+    expect((await getRequest(w.db, w.R, req.id)).request.endsAt).toBeNull();
+  });
+
+  it("refuses an end before the start, without a start, with a duration and over seven days", async () => {
+    const w = await world();
+    const req = await requestFixture(w.db, w.R, { startsAt: START });
+    await expect(updateRequest(w.db, w.R, req.id, { endsAt: START })).rejects.toThrow(new InvalidError("The end must be after the start."));
+    await expect(updateRequest(w.db, w.R, req.id, { endsAt: at(-5) })).rejects.toThrow(new InvalidError("The end must be after the start."));
+    await expect(updateRequest(w.db, w.R, req.id, { endsAt: at(60), durationMinutes: 60 })).rejects.toBeInstanceOf(InvalidError);
+    await expect(updateRequest(w.db, w.R, req.id, { endsAt: at(10081) })).rejects.toThrow(new InvalidError("An event lasts at most 7 days."));
+    expect((await updateRequest(w.db, w.R, req.id, { endsAt: at(10080) })).durationMinutes).toBe(10080);
+    const bare = await requestFixture(w.db, w.R);
+    await expect(updateRequest(w.db, w.R, bare.id, { endsAt: at(60) })).rejects.toThrow(new InvalidError("Set the start first."));
+  });
+
+  it("lists the end", async () => {
+    const w = await world();
+    await requestFixture(w.db, w.R, { startsAt: START, durationMinutes: 45 });
+    expect((await listRequests(w.db, w.R))[0].endsAt).toEqual(at(45));
   });
 });
 

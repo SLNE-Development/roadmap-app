@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventCheckin, eventRequest, eventTodo } from "@/db/schema";
+import { eventChecklistItem, eventRequest, eventTodo } from "@/db/schema";
 import { DEFAULT_EVENT_TIME_ZONE, dueFor, PREP_TEMPLATE } from "@/lib/event-prep-template";
 import { createTestDb } from "@/test/db";
 import { insertUser, requestFixture } from "@/test/fixtures";
@@ -9,10 +9,7 @@ import { acceptRequest } from "./request-link";
 import {
   addChecklistItem,
   addTodo,
-  checkIn,
-  checkOut,
   eventDayView,
-  listCheckins,
   listChecklist,
   listTodos,
   removeChecklistItem,
@@ -35,10 +32,14 @@ async function world() {
   return { db, R, D, M, S, request };
 }
 
-/** A world with an accepted request whose six to-dos exist. */
+/** A world with an accepted request whose six to-dos exist and two keyed checklist items (the kind an older request keeps). */
 async function accepted() {
   const w = await world();
   await acceptRequest(w.db, w.D, w.request.id, { mode: "create" });
+  await w.db.insert(eventChecklistItem).values([
+    { id: "item-a", requestId: w.request.id, key: "kept-a", label: "Server checked", sortOrder: 0 },
+    { id: "item-b", requestId: w.request.id, key: "kept-b", label: "Staff online", sortOrder: 1 },
+  ]);
   return w;
 }
 
@@ -157,38 +158,16 @@ describe("checklist", () => {
     await expect(removeChecklistItem(w.db, w.R, template.id)).rejects.toBeInstanceOf(ConflictError);
     const custom = await addChecklistItem(w.db, w.R, w.request.id, { label: "Cake" });
     await removeChecklistItem(w.db, w.R, custom.id);
-    expect(await listChecklist(w.db, w.R, w.request.id)).toHaveLength(4);
+    expect(await listChecklist(w.db, w.R, w.request.id)).toHaveLength(2);
   });
 });
 
-describe("check-in and the event-day view", () => {
-  it("lets a stranger check themselves in during event_week", async () => {
-    const w = await accepted();
-    await w.db.update(eventRequest).set({ status: "event_week" }).where(eq(eventRequest.id, w.request.id));
-    await checkIn(w.db, w.S, w.request.id);
-    await checkIn(w.db, w.S, w.request.id);
-    const list = await listCheckins(w.db, w.S, w.request.id);
-    expect(list.map((c) => c.name)).toEqual(["Stranger"]);
-    await checkOut(w.db, w.S, w.request.id);
-    expect(await w.db.select().from(eventCheckin)).toHaveLength(0);
-  });
-
-  it("is not available before the event week", async () => {
-    const w = await accepted();
-    await expect(checkIn(w.db, w.S, w.request.id)).rejects.toBeInstanceOf(NotFoundError);
-    await expect(checkIn(w.db, w.R, w.request.id)).rejects.toBeInstanceOf(ConflictError);
-  });
-
-  it("takes no user id", () => {
-    expect(checkIn.length).toBe(3);
-    expect(checkOut.length).toBe(3);
-  });
-
+describe("the event-day view", () => {
   it("shows a stranger only the allowed fields", async () => {
     const w = await accepted();
     await w.db.update(eventRequest).set({ status: "event_week", where: "Lobby" }).where(eq(eventRequest.id, w.request.id));
     const view = await eventDayView(w.db, w.S, w.request.id);
-    expect(Object.keys(view).sort()).toEqual(["canTick", "checkedIn", "checkins", "checklist", "fallbacks", "request"]);
+    expect(Object.keys(view).sort()).toEqual(["canTick", "checklist", "fallbacks", "request"]);
     expect(Object.keys(view.request).sort()).toEqual(["durationMinutes", "id", "startsAt", "status", "title", "where"]);
     expect(view.canTick).toBe(false);
     expect(view.request.where).toBe("Lobby");

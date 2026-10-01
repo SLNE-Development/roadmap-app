@@ -1,21 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { eventChecklistItem, eventFallback, eventRequest } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser, requestFixture } from "@/test/fixtures";
 import { ConflictError, ForbiddenError, InvalidError } from "./errors";
 import { addFallback, fallbackReady, listFallbacks, removeFallback, saveFallback } from "./request-fallback";
 import { createRequest, startEventWeek } from "./requests";
-import { deleteUpload, storeUpload } from "./uploads";
-
-const png = Uint8Array.from({ length: 64 }, (_, i) => (i < 4 ? [0x89, 0x50, 0x4e, 0x47][i] : i));
-const dirs: string[] = [];
-afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
-});
 
 async function world() {
   const db = await createTestDb();
@@ -29,59 +19,45 @@ async function world() {
 }
 
 describe("new requests", () => {
-  it("have three empty required fallbacks and four checklist items", async () => {
+  it("have one empty required fallback and no checklist items", async () => {
     const db = await createTestDb();
     const M = await insertUser(db, { isEventManager: true });
     const created = await createRequest(db, M, { title: "Party", brief: "b" });
     const fallbacks = await db.select().from(eventFallback).where(eq(eventFallback.requestId, created.id));
-    expect(fallbacks.map((f) => f.key).sort()).toEqual(["server-down", "staff-missing", "too-few-players"]);
+    expect(fallbacks.map((f) => f.key).sort()).toEqual(["server-down"]);
     expect(fallbacks.every((f) => f.required && f.whatWeDo === "" && f.whoDecides === "")).toBe(true);
-    expect(await db.select().from(eventChecklistItem).where(eq(eventChecklistItem.requestId, created.id))).toHaveLength(4);
+    expect(await db.select().from(eventChecklistItem).where(eq(eventChecklistItem.requestId, created.id))).toHaveLength(0);
   });
 
   it("are the same for request fixtures", async () => {
     const w = await world();
-    expect(await listFallbacks(w.db, w.R, w.request.id)).toHaveLength(3);
-    expect(await w.db.select().from(eventChecklistItem).where(eq(eventChecklistItem.requestId, w.request.id))).toHaveLength(4);
+    expect(await listFallbacks(w.db, w.R, w.request.id)).toHaveLength(1);
+    expect(await w.db.select().from(eventChecklistItem).where(eq(eventChecklistItem.requestId, w.request.id))).toHaveLength(0);
   });
 });
 
 describe("fallbackReady", () => {
-  it("lists all three as missing both fields at first", async () => {
+  it("lists the one scenario as missing both fields at first", async () => {
     const w = await world();
     const ready = await fallbackReady(w.db, w.request.id);
     expect(ready.ready).toBe(false);
     expect(ready.missing.map((m) => [m.key, m.missing])).toEqual([
       ["server-down", ["whatWeDo", "whoDecides"]],
-      ["staff-missing", ["whatWeDo", "whoDecides"]],
-      ["too-few-players", ["whatWeDo", "whoDecides"]],
     ]);
   });
 
-  it("drops filled scenarios, treats whitespace as missing and ignores blank custom ones", async () => {
+  it("treats whitespace as missing and ignores blank custom scenarios", async () => {
     const w = await world();
-    const fill = { whatWeDo: "Restart", whoDecides: "Host" };
-    await saveFallback(w.db, w.R, w.request.id, w.byKey("server-down").id, fill);
-    await saveFallback(w.db, w.R, w.request.id, w.byKey("staff-missing").id, fill);
-    await saveFallback(w.db, w.R, w.request.id, w.byKey("too-few-players").id, { whatWeDo: "   ", whoDecides: "Host" });
+    await saveFallback(w.db, w.R, w.request.id, w.byKey("server-down").id, { whatWeDo: "   ", whoDecides: "Host" });
     await addFallback(w.db, w.R, w.request.id, { title: "Rain" });
     const ready = await fallbackReady(w.db, w.request.id);
-    expect(ready.missing).toEqual([{ key: "too-few-players", title: "Too few players", missing: ["whatWeDo"] }]);
-    await saveFallback(w.db, w.R, w.request.id, w.byKey("too-few-players").id, { whatWeDo: "Cancel" });
+    expect(ready.missing).toEqual([{ key: "server-down", title: "Server dies mid-event", missing: ["whatWeDo"] }]);
+    await saveFallback(w.db, w.R, w.request.id, w.byKey("server-down").id, { whatWeDo: "Restart" });
     expect((await fallbackReady(w.db, w.request.id)).ready).toBe(true);
   });
 });
 
 describe("saveFallback and friends", () => {
-  it("refuses an image of another request", async () => {
-    const w = await world();
-    const other = await requestFixture(w.db, w.R);
-    const dir = await mkdtemp(path.join(os.tmpdir(), "fb-"));
-    dirs.push(dir);
-    const upload = await storeUpload(w.db, w.R, { requestId: other.id, purpose: "fallback", name: "a.png", bytes: png }, dir);
-    await expect(saveFallback(w.db, w.R, w.request.id, w.byKey("server-down").id, { imageUploadId: upload.id })).rejects.toBeInstanceOf(InvalidError);
-  });
-
   it("refuses renaming a required scenario but renames a custom one", async () => {
     const w = await world();
     await expect(saveFallback(w.db, w.R, w.request.id, w.byKey("server-down").id, { title: "Other" })).rejects.toBeInstanceOf(InvalidError);
@@ -95,23 +71,12 @@ describe("saveFallback and friends", () => {
     await expect(removeFallback(w.db, w.R, w.request.id, w.byKey("server-down").id)).rejects.toBeInstanceOf(ConflictError);
     const custom = await addFallback(w.db, w.R, w.request.id, { title: "Rain" });
     await removeFallback(w.db, w.R, w.request.id, custom.id);
-    expect(await listFallbacks(w.db, w.R, w.request.id)).toHaveLength(3);
+    expect(await listFallbacks(w.db, w.R, w.request.id)).toHaveLength(1);
   });
 
   it("needs edit access", async () => {
     const w = await world();
     await expect(saveFallback(w.db, w.D, w.request.id, w.byKey("server-down").id, { whatWeDo: "x" })).rejects.toBeInstanceOf(ForbiddenError);
-  });
-
-  it("blocks deleting an upload a fallback still uses", async () => {
-    const w = await world();
-    const dir = await mkdtemp(path.join(os.tmpdir(), "fb-"));
-    dirs.push(dir);
-    const upload = await storeUpload(w.db, w.R, { requestId: w.request.id, purpose: "fallback", name: "a.png", bytes: png }, dir);
-    await saveFallback(w.db, w.R, w.request.id, w.byKey("server-down").id, { imageUploadId: upload.id });
-    await expect(deleteUpload(w.db, w.R, upload.id, dir)).rejects.toBeInstanceOf(ConflictError);
-    await saveFallback(w.db, w.R, w.request.id, w.byKey("server-down").id, { imageUploadId: null });
-    await deleteUpload(w.db, w.R, upload.id, dir);
   });
 });
 

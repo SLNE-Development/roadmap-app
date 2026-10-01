@@ -24,6 +24,13 @@ export function BriefHistory({ requestId, currentVersion }: { requestId: string;
   const latest = versions[0]?.version ?? currentVersion;
   const comparing = from !== null && from < latest ? from : null;
   const diff = useQuery({ ...trpc.requests.compareBriefs.queryOptions({ id: requestId, from: comparing ?? 1, to: latest }), enabled: comparing !== null });
+  if (versions.length === 0) {
+    return (
+      <Panel title={t("title")} bodyClassName="gap-3 px-4 pb-4 sm:px-5">
+        <p className="text-[13px] text-muted-foreground">{t("none")}</p>
+      </Panel>
+    );
+  }
   return (
     <Panel title={t("title")} bodyClassName="gap-3 px-4 pb-4 sm:px-5">
       <ul className="flex flex-col divide-y border">

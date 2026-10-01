@@ -1,19 +1,18 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { eventChecklistItem, eventFallback, eventTodo, type EventRequestRow } from "@/db/schema";
+import { eventFallback, eventTodo, type EventRequestRow } from "@/db/schema";
 import type { Executor } from "@/db/types";
-import { CHECKLIST_TEMPLATE, dueFor, PREP_TEMPLATE, REQUIRED_FALLBACKS } from "@/lib/event-prep-template";
+import { dueFor, PREP_TEMPLATE, REQUIRED_FALLBACKS } from "@/lib/event-prep-template";
 import { newId } from "@/lib/id";
 import { eventTimeZone } from "./event-settings";
 
 /**
- * Gives a new request its three empty required fallback scenarios and its four checklist items. Request creation and the
+ * Gives a new request its empty required fallback scenario; the checklist starts empty. Request creation and the
  * test fixtures both call this, so fixtures match real requests.
  */
 export async function seedRequestDefaults(db: Executor, requestId: string): Promise<void> {
   await db.insert(eventFallback).values(
     REQUIRED_FALLBACKS.map((f, i) => ({ id: newId(), requestId, key: f.key, title: f.title, required: true, sortOrder: i })),
   );
-  await db.insert(eventChecklistItem).values(CHECKLIST_TEMPLATE.map((c, i) => ({ id: newId(), requestId, key: c.key, label: c.label, sortOrder: i })));
 }
 
 /**

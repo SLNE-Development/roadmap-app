@@ -6,15 +6,11 @@ import { useId, useState } from "react";
 import { Panel } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CHECKLIST_TEMPLATE } from "@/lib/event-prep-template";
 import { useTRPC } from "@/trpc/client";
 import { DisasterPanel } from "./disaster-panel";
 
-/** The template keys of the checklist, which have a translated label. */
-const TEMPLATE_KEYS: readonly string[] = CHECKLIST_TEMPLATE.map((c) => c.key);
-
 /**
- * The event-day view: the event, the checklist, who is checked in and the "Something is wrong" panel with the fallback
+ * The event-day view: the event, the checklist and the "Something is wrong" panel with the fallback
  * scenarios. Used by the Event day tab and by the event-day page. The disaster panel posts and resolves the disaster message.
  *
  * @param props.requestId the request
@@ -31,10 +27,7 @@ export function EventDayPanel({ requestId, canManageList = false }: { requestId:
   const tick = useMutation(trpc.requests.setChecklistItem.mutationOptions());
   const addItem = useMutation(trpc.requests.addChecklistItem.mutationOptions({ onSuccess: () => setLabel("") }));
   const removeItem = useMutation(trpc.requests.removeChecklistItem.mutationOptions());
-  const checkIn = useMutation(trpc.requests.checkIn.mutationOptions());
-  const checkOut = useMutation(trpc.requests.checkOut.mutationOptions());
   const live = view.request.status === "event_week";
-  const time = (at: Date) => format.dateTime(at, { timeStyle: "short" });
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1 border bg-card px-4 py-3 text-[13.5px]">
@@ -57,7 +50,7 @@ export function EventDayPanel({ requestId, canManageList = false }: { requestId:
                   disabled={!view.canTick || tick.isPending}
                   onChange={(e) => tick.mutate({ itemId: item.id, done: e.target.checked })}
                 />
-                {item.key && TEMPLATE_KEYS.includes(item.key) ? t(`items.${item.key as (typeof CHECKLIST_TEMPLATE)[number]["key"]}`) : item.label}
+                {item.label}
               </label>
               {canManageList && item.key === null && (
                 <Button type="button" size="sm" variant="ghost" onClick={() => removeItem.mutate({ itemId: item.id })}>
@@ -83,31 +76,6 @@ export function EventDayPanel({ requestId, canManageList = false }: { requestId:
               {t("addItem")}
             </Button>
           </form>
-        )}
-      </Panel>
-
-      <Panel title={t("checkins")} bodyClassName="gap-3 px-4 pb-4 sm:px-5">
-        {view.checkins.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t("nobody")}</p>
-        ) : (
-          <ul className="flex flex-col gap-1 text-[13.5px]">
-            {view.checkins.map((c) => (
-              <li key={c.userId}>{t("checkedInAt", { name: c.name, time: time(c.at) })}</li>
-            ))}
-          </ul>
-        )}
-        {live && (
-          <div>
-            {view.checkedIn ? (
-              <Button type="button" variant="outline" disabled={checkOut.isPending} onClick={() => checkOut.mutate({ id: requestId })}>
-                {t("checkOut")}
-              </Button>
-            ) : (
-              <Button type="button" disabled={checkIn.isPending} onClick={() => checkIn.mutate({ id: requestId })}>
-                {t("checkIn")}
-              </Button>
-            )}
-          </div>
         )}
       </Panel>
 

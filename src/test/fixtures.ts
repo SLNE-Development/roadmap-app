@@ -75,8 +75,8 @@ export async function completePlanningFixture(db: Db, systemId: string): Promise
 /** Inserts a `draft` event request of `requester` with a version-1 brief, overridden field by field with `over`. */
 export async function requestFixture(db: Db, requester: Actor, over: Partial<typeof eventRequest.$inferInsert> = {}): Promise<EventRequestRow> {
   const id = over.id ?? newId();
-  const [row] = await db.insert(eventRequest).values({ id, requesterId: requester.userId, title: "Fixture event", ...over }).returning();
-  await db.insert(eventBriefVersion).values({ requestId: id, version: row.briefVersion, body: "Brief", authorUserId: requester.userId });
+  const [row] = await db.insert(eventRequest).values({ id, requesterId: requester.userId, title: "Fixture event", briefVersion: 1, ...over }).returning();
+  if (row.briefVersion > 0) await db.insert(eventBriefVersion).values({ requestId: id, version: row.briefVersion, body: "Brief", authorUserId: requester.userId });
   await seedRequestDefaults(db, id);
   return row;
 }

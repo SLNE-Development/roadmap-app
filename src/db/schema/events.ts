@@ -31,7 +31,7 @@ export const eventRequest = pgTable(
     summary: text("summary").notNull().default(""),
     eventDocsUrl: text("event_docs_url"),
     /** The current version number of the brief (see {@link eventBriefVersion}). */
-    briefVersion: integer("brief_version").notNull().default(1),
+    briefVersion: integer("brief_version").notNull().default(0),
     /** The project and system built for the request; several requests may share a project. */
     projectId: text("project_id").references(() => project.id, { onDelete: "set null" }),
     systemId: text("system_id").references(() => system.id, { onDelete: "set null" }),
@@ -95,7 +95,7 @@ export const requestLog = pgTable(
 );
 
 /** What an uploaded image is used for. */
-export const UPLOAD_PURPOSES = ["banner", "embed", "fallback", "template"] as const;
+export const UPLOAD_PURPOSES = ["banner", "embed", "template"] as const;
 
 /** One of {@link UPLOAD_PURPOSES}. */
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
@@ -188,7 +188,7 @@ export const eventSpecBasis = pgTable(
   (t) => [primaryKey({ columns: [t.systemId, t.specVersion] })],
 );
 
-/** One fallback scenario of a request: what we do if it happens, who decides, and an optional prepared player message. The three required ones exist from the start. */
+/** One fallback scenario of a request: what we do if it happens, who decides, and an optional prepared player message. The required one exists from the start. */
 export const eventFallback = pgTable(
   "event_fallback",
   {
@@ -203,7 +203,6 @@ export const eventFallback = pgTable(
     whoDecides: text("who_decides").notNull().default(""),
     /** A prepared message for players (German, may hold placeholders). */
     playerMessage: text("player_message"),
-    imageUploadId: text("image_upload_id").references(() => eventUpload.id, { onDelete: "set null" }),
     required: boolean("required").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
   },
@@ -254,21 +253,6 @@ export const eventChecklistItem = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [index("event_checklist_request").on(t.requestId)],
-);
-
-/** Who is on duty at the event: a user checks themselves in during the event week. */
-export const eventCheckin = pgTable(
-  "event_checkin",
-  {
-    requestId: text("request_id")
-      .notNull()
-      .references(() => eventRequest.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    at: timestamp("at", tz).notNull().defaultNow(),
-  },
-  (t) => [primaryKey({ columns: [t.requestId, t.userId] })],
 );
 
 /** What Discord said to the bot token last. */

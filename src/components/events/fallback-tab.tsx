@@ -4,7 +4,6 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { toast } from "sonner";
-import { ImageUpload } from "@/components/events/image-upload";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -13,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { EventFallbackRow } from "@/db/schema";
 import { useTRPC } from "@/trpc/client";
 
-/** One scenario: what we do, who decides, a prepared player message and an image, saved together. */
+/** One scenario: what we do, who decides, and a prepared player message, saved together. */
 function ScenarioCard({ requestId, scenario, canEdit }: { requestId: string; scenario: EventFallbackRow; canEdit: boolean }) {
   const t = useTranslations("events.fallback");
   const trpc = useTRPC();
@@ -24,10 +23,8 @@ function ScenarioCard({ requestId, scenario, canEdit }: { requestId: string; sce
   const [message, setMessage] = useState(scenario.playerMessage ?? "");
   const save = useMutation(trpc.requests.saveFallback.mutationOptions({ onSuccess: () => toast.success(t("saved")) }));
   const remove = useMutation(trpc.requests.removeFallback.mutationOptions({ onSuccess: () => toast.success(t("removed")) }));
-  const removeImage = useMutation(trpc.requests.deleteUpload.mutationOptions());
   const complete = whatWeDo.trim() !== "" && whoDecides.trim() !== "";
   const dirty = title !== scenario.title || whatWeDo !== scenario.whatWeDo || whoDecides !== scenario.whoDecides || message !== (scenario.playerMessage ?? "");
-  const image = scenario.imageUploadId;
   return (
     <form
       className="flex flex-col gap-4 border bg-card p-4 sm:p-5"
@@ -57,20 +54,6 @@ function ScenarioCard({ requestId, scenario, canEdit }: { requestId: string; sce
         <Textarea id={`${id}-msg`} value={message} maxLength={2000} disabled={!canEdit} onChange={(e) => setMessage(e.target.value)} />
         <FieldDescription>{t("playerMessageHelp")}</FieldDescription>
       </Field>
-      <ImageUpload
-        requestId={requestId}
-        purpose="fallback"
-        image={image ? { id: image, url: `/api/uploads/${image}` } : null}
-        disabled={!canEdit}
-        onUploaded={async (uploaded) => {
-          await save.mutateAsync({ id: requestId, fallbackId: scenario.id, imageUploadId: uploaded.id });
-          if (image) removeImage.mutate({ id: image });
-        }}
-        onRemove={async (imageId) => {
-          await save.mutateAsync({ id: requestId, fallbackId: scenario.id, imageUploadId: null });
-          removeImage.mutate({ id: imageId });
-        }}
-      />
       {canEdit && (
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={save.isPending || !dirty || (!scenario.required && !title.trim())}>
@@ -88,8 +71,8 @@ function ScenarioCard({ requestId, scenario, canEdit }: { requestId: string; sce
 }
 
 /**
- * The Fallback tab: one card per scenario with what we do, who decides, a player message and an image. The three required
- * scenarios must be complete before the event week can start.
+ * The Fallback tab: one card per scenario with what we do, who decides and a player message. The required
+ * scenario must be complete before the event week can start.
  *
  * @param props.requestId the request
  * @param props.canEdit whether the actor may change the plan
@@ -105,7 +88,7 @@ export function FallbackTab({ requestId, canEdit }: { requestId: string; canEdit
     <div className="flex flex-col gap-4">
       <p className="text-[13px] text-fg-2">{t("help")}</p>
       {scenarios.map((s) => (
-        <ScenarioCard key={`${s.id}-${s.whatWeDo}-${s.whoDecides}-${s.imageUploadId}`} requestId={requestId} scenario={s} canEdit={canEdit} />
+        <ScenarioCard key={s.id} requestId={requestId} scenario={s} canEdit={canEdit} />
       ))}
       {canEdit && (
         <form

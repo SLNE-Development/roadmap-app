@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHECKLIST_TEMPLATE, dueFor, PREP_TEMPLATE, REQUIRED_FALLBACKS } from "./event-prep-template";
+import { dueFor, PREP_TEMPLATE, REQUIRED_FALLBACKS } from "./event-prep-template";
 
 const BERLIN = "Europe/Berlin";
 
@@ -25,8 +25,7 @@ describe("templates", () => {
     expect(PREP_TEMPLATE.map((s) => s.offsetDays)).toEqual([-8, -7, -3, -2, -1, 1]);
   });
 
-  it("has the required fallbacks and four checklist items", () => {
-    expect(REQUIRED_FALLBACKS.map((f) => f.key)).toEqual(["server-down", "staff-missing", "too-few-players"]);
-    expect(CHECKLIST_TEMPLATE).toHaveLength(4);
+  it("has the one required fallback", () => {
+    expect(REQUIRED_FALLBACKS.map((f) => f.key)).toEqual(["server-down"]);
   });
 });

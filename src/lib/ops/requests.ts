@@ -38,7 +38,7 @@ export async function logRequest(db: Executor, actor: Actor, entry: RequestLogEn
 const dateSchema = z.union([z.date(), z.string().datetime({ offset: true })]).transform((v) => new Date(v));
 
 const titleSchema = z.string().trim().min(1).max(120);
-const durationSchema = z.number().int().min(5).max(1440);
+const durationSchema = z.number().int().min(5).max(10080);
 const whereSchema = z.string().trim().max(200);
 const summarySchema = z.string().trim().max(500);
 const docsUrlSchema = z
@@ -65,6 +65,7 @@ export const updateRequestInput = z.object({
   title: titleSchema.optional(),
   startsAt: dateSchema.nullable().optional(),
   durationMinutes: durationSchema.nullable().optional(),
+  endsAt: dateSchema.nullable().optional(),
   where: whereSchema.optional(),
   summary: summarySchema.optional(),
   eventDocsUrl: docsUrlSchema.nullable().optional(),
@@ -72,7 +73,7 @@ export const updateRequestInput = z.object({
 });
 
 /** Input of {@link saveBrief}. */
-export const saveBriefInput = z.object({ body: briefSchema, baseVersion: z.number().int().min(1) });
+export const saveBriefInput = z.object({ body: briefSchema, baseVersion: z.number().int().min(0) });
 
 /** Input of {@link cancelRequest}'s reason. */
 const reasonSchema = z.string().trim().min(1).max(500);
@@ -80,6 +81,21 @@ const reasonSchema = z.string().trim().min(1).max(500);
 /** Normalizes a brief for storing and comparing: `\r\n` to `\n`, outer whitespace removed. */
 function normalizeBrief(body: string): string {
   return body.replace(/\r\n/g, "\n").trim();
+}
+
+/** The current brief text of a request; version 0 has no row and reads as empty. */
+async function currentBrief(db: Executor, request: Pick<EventRequestRow, "id" | "briefVersion">): Promise<string> {
+  if (request.briefVersion === 0) return "";
+  const [row] = await db
+    .select({ body: eventBriefVersion.body })
+    .from(eventBriefVersion)
+    .where(and(eq(eventBriefVersion.requestId, request.id), eq(eventBriefVersion.version, request.briefVersion)));
+  return row?.body ?? "";
+}
+
+/** The end of an event for display: start plus duration, null without either. */
+export function endsAtOf(request: Pick<EventRequestRow, "startsAt" | "durationMinutes">): Date | null {
+  return request.durationMinutes === null ? null : eventEnd(request);
 }
 
 /** The end of an event: its start plus its duration, or the start alone without a duration; null without a start. */
@@ -152,7 +168,7 @@ async function manageOrDevelop(tx: Tx, actor: Actor, requestId: string): Promise
 const stamp = (d: Date | null) => (d ? d.toISOString() : null);
 
 /**
- * Creates a draft request with brief version 1 (empty briefs included). Event managers and admins only; the requester
+ * Creates a draft request; a non-empty brief is stored as version 1, an empty one leaves the version at 0. Event managers and admins only; the requester
  * defaults to the actor and may be another provisioned user.
  *
  * @throws ForbiddenError for anyone else
@@ -180,10 +196,15 @@ export async function createRequest(db: Db, actor: Actor, raw: unknown): Promise
         eventDocsUrl: input.eventDocsUrl ?? null,
       })
       .returning();
-    await tx.insert(eventBriefVersion).values({ requestId: row.id, version: 1, body: normalizeBrief(input.brief), authorUserId: actor.userId });
+    const brief = normalizeBrief(input.brief);
+    let created = row;
+    if (brief !== "") {
+      await tx.insert(eventBriefVersion).values({ requestId: row.id, version: 1, body: brief, authorUserId: actor.userId });
+      [created] = await tx.update(eventRequest).set({ briefVersion: 1 }).where(eq(eventRequest.id, row.id)).returning();
+    }
     await seedRequestDefaults(tx, row.id);
     await logRequest(tx, actor, { requestId: row.id, field: "created", newValue: row.title });
-    return row;
+    return created;
   });
 }
 
@@ -219,8 +240,20 @@ export async function updateRequest(db: Db, actor: Actor, requestId: string, raw
       }
       note("startsAt", { startsAt: input.startsAt }, stamp(request.startsAt), stamp(input.startsAt));
     }
-    if (input.durationMinutes !== undefined) {
-      note("durationMinutes", { durationMinutes: input.durationMinutes }, request.durationMinutes?.toString() ?? null, input.durationMinutes?.toString() ?? null);
+    let duration = input.durationMinutes;
+    if (input.endsAt !== undefined) {
+      if (input.durationMinutes !== undefined) throw new InvalidError("Give either an end or a duration, not both.");
+      if (input.endsAt === null) duration = null;
+      else {
+        const start = input.startsAt !== undefined ? input.startsAt : request.startsAt;
+        if (!start) throw new InvalidError("Set the start first.");
+        if (input.endsAt.getTime() <= start.getTime()) throw new InvalidError("The end must be after the start.");
+        duration = Math.round((input.endsAt.getTime() - start.getTime()) / 60_000);
+        if (duration > 10080) throw new InvalidError("An event lasts at most 7 days.");
+      }
+    }
+    if (duration !== undefined) {
+      note("durationMinutes", { durationMinutes: duration }, request.durationMinutes?.toString() ?? null, duration?.toString() ?? null);
     }
     if (input.where !== undefined) note("where", { where: input.where }, request.where, input.where);
     if (input.summary !== undefined) note("summary", { summary: input.summary }, request.summary, input.summary);
@@ -262,11 +295,7 @@ export async function saveBrief(db: Db, actor: Actor, requestId: string, raw: un
     if (!BRIEF_EDITABLE.includes(request.status)) throw new ConflictError(`A ${request.status} request can no longer be changed.`);
     if (input.baseVersion !== request.briefVersion) throw new ConflictError("The brief changed in the meantime. Reload and merge your edits.");
     const body = normalizeBrief(input.body);
-    const [current] = await tx
-      .select({ body: eventBriefVersion.body })
-      .from(eventBriefVersion)
-      .where(and(eq(eventBriefVersion.requestId, requestId), eq(eventBriefVersion.version, request.briefVersion)));
-    if (current && normalizeBrief(current.body) === body) return { version: request.briefVersion, changed: false };
+    if (request.briefVersion > 0 && normalizeBrief(await currentBrief(tx, request)) === body) return { version: request.briefVersion, changed: false };
     const version = request.briefVersion + 1;
     await tx.insert(eventBriefVersion).values({ requestId, version, body, authorUserId: actor.userId });
     await tx.update(eventRequest).set({ briefVersion: version, updatedAt: new Date() }).where(eq(eventRequest.id, requestId));
@@ -301,6 +330,7 @@ export interface BriefView extends AuthorFields {
 export async function getBrief(db: Db, actor: Actor, requestId: string, version?: number): Promise<BriefView> {
   const { request } = await requestAccess(db, actor, requestId, "view");
   const wanted = version ?? request.briefVersion;
+  if (wanted === 0) return { version: 0, body: "", createdAt: request.createdAt, ...authorFields(null, null) };
   const [row] = await db
     .select({ body: eventBriefVersion.body, createdAt: eventBriefVersion.createdAt, authorName: user.name })
     .from(eventBriefVersion)
@@ -371,15 +401,12 @@ async function transition(
 export function submitRequest(db: Db, actor: Actor, requestId: string): Promise<EventRequestRow> {
   return transition(db, actor, requestId, (tx) => editAccess(tx, actor, requestId), async (tx, request) => {
     if (!canTransition(request.status, "submitted")) throw new ConflictError(`A ${request.status} request cannot become submitted.`);
-    const [brief] = await tx
-      .select({ body: eventBriefVersion.body })
-      .from(eventBriefVersion)
-      .where(and(eq(eventBriefVersion.requestId, requestId), eq(eventBriefVersion.version, request.briefVersion)));
+    const brief = await currentBrief(tx, request);
     const missing: string[] = [];
     if (!request.title.trim()) missing.push("title");
     if (!request.startsAt) missing.push("event date");
     else if (request.startsAt.getTime() <= Date.now()) missing.push("event date in the future");
-    if (!brief || !brief.body.trim()) missing.push("brief");
+    if (!brief.trim()) missing.push("brief");
     if (missing.length > 0) throw new InvalidError(`The request cannot be submitted yet. It needs: ${missing.join(", ")}.`);
     const submitted = await moveTo(tx, actor, request, "submitted", { submittedAt: new Date() });
     // A recall and a new submission count as a new notice: the number of submissions is part of the source.
@@ -421,7 +448,7 @@ export async function cancelRequest(db: Db, actor: Actor, requestId: string, raw
 }
 
 /**
- * Starts the event week of an accepted request. Edit or develop access; the three required fallback scenarios must be
+ * Starts the event week of an accepted request. Edit or develop access; the required fallback scenario must be
  * filled in. Nothing starts it on a date.
  *
  * @throws ConflictError unless the request is accepted, or while a required scenario is incomplete (the message names them)
@@ -465,6 +492,8 @@ export interface RequestListItem {
   title: string;
   status: RequestStatus;
   startsAt: Date | null;
+  /** The end of the event; null without a duration. */
+  endsAt: Date | null;
   requesterName: string;
   projectSlug: string | null;
   briefVersion: number;
@@ -494,6 +523,7 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
       title: eventRequest.title,
       status: eventRequest.status,
       startsAt: eventRequest.startsAt,
+      durationMinutes: eventRequest.durationMinutes,
       briefVersion: eventRequest.briefVersion,
       requesterName: user.name,
       projectSlug: project.slug,
@@ -529,12 +559,12 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
             .groupBy(eventTodo.requestId)
         ).map((r) => [r.requestId, r.n] as const),
   );
-  return rows.map((r) => ({ ...r, requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: waiting.has(r.id), lateTodos: late.get(r.id) ?? 0 }));
+  return rows.map(({ durationMinutes, ...r }) => ({ ...r, endsAt: endsAtOf({ startsAt: r.startsAt, durationMinutes }), requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: waiting.has(r.id), lateTodos: late.get(r.id) ?? 0 }));
 }
 
 /** A request with what its page needs. */
 export interface RequestDetail {
-  request: EventRequestRow;
+  request: EventRequestRow & { endsAt: Date | null };
   requesterName: string;
   projectSlug: string | null;
   /** The current brief. */
@@ -562,21 +592,18 @@ export interface RequestDetail {
  */
 export async function getRequest(db: Db, actor: Actor, requestId: string): Promise<RequestDetail> {
   const { request, role, canEdit, flags } = await requestAccess(db, actor, requestId, "view");
-  const [[brief], [owner], [linked], [membership]] = await Promise.all([
-    db
-      .select({ body: eventBriefVersion.body })
-      .from(eventBriefVersion)
-      .where(and(eq(eventBriefVersion.requestId, requestId), eq(eventBriefVersion.version, request.briefVersion))),
+  const [brief, [owner], [linked], [membership]] = await Promise.all([
+    currentBrief(db, request),
     request.requesterId ? db.select({ name: user.name }).from(user).where(eq(user.id, request.requesterId)) : Promise.resolve([]),
     request.projectId ? db.select({ slug: project.slug }).from(project).where(eq(project.id, request.projectId)) : Promise.resolve([]),
     request.projectId ? db.select({ role: projectMember.role }).from(projectMember).where(and(eq(projectMember.projectId, request.projectId), eq(projectMember.userId, actor.userId))) : Promise.resolve([]),
   ]);
   const canManage = flags.isAdmin || flags.isEventManager;
   return {
-    request,
+    request: { ...request, endsAt: endsAtOf(request) },
     requesterName: owner?.name?.trim() || "unknown",
     projectSlug: linked?.slug ?? null,
-    brief: brief?.body ?? "",
+    brief,
     canEdit,
     canManage,
     canCancel: canManage || flags.isEventDeveloper,

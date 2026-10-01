@@ -1,6 +1,6 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { eventFallback, eventUpload, type EventFallbackRow } from "@/db/schema";
+import { eventFallback, type EventFallbackRow } from "@/db/schema";
 import type { Db, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import type { Actor } from "./actor";
@@ -19,7 +19,6 @@ export const saveFallbackInput = z.object({
   whoDecides: z.string().max(500).optional(),
   /** A prepared player message; it is posted as one Discord message, so it fits its 2,000 characters. */
   playerMessage: z.string().max(2000).nullable().optional(),
-  imageUploadId: z.string().min(1).max(64).nullable().optional(),
 });
 
 /** Input of {@link addFallback}. */
@@ -40,9 +39,9 @@ async function lockedFallback(tx: Tx, requestId: string, fallbackId: string): Pr
 }
 
 /**
- * Changes a scenario. The image must be an upload of the same request, and the title of a required scenario stays.
+ * Changes a scenario; the title of a required scenario stays.
  *
- * @throws InvalidError for a foreign image or a renamed required scenario
+ * @throws InvalidError for a renamed required scenario
  * @throws ForbiddenError without edit access
  */
 export async function saveFallback(db: Db, actor: Actor, requestId: string, fallbackId: string, raw: unknown): Promise<EventFallbackRow> {
@@ -51,16 +50,11 @@ export async function saveFallback(db: Db, actor: Actor, requestId: string, fall
     await requestAccess(tx, actor, requestId, "edit");
     const row = await lockedFallback(tx, requestId, fallbackId);
     if (input.title !== undefined && input.title !== row.title && row.required) throw new InvalidError("The title of a required scenario cannot be changed.");
-    if (input.imageUploadId) {
-      const [image] = await tx.select({ id: eventUpload.id }).from(eventUpload).where(and(eq(eventUpload.id, input.imageUploadId), eq(eventUpload.requestId, requestId))).limit(1);
-      if (!image) throw new InvalidError("The image does not belong to this request.");
-    }
     const patch = {
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.whatWeDo !== undefined ? { whatWeDo: input.whatWeDo } : {}),
       ...(input.whoDecides !== undefined ? { whoDecides: input.whoDecides } : {}),
       ...(input.playerMessage !== undefined ? { playerMessage: input.playerMessage?.trim() ? input.playerMessage : null } : {}),
-      ...(input.imageUploadId !== undefined ? { imageUploadId: input.imageUploadId } : {}),
     };
     if (Object.keys(patch).length === 0) return row;
     const [updated] = await tx.update(eventFallback).set(patch).where(eq(eventFallback.id, fallbackId)).returning();

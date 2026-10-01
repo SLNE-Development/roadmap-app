@@ -288,6 +288,13 @@
       "when": 1790881825172,
       "tag": "0040_event-summary",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790882175025,
+      "tag": "0041_event-defaults",
+      "breakpoints": true
     }
   ]
 }

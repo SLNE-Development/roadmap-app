@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { eventFallback, eventRequest, eventUpload, requestLog } from "@/db/schema";
+import { eventRequest, eventUpload, requestLog } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { newId } from "@/lib/id";
 import { UPLOAD_LIMITS } from "@/lib/uploads";
@@ -156,12 +156,6 @@ describe("deleteUpload", () => {
     UPLOAD_REFERENCES.push(async () => true);
     await expect(deleteUpload(db, requester, view.id, dir)).rejects.toBeInstanceOf(ConflictError);
     expect(await readdir(dir)).toHaveLength(1);
-  });
-
-  it("refuses while a fallback scenario shows the image, without importing the fallback ops", async () => {
-    const view = await store({ purpose: "fallback" });
-    await db.update(eventFallback).set({ imageUploadId: view.id }).where(eq(eventFallback.key, "server-down"));
-    await expect(deleteUpload(db, requester, view.id, dir)).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("needs edit access", async () => {

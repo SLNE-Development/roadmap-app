@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { and, count, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { eventFallback, eventRequest, eventSettings, eventUpload, UPLOAD_PURPOSES, type EventUploadRow, type UploadPurpose } from "@/db/schema";
+import { eventRequest, eventSettings, eventUpload, UPLOAD_PURPOSES, type EventUploadRow, type UploadPurpose } from "@/db/schema";
 import type { Db, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import { displayName, IMAGE_EXTENSIONS, safePath, sniffImage, uploadsDir, UPLOAD_LIMITS } from "@/lib/uploads";
@@ -44,8 +44,6 @@ export const storeUploadInput = z.object({
  * Later tasks add their check here.
  */
 export const UPLOAD_REFERENCES: ((tx: Tx, uploadId: string) => Promise<boolean>)[] = [
-  // A fallback scenario that shows the image. Listed here, not registered by its module, so the guard never depends on import order.
-  async (tx, uploadId) => (await tx.select({ id: eventFallback.id }).from(eventFallback).where(eq(eventFallback.imageUploadId, uploadId)).limit(1)).length > 0,
   // The disaster or resolved template of the event settings shows the image.
   async (tx, uploadId) =>
     (

@@ -97,6 +97,7 @@
   },
   "versions": {
     "title": "Versionen",
+    "none": "Noch keine Versionen.",
     "version": "Version {version}",
     "meta": "{name}, {date}",
     "current": "aktuell",
@@ -280,22 +281,11 @@
     "removeItem": "Entfernen",
     "newItem": "Neuer Checklistenpunkt",
     "addItem": "Punkt hinzufügen",
-    "checkins": "Eingecheckt",
-    "nobody": "Noch niemand ist eingecheckt.",
-    "checkedInAt": "{name} seit {time}",
-    "checkIn": "Einchecken",
-    "checkOut": "Auschecken",
     "wrong": "Etwas stimmt nicht",
     "showScenarios": "Notfallszenarien anzeigen",
     "hideScenarios": "Notfallszenarien ausblenden",
     "blank": "Nicht ausgefüllt",
-    "decides": "Entscheidet: {who}",
-    "items": {
-      "server-checked": "Server vom Host geprüft",
-      "staff-online": "Team ist online",
-      "rewards-ready": "Belohnungen bereit",
-      "fallback-read": "Notfallplan vom Host gelesen"
-    }
+    "decides": "Entscheidet: {who}"
   },
   "settings": {
     "crumb": "Event-Einstellungen",

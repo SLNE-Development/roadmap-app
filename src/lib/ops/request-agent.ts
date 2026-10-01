@@ -9,7 +9,7 @@ import { InvalidError, NotFoundError } from "./errors";
 import { requestAccess } from "./request-access";
 import { getSpecBasis, requestProgress, type RequestProgress, type SpecBasis } from "./request-link";
 import { askRound, listRounds, openQuestionCount } from "./request-questions";
-import { compareBriefs, getBrief } from "./requests";
+import { compareBriefs, endsAtOf, getBrief } from "./requests";
 
 /** Longest answer text `get_request` returns whole. */
 const ANSWER_CHARS = 500;
@@ -21,6 +21,8 @@ export interface RequestForAgent {
   status: string;
   startsAt: Date | null;
   durationMinutes: number | null;
+  /** The end of the event; null without a duration. */
+  endsAt: Date | null;
   where: string;
   summary: string;
   eventDocsUrl: string | null;
@@ -103,6 +105,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     status: request.status,
     startsAt: request.startsAt,
     durationMinutes: request.durationMinutes,
+    endsAt: endsAtOf(request),
     where: request.where,
     summary: request.summary,
     eventDocsUrl: request.eventDocsUrl,

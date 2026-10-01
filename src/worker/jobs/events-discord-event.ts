@@ -40,11 +40,14 @@ async function bannerDataUri(db: Db, request: EventRequestRow): Promise<string |
 /** The event body of a request: its fields, the current brief and the banner. Null while the request has no start. */
 async function payloadOf(db: Db, request: EventRequestRow): Promise<ScheduledEventBody | null> {
   if (!request.startsAt) return null;
-  const [brief] = await db
-    .select({ body: eventBriefVersion.body })
-    .from(eventBriefVersion)
-    .where(and(eq(eventBriefVersion.requestId, request.id), eq(eventBriefVersion.version, request.briefVersion)))
-    .limit(1);
+  const [brief] =
+    request.briefVersion === 0
+      ? []
+      : await db
+          .select({ body: eventBriefVersion.body })
+          .from(eventBriefVersion)
+          .where(and(eq(eventBriefVersion.requestId, request.id), eq(eventBriefVersion.version, request.briefVersion)))
+          .limit(1);
   return eventPayload({ ...request, brief: brief?.body ?? "" }, await bannerDataUri(db, request));
 }
 
