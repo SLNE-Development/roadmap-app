@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useNow } from "@/components/clock";
+import { MyWorkPanel } from "@/components/my-work-panel";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { ProjectMark } from "@/components/person-avatar";
@@ -68,8 +69,8 @@ function ArchivedProjects({ projects }: { projects: ArchivedProjectItem[] }) {
 /** The home page body: the project cards with their state, or an empty state with project creation, and the archived projects. */
 export function HomeView() {
   const trpc = useTRPC();
-  const [{ data: cards }, { data: archived }] = useSuspenseQueries({
-    queries: [trpc.projects.cards.queryOptions(), trpc.projects.list.queryOptions({ archived: "only" })],
+  const [{ data: cards }, { data: archived }, { data: mine }] = useSuspenseQueries({
+    queries: [trpc.projects.cards.queryOptions(), trpc.projects.list.queryOptions({ archived: "only" }), trpc.account.myWork.queryOptions()],
   });
   const archivedItems = archived.map((p) => ({ slug: p.slug, name: p.name, role: p.role }));
   const now = useNow();
@@ -93,7 +94,9 @@ export function HomeView() {
 
   const blocked = projects.reduce((n, p) => n + p.blocked, 0);
   const open = projects.reduce((n, p) => n + p.openQuestions, 0);
+  const waiting = mine.items.filter((i) => i.section === "waiting").length;
   const summary = [
+    waiting === 0 ? "Nothing is waiting on you" : `${waiting} ${waiting === 1 ? "thing needs" : "things need"} you`,
     plural(projects.length, "project", "projects"),
     plural(blocked, "blocked system", "blocked systems"),
     plural(open, "open question", "open questions"),
@@ -116,6 +119,7 @@ export function HomeView() {
 
   return (
     <Page>
+      <MyWorkPanel />
       <ProjectGrid projects={projects} summary={summary} />
       <ArchivedProjects projects={archivedItems} />
     </Page>

@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { getAuth } from "@/lib/auth/server";
 import { slugSchema } from "@/lib/ops/access";
+import { myWork, myWorkSeenAt, markMyWorkSeen } from "@/lib/ops/my-work";
 import { createApiKeyInput, listApiKeys, revokeApiKey } from "@/lib/ops/api-keys";
 import { addAllowedAccount, addAllowedAccountInput, listAllowedAccounts, listUsers, removeAllowedAccount, setAdmin } from "@/lib/ops/users";
 import { protectedProcedure, router } from "../init";
@@ -10,6 +11,15 @@ import { protectedProcedure, router } from "../init";
 export const accountRouter = router({
   /** The signed-in actor. */
   me: protectedProcedure.query(({ ctx }) => ({ userId: ctx.actor.userId, name: ctx.actor.name, isAdmin: ctx.actor.isAdmin })),
+
+  /** What is waiting on the actor across their projects and what changed since they last marked it seen. */
+  myWork: protectedProcedure.query(async ({ ctx }) => {
+    const [items, seenAt] = await Promise.all([myWork(ctx.db, ctx.actor, { now: new Date() }), myWorkSeenAt(ctx.db, ctx.actor)]);
+    return { items, seenAt };
+  }),
+
+  /** Marks the actor's changes as seen now. */
+  markMyWorkSeen: protectedProcedure.mutation(({ ctx }) => markMyWorkSeen(ctx.db, ctx.actor, new Date())),
 
   /** Every provisioned user, for the member picker. Project owners only. */
   users: protectedProcedure.input(z.object({ project: slugSchema })).query(({ ctx, input }) => listUsers(ctx.db, ctx.actor, input.project)),

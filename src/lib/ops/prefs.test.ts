@@ -65,6 +65,14 @@ describe("prefs", () => {
     );
   });
 
+  it("accepts camelCase keys", async () => {
+    const db = await createTestDb();
+    const a = await insertUser(db);
+    await setPref(db, a, "mywork.seenAt", "x");
+    await setPref(db, a, "timeZone", "UTC");
+    expect(await getPref(db, a.userId, "timeZone")).toBe("UTC");
+  });
+
   it("rejects a value over 8 KB", async () => {
     const db = await createTestDb();
     const a = await insertUser(db);

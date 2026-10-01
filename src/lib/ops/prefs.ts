@@ -5,8 +5,8 @@ import type { Executor } from "@/db/types";
 import type { Actor } from "./actor";
 import { InvalidError } from "./errors";
 
-/** A preference key: dot-separated lowercase segments, such as `board.collapsed.b1`. */
-export const PREF_KEY = /^[a-z][a-z0-9-]*(\.[a-z0-9-]+)*$/;
+/** A preference key: dot-separated segments starting lowercase, such as `board.collapsed.b1`. */
+export const PREF_KEY = /^[a-z][a-zA-Z0-9-]*(\.[a-zA-Z0-9-]+)*$/;
 
 /** The largest stored value, measured on its JSON text. */
 export const MAX_PREF_BYTES = 8192;

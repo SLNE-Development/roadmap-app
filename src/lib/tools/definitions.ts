@@ -17,6 +17,7 @@ import { createBoard, createBoardInput, listBoards, setBoardColumns, setColumnsI
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
 import { listMembers } from "@/lib/ops/members";
 import { getSystemOverview } from "@/lib/ops/overview";
+import { myWork } from "@/lib/ops/my-work";
 import { MAX_INT } from "@/lib/ops/params";
 import {
   addPlanningRound,
@@ -101,6 +102,18 @@ register(
     run: async (db, actor) => ({ userId: actor.userId, name: actor.name, isAdmin: actor.isAdmin, projects: await listProjects(db, actor) }),
   }),
 
+  defineTool({
+    name: "my_work",
+    description: "What is waiting on you across your projects: your blocked and in-progress tasks, open planning items and questions on your systems, and proposed ADRs.",
+    input: {},
+    write: false,
+    method: "GET",
+    path: "/my-work",
+    run: async (db, actor) =>
+      (await myWork(db, actor, { now: new Date(), changesLimit: 1 }))
+        .filter((i) => i.section === "waiting")
+        .map((i) => ({ kind: i.kind, project: i.projectSlug, system: i.systemSlug, title: i.title, detail: i.detail })),
+  }),
   defineTool({
     name: "list_projects",
     description: "List the projects you can access, with your role in each.",

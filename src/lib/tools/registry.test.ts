@@ -8,7 +8,7 @@ import { inputSchema, matchRoute, runTool } from "./registry";
 
 /** Every tool the spec lists, in spec order. */
 const SPEC_TOOLS = [
-  "whoami",
+  "whoami", "my_work",
   "list_projects", "get_project", "create_project", "update_project", "list_members",
   "list_boards", "create_board", "update_board", "set_board_columns",
   "list_domains", "create_domain", "update_domain", "reorder_domains",
