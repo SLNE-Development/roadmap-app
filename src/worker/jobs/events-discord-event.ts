@@ -137,7 +137,8 @@ async function forget(db: Db, requestId: string, eventId: string, why: string): 
 
 /** The `create` action: makes the event of a reopened request with {@link ensureDiscordEvent}; a 429 queues the job again like the update path. */
 async function createEvent(deps: WorkerDeps, request: EventRequestRow | undefined, retry: number): Promise<void> {
-  if (!request) return;
+  // A request cancelled or withdrawn again before the job ran gets no public event.
+  if (!request || (request.status !== "accepted" && request.status !== "event_week")) return;
   const settings = await loadPostSettings(deps.db);
   const secrets = await loadEventSecrets(deps.db);
   try {

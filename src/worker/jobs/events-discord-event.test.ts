@@ -306,6 +306,15 @@ describe("keeping the event in sync", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("creates no event when the request was cancelled again before the create ran", async () => {
+    const s = await botWorld();
+    await s.db.update(eventRequest).set({ status: "cancelled" }).where(eq(eventRequest.id, s.request.id));
+    const calls = stubFetch([json(200, { id: "777" })]);
+    await runJob("deliver", "events.discord-event", { requestId: s.request.id, action: "create" }, s.deps);
+    expect(calls).toHaveLength(0);
+    expect((await s.reload()).discordEventId).toBeNull();
+  });
+
   it("queues the create again after Discord's delay on a 429", async () => {
     const s = await botWorld();
     stubFetch([new Response(JSON.stringify({ retry_after: 2 }), { status: 429, headers: { "Retry-After": "2" } })]);
