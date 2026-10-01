@@ -1,15 +1,19 @@
 import "server-only";
 import { z } from "zod";
+import { listBlockedTasks } from "@/lib/ops/blocked";
 import { dbInt } from "@/lib/ops/params";
 import { addTask, addTaskInput, deleteTask, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { protectedProcedure, router } from "../init";
-import { S } from "./shared";
+import { P, S } from "./shared";
 
 /** A task by its id. */
 const TASK = { id: dbInt };
 
-/** Tasks of a system; they are read through `systems.overview`. */
+/** Tasks of a system; they are read through `systems.overview`, except the blocked ones. */
 export const tasksRouter = router({
+  /** The project's blocked tasks with their reasons. */
+  blocked: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => listBlockedTasks(ctx.db, ctx.actor, input.project)),
+
   /** Adds a task to a system. */
   add: protectedProcedure
     .input(z.object({ ...S, task: addTaskInput }))

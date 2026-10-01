@@ -5,7 +5,7 @@ import { listActivity } from "./activity";
 import { withAgent } from "./actor";
 import { writeSpec } from "./documents";
 import { addPlanningRound, answerPlanningItems } from "./planning";
-import { createSystem, getSystem, updateSystem } from "./systems";
+import { createSystem, getSystem, listSystems, updateSystem } from "./systems";
 import { addTask, deleteTask, updateTask } from "./tasks";
 
 describe("tasks", () => {
@@ -44,7 +44,7 @@ describe("tasks", () => {
       status: 409,
       message: expect.stringContaining(`Task ${id} cannot be doing while system s is still in planning. Missing:`),
     });
-    await updateTask(db, owner, id, { state: "blocked" });
+    await updateTask(db, owner, id, { state: "blocked", blockedReason: "waiting" });
     await completePlanningFixture(db, s.id);
     await updateTask(db, owner, id, { state: "done", title: "Renamed" });
     expect((await getSystem(db, owner, slug, "s")).tasks[0]).toMatchObject({ state: "done", title: "Renamed" });
@@ -140,5 +140,61 @@ describe("tasks", () => {
     expect(detail.tasks[0].ownerName).toBe(detail.ownerName);
     const owners = (await listActivity(db, owner, slug)).filter((h) => h.entity === "system" && h.field === "owner");
     expect(owners).toHaveLength(1);
+  });
+});
+
+describe("notes and blocked reason", () => {
+  async function setup() {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const s = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, s.id);
+    const { id } = await addTask(db, owner, slug, "s", { title: "T" });
+    return { db, owner, slug, id };
+  }
+
+  it("requires a reason to block", async () => {
+    const { db, owner, id } = await setup();
+    await expect(updateTask(db, owner, id, { state: "blocked" })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining("blockedReason"),
+    });
+  });
+
+  it("stores and logs the reason, then clears it when the state changes", async () => {
+    const { db, owner, slug, id } = await setup();
+    await updateTask(db, owner, id, { state: "blocked", blockedReason: "waiting for API key" });
+    expect((await getSystem(db, owner, slug, "s")).tasks[0]).toMatchObject({ state: "blocked", blockedReason: "waiting for API key" });
+    expect((await listSystems(db, owner, slug))[0].tasksBlocked).toBe(1);
+    let log = (await listActivity(db, owner, slug)).filter((h) => h.entity === "task");
+    expect(log.some((h) => h.field === "state" && h.newValue === "blocked")).toBe(true);
+    expect(log.some((h) => h.field === "blockedReason" && h.newValue === "waiting for API key")).toBe(true);
+
+    await updateTask(db, owner, id, { state: "doing" });
+    expect((await getSystem(db, owner, slug, "s")).tasks[0].blockedReason).toBeNull();
+    expect((await listSystems(db, owner, slug))[0].tasksBlocked).toBe(0);
+    log = (await listActivity(db, owner, slug)).filter((h) => h.entity === "task");
+    expect(log.some((h) => h.field === "blockedReason" && h.oldValue === "waiting for API key" && h.newValue === null)).toBe(true);
+  });
+
+  it("keeps the existing reason when blocking again without one", async () => {
+    const { db, owner, slug, id } = await setup();
+    await updateTask(db, owner, id, { state: "blocked", blockedReason: "r" });
+    await updateTask(db, owner, id, { title: "T2" });
+    expect((await getSystem(db, owner, slug, "s")).tasks[0].blockedReason).toBe("r");
+  });
+
+  it("refuses a reason on a task that is not blocked", async () => {
+    const { db, owner, id } = await setup();
+    await expect(updateTask(db, owner, id, { blockedReason: "x" })).rejects.toMatchObject({ status: 400, message: `Task ${id} is not blocked.` });
+  });
+
+  it("stores long notes and logs them cut to 200 characters", async () => {
+    const { db, owner, slug, id } = await setup();
+    await updateTask(db, owner, id, { notes: "a".repeat(300) });
+    expect((await getSystem(db, owner, slug, "s")).tasks[0].notes).toHaveLength(300);
+    const entry = (await listActivity(db, owner, slug)).find((h) => h.entity === "task" && h.field === "notes");
+    expect(entry?.newValue).toHaveLength(201);
+    expect(entry?.newValue?.endsWith("…")).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Check, Lock, Minus, Plus, TrashIcon, UserRound } from "lucide-react";
+import { Check, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ProgressBar } from "@/components/page";
@@ -15,6 +15,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
+import { Textarea } from "@/components/ui/textarea";
 import { TASK_STATES, type ColumnCategory, type TaskState } from "@/db/schema";
 import type { TaskItem } from "@/lib/ops/systems";
 import { cn } from "@/lib/utils";
@@ -68,6 +71,81 @@ function boxClass(state: TaskState): string {
   );
 }
 
+/**
+ * A dialog with one textarea. Save is disabled while the text is empty and `required`,
+ * or while saving; without `onSave` (viewers) the text is read-only.
+ *
+ * @param props.draft the text being edited, owned by the caller so it can be prefilled on open
+ * @param props.onSave saves the draft; omit for a read-only dialog
+ */
+function TextDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  label,
+  draft,
+  onDraftChange,
+  maxLength,
+  required,
+  saving,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  label: string;
+  draft: string;
+  onDraftChange: (text: string) => void;
+  maxLength: number;
+  required?: boolean;
+  saving?: boolean;
+  onSave?: () => void;
+}) {
+  const empty = required && !draft.trim();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (onSave && !saving && !empty) onSave();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="font-display text-[19px] font-semibold">{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            aria-label={label}
+            placeholder={label}
+            value={draft}
+            maxLength={maxLength}
+            required={required}
+            readOnly={!onSave}
+            rows={6}
+            onChange={(e) => onDraftChange(e.target.value)}
+          />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                {onSave ? "Cancel" : "Close"}
+              </Button>
+            </DialogClose>
+            {onSave && (
+              <Button type="submit" disabled={saving || empty}>
+                Save
+              </Button>
+            )}
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** One task row: state box (a menu for editors), plan step, title, owner and state label. */
 function TaskRow({
   task,
@@ -86,6 +164,19 @@ function TaskRow({
   const remove = useMutation(trpc.tasks.delete.mutationOptions({ onSuccess: () => toast.success("Task deleted") }));
   const pending = update.isPending || remove.isPending;
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notes, setNotes] = useState("");
+  // The drafts are prefilled when a dialog opens, from the event handler.
+  const openBlock = () => {
+    setReason(task.blockedReason ?? "");
+    setBlockOpen(true);
+  };
+  const openNotes = () => {
+    setNotes(task.notes);
+    setNotesOpen(true);
+  };
   const locked = (s: TaskState) => !planningComplete && (s === "doing" || s === "done");
   const category = STATE_CATEGORY[task.state];
   const label = STATE_LABEL[task.state];
@@ -107,12 +198,14 @@ function TaskRow({
             <DropdownMenuLabel>State</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={task.state}
-              onValueChange={(v) => update.mutate({ id: task.id, patch: { state: v as TaskState } })}
+              onValueChange={(v) => {
+                if (v !== "blocked") update.mutate({ id: task.id, patch: { state: v as TaskState } });
+              }}
             >
               {TASK_STATES.map((s) => (
-                <DropdownMenuRadioItem key={s} value={s} disabled={locked(s)}>
+                <DropdownMenuRadioItem key={s} value={s} disabled={locked(s)} onSelect={s === "blocked" ? openBlock : undefined}>
                   <CategoryDot category={STATE_CATEGORY[s]} />
-                  {STATE_LABEL[s]}
+                  {s === "blocked" ? "Blocked…" : STATE_LABEL[s]}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -148,6 +241,10 @@ function TaskRow({
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+            <DropdownMenuItem onSelect={openNotes}>
+              <StickyNote />
+              Notes
+            </DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
               <TrashIcon />
               Delete task
@@ -162,11 +259,51 @@ function TaskRow({
       <span className="hidden w-[26px] shrink-0 font-mono text-[11.5px] text-muted-foreground sm:inline">
         {task.planStep !== null ? `#${task.planStep}` : ""}
       </span>
-      <span className={cn("min-w-0 flex-1 text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={cn("text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
+        {task.state === "blocked" && task.blockedReason && <span className="text-xs text-cat-blocked">{task.blockedReason}</span>}
+      </span>
+      {task.notes && (
+        <button
+          type="button"
+          aria-label={`Notes for ${task.title}`}
+          onClick={openNotes}
+          className="flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <StickyNote aria-hidden className="size-4" />
+        </button>
+      )}
       <span className="hidden size-[22px] shrink-0 sm:inline-flex" title={task.ownerName ?? "No owner"}>
         {task.ownerName && <PersonAvatar name={task.ownerName} size="sm" />}
       </span>
       <span className={cn("hidden w-14 shrink-0 text-right text-xs font-semibold sm:inline", CATEGORY_TEXT[category])}>{label}</span>
+      {canEdit && (
+        <TextDialog
+          open={blockOpen}
+          onOpenChange={setBlockOpen}
+          title="Block this task"
+          description={task.title}
+          label="What is it waiting for?"
+          draft={reason}
+          onDraftChange={setReason}
+          maxLength={300}
+          required
+          saving={update.isPending}
+          onSave={() => update.mutate({ id: task.id, patch: { state: "blocked", blockedReason: reason.trim() } }, { onSuccess: () => setBlockOpen(false) })}
+        />
+      )}
+      <TextDialog
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        title="Notes"
+        description={task.title}
+        label="Notes"
+        draft={notes}
+        onDraftChange={setNotes}
+        maxLength={5000}
+        saving={update.isPending}
+        onSave={canEdit ? () => update.mutate({ id: task.id, patch: { notes } }, { onSuccess: () => setNotesOpen(false) }) : undefined}
+      />
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>

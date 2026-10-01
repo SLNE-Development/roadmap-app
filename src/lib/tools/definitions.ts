@@ -388,7 +388,7 @@ register(
   defineTool({
     name: "update_task",
     description:
-      "Change a task's title, state (todo, doing, blocked, done), priority or owner. Setting doing makes you owner of the task and its system when they have none; doing and done need completed planning.",
+      "Change a task's title, state, priority, owner, notes or blockedReason. Blocked needs a blockedReason; doing and done need completed planning.",
     input: { id: intParam("Task id from get_system."), ...updateTaskInput.shape },
     write: true,
     method: "PATCH",

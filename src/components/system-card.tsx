@@ -37,6 +37,14 @@ export function SystemCard({
       <span className="text-[13.5px] leading-[1.35] font-semibold">{system.title}</span>
       <div className="flex flex-wrap items-center gap-2">
         <StatusChip category={system.columnCategory} name={system.columnName} />
+        {system.tasksBlocked > 0 && (
+          <span className="bg-cat-blocked-soft px-1.5 py-0.5 text-[11.5px] font-semibold text-cat-blocked">
+            <span aria-hidden>{system.tasksBlocked} blocked</span>
+            <span className="sr-only">
+              {system.tasksBlocked} blocked {system.tasksBlocked === 1 ? "task" : "tasks"}
+            </span>
+          </span>
+        )}
         {latest && <span className="text-[11.5px] text-muted-foreground">Updated {relativeAge(latest.createdAt, now)}</span>}
       </div>
       <div className="mt-auto flex items-center gap-2">

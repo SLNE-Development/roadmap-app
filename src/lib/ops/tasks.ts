@@ -21,7 +21,17 @@ export const updateTaskInput = z.object({
   state: z.enum(TASK_STATES).optional(),
   priority: z.enum(PRIORITIES).optional(),
   ownerUserId: nullableEntityId.optional(),
+  notes: z.string().max(5000).optional(),
+  blockedReason: z.string().trim().min(1).max(300).optional(),
 });
+
+/** Notes are logged cut to this many characters, so the change log does not store whole notes twice. */
+const NOTES_LOG_LENGTH = 200;
+
+/** Cuts a note to {@link NOTES_LOG_LENGTH} characters plus an ellipsis for the change log. */
+function logNote(note: string): string {
+  return note.length > NOTES_LOG_LENGTH ? `${note.slice(0, NOTES_LOG_LENGTH)}…` : note;
+}
 
 /** Loads a task with its system, locking both rows, and checks the actor's role in its project. */
 async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
@@ -71,7 +81,8 @@ export async function addTask(
  * task and of the unowned system; existing owners are never replaced.
  *
  * @throws ConflictError when setting `doing` or `done` while the system is in planning
- * @throws InvalidError if the owner is not a project member
+ * @throws InvalidError if the owner is not a project member, if blocking without a reason,
+ *   or if a reason is given for a task that is not blocked
  */
 export async function updateTask(db: Db, actor: Actor, taskId: number, raw: z.input<typeof updateTaskInput>): Promise<void> {
   const patch = updateTaskInput.parse(raw);
@@ -85,24 +96,32 @@ export async function updateTask(db: Db, actor: Actor, taskId: number, raw: z.in
     if (patch.ownerUserId && !(await isMember(tx, parent.projectId, patch.ownerUserId))) {
       throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);
     }
+    const nextState = patch.state ?? current.state;
+    if (patch.blockedReason !== undefined && nextState !== "blocked") throw new InvalidError(`Task ${taskId} is not blocked.`);
+    if (patch.state === "blocked" && !(patch.blockedReason ?? current.blockedReason)) {
+      throw new InvalidError(`Say what task ${taskId} is waiting for: pass blockedReason.`);
+    }
+    // Leaving the blocked state drops the reason.
+    const blockedReason = patch.state !== undefined && patch.state !== "blocked" ? null : patch.blockedReason;
     if (patch.state === "doing" && (await isMember(tx, parent.projectId, actor.userId))) {
       if (patch.ownerUserId === undefined && current.ownerUserId === null) patch.ownerUserId = actor.userId;
       await claimSystem(tx, actor, parent);
     }
     const changes: Partial<typeof task.$inferSelect> = {};
-    for (const field of ["title", "state", "priority", "ownerUserId"] as const) {
-      const next = patch[field];
+    for (const field of ["title", "state", "priority", "ownerUserId", "notes", "blockedReason"] as const) {
+      const next = field === "blockedReason" ? blockedReason : patch[field];
       if (next === undefined || next === current[field]) continue;
       Object.assign(changes, { [field]: next });
       const owner = field === "ownerUserId";
+      const note = field === "notes";
       await logChange(tx, actor, {
         projectId: parent.projectId,
         systemId: parent.id,
         entity: "task",
         entityId: taskId,
         field: owner ? "owner" : field,
-        oldValue: owner ? await userName(tx, current.ownerUserId) : current[field],
-        newValue: owner ? await userName(tx, next as string | null) : (next as string | null),
+        oldValue: owner ? await userName(tx, current.ownerUserId) : note ? logNote(current.notes) : current[field],
+        newValue: owner ? await userName(tx, next as string | null) : note ? logNote(next as string) : (next as string | null),
       });
     }
     if (Object.keys(changes).length > 0) await tx.update(task).set(changes).where(eq(task.id, taskId));

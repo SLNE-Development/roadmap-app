@@ -73,6 +73,7 @@ export function OverviewView({ slug }: { slug: string }) {
     { data: latest },
     { data: activity },
     { data: gaps },
+    { data: blockedTasks },
   ] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
@@ -84,11 +85,12 @@ export function OverviewView({ slug }: { slug: string }) {
       trpc.systems.latestUpdates.queryOptions({ project: slug }),
       trpc.history.activity.queryOptions({ project: slug, filter: { limit: 1 } }),
       trpc.planning.gaps.queryOptions({ project: slug }),
+      trpc.tasks.blocked.queryOptions({ project: slug }),
     ],
   });
   const planning = systems.filter((s) => s.columnCategory === "planning");
   const staleQuestions = questions.filter((q) => isStale(q.createdAt, now));
-  const data = { detail, systems, phases, adrs, staleQuestions, updates, latest, activity, planning, gaps };
+  const data = { detail, systems, phases, adrs, staleQuestions, updates, latest, activity, planning, gaps, blockedTasks };
   const { project } = data.detail;
   const canEdit = data.detail.role !== "viewer";
   const tasksDone = data.systems.reduce((n, s) => n + s.tasksDone, 0);
@@ -112,6 +114,15 @@ export function OverviewView({ slug }: { slug: string }) {
           href: `${base}/systems/${s.slug}`,
         };
       }),
+    ...data.blockedTasks.map(
+      (t): AttentionItem => ({
+        key: `blocked-task-${t.id}`,
+        kind: "blocked",
+        title: `Task #${t.id} is blocked`,
+        detail: [t.reason ?? "No reason given", t.systemTitle, t.since && relativeAge(t.since.toISOString(), now)].filter(Boolean).join(" · "),
+        href: `${base}/systems/${t.systemSlug}`,
+      }),
+    ),
     ...data.planning.map(
       (s): AttentionItem => ({
         key: `planning-${s.id}`,

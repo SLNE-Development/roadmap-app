@@ -86,6 +86,7 @@ export interface SystemListItem {
   planningRounds: number;
   tasksTotal: number;
   tasksDone: number;
+  tasksBlocked: number;
 }
 
 /** A task as shown on its system. */
@@ -96,6 +97,8 @@ export interface TaskItem {
   priority: Priority;
   ownerUserId: string | null;
   ownerName: string | null;
+  notes: string;
+  blockedReason: string | null;
   planStep: number | null;
 }
 
@@ -250,6 +253,7 @@ export async function listSystems(
       systemId: task.systemId,
       total: count(),
       done: sql<number>`count(*) filter (where ${task.state} = 'done')`.mapWith(Number),
+      blocked: sql<number>`count(*) filter (where ${task.state} = 'blocked')`.mapWith(Number),
     })
     .from(task)
     .innerJoin(system, eq(system.id, task.systemId))
@@ -277,6 +281,7 @@ export async function listSystems(
     planningRounds: planningBySystem.get(r.id)?.rounds ?? 0,
     tasksTotal: bySystem.get(r.id)?.total ?? 0,
     tasksDone: bySystem.get(r.id)?.done ?? 0,
+    tasksBlocked: bySystem.get(r.id)?.blocked ?? 0,
   }));
 }
 
@@ -297,6 +302,8 @@ export async function getSystem(db: Executor, actor: Actor, projectSlug: string,
       priority: task.priority,
       ownerUserId: task.ownerUserId,
       ownerName: user.name,
+      notes: task.notes,
+      blockedReason: task.blockedReason,
       planStep: task.planStep,
     })
     .from(task)

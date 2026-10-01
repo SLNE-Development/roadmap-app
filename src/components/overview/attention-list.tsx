@@ -16,7 +16,7 @@ export interface AttentionItem {
 
 /** Icon, soft square colours and label of each attention kind. */
 const KINDS: Record<AttentionKind, { icon: typeof Ban; className: string; label: string }> = {
-  blocked: { icon: Ban, className: "bg-cat-blocked-soft text-cat-blocked", label: "System" },
+  blocked: { icon: Ban, className: "bg-cat-blocked-soft text-cat-blocked", label: "Blocked" },
   planning: { icon: Lock, className: "bg-cat-planning-soft text-cat-planning", label: "Planning" },
   decision: { icon: Scale, className: "bg-cat-review-soft text-cat-review", label: "Decision" },
   question: { icon: CircleHelp, className: "bg-cat-todo-soft text-cat-todo", label: "Question" },

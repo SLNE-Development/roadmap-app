@@ -73,6 +73,8 @@ export const task = pgTable(
     state: text("state", { enum: TASK_STATES }).notNull().default("todo"),
     priority: text("priority", { enum: PRIORITIES }).notNull().default("Later"),
     ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "set null" }),
+    notes: text("notes").notNull().default(""),
+    blockedReason: text("blocked_reason"),
     planStep: integer("plan_step"),
     sortOrder: integer("sort_order").notNull(),
   },

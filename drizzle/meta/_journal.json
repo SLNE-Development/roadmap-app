@@ -36,6 +36,13 @@
       "when": 1790812798178,
       "tag": "0004_change-feed",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790814260275,
+      "tag": "0005_task-notes-blocked",
+      "breakpoints": true
     }
   ]
 }
