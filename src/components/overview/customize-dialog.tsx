@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,14 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch";
 import type { PanelId } from "@/lib/overview-panels";
 import { useTRPC } from "@/trpc/client";
-
-/** Panel names as the overview shows them. */
-const PANEL_LABELS: Record<PanelId, string> = {
-  status: "Systems by status",
-  attention: "Needs attention",
-  phases: "Phases",
-  updates: "Latest updates",
-};
 
 /**
  * Dialog choosing which overview panels show and in which order; the choice is
@@ -44,8 +37,10 @@ export function CustomizeDialog({
 
 /** The form of {@link CustomizeDialog}; mounted only while the dialog is open, so it starts from the saved panels each time. */
 function CustomizeForm({ panels, onDone }: { panels: { id: PanelId; visible: boolean }[]; onDone: () => void }) {
+  const t = useTranslations("overview");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
-  const save = useMutation(trpc.prefs.set.mutationOptions({ onSuccess: () => (toast.success("Overview saved"), onDone()) }));
+  const save = useMutation(trpc.prefs.set.mutationOptions({ onSuccess: () => (toast.success(t("customizeDialog.saved")), onDone()) }));
   const [rows, setRows] = useState(panels);
 
   const shift = (i: number, by: number) =>
@@ -59,20 +54,20 @@ function CustomizeForm({ panels, onDone }: { panels: { id: PanelId; visible: boo
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Customize overview</DialogTitle>
-        <DialogDescription>Choose which panels the overview of every project shows, and in which order.</DialogDescription>
+        <DialogTitle>{t("customizeDialog.title")}</DialogTitle>
+        <DialogDescription>{t("customizeDialog.description")}</DialogDescription>
       </DialogHeader>
       <ul className="flex flex-col border">
         {rows.map((r, i) => {
-          const label = PANEL_LABELS[r.id];
+          const label = t(`panels.${r.id}`);
           return (
             <li key={r.id} className="flex items-center gap-2 border-b px-3 py-1.5 last:border-b-0">
               <Switch aria-label={label} checked={r.visible} onCheckedChange={(checked) => toggle(r.id, checked)} />
               <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-              <Button variant="ghost" size="icon-xs" aria-label={`Move ${label} up`} disabled={i === 0} onClick={() => shift(i, -1)}>
+              <Button variant="ghost" size="icon-xs" aria-label={t("customizeDialog.moveUp", { label })} disabled={i === 0} onClick={() => shift(i, -1)}>
                 <ArrowUp />
               </Button>
-              <Button variant="ghost" size="icon-xs" aria-label={`Move ${label} down`} disabled={i === rows.length - 1} onClick={() => shift(i, 1)}>
+              <Button variant="ghost" size="icon-xs" aria-label={t("customizeDialog.moveDown", { label })} disabled={i === rows.length - 1} onClick={() => shift(i, 1)}>
                 <ArrowDown />
               </Button>
             </li>
@@ -81,7 +76,7 @@ function CustomizeForm({ panels, onDone }: { panels: { id: PanelId; visible: boo
       </ul>
       <DialogFooter>
         <Button variant="outline" onClick={onDone}>
-          Cancel
+          {tc("cancel")}
         </Button>
         <Button
           disabled={save.isPending}
@@ -92,7 +87,7 @@ function CustomizeForm({ panels, onDone }: { panels: { id: PanelId; visible: boo
             })
           }
         >
-          Save
+          {tc("save")}
         </Button>
       </DialogFooter>
     </>

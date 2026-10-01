@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/markdown";
@@ -25,6 +26,8 @@ export function PageEditor({
   page: { slug: string; version: number; body: string };
   onClose: () => void;
 }) {
+  const t = useTranslations("pages.editor");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const [body, setBody] = useState(page.body);
   const [preview, setPreview] = useState(false);
@@ -33,7 +36,7 @@ export function PageEditor({
     trpc.pages.write.mutationOptions({
       meta: { quiet: true },
       onSuccess: ({ version }) => {
-        toast.success(`Saved as v${version}`);
+        toast.success(t("saved", { version }));
         onClose();
       },
     }),
@@ -46,12 +49,12 @@ export function PageEditor({
         save.mutate({ project: projectSlug, page: page.slug, body, baseVersion: page.version });
       }}
     >
-      <div role="group" aria-label="Editor view" className="flex">
+      <div role="group" aria-label={t("viewLabel")} className="flex">
         <Button type="button" size="sm" variant={preview ? "outline" : "secondary"} aria-pressed={!preview} onClick={() => setPreview(false)}>
-          Write
+          {t("write")}
         </Button>
         <Button type="button" size="sm" variant={preview ? "secondary" : "outline"} aria-pressed={preview} onClick={() => setPreview(true)}>
-          Preview
+          {t("preview")}
         </Button>
       </div>
       {preview ? (
@@ -60,7 +63,7 @@ export function PageEditor({
         </div>
       ) : (
         <Textarea
-          aria-label="Page body (markdown)"
+          aria-label={t("bodyLabel")}
           className="min-h-[320px] font-mono text-[13px]"
           value={body}
           maxLength={200_000}
@@ -74,10 +77,10 @@ export function PageEditor({
       )}
       <div className="flex gap-2">
         <Button type="submit" disabled={save.isPending || !body.trim() || body.trim() === page.body.trim()}>
-          Save as v{page.version + 1}
+          {t("saveAs", { version: page.version + 1 })}
         </Button>
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {tc("cancel")}
         </Button>
       </div>
     </form>

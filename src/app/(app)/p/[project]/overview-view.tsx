@@ -3,9 +3,9 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { CircleCheck, GitBranch, Milestone, Newspaper, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Fragment, useState } from "react";
-import { AgentTag, CATEGORY_CLASS, CATEGORY_LABEL } from "@/components/chips";
-import { useNow } from "@/components/clock";
+import { AgentTag, CATEGORY_CLASS } from "@/components/chips";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { AttentionList } from "@/components/overview/attention-list";
 import { CustomizeDialog } from "@/components/overview/customize-dialog";
@@ -14,7 +14,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
 import type { ColumnCategory } from "@/db/schema";
 import { resolvePanels, type PanelId } from "@/lib/overview-panels";
-import { relativeAge } from "@/lib/time";
+import { useRelativeTime } from "@/lib/use-relative-time";
 import { useTRPC } from "@/trpc/client";
 
 /** Order of the status bar's segments and legend. */
@@ -37,8 +37,10 @@ function repoLabel(url: string): string {
  * @param props.slug the project slug
  */
 export function OverviewView({ slug }: { slug: string }) {
+  const t = useTranslations("overview");
+  const tCategory = useTranslations("enums.category");
+  const relative = useRelativeTime();
   const trpc = useTRPC();
-  const now = useNow();
   const [customizing, setCustomizing] = useState(false);
   const [
     { data: detail },
@@ -77,14 +79,13 @@ export function OverviewView({ slug }: { slug: string }) {
   const panels = resolvePanels(panelPref);
   const panelNodes: Record<PanelId, React.ReactNode> = {
     status: (
-      <section aria-label="Systems by status" className="flex flex-col gap-3 border bg-card p-4 sm:p-5">
+      <section aria-label={t("systemsByStatus")} className="flex flex-col gap-3 border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          <h2 className="text-[15px] font-semibold">
-            {data.systems.length} {data.systems.length === 1 ? "system" : "systems"}
-          </h2>
+          <h2 className="text-[15px] font-semibold">{t("systemCount", { count: data.systems.length })}</h2>
           <span className="text-[13px] text-muted-foreground">
-            {tasksDone} of {tasksTotal} tasks done
-            {lastChange && ` · last change ${relativeAge(lastChange.toISOString(), now)}`}
+            {lastChange
+              ? t("tasksDoneLastChange", { done: tasksDone, total: tasksTotal, age: relative(lastChange) })
+              : t("tasksDone", { done: tasksDone, total: tasksTotal })}
           </span>
         </div>
         <div className="flex h-2.5 gap-[3px]" aria-hidden>
@@ -98,22 +99,22 @@ export function OverviewView({ slug }: { slug: string }) {
           {counts.map((c) => (
             <li key={c.category} className="flex items-center gap-[7px] text-[13px] text-fg-2">
               <span aria-hidden className={`size-2 rounded-full ${CATEGORY_CLASS[c.category]}`} />
-              {CATEGORY_LABEL[c.category]} <b className="font-semibold text-foreground">{c.n}</b>
+              {tCategory(c.category)} <b className="font-semibold text-foreground">{c.n}</b>
             </li>
           ))}
         </ul>
       </section>
     ),
     attention: (
-      <Panel title="Needs attention" meta={attention.length > 0 && `${attention.length} ${attention.length === 1 ? "item" : "items"}`}>
+      <Panel title={t("panels.attention")} meta={attention.length > 0 && t("attention.itemCount", { count: attention.length })}>
         {attention.length > 0 ? (
           <AttentionList items={attention} />
         ) : (
           <div className="px-4 pb-4 sm:px-5 sm:pb-5">
             <EmptyState
               icon={<CircleCheck />}
-              title="Nothing needs attention"
-              description="No blocked systems, open planning, pending decisions or stale questions."
+              title={t("attention.emptyTitle")}
+              description={t("attention.emptyDescription")}
             />
           </div>
         )}
@@ -121,10 +122,10 @@ export function OverviewView({ slug }: { slug: string }) {
     ),
     phases: (
       <Panel
-        title="Phases"
+        title={t("panels.phases")}
         action={
           <Link href={`${base}/roadmap`} className="text-[13px] font-medium text-brand-strong hover:underline">
-            Open roadmap
+            {t("phases.openRoadmap")}
           </Link>
         }
         bodyClassName="px-4 pb-3 sm:px-5"
@@ -132,13 +133,13 @@ export function OverviewView({ slug }: { slug: string }) {
         {data.phases.length === 0 ? (
           <EmptyState
             icon={<Milestone />}
-            title="No phases yet"
-            description="Phases order the work into milestones."
+            title={t("phases.emptyTitle")}
+            description={t("phases.emptyDescription")}
             className="mb-2"
             action={
               canEdit && (
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`${base}/settings/structure`}>Add phases</Link>
+                  <Link href={`${base}/settings/structure`}>{t("phases.add")}</Link>
                 </Button>
               )
             }
@@ -166,16 +167,16 @@ export function OverviewView({ slug }: { slug: string }) {
     ),
     updates: (
       <Panel
-        title="Latest updates"
+        title={t("panels.updates")}
         action={
           <Link href={`${base}/activity`} className="text-[13px] font-medium text-brand-strong hover:underline">
-            All activity
+            {t("updates.allActivity")}
           </Link>
         }
       >
         {data.updates.length === 0 ? (
           <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-            <EmptyState icon={<Newspaper />} title="No updates yet" description="Progress updates from people and agents show up here." />
+            <EmptyState icon={<Newspaper />} title={t("updates.emptyTitle")} description={t("updates.emptyDescription")} />
           </div>
         ) : (
           <ol className="flex flex-col">
@@ -189,12 +190,12 @@ export function OverviewView({ slug }: { slug: string }) {
                       <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12.5px] text-muted-foreground">
                         <span className="font-semibold text-foreground">{name}</span>
                         {agent && <AgentTag agent={agent} />}
-                        <span>on</span>
+                        <span>{t("updates.on")}</span>
                         <Link href={`${base}/systems/${u.systemSlug}`} className="font-medium text-fg-2 hover:text-foreground hover:underline">
                           {u.systemTitle}
                         </Link>
                         <time className="ml-auto whitespace-nowrap" dateTime={u.createdAt.toISOString()}>
-                          {relativeAge(u.createdAt.toISOString(), now)}
+                          {relative(u.createdAt)}
                         </time>
                       </div>
                       <p className="line-clamp-3 text-[13.5px] leading-normal break-words">{u.summary}</p>
@@ -245,7 +246,7 @@ export function OverviewView({ slug }: { slug: string }) {
             )}
             <Button variant="outline" onClick={() => setCustomizing(true)} className="text-[13px] font-normal text-fg-2">
               <SlidersHorizontal aria-hidden className="size-3.5" />
-              Customize
+              {t("customize")}
             </Button>
             {newSystem}
           </>

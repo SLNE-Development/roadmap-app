@@ -1,22 +1,28 @@
-import { dayTicks } from "@/lib/chart/scale";
+import { useFormatter, useTranslations } from "next-intl";
 import type { Projection } from "@/lib/insight/burnup";
 
-/** Window lengths of the range control, in days. */
+/** Window lengths of the range control, in days, with the `insight.ranges` key of each label. */
 export const RANGES = [
-  { days: 14, label: "2 weeks" },
-  { days: 42, label: "6 weeks" },
-  { days: 90, label: "3 months" },
-  { days: 180, label: "6 months" },
-  { days: 365, label: "1 year" },
+  { days: 14, key: "d14" },
+  { days: 42, key: "d42" },
+  { days: 90, key: "d90" },
+  { days: 180, key: "d180" },
+  { days: 365, key: "d365" },
 ] as const;
 
-/** The projected finish as "20–29 Oct" (or "29 Oct – 3 Nov"), "Done", "No tasks yet" or "Not enough pace yet". */
-export function finishText(projection: Projection): string {
-  if (projection.status === "done") return "Done";
-  if (projection.status === "none") return projection.reason === "no-scope" ? "No tasks yet" : "Not enough pace yet";
-  const [from, to] = [projection.earliest, projection.latest].map((k) => dayTicks([k], 1)[0].label);
-  const [fromDay, fromMonth] = from.split(" ");
-  return fromMonth === to.split(" ")[1] ? `${fromDay}–${to}` : `${from} – ${to}`;
+/**
+ * Returns a function turning a projection into the finish text: the date range in the UTC days of its keys
+ * ("20–29 Oct", or "29 Oct – 3 Nov"), "Done", "No tasks yet" or "Not enough pace yet".
+ */
+export function useFinishText(): (projection: Projection) => string {
+  const t = useTranslations("insight.stats");
+  const format = useFormatter();
+  return (projection) => {
+    if (projection.status === "done") return t("finishDone");
+    if (projection.status === "none") return projection.reason === "no-scope" ? t("finishNoScope") : t("finishNoPace");
+    const day = (key: string) => new Date(`${key}T00:00:00Z`);
+    return format.dateTimeRange(day(projection.earliest), day(projection.latest), { day: "numeric", month: "short", timeZone: "UTC" });
+  };
 }
 
 /** One big number with a caption. */
@@ -46,11 +52,13 @@ export function StatTiles({
   projection: Projection;
   range: string;
 }) {
+  const t = useTranslations("insight.stats");
+  const finishText = useFinishText();
   return (
     <div className="grid gap-3 sm:grid-cols-3">
-      <Tile value={`${totals.done} / ${totals.scope}`} caption="tasks done" />
-      <Tile value={scopeAdded >= 0 ? `+${scopeAdded}` : String(scopeAdded)} caption={`scope added in ${range}`} />
-      <Tile value={finishText(projection)} caption="projected finish" />
+      <Tile value={`${totals.done} / ${totals.scope}`} caption={t("tasksDone")} />
+      <Tile value={scopeAdded >= 0 ? `+${scopeAdded}` : String(scopeAdded)} caption={t("scopeAdded", { range })} />
+      <Tile value={finishText(projection)} caption={t("projectedFinish")} />
     </div>
   );
 }

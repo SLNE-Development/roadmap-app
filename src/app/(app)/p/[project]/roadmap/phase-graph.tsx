@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { GraphView } from "@/components/graph/graph-view";
 import { layoutGraph, type GraphEdgeInput, type GraphNodeInput } from "@/lib/graph/layout";
@@ -37,16 +38,17 @@ export function hasPhaseDependencies(rows: PhaseGraphRow[]): boolean {
  * @param props.rows the roadmap rows, with the rail's done and now rules applied
  */
 export function PhaseGraph({ slug, rows }: { slug: string; rows: PhaseGraphRow[] }) {
+  const t = useTranslations("roadmap.graph");
   const byId = useMemo(() => new Map(rows.map((r) => [r.phase.id, r])), [rows]);
   const layout = useMemo(() => layoutGraph({ ...phaseGraphInput(rows.map((r) => r.phase)), direction: "LR" }), [rows]);
   return (
     <GraphView
-      label="Phase dependencies"
+      label={t("label")}
       layout={layout}
       nodeHref={(id) => `/p/${slug}/systems?phase=${id}`}
       nodeLabel={(id) => {
         const r = byId.get(id)!;
-        return `Phase ${r.n} ${r.phase.name}, ${r.done} of ${r.total} systems done${r.complete ? " (done)" : r.now ? " (now)" : ""}`;
+        return t("nodeLabel", { n: r.n, name: r.phase.name, done: r.done, total: r.total, state: r.complete ? "done" : r.now ? "now" : "none" });
       }}
       edgeClassName={() => ""}
       renderNode={({ id, width, height }) => {

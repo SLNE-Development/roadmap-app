@@ -396,8 +396,8 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
 
   const changes = changeRows.map((c) => {
     const s = c.systemId ? ownedById.get(c.systemId) : undefined;
-    const { verb, target, from, to } = describeChange(c, { systemTitle: s?.title ?? null });
-    const sentence = [verb, target, from !== undefined && to !== undefined ? `${from} → ${to}` : to].filter(Boolean).join(" ");
+    const { verb, target, suffix, from, to } = describeChange(c, { systemTitle: s?.title ?? null });
+    const sentence = [verb, target, suffix, from !== undefined && to !== undefined ? `${from} → ${to}` : to].filter(Boolean).join(" ");
     return item(c.projectId, {
       key: `change-${c.id}`,
       kind: "change",

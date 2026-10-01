@@ -2,16 +2,14 @@
 
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { Scale } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { SegmentedLinks } from "@/components/activity/url-tabs";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { ADR_STATUSES, type AdrStatus } from "@/db/schema";
 import { formatAdrNumber } from "@/lib/adr-number";
-import { formatDate } from "@/lib/time";
+import { useShortDate } from "@/lib/use-short-date";
 import { useTRPC } from "@/trpc/client";
 import { AdrList } from "./adr-list";
-
-/** Display names of the status tabs. */
-const STATUS_LABEL: Record<AdrStatus, string> = { proposed: "Proposed", accepted: "Accepted", superseded: "Superseded" };
 
 /**
  * The decisions page body: status tabs with counts, the search box and the
@@ -21,6 +19,9 @@ const STATUS_LABEL: Record<AdrStatus, string> = { proposed: "Proposed", accepted
  * @param props.status the status tab from `?status=`, all when undefined
  */
 export function AdrsView({ slug, status }: { slug: string; status: AdrStatus | undefined }) {
+  const t = useTranslations("adrs");
+  const te = useTranslations("enums.adrStatus");
+  const shortDate = useShortDate();
   const trpc = useTRPC();
   const [{ data: adrs }, { data: systems }, { data: detail }] = useSuspenseQueries({
     queries: [
@@ -32,8 +33,8 @@ export function AdrsView({ slug, status }: { slug: string; status: AdrStatus | u
   const titles = new Map(systems.map((s) => [s.slug, s.title]));
   const path = `/p/${slug}/adrs`;
   const tabs = [
-    { label: "All", count: adrs.length, href: path, active: !status },
-    ...ADR_STATUSES.map((s) => ({ label: STATUS_LABEL[s], count: adrs.filter((a) => a.status === s).length, href: `${path}?status=${s}`, active: status === s })),
+    { label: t("tabAll"), count: adrs.length, href: path, active: !status },
+    ...ADR_STATUSES.map((s) => ({ label: te(s), count: adrs.filter((a) => a.status === s).length, href: `${path}?status=${s}`, active: status === s })),
   ];
   const rows = adrs
     .filter((a) => !status || a.status === status)
@@ -45,25 +46,25 @@ export function AdrsView({ slug, status }: { slug: string; status: AdrStatus | u
       status: a.status,
       systems: a.systems.map((s) => titles.get(s) ?? s),
       note: a.supersededBy
-        ? `Superseded by ADR-${formatAdrNumber(a.supersededBy)}`
+        ? t("supersededBy", { number: formatAdrNumber(a.supersededBy) })
         : a.supersedes
-          ? `Supersedes ADR-${formatAdrNumber(a.supersedes)}`
+          ? t("supersedes", { number: formatAdrNumber(a.supersedes) })
           : null,
-      date: formatDate((a.acceptedAt ?? a.createdAt).toISOString()),
+      date: shortDate(a.acceptedAt ?? a.createdAt),
     }));
 
   return (
     <Page width="medium">
       <PageHeader
         crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]}
-        title="Decisions"
-        description="Architecture decisions, numbered. Accepted ones never change; a new one supersedes them."
+        title={t("title")}
+        description={t("description")}
         actions={
           <SegmentedLinks
-            label="View"
+            label={t("view.label")}
             items={[
-              { label: "List", href: path, active: true },
-              { label: "Map", href: `${path}/map`, active: false },
+              { label: t("view.list"), href: path, active: true },
+              { label: t("view.map"), href: `${path}/map`, active: false },
             ]}
           />
         }
@@ -71,12 +72,8 @@ export function AdrsView({ slug, status }: { slug: string; status: AdrStatus | u
       {adrs.length === 0 ? (
         <EmptyState
           icon={<Scale />}
-          title="No decisions yet"
-          description={
-            <>
-              Agents record the decisions you make with <code className="font-mono">surf-roadmap:new-adr</code>. Proposed ones show up here to accept.
-            </>
-          }
+          title={t("emptyTitle")}
+          description={t.rich("emptyDescription", { code: (chunks) => <code className="font-mono">{chunks}</code> })}
         />
       ) : (
         <AdrList projectSlug={slug} tabs={tabs} rows={rows} />

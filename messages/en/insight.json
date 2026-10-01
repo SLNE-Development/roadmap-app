@@ -1,1 +1,124 @@
-{}
+{
+  "ranges": { "d14": "2 weeks", "d42": "6 weeks", "d90": "3 months", "d180": "6 months", "d365": "1 year" },
+  "stats": {
+    "tasksDone": "tasks done",
+    "scopeAdded": "scope added in {range}",
+    "projectedFinish": "projected finish",
+    "finishDone": "Done",
+    "finishNoScope": "No tasks yet",
+    "finishNoPace": "Not enough pace yet"
+  },
+  "burnup": {
+    "summary": "Burn-up over {days} days: done {done} of {scope} tasks",
+    "done": "Done",
+    "scope": "Scope",
+    "projected": "Projected finish",
+    "daysInUtc": "Days in UTC",
+    "day": "Day",
+    "tooltipScope": "Scope {value}",
+    "tooltipDone": "Done {value}"
+  },
+  "columnTimes": {
+    "empty": "No systems yet.",
+    "system": "System",
+    "now": "Now",
+    "inCategoryFor": "In category for",
+    "timePerCategory": "Time per category",
+    "inCategory": "in category for {days}",
+    "days": "{days} d",
+    "unknown": "Unknown"
+  },
+  "releases": {
+    "title": "Releases",
+    "intro": "Groups of systems that ship together.",
+    "emptyTitle": "No releases yet",
+    "emptyDescription": "Releases group systems that ship together. Create one, then assign systems from their page.",
+    "columns": { "release": "Release", "target": "Target", "status": "Status", "done": "Done", "risk": "Risk" },
+    "status": { "planned": "Planned", "frozen": "Frozen", "shipped": "Shipped" },
+    "risk": { "on-track": "On track", "at-risk": "At risk", "late": "Late", "unknown": "No forecast" },
+    "headerTarget": "{name} · target {date}",
+    "headerNoTarget": "{name} · no target date",
+    "frozenOn": "Frozen {date}",
+    "frozenOnBy": "Frozen {date} by {name}",
+    "shippedOn": "Shipped {date}",
+    "daysLeft": "{count, plural, one {# day} other {# days}} left",
+    "dueToday": "Due today",
+    "daysOverdue": "{count, plural, one {# day} other {# days}} overdue",
+    "tabs": { "label": "Release sections", "overview": "Overview", "notes": "Notes" },
+    "freeze": "Freeze",
+    "unfreeze": "Unfreeze",
+    "froze": "Froze {name}",
+    "unfroze": "Unfroze {name}",
+    "tiles": { "systemsDone": "systems done", "openQuestions": "open questions", "projectedFinish": "projected finish" },
+    "notDone": "Not done yet",
+    "notDoneMeta": "{count} of {total, plural, one {# system} other {# systems}}",
+    "noSystems": "No systems yet. Assign systems to this release from their page.",
+    "allDone": "Everything in this release is done.",
+    "unowned": "Unowned",
+    "detail": {
+      "tasksProgress": "{done} of {total, plural, one {# task} other {# tasks}} done",
+      "rulesMet": "{met} of {total} Done rules met",
+      "tasksDone": "{total, plural, one {# task} other {# tasks}} done",
+      "noTasks": "No tasks yet"
+    },
+    "burnup": "Burn-up",
+    "noTasks": "No tasks yet.",
+    "new": {
+      "button": "New release",
+      "title": "New release",
+      "description": "A release groups systems that ship together. Assign systems from their page.",
+      "namePlaceholder": "1.0",
+      "slugHelp": "Agents and links refer to the release by this.",
+      "submit": "Create release",
+      "created": "Created {name}"
+    },
+    "form": {
+      "name": "Name",
+      "slug": "Slug",
+      "target": "Target date",
+      "targetHelp": "Optional. Without one there is no slip risk."
+    },
+    "edit": {
+      "title": "Edit release",
+      "description": "Change the name, the slug or the target date.",
+      "slugHelp": "Agents and links refer to the release by this. Old links stop working when it changes.",
+      "saved": "Saved {name}"
+    },
+    "delete": {
+      "title": "Delete {name}?",
+      "description": "Its systems stay as they are but leave the release. Its release notes are deleted with it.",
+      "confirm": "Delete release",
+      "deleted": "Deleted {name}"
+    },
+    "ship": {
+      "button": "Ship",
+      "title": "Ship {name}?",
+      "descriptionUnfinished": "{count, plural, one {# system isn't} other {# systems aren't}} done and would leave the release. Shipping then freezes its scope and writes the release notes.",
+      "description": "Shipping fixes the release's scope and writes its release notes.",
+      "listLabel": "Unfinished systems",
+      "confirmUnfinished": "Move them out and ship",
+      "confirm": "Ship release",
+      "shipped": "Shipped {name}"
+    },
+    "notes": {
+      "title": "Release notes",
+      "edit": "Edit notes",
+      "empty": "No notes yet. Shipping the release writes the first version.",
+      "editorMode": "Editor mode",
+      "write": "Write",
+      "preview": "Preview",
+      "nothingToPreview": "Nothing to preview.",
+      "save": "Save as new version",
+      "saved": "Saved notes version {version}"
+    },
+    "select": {
+      "label": "Release",
+      "noRelease": "No release",
+      "frozenHint": "Frozen: ask an owner",
+      "frozen": "Frozen",
+      "none": "none",
+      "aria": "Release: {name}. Change release",
+      "set": "Release set to {name}"
+    }
+  }
+}

@@ -3,6 +3,7 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { CircleHelp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { UnderlineTabs, withQuery } from "@/components/activity/url-tabs";
 import { FilterChip } from "@/components/filter-chip";
@@ -20,6 +21,7 @@ import { useTRPC } from "@/trpc/client";
  * @param props.systemSlug the system from `?system=`; unknown slugs show every system
  */
 export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "open" | "resolved"; systemSlug: string | undefined }) {
+  const t = useTranslations("questions");
   const trpc = useTRPC();
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -45,18 +47,18 @@ export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "o
     <Page width="narrow">
       <PageHeader
         crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]}
-        title="Questions"
+        title={t("title")}
         actions={canEdit && <AskQuestionDialog projectSlug={slug} systems={systems.map((s) => ({ slug: s.slug, title: s.title }))} defaultSystem={system?.slug} />}
       />
       <UnderlineTabs
-        label="Questions"
+        label={t("title")}
         tabs={[
-          { label: "Open", count: open.length, href: withQuery(path, query, { tab: null }), active: tab === "open" },
-          { label: "Resolved", count: resolved.length, href: withQuery(path, query, { tab: "resolved" }), active: tab === "resolved" },
+          { label: t("tabOpen"), count: open.length, href: withQuery(path, query, { tab: null }), active: tab === "open" },
+          { label: t("tabResolved"), count: resolved.length, href: withQuery(path, query, { tab: "resolved" }), active: tab === "resolved" },
         ]}
       >
         <FilterChip
-          label="System"
+          label={t("system")}
           value={system?.slug ?? ""}
           onChange={(v) =>
             startTransition(() => router.replace(withQuery(path, query, { system: v || null }), { scroll: false }))
@@ -67,11 +69,9 @@ export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "o
       {shown.length === 0 ? (
         <EmptyState
           icon={<CircleHelp />}
-          title={tab === "open" ? "No open questions" : "No resolved questions yet"}
+          title={tab === "open" ? t("emptyOpenTitle") : t("emptyResolvedTitle")}
           description={
-            tab === "open"
-              ? "Questions that need a person's answer collect here, asked by people or by agents while they work."
-              : "Answered and resolved questions stay here for reference."
+            tab === "open" ? t("emptyOpenDescription") : t("emptyResolvedDescription")
           }
         />
       ) : (
@@ -93,7 +93,7 @@ export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "o
                 authorName: q.authorName,
                 agent: q.agent,
                 createdAt: q.createdAt.toISOString(),
-                answeredBy: q.answeredAt ? { name: q.answeredByName ?? "unknown", agent: q.answeredAgent, at: q.answeredAt.toISOString() } : null,
+                answeredBy: q.answeredAt ? { name: q.answeredByName ?? t("unknownPerson"), agent: q.answeredAgent, at: q.answeredAt.toISOString() } : null,
               }}
             />
           ))}

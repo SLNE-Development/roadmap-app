@@ -1,1 +1,34 @@
-{}
+{
+  "title": "Roadmap",
+  "views": { "label": "Ansicht", "rail": "Leiste", "graph": "Graph", "progress": "Fortschritt" },
+  "nowSummary": "Aktuell in <b>{phase}</b> · {done} von {total} Systemen erledigt",
+  "allDoneSummary": "Jede Phase ist erledigt · {done} von {total} Systemen erledigt",
+  "editPhases": "Phasen bearbeiten",
+  "emptyTitle": "Noch keine Phasen",
+  "emptyDescription": "Phasen ordnen die Arbeit in Meilensteine. Lege sie in den Einstellungen an oder lass einen Agent sie mit create_phase erstellen.",
+  "noDependencies": "Noch keine Abhängigkeiten zwischen Phasen. Füge sie unter Einstellungen → Struktur hinzu.",
+  "now": "JETZT",
+  "doneSr": "(erledigt)",
+  "pointsAndTasks": "{points} Pkt. · {done}/{tasks} Aufgaben erledigt",
+  "tasksOnly": "{done}/{tasks} Aufgaben erledigt",
+  "buildsOn": "Baut auf {phases} auf",
+  "noSystems": "Noch keine Systeme",
+  "withoutPhase": "Ohne Phase",
+  "systemCount": "{count, plural, one {# System} other {# Systeme}}",
+  "allPhased": "Jedes System hat eine Phase.",
+  "graph": {
+    "label": "Abhängigkeiten der Phasen",
+    "nodeLabel": "Phase {n} {name}, {done} von {total} Systemen erledigt{state, select, done { (erledigt)} now { (aktuell)} other {}}"
+  },
+  "progress": {
+    "phase": "Phase",
+    "board": "Board",
+    "domain": "Bereich",
+    "release": "Release",
+    "range": "Zeitraum",
+    "burnup": "Burn-up",
+    "noTasks": "Noch keine Aufgaben.",
+    "longest": "Am längsten in ihrer Spalte",
+    "topTen": "Top 10 Systeme"
+  }
+}

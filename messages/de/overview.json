@@ -1,1 +1,64 @@
-{}
+{
+  "systemsByStatus": "Systeme nach Status",
+  "systemCount": "{count, plural, one {# System} other {# Systeme}}",
+  "tasksDone": "{done} von {total} Aufgaben erledigt",
+  "tasksDoneLastChange": "{done} von {total} Aufgaben erledigt · letzte Änderung {age}",
+  "customize": "Anpassen",
+  "panels": {
+    "status": "Systeme nach Status",
+    "attention": "Braucht Aufmerksamkeit",
+    "phases": "Phasen",
+    "updates": "Neueste Fortschrittsmeldungen"
+  },
+  "attention": {
+    "itemCount": "{count, plural, one {# Eintrag} other {# Einträge}}",
+    "emptyTitle": "Nichts braucht Aufmerksamkeit",
+    "emptyDescription": "Keine blockierten Systeme, offene Planung, ausstehende Entscheidungen oder veraltete Fragen.",
+    "kind": {
+      "blocked": "Blockiert",
+      "blocked-task": "Blockierte Aufgabe",
+      "stale": "Veraltet",
+      "planning": "Planung",
+      "decision": "Entscheidung",
+      "question": "Frage"
+    },
+    "title": {
+      "blocked": "{system} ist blockiert",
+      "blockedTask": "Aufgabe #{id} ist blockiert",
+      "stale": "{system} hat seit {days, plural, one {# Tag} other {# Tagen}} keine Fortschrittsmeldung",
+      "planning": "{system} ist noch in der Planung",
+      "decision": "ADR-{number} wartet auf Annahme"
+    },
+    "detail": {
+      "blockedNone": "Noch keine Fortschrittsmeldung erklärt, warum.",
+      "blockedTask": "{system} · {reason}",
+      "noReason": "kein Grund angegeben",
+      "stale": "Letzte Aktivität",
+      "areasNoAnswer": "{count, plural, one {{areas} hat noch keine Antwort} other {{areas} haben noch keine Antwort}}",
+      "itemsOpen": "{count, plural, one {# Eintrag ist noch offen} other {# Einträge sind noch offen}}",
+      "noSpec": "es ist keine Spezifikation geschrieben",
+      "allAnswered": "Alles ist beantwortet; die Planung kann abgeschlossen werden.",
+      "question": "Gefragt von {author}{answered, select, yes {, beantwortet, aber nicht geklärt.} other {, noch keine Antwort.}}",
+      "questionBlocking": "Blockierend · {text}"
+    }
+  },
+  "phases": {
+    "openRoadmap": "Roadmap öffnen",
+    "emptyTitle": "Noch keine Phasen",
+    "emptyDescription": "Phasen ordnen die Arbeit in Meilensteine.",
+    "add": "Phasen hinzufügen"
+  },
+  "updates": {
+    "allActivity": "Gesamte Aktivität",
+    "emptyTitle": "Noch keine Fortschrittsmeldungen",
+    "emptyDescription": "Fortschrittsmeldungen von Personen und Agents erscheinen hier.",
+    "on": "zu"
+  },
+  "customizeDialog": {
+    "title": "Übersicht anpassen",
+    "description": "Wähle, welche Bereiche die Übersicht jedes Projekts zeigt und in welcher Reihenfolge.",
+    "moveUp": "{label} nach oben verschieben",
+    "moveDown": "{label} nach unten verschieben",
+    "saved": "Übersicht gespeichert"
+  }
+}

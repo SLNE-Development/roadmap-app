@@ -1,6 +1,18 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
+import { renderToStaticMarkup as render } from "react-dom/server";
+import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
+import en from "../../../messages/en";
 import { BurnupChart } from "./burnup-chart";
+
+/** Renders `ui` as English text inside the intl provider the chart needs. */
+function renderToStaticMarkup(ui: ReactElement): string {
+  return render(
+    <NextIntlClientProvider locale="en" messages={en} timeZone="UTC">
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 const points = [
   { day: "2026-09-29", scope: 10, done: 2 },
@@ -50,7 +62,7 @@ describe("BurnupChart", () => {
     const polygon = html.match(/<polygon points="([^"]*)"/)![1];
     const xs = polygon.split(" ").map((p) => Number(p.split(",")[0]));
     expect(Math.max(...xs)).toBeLessThanOrEqual(546);
-    expect(html).toContain("→ 1 Mar");
+    expect(html).toContain("→ Mar 1");
     // the history keeps most of the width: its last day sits well left of the edge
     expect(Number(html.match(/<line x1="([0-9.]+)"[^>]*stroke-dasharray="3 3"/)![1])).toBeLessThan(120);
   });

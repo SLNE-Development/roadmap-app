@@ -1,14 +1,15 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { AgentTag, CATEGORY_TEXT } from "@/components/chips";
 import { useNow } from "@/components/clock";
 import { Markdown } from "@/components/markdown";
 import { PersonAvatar } from "@/components/person-avatar";
 import { compareHref } from "@/components/system/tabs";
 import type { ColumnCategory } from "@/db/schema";
-import { dayLabel, formatDate, formatTime } from "@/lib/time";
+import { useShortDate } from "@/lib/use-short-date";
 import { cn } from "@/lib/utils";
-import { describeChange, documentCompare, type ChangeFacts, type ChangeSentence } from "./change-sentence";
+import { describeChange, documentCompare, englishChangeTranslators, type ChangeFacts, type ChangeSentence, type ChangeTranslators } from "./change-sentence";
 import { foldActivity } from "./fold";
 import { FoldedRow } from "./folded-row";
 
@@ -82,12 +83,14 @@ export function updateItems(updates: UpdateLike[]): UpdateTimelineItem[] {
  * @param systems the project's systems by id, to name and link them
  * @param columns the category of each "Board / Column", to colour moves
  * @param releases the project's release names by id, to name release changes
+ * @param tr the translators the sentences are written with; English when omitted
  */
 export function changeItems(
   entries: ChangeLike[],
   systems: Map<string, { slug: string; title: string }>,
   columns: Map<string, ColumnCategory> = new Map(),
   releases: Map<string, string> = new Map(),
+  tr: ChangeTranslators = englishChangeTranslators(),
 ): ChangeTimelineItem[] {
   const adrLabels = new Map<string, string>();
   for (const e of entries) {
@@ -102,7 +105,7 @@ export function changeItems(
         systemTitle: system?.title ?? null,
         adrLabel: adrLabels.get(e.entityId) ?? null,
         releaseName: e.entity === "release" ? (releases.get(e.entityId) ?? null) : null,
-      });
+      }, tr);
       const toCategory = e.entity === "system" && e.field === "column" && e.newValue ? (columns.get(e.newValue) ?? null) : null;
       return {
         kind: "change",
@@ -119,15 +122,15 @@ export function changeItems(
     });
 }
 
-/** Merges timeline items newest first and groups them by day label. */
-function groupByDay(items: TimelineItem[], now: Date = new Date()): { label: string; items: TimelineItem[] }[] {
+/** Merges timeline items newest first and groups them by their UTC day key `YYYY-MM-DD`. */
+function groupByDay(items: TimelineItem[]): { key: string; items: TimelineItem[] }[] {
   const sorted = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const groups: { label: string; items: TimelineItem[] }[] = [];
+  const groups: { key: string; items: TimelineItem[] }[] = [];
   for (const item of sorted) {
-    const label = dayLabel(item.createdAt, now);
+    const key = new Date(item.createdAt).toISOString().slice(0, 10);
     const last = groups.at(-1);
-    if (last?.label === label) last.items.push(item);
-    else groups.push({ label, items: [item] });
+    if (last?.key === key) last.items.push(item);
+    else groups.push({ key, items: [item] });
   }
   return groups;
 }
@@ -144,7 +147,10 @@ function SystemLink({ projectSlug, slug, title }: { projectSlug: string; slug: s
 
 /** One row of the timeline: avatar, sentence, details and time. */
 function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; projectSlug: string; hideSystem: boolean }) {
+  const t = useTranslations("activity.timeline");
+  const format = useFormatter();
   const { authorName: name, agent } = item;
+  const created = new Date(item.createdAt);
   return (
     <li tabIndex={0} data-nav-item className="flex gap-3 border-b px-4 py-3 outline-none last:border-b-0 focus-visible:bg-muted/50">
       <PersonAvatar name={name} size="md" />
@@ -154,12 +160,11 @@ function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; pr
           {agent && <AgentTag agent={agent} className="self-center" />}
           {item.kind === "update" ? (
             hideSystem ? (
-              <span className="text-fg-2">posted an update</span>
+              <span className="text-fg-2">{t("postedUpdate")}</span>
             ) : (
-              <>
-                <span className="text-fg-2">posted an update on</span>
-                <SystemLink projectSlug={projectSlug} slug={item.systemSlug} title={item.systemTitle} />
-              </>
+              <span className="text-fg-2">
+                {t.rich("postedUpdateOn", { title: item.systemTitle, system: () => <SystemLink projectSlug={projectSlug} slug={item.systemSlug} title={item.systemTitle} /> })}
+              </span>
             )
           ) : (
             <ChangeText item={item} projectSlug={projectSlug} />
@@ -172,12 +177,12 @@ function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; pr
             </div>
             {item.nextStep && (
               <p className="text-[13px] text-fg-2">
-                <span className="font-medium text-foreground">Next:</span> {item.nextStep}
+                <span className="font-medium text-foreground">{t("next")}</span> {item.nextStep}
               </p>
             )}
             {(item.taskTitle || item.commitHash) && (
               <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {item.taskTitle && <span>Task: {item.taskTitle}</span>}
+                {item.taskTitle && <span>{t("task", { title: item.taskTitle })}</span>}
                 {item.commitHash &&
                   (item.commitUrl ? (
                     <a href={item.commitUrl} target="_blank" rel="noreferrer noopener" className="font-mono text-[11.5px] text-brand-strong hover:underline">
@@ -191,9 +196,12 @@ function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; pr
           </>
         )}
       </div>
-      <time dateTime={item.createdAt} title={`${formatDate(item.createdAt)} ${formatTime(item.createdAt)} UTC`} className="text-xs whitespace-nowrap text-muted-foreground">
-        {formatTime(item.createdAt)}
-        <span className="text-muted-foreground/70"> UTC</span>
+      <time
+        dateTime={item.createdAt}
+        title={format.dateTime(created, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
+        className="text-xs whitespace-nowrap text-muted-foreground"
+      >
+        {format.dateTime(created, { hour: "2-digit", minute: "2-digit" })}
       </time>
     </li>
   );
@@ -201,7 +209,8 @@ function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; pr
 
 /** The sentence of a change: verb, target and an optional from → to. */
 function ChangeText({ item, projectSlug }: { item: ChangeTimelineItem; projectSlug: string }) {
-  const { verb, target, targetIsSystem, from, to } = item.sentence;
+  const t = useTranslations("activity.timeline");
+  const { verb, target, targetIsSystem, suffix, from, to } = item.sentence;
   return (
     <>
       <span className="text-fg-2">{verb}</span>
@@ -211,12 +220,13 @@ function ChangeText({ item, projectSlug }: { item: ChangeTimelineItem; projectSl
         ) : (
           <span className="font-medium">{target}</span>
         ))}
+      {suffix && <span className="text-fg-2">{suffix}</span>}
       {to !== undefined && (
         <span className="inline-flex flex-wrap items-center gap-1.5 text-fg-2">
           {from !== undefined && (
             <>
               {from}
-              <ArrowRight aria-label="to" className="size-3" />
+              <ArrowRight aria-label={t("to")} className="size-3" />
             </>
           )}
           <span className={cn("font-semibold", item.toCategory ? CATEGORY_TEXT[item.toCategory] : "text-foreground")}>{to}</span>
@@ -224,7 +234,7 @@ function ChangeText({ item, projectSlug }: { item: ChangeTimelineItem; projectSl
       )}
       {item.compare && item.systemSlug && projectSlug && (
         <Link href={compareHref(`/p/${projectSlug}/systems/${item.systemSlug}`, item.compare.tab, item.compare.from, item.compare.to)} className="text-brand-strong hover:underline">
-          Compare with v{item.compare.from}
+          {t("compare", { from: item.compare.from })}
         </Link>
       )}
     </>
@@ -238,12 +248,20 @@ function ChangeText({ item, projectSlug }: { item: ChangeTimelineItem; projectSl
  * @param props.hideSystem say "posted an update" without naming the system (on a system's own page)
  */
 export function Timeline({ items, projectSlug, hideSystem = false }: { items: TimelineItem[]; projectSlug: string; hideSystem?: boolean }) {
+  const t = useTranslations("activity");
+  const shortDate = useShortDate();
   const now = useNow();
+  const today = Math.floor(now.getTime() / 86_400_000);
+  /** Names a UTC day: "Today", "Yesterday" or the date. */
+  const dayLabel = (key: string) => {
+    const diff = today - Math.floor(Date.parse(`${key}T00:00:00Z`) / 86_400_000);
+    return diff === 0 ? t("today") : diff === 1 ? t("yesterday") : shortDate(key, { dayKey: true });
+  };
   return (
     <div className="flex flex-col gap-5">
-      {groupByDay(items, now).map((day) => (
-        <section key={day.label} className="flex flex-col gap-2">
-          <h2 title="Days in UTC" className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">{day.label}</h2>
+      {groupByDay(items).map((day) => (
+        <section key={day.key} className="flex flex-col gap-2">
+          <h2 title={t("daysInUtc")} className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">{dayLabel(day.key)}</h2>
           <ol className="flex flex-col border bg-card">
             {foldActivity(day.items).map((entry) =>
               entry.kind === "fold" ? (

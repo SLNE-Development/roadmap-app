@@ -3,12 +3,13 @@
 import { useMutation, useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import { Lock, LockOpen } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { UnderlineTabs } from "@/components/activity/url-tabs";
-import { CATEGORY_CLASS, CATEGORY_LABEL, StatusChip } from "@/components/chips";
+import { CATEGORY_CLASS, StatusChip } from "@/components/chips";
 import { useNow } from "@/components/clock";
 import { BurnupChart } from "@/components/insight/burnup-chart";
-import { finishText } from "@/components/insight/stat-tiles";
+import { useFinishText } from "@/components/insight/stat-tiles";
 import { Page, PageHeader, Panel } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
 import { DeleteReleaseDialog } from "@/components/releases/delete-release-dialog";
@@ -19,8 +20,8 @@ import { ShipReleaseDialog } from "@/components/releases/ship-release-dialog";
 import { Button } from "@/components/ui/button";
 import { COLUMN_CATEGORIES } from "@/db/schema";
 import type { ReleaseSystem } from "@/lib/ops/releases";
-import { plural } from "@/lib/text";
-import { daysUntil, formatDate } from "@/lib/time";
+import { daysUntil } from "@/lib/time";
+import { useShortDate } from "@/lib/use-short-date";
 import { useTRPC } from "@/trpc/client";
 
 /** One big number with a caption and an optional chip. */
@@ -36,18 +37,20 @@ function Tile({ value, caption, children }: { value: string; caption: string; ch
   );
 }
 
+type ReleasesT = ReturnType<typeof useTranslations<"insight.releases">>;
+
 /** What is left for a system: its open tasks, or the Done rules it still misses. */
-function detailLine(s: ReleaseSystem): string {
-  if (s.tasksDone < s.tasksTotal) return `${s.tasksDone} of ${plural(s.tasksTotal, "task")} done`;
-  if (s.gatesTotal > 0 && s.gatesUnmet > 0) return `${s.gatesTotal - s.gatesUnmet} of ${s.gatesTotal} Done rules met`;
-  return s.tasksTotal > 0 ? `${plural(s.tasksTotal, "task")} done` : "No tasks yet";
+function detailLine(t: ReleasesT, s: ReleaseSystem): string {
+  if (s.tasksDone < s.tasksTotal) return t("detail.tasksProgress", { done: s.tasksDone, total: s.tasksTotal });
+  if (s.gatesTotal > 0 && s.gatesUnmet > 0) return t("detail.rulesMet", { met: s.gatesTotal - s.gatesUnmet, total: s.gatesTotal });
+  return s.tasksTotal > 0 ? t("detail.tasksDone", { total: s.tasksTotal }) : t("detail.noTasks");
 }
 
 /** The countdown to a target date: days left, due today or days overdue. */
-function countdown(target: string, now: Date): string {
+function countdown(t: ReleasesT, target: string, now: Date): string {
   const days = daysUntil(target, now);
-  if (days > 0) return `${plural(days, "day")} left`;
-  return days === 0 ? "Due today" : `${plural(-days, "day")} overdue`;
+  if (days > 0) return t("daysLeft", { count: days });
+  return days === 0 ? t("dueToday") : t("daysOverdue", { count: -days });
 }
 
 /**
@@ -72,6 +75,12 @@ export function ReleaseView({
   version: number | undefined;
   burnupDays: 90;
 }) {
+  const t = useTranslations("insight.releases");
+  const tc = useTranslations("common");
+  const tCategory = useTranslations("enums.category");
+  const format = useFormatter();
+  const shortDate = useShortDate();
+  const finishText = useFinishText();
   const trpc = useTRPC();
   const now = useNow();
   const ref = { project: slug, release: releaseSlug };
@@ -93,11 +102,15 @@ export function ReleaseView({
   const base = `/p/${slug}/releases/${releaseSlug}`;
   const notDone = systems.filter((s) => s.category !== "done");
   const shownCategories = COLUMN_CATEGORIES.filter((c) => counts[c] > 0);
-  const target = r.targetDate ? `target ${formatDate(`${r.targetDate}T00:00:00Z`, now)}` : "no target date";
+  const headline = r.targetDate ? t("headerTarget", { name: r.name, date: shortDate(r.targetDate, { dayKey: true }) }) : t("headerNoTarget", { name: r.name });
   const state = [
-    r.status === "frozen" && r.frozenAt ? `Frozen ${formatDate(new Date(r.frozenAt).toISOString(), now)}${frozenBy ? ` by ${frozenBy}` : ""}` : null,
-    r.status === "shipped" && r.shippedAt ? `Shipped ${formatDate(new Date(r.shippedAt).toISOString(), now)}` : null,
-    r.status !== "shipped" && r.targetDate ? countdown(r.targetDate, now) : null,
+    r.status === "frozen" && r.frozenAt
+      ? frozenBy
+        ? t("frozenOnBy", { date: shortDate(new Date(r.frozenAt)), name: frozenBy })
+        : t("frozenOn", { date: shortDate(new Date(r.frozenAt)) })
+      : null,
+    r.status === "shipped" && r.shippedAt ? t("shippedOn", { date: shortDate(new Date(r.shippedAt)) }) : null,
+    r.status !== "shipped" && r.targetDate ? countdown(t, r.targetDate, now) : null,
   ].filter(Boolean);
 
   const actions = (
@@ -106,15 +119,15 @@ export function ReleaseView({
       {canEditRelease && <EditReleaseDialog projectSlug={slug} release={{ slug: r.slug, name: r.name, targetDate: r.targetDate }} />}
       {isOwner && r.status === "planned" && <DeleteReleaseDialog projectSlug={slug} releaseSlug={releaseSlug} releaseName={r.name} />}
       {isOwner && r.status === "planned" && (
-        <Button variant="outline" disabled={freeze.isPending} onClick={() => freeze.mutate(ref, { onSuccess: () => toast.success(`Froze ${r.name}`) })}>
+        <Button variant="outline" disabled={freeze.isPending} onClick={() => freeze.mutate(ref, { onSuccess: () => toast.success(t("froze", { name: r.name })) })}>
           <Lock aria-hidden />
-          Freeze
+          {t("freeze")}
         </Button>
       )}
       {isOwner && r.status === "frozen" && (
-        <Button variant="outline" disabled={unfreeze.isPending} onClick={() => unfreeze.mutate(ref, { onSuccess: () => toast.success(`Unfroze ${r.name}`) })}>
+        <Button variant="outline" disabled={unfreeze.isPending} onClick={() => unfreeze.mutate(ref, { onSuccess: () => toast.success(t("unfroze", { name: r.name })) })}>
           <LockOpen aria-hidden />
-          Unfreeze
+          {t("unfreeze")}
         </Button>
       )}
       {isOwner && r.status !== "shipped" && (
@@ -126,23 +139,21 @@ export function ReleaseView({
   return (
     <Page>
       <PageHeader
-        crumbs={[{ label: project.project.name, href: `/p/${slug}` }, { label: "Releases", href: `/p/${slug}/releases` }, { label: r.name }]}
+        crumbs={[{ label: project.project.name, href: `/p/${slug}` }, { label: t("title"), href: `/p/${slug}/releases` }, { label: r.name }]}
         title={r.name}
         description={
           <>
-            <p>
-              {r.name} · {target}
-            </p>
+            <p>{headline}</p>
             {state.length > 0 && <p>{state.join(" · ")}</p>}
           </>
         }
         actions={actions}
       />
       <UnderlineTabs
-        label="Release sections"
+        label={t("tabs.label")}
         tabs={[
-          { label: "Overview", href: base, active: tab === "overview" },
-          { label: "Notes", href: `${base}?tab=notes`, active: tab === "notes" },
+          { label: t("tabs.overview"), href: base, active: tab === "overview" },
+          { label: t("tabs.notes"), href: `${base}?tab=notes`, active: tab === "notes" },
         ]}
       />
       {tab === "notes" ? (
@@ -150,15 +161,15 @@ export function ReleaseView({
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Tile value={`${counts.done} / ${systems.length}`} caption="systems done" />
-            <Tile value={String(openQuestions.length)} caption="open questions" />
-            <Tile value={finishText(projection)} caption="projected finish">
+            <Tile value={`${counts.done} / ${systems.length}`} caption={t("tiles.systemsDone")} />
+            <Tile value={String(openQuestions.length)} caption={t("tiles.openQuestions")} />
+            <Tile value={finishText(projection)} caption={t("tiles.projectedFinish")}>
               <ReleaseRiskChip risk={risk} />
             </Tile>
           </div>
           {systems.length > 0 && (
             <div className="flex flex-col gap-2">
-              <div role="img" aria-label={shownCategories.map((c) => `${counts[c]} ${CATEGORY_LABEL[c]}`).join(", ")} className="flex h-2 bg-secondary">
+              <div role="img" aria-label={format.list(shownCategories.map((c) => `${counts[c]} ${tCategory(c)}`), { type: "unit" })} className="flex h-2 bg-secondary">
                 {shownCategories.map((c) => (
                   <span key={c} className={CATEGORY_CLASS[c]} style={{ width: `${(100 * counts[c]) / systems.length}%` }} />
                 ))}
@@ -167,17 +178,17 @@ export function ReleaseView({
                 {shownCategories.map((c) => (
                   <li key={c} className="flex items-center gap-1.5">
                     <span aria-hidden className={`size-2 ${CATEGORY_CLASS[c]}`} />
-                    {CATEGORY_LABEL[c]} {counts[c]}
+                    {tCategory(c)} {counts[c]}
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          <Panel title="Not done yet" meta={systems.length === 0 ? undefined : `${notDone.length} of ${plural(systems.length, "system")}`} bodyClassName="pb-2">
+          <Panel title={t("notDone")} meta={systems.length === 0 ? undefined : t("notDoneMeta", { count: notDone.length, total: systems.length })} bodyClassName="pb-2">
             {systems.length === 0 ? (
-              <p className="px-4 py-3 text-[13px] text-muted-foreground sm:px-5">No systems yet. Assign systems to this release from their page.</p>
+              <p className="px-4 py-3 text-[13px] text-muted-foreground sm:px-5">{t("noSystems")}</p>
             ) : notDone.length === 0 ? (
-              <p className="px-4 py-3 text-[13px] text-muted-foreground sm:px-5">Everything in this release is done.</p>
+              <p className="px-4 py-3 text-[13px] text-muted-foreground sm:px-5">{t("allDone")}</p>
             ) : (
               <ul>
                 {notDone.map((s) => (
@@ -185,21 +196,21 @@ export function ReleaseView({
                     <Link href={`/p/${slug}/systems/${s.slug}`} className="min-w-0 flex-1 truncate font-semibold hover:underline focus-visible:underline focus-visible:outline-none">
                       {s.title}
                     </Link>
-                    <StatusChip category={s.category} name={CATEGORY_LABEL[s.category]} />
-                    <span className="text-[12.5px] text-fg-2">{detailLine(s)}</span>
+                    <StatusChip category={s.category} name={tCategory(s.category)} />
+                    <span className="text-[12.5px] text-fg-2">{detailLine(t, s)}</span>
                     <span className="min-w-24 text-[12.5px] text-fg-2">
-                      {s.ownerName ? <PersonName name={s.ownerName} size="sm" className="gap-2" /> : <span className="text-muted-foreground">Unowned</span>}
+                      {s.ownerName ? <PersonName name={s.ownerName} size="sm" className="gap-2" /> : <span className="text-muted-foreground">{t("unowned")}</span>}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
           </Panel>
-          <Panel title="Burn-up" bodyClassName="px-4 pb-4 sm:px-5">
+          <Panel title={t("burnup")} bodyClassName="px-4 pb-4 sm:px-5">
             {progress.data && progress.data.points.length > 0 ? (
               <BurnupChart points={progress.data.points} projection={progress.data.projection} />
             ) : (
-              <p className="text-[13px] text-muted-foreground">{progress.isPending ? "Loading…" : "No tasks yet."}</p>
+              <p className="text-[13px] text-muted-foreground">{progress.isPending ? tc("loading") : t("noTasks")}</p>
             )}
           </Panel>
         </>

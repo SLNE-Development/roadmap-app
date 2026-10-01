@@ -1,15 +1,12 @@
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { PersonAvatar } from "@/components/person-avatar";
 import type { RunSummary } from "@/lib/ops/agent-runs";
-import { plural } from "@/lib/text";
 import { cn } from "@/lib/utils";
 
-/** Compact token counts such as "1.2M". */
-const COMPACT = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
-
-/** Formats a token count compactly, "1.2M". */
-export function formatTokens(n: number): string {
-  return COMPACT.format(n);
+/** Formats a token count compactly, "1.2M"; `locale` picks the language of the suffix and separators. */
+export function formatTokens(n: number, locale = "en"): string {
+  return new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
 /** Formats the time between two instants as "45s", "4m 12s" or "1h 05m". */
@@ -23,8 +20,9 @@ export function formatDuration(from: Date, to: Date): string {
 
 /** A pulsing dot for a run that is live. */
 function LiveDot() {
+  const t = useTranslations("activity.agents");
   return (
-    <span role="img" aria-label="Live" className="relative flex size-2 shrink-0">
+    <span role="img" aria-label={t("live")} className="relative flex size-2 shrink-0">
       <span className="absolute inline-flex size-full animate-ping rounded-full bg-cat-done opacity-60 motion-reduce:animate-none" />
       <span className="relative inline-flex size-2 rounded-full bg-cat-done" />
     </span>
@@ -39,6 +37,8 @@ function LiveDot() {
  * @param props.hrefFor the link of a run's detail
  */
 export function RunList({ runs, hrefFor }: { runs: RunSummary[]; hrefFor: (runId: string) => string }) {
+  const t = useTranslations("activity.agents");
+  const locale = useLocale();
   return (
     <ul className="flex flex-col border bg-card">
       {runs.map((run) => (
@@ -47,7 +47,7 @@ export function RunList({ runs, hrefFor }: { runs: RunSummary[]; hrefFor: (runId
             <PersonAvatar name={run.userName} size="md" />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex items-center gap-2">
-                <span className={cn("truncate text-[13.5px] font-semibold", !run.title && "text-fg-2")}>{run.title ?? "Untitled run"}</span>
+                <span className={cn("truncate text-[13.5px] font-semibold", !run.title && "text-fg-2")}>{run.title ?? t("untitledRun")}</span>
                 {run.live && <LiveDot />}
               </span>
               <span className="truncate text-xs text-muted-foreground">
@@ -56,12 +56,12 @@ export function RunList({ runs, hrefFor }: { runs: RunSummary[]; hrefFor: (runId
               </span>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-fg-2 sm:flex-row sm:items-center sm:gap-4">
-              <span>{plural(run.callCount, "call")}</span>
-              {run.errorCount > 0 && <span className="font-medium text-cat-blocked">{plural(run.errorCount, "error")}</span>}
-              <span title="Duration">{formatDuration(run.startedAt, run.lastCallAt)}</span>
+              <span>{t("calls", { count: run.callCount })}</span>
+              {run.errorCount > 0 && <span className="font-medium text-cat-blocked">{t("errors", { count: run.errorCount })}</span>}
+              <span title={t("duration")}>{formatDuration(run.startedAt, run.lastCallAt)}</span>
               {run.tokens && (
-                <span title="Run total: input, output and cache write tokens">
-                  {formatTokens(run.tokens.input + run.tokens.output + run.tokens.cacheWrite)} tokens (run total)
+                <span title={t("tokensTitle")}>
+                  {t("tokens", { tokens: formatTokens(run.tokens.input + run.tokens.output + run.tokens.cacheWrite, locale) })}
                 </span>
               )}
             </div>

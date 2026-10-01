@@ -1,1 +1,124 @@
-{}
+{
+  "ranges": { "d14": "2 Wochen", "d42": "6 Wochen", "d90": "3 Monate", "d180": "6 Monate", "d365": "1 Jahr" },
+  "stats": {
+    "tasksDone": "Aufgaben erledigt",
+    "scopeAdded": "Umfang in {range} hinzugekommen",
+    "projectedFinish": "voraussichtliches Ende",
+    "finishDone": "Erledigt",
+    "finishNoScope": "Noch keine Aufgaben",
+    "finishNoPace": "Noch zu wenig Tempo"
+  },
+  "burnup": {
+    "summary": "Burn-up über {days} Tage: {done} von {scope} Aufgaben erledigt",
+    "done": "Erledigt",
+    "scope": "Umfang",
+    "projected": "Voraussichtliches Ende",
+    "daysInUtc": "Tage in UTC",
+    "day": "Tag",
+    "tooltipScope": "Umfang {value}",
+    "tooltipDone": "Erledigt {value}"
+  },
+  "columnTimes": {
+    "empty": "Noch keine Systeme.",
+    "system": "System",
+    "now": "Jetzt",
+    "inCategoryFor": "In der Kategorie seit",
+    "timePerCategory": "Zeit pro Kategorie",
+    "inCategory": "seit {days} in der Kategorie",
+    "days": "{days} T",
+    "unknown": "Unbekannt"
+  },
+  "releases": {
+    "title": "Releases",
+    "intro": "Gruppen von Systemen, die zusammen ausgeliefert werden.",
+    "emptyTitle": "Noch keine Releases",
+    "emptyDescription": "Releases bündeln Systeme, die zusammen ausgeliefert werden. Lege eines an und weise dann Systeme von deren Seite zu.",
+    "columns": { "release": "Release", "target": "Ziel", "status": "Status", "done": "Erledigt", "risk": "Risiko" },
+    "status": { "planned": "Geplant", "frozen": "Eingefroren", "shipped": "Ausgeliefert" },
+    "risk": { "on-track": "Im Plan", "at-risk": "Gefährdet", "late": "Verspätet", "unknown": "Keine Prognose" },
+    "headerTarget": "{name} · Ziel {date}",
+    "headerNoTarget": "{name} · kein Zieldatum",
+    "frozenOn": "Eingefroren {date}",
+    "frozenOnBy": "Eingefroren {date} von {name}",
+    "shippedOn": "Ausgeliefert {date}",
+    "daysLeft": "noch {count, plural, one {# Tag} other {# Tage}}",
+    "dueToday": "Heute fällig",
+    "daysOverdue": "{count, plural, one {# Tag} other {# Tage}} überfällig",
+    "tabs": { "label": "Bereiche des Releases", "overview": "Übersicht", "notes": "Notizen" },
+    "freeze": "Einfrieren",
+    "unfreeze": "Auftauen",
+    "froze": "{name} eingefroren",
+    "unfroze": "{name} aufgetaut",
+    "tiles": { "systemsDone": "Systeme erledigt", "openQuestions": "offene Fragen", "projectedFinish": "voraussichtliches Ende" },
+    "notDone": "Noch nicht erledigt",
+    "notDoneMeta": "{count} von {total, plural, one {# System} other {# Systemen}}",
+    "noSystems": "Noch keine Systeme. Weise diesem Release Systeme von deren Seite zu.",
+    "allDone": "Alles in diesem Release ist erledigt.",
+    "unowned": "Ohne Verantwortlichen",
+    "detail": {
+      "tasksProgress": "{done} von {total, plural, one {# Aufgabe} other {# Aufgaben}} erledigt",
+      "rulesMet": "{met} von {total} Erledigt-Regeln erfüllt",
+      "tasksDone": "{total, plural, one {# Aufgabe} other {# Aufgaben}} erledigt",
+      "noTasks": "Noch keine Aufgaben"
+    },
+    "burnup": "Burn-up",
+    "noTasks": "Noch keine Aufgaben.",
+    "new": {
+      "button": "Neues Release",
+      "title": "Neues Release",
+      "description": "Ein Release bündelt Systeme, die zusammen ausgeliefert werden. Weise Systeme von deren Seite zu.",
+      "namePlaceholder": "1.0",
+      "slugHelp": "Agents und Links verweisen so auf das Release.",
+      "submit": "Release erstellen",
+      "created": "{name} erstellt"
+    },
+    "form": {
+      "name": "Name",
+      "slug": "Slug",
+      "target": "Zieldatum",
+      "targetHelp": "Optional. Ohne Zieldatum gibt es kein Verzugsrisiko."
+    },
+    "edit": {
+      "title": "Release bearbeiten",
+      "description": "Ändere den Namen, den Slug oder das Zieldatum.",
+      "slugHelp": "Agents und Links verweisen so auf das Release. Alte Links funktionieren nach einer Änderung nicht mehr.",
+      "saved": "{name} gespeichert"
+    },
+    "delete": {
+      "title": "{name} löschen?",
+      "description": "Seine Systeme bleiben wie sie sind, verlassen aber das Release. Seine Release-Notizen werden mit gelöscht.",
+      "confirm": "Release löschen",
+      "deleted": "{name} gelöscht"
+    },
+    "ship": {
+      "button": "Ausliefern",
+      "title": "{name} ausliefern?",
+      "descriptionUnfinished": "{count, plural, one {# System ist nicht erledigt und würde} other {# Systeme sind nicht erledigt und würden}} das Release verlassen. Das Ausliefern friert dann den Umfang ein und schreibt die Release-Notizen.",
+      "description": "Das Ausliefern legt den Umfang des Releases fest und schreibt seine Release-Notizen.",
+      "listLabel": "Unfertige Systeme",
+      "confirmUnfinished": "Herausnehmen und ausliefern",
+      "confirm": "Release ausliefern",
+      "shipped": "{name} ausgeliefert"
+    },
+    "notes": {
+      "title": "Release-Notizen",
+      "edit": "Notizen bearbeiten",
+      "empty": "Noch keine Notizen. Beim Ausliefern des Releases wird die erste Version geschrieben.",
+      "editorMode": "Editor-Modus",
+      "write": "Schreiben",
+      "preview": "Vorschau",
+      "nothingToPreview": "Nichts zur Vorschau.",
+      "save": "Als neue Version speichern",
+      "saved": "Notizen-Version {version} gespeichert"
+    },
+    "select": {
+      "label": "Release",
+      "noRelease": "Kein Release",
+      "frozenHint": "Eingefroren: frag einen Inhaber",
+      "frozen": "Eingefroren",
+      "none": "keines",
+      "aria": "Release: {name}. Release ändern",
+      "set": "Release auf {name} gesetzt"
+    }
+  }
+}

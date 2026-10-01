@@ -1,1 +1,29 @@
-{}
+{
+  "title": "Pages",
+  "description": "What isn't tied to one system: onboarding, conventions, architecture.",
+  "emptyTitle": "No pages yet",
+  "emptyDescription": "Pages hold what isn't tied to one system: onboarding, conventions, architecture.",
+  "version": "v{version}",
+  "contents": "Contents",
+  "noSuchVersion": "No such version",
+  "emptyPage": "Empty page",
+  "new": {
+    "button": "New page",
+    "title": "New page",
+    "description": "It starts with its title as a heading. Write the rest after it opens.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Onboarding",
+    "slugLabel": "Slug",
+    "slugHelp": "Agents refer to the page by this.",
+    "submit": "Create page",
+    "created": "Created {title}"
+  },
+  "editor": {
+    "viewLabel": "Editor view",
+    "write": "Write",
+    "preview": "Preview",
+    "bodyLabel": "Page body (markdown)",
+    "saveAs": "Save as v{version}",
+    "saved": "Saved as v{version}"
+  }
+}

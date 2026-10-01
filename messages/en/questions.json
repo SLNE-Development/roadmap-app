@@ -1,1 +1,42 @@
-{}
+{
+  "title": "Questions",
+  "tabOpen": "Open",
+  "tabResolved": "Resolved",
+  "system": "System",
+  "emptyOpenTitle": "No open questions",
+  "emptyOpenDescription": "Questions that need a person's answer collect here, asked by people or by agents while they work.",
+  "emptyResolvedTitle": "No resolved questions yet",
+  "emptyResolvedDescription": "Answered and resolved questions stay here for reference.",
+  "unknownPerson": "unknown",
+  "priority": { "blocking": "Blocking", "normal": "Normal", "nice": "Nice to know" },
+  "card": {
+    "answeredOpen": "Answered, still open",
+    "yourAnswer": "Your answer",
+    "answerPlaceholder": "Answer in a sentence or two; Markdown works.",
+    "saveKeepOpen": "Save answer, keep open",
+    "answerResolve": "Answer and resolve",
+    "priorityButton": "Priority",
+    "priorityAria": "Priority of {title}: {priority}",
+    "reopen": "Reopen",
+    "markResolved": "Mark resolved",
+    "resolved": "Question resolved",
+    "answerSaved": "Answer saved",
+    "reopened": "Question reopened",
+    "prioritySet": "Priority set to {priority}"
+  },
+  "ask": {
+    "button": "Ask a question",
+    "title": "Ask a question",
+    "description": "Open questions stay on the list until someone answers and resolves them.",
+    "questionLabel": "Question",
+    "questionPlaceholder": "Who owns the staff panel after launch?",
+    "detailsLabel": "Details",
+    "detailsHelp": "Optional. Context that helps someone answer; Markdown works.",
+    "systemLabel": "System",
+    "noSystem": "No system",
+    "priorityLabel": "Priority",
+    "priorityHelp": "Blocking holds the system's planning gate until the question is resolved.",
+    "submit": "Ask question",
+    "added": "Question added"
+  }
+}

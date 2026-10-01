@@ -2,6 +2,7 @@
 
 import { useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { DocumentDiff } from "@/components/document-diff";
 import { DocumentSection } from "@/components/document-section";
@@ -12,15 +13,16 @@ import { useTRPC } from "@/trpc/client";
 
 /** The differences between two versions of the page, in place of its body. */
 function ComparedPage({ projectSlug, pageSlug, from, to, glossary }: { projectSlug: string; pageSlug: string; from: number; to: number; glossary: React.ComponentProps<typeof DocumentSection>["glossary"] }) {
+  const t = useTranslations("pages");
   const trpc = useTRPC();
   const { data: c } = useSuspenseQuery(trpc.pages.compare.queryOptions({ project: projectSlug, page: pageSlug, from, to }));
   return (
     <DocumentSection
-      title="Contents"
+      title={t("contents")}
       doc={c.to}
       param="v"
       glossary={glossary}
-      empty={{ title: "No such version", description: "" }}
+      empty={{ title: t("noSuchVersion"), description: "" }}
       compare={{ from, to, diff: <DocumentDiff hunks={c.hunks} added={c.added} removed={c.removed} from={from} to={to} /> }}
     />
   );
@@ -34,6 +36,8 @@ function ComparedPage({ projectSlug, pageSlug, from, to, glossary }: { projectSl
  * @param props.compare the versions from `?compare=`, shown instead of the body when set
  */
 export function PageView({ projectSlug, pageSlug, version, compare }: { projectSlug: string; pageSlug: string; version: number | undefined; compare: { from: number; to: number } | undefined }) {
+  const t = useTranslations("pages");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const [{ data: doc }, { data: detail }, { data: glossary }] = useSuspenseQueries({
     queries: [
@@ -50,7 +54,7 @@ export function PageView({ projectSlug, pageSlug, version, compare }: { projectS
       <PageHeader
         crumbs={[
           { label: detail.project.name, href: `/p/${projectSlug}` },
-          { label: "Pages", href: `/p/${projectSlug}/pages` },
+          { label: t("title"), href: `/p/${projectSlug}/pages` },
           { label: doc.title },
         ]}
         title={doc.title}
@@ -58,7 +62,7 @@ export function PageView({ projectSlug, pageSlug, version, compare }: { projectS
           canEdit && isLatest && !compare && !editing ? (
             <Button variant="outline" onClick={() => setEditing(true)}>
               <Pencil aria-hidden />
-              Edit
+              {tc("edit")}
             </Button>
           ) : undefined
         }
@@ -68,7 +72,7 @@ export function PageView({ projectSlug, pageSlug, version, compare }: { projectS
       ) : compare ? (
         <ComparedPage projectSlug={projectSlug} pageSlug={pageSlug} glossary={glossary} {...compare} />
       ) : (
-        <DocumentSection title="Contents" doc={doc} param="v" glossary={glossary} empty={{ title: "Empty page", description: "" }} />
+        <DocumentSection title={t("contents")} doc={doc} param="v" glossary={glossary} empty={{ title: t("emptyPage"), description: "" }} />
       )}
     </Page>
   );

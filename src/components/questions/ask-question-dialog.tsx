@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MentionTextarea } from "@/components/mentions/mention-textarea";
@@ -23,6 +24,8 @@ export function AskQuestionDialog({
   systems: { slug: string; title: string }[];
   defaultSystem?: string;
 }) {
+  const t = useTranslations("questions.ask");
+  const tp = useTranslations("questions.priority");
   const trpc = useTRPC();
   const add = useMutation(trpc.questions.add.mutationOptions());
   const [open, setOpen] = useState(false);
@@ -42,7 +45,7 @@ export function AskQuestionDialog({
       <DialogTrigger asChild>
         <Button>
           <Plus aria-hidden />
-          Ask a question
+          {t("button")}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -58,30 +61,30 @@ export function AskQuestionDialog({
                   setTitle("");
                   setText("");
                   setPriority("normal");
-                  toast.success("Question added");
+                  toast.success(t("added"));
                 },
               },
             );
           }}
         >
           <DialogHeader>
-            <DialogTitle>Ask a question</DialogTitle>
-            <DialogDescription>Open questions stay on the list until someone answers and resolves them.</DialogDescription>
+            <DialogTitle>{t("title")}</DialogTitle>
+            <DialogDescription>{t("description")}</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="question-title">Question</FieldLabel>
-              <Input id="question-title" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder="Who owns the staff panel after launch?" />
+              <FieldLabel htmlFor="question-title">{t("questionLabel")}</FieldLabel>
+              <Input id="question-title" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder={t("questionPlaceholder")} />
             </Field>
             <Field>
-              <FieldLabel htmlFor="question-text">Details</FieldLabel>
+              <FieldLabel htmlFor="question-text">{t("detailsLabel")}</FieldLabel>
               <MentionTextarea id="question-text" projectSlug={projectSlug} value={text} maxLength={5000} onValueChange={setText} />
-              <FieldDescription>Optional. Context that helps someone answer; Markdown works.</FieldDescription>
+              <FieldDescription>{t("detailsHelp")}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="question-system">System</FieldLabel>
+              <FieldLabel htmlFor="question-system">{t("systemLabel")}</FieldLabel>
               <NativeSelect id="question-system" className="w-full" value={system} onChange={(e) => setSystem(e.target.value)}>
-                <NativeSelectOption value="">No system</NativeSelectOption>
+                <NativeSelectOption value="">{t("noSystem")}</NativeSelectOption>
                 {systems.map((s) => (
                   <NativeSelectOption key={s.slug} value={s.slug}>
                     {s.title}
@@ -90,18 +93,18 @@ export function AskQuestionDialog({
               </NativeSelect>
             </Field>
             <Field>
-              <FieldLabel htmlFor="question-priority">Priority</FieldLabel>
+              <FieldLabel htmlFor="question-priority">{t("priorityLabel")}</FieldLabel>
               <NativeSelect id="question-priority" className="w-full" value={priority} onChange={(e) => setPriority(e.target.value as QuestionPriority)}>
-                <NativeSelectOption value="normal">Normal</NativeSelectOption>
-                <NativeSelectOption value="blocking">Blocking</NativeSelectOption>
-                <NativeSelectOption value="nice">Nice to know</NativeSelectOption>
+                <NativeSelectOption value="normal">{tp("normal")}</NativeSelectOption>
+                <NativeSelectOption value="blocking">{tp("blocking")}</NativeSelectOption>
+                <NativeSelectOption value="nice">{tp("nice")}</NativeSelectOption>
               </NativeSelect>
-              <FieldDescription>Blocking holds the system&apos;s planning gate until the question is resolved.</FieldDescription>
+              <FieldDescription>{t("priorityHelp")}</FieldDescription>
             </Field>
           </FieldGroup>
           <DialogFooter>
             <Button type="submit" disabled={add.isPending || !title.trim()}>
-              Ask question
+              {t("submit")}
             </Button>
           </DialogFooter>
         </form>

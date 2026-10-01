@@ -1,5 +1,6 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { addDays, dayTicks, linearScale, niceTicks } from "@/lib/chart/scale";
 import type { BurnupPoint, Projection } from "@/lib/insight/burnup";
@@ -8,11 +9,6 @@ const HEIGHT = 220;
 const MARGIN = { left: 34, right: 14, top: 12, bottom: 26 };
 const DAY_MS = 86_400_000;
 const LABEL = "fill-muted-foreground text-[10.5px]";
-
-/** The label "2 Sep" of a UTC day key. */
-function dayName(key: string): string {
-  return dayTicks([key], 1)[0].label;
-}
 
 /**
  * The task burn-up: scope and done per UTC day, with the projected finish as a
@@ -25,6 +21,10 @@ function dayName(key: string): string {
  * @param props.width the width of the viewBox, 560 by default
  */
 export function BurnupChart({ points, projection, width = 560 }: { points: BurnupPoint[]; projection: Projection; width?: number }) {
+  const t = useTranslations("insight.burnup");
+  const format = useFormatter();
+  /** The label "2 Sep" of a UTC day key, in the same day for every time zone. */
+  const dayName = (key: string) => format.dateTime(new Date(`${key}T00:00:00Z`), { day: "numeric", month: "short", timeZone: "UTC" });
   const [hover, setHover] = useState<number | null>(null);
   const last = points.at(-1);
   if (!last) return null;
@@ -60,7 +60,7 @@ export function BurnupChart({ points, projection, width = 560 }: { points: Burnu
     return pts.map(([i, py]) => `${x(i)},${py}`).join(" ");
   };
   const shown = hover === null ? null : points[hover];
-  const summary = `Burn-up over ${points.length} days: done ${last.done} of ${last.scope} tasks`;
+  const summary = t("summary", { days: points.length, done: last.done, scope: last.scope });
 
   return (
     <figure className="flex flex-col gap-2">
@@ -73,9 +73,9 @@ export function BurnupChart({ points, projection, width = 560 }: { points: Burnu
             </text>
           </g>
         ))}
-        {dayTicks(keys).map((t) => (
-          <text key={t.index} x={x(t.index)} y={HEIGHT - 8} textAnchor={t.index === 0 ? "start" : t.index === span ? "end" : "middle"} className={LABEL}>
-            {t.label}
+        {dayTicks(keys).map((tick) => (
+          <text key={tick.index} x={x(tick.index)} y={HEIGHT - 8} textAnchor={tick.index === 0 ? "start" : tick.index === span ? "end" : "middle"} className={LABEL}>
+            {dayName(keys[tick.index])}
           </text>
         ))}
         <path d={`${line((p) => p.done)} L${x(lastIndex)} ${baseline} L${x(0)} ${baseline} Z`} className="fill-primary/10" />
@@ -102,10 +102,10 @@ export function BurnupChart({ points, projection, width = 560 }: { points: Burnu
                 {dayName(shown.day)}
               </text>
               <text x={8} y={28} className={LABEL}>
-                Scope {shown.scope}
+                {t("tooltipScope", { value: shown.scope })}
               </text>
               <text x={8} y={40} className={LABEL}>
-                Done {shown.done}
+                {t("tooltipDone", { value: shown.done })}
               </text>
             </g>
           </g>
@@ -126,27 +126,27 @@ export function BurnupChart({ points, projection, width = 560 }: { points: Burnu
       <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-2">
         <span className="flex items-center gap-1.5">
           <span aria-hidden className="h-0.5 w-4 bg-primary" />
-          Done
+          {t("done")}
         </span>
         <span className="flex items-center gap-1.5">
           <span aria-hidden className="h-0.5 w-4 bg-muted-foreground" />
-          Scope
+          {t("scope")}
         </span>
         {range && (
           <span className="flex items-center gap-1.5">
             <span aria-hidden className="size-2.5 bg-primary/15" />
-            Projected finish
+            {t("projected")}
           </span>
         )}
-        <span className="text-muted-foreground">Days in UTC</span>
+        <span className="text-muted-foreground">{t("daysInUtc")}</span>
       </figcaption>
       <table className="sr-only">
         <caption>{summary}</caption>
         <thead>
           <tr>
-            <th scope="col">Day</th>
-            <th scope="col">Scope</th>
-            <th scope="col">Done</th>
+            <th scope="col">{t("day")}</th>
+            <th scope="col">{t("scope")}</th>
+            <th scope="col">{t("done")}</th>
           </tr>
         </thead>
         <tbody>

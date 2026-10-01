@@ -1,1 +1,69 @@
-{}
+{
+  "title": "Entscheidungen",
+  "description": "Architekturentscheidungen, nummeriert. Angenommene ändern sich nie; eine neue ersetzt sie.",
+  "view": {
+    "label": "Ansicht",
+    "list": "Liste",
+    "map": "Karte"
+  },
+  "tabAll": "Alle",
+  "statusLabel": "Status",
+  "emptyTitle": "Noch keine Entscheidungen",
+  "emptyDescription": "Agents halten die Entscheidungen, die du triffst, mit <code>surf-roadmap:new-adr</code> fest. Vorgeschlagene erscheinen hier zur Annahme.",
+  "searchPlaceholder": "Entscheidungen durchsuchen",
+  "noMatchTitle": "Keine passenden Entscheidungen",
+  "noMatchQuery": "Hier enthält nichts „{query}“ im Titel oder in der Nummer.",
+  "noMatchStatus": "Keine Entscheidung hat diesen Status.",
+  "supersededBy": "Ersetzt durch ADR-{number}",
+  "supersedes": "Ersetzt ADR-{number}",
+  "detail": {
+    "via": "über",
+    "acceptedOn": "Angenommen {date}",
+    "proposedBanner": "Vorgeschlagene Entscheidungen lassen sich noch bearbeiten. Mit der Annahme wird sie eingefroren.",
+    "sections": {
+      "context": "Kontext",
+      "decision": "Entscheidung",
+      "alternatives": "Betrachtete Alternativen",
+      "consequences": "Folgen"
+    },
+    "tasks": "Aufgaben",
+    "noTasks": "Keine Aufgaben verknüpft.",
+    "history": "Verlauf",
+    "concerns": "Betrifft",
+    "someone": "jemand",
+    "historyWithAuthor": "{label} von {name}",
+    "historyProposed": "Vorgeschlagen",
+    "historyAccepted": "Angenommen",
+    "historyLinkedTask": "Aufgabe {task} verknüpft",
+    "historyUnlinkedTask": "Verknüpfung mit Aufgabe {task} gelöst",
+    "historyEdited": "Bearbeitet: {what}",
+    "fieldTitle": "Titel",
+    "fieldSystems": "Systeme",
+    "historyChanged": "{field} geändert"
+  },
+  "linkTasks": {
+    "button": "Aufgaben verknüpfen",
+    "search": "Aufgaben durchsuchen…",
+    "loading": "Aufgaben werden geladen…",
+    "none": "Keine Aufgaben."
+  },
+  "map": {
+    "title": "Entscheidungskarte",
+    "description": "Welche Entscheidung welche ersetzt und welche Arbeit jede betrifft.",
+    "systems": "Systeme",
+    "tasks": "Aufgaben",
+    "status": "Status",
+    "emptyStatusTitle": "Keine Entscheidungen mit diesem Status",
+    "emptyStatusDescription": "Probiere einen anderen Status oder entferne den Filter.",
+    "emptyDescription": "Von Agents festgehaltene Entscheidungen erscheinen hier als Karte.",
+    "backToList": "Zurück zur Liste",
+    "nodeSystem": "System {title}",
+    "nodeTask": "Aufgabe {id} {title}"
+  },
+  "accept": {
+    "button": "Entscheidung annehmen",
+    "title": "{label} annehmen?",
+    "description": "Angenommene Entscheidungen lassen sich nicht mehr bearbeiten. Um sie später zu ändern, muss eine neue Entscheidung sie ersetzen.",
+    "accepted": "{label} angenommen"
+  }
+}

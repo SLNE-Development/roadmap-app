@@ -2,6 +2,7 @@
 
 import { Search } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { UnderlineTabs, type UrlTab } from "@/components/activity/url-tabs";
 import { AdrStatusChip, Tag } from "@/components/chips";
@@ -31,26 +32,27 @@ export function adrMatches(row: { title: string; label: string; number: number }
 
 /** The status tabs, a search box filtering titles and numbers, and the list of decisions. */
 export function AdrList({ projectSlug, tabs, rows }: { projectSlug: string; tabs: UrlTab[]; rows: AdrRow[] }) {
+  const t = useTranslations("adrs");
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const shown = needle ? rows.filter((r) => adrMatches(r, needle)) : rows;
   return (
     <>
-      <UnderlineTabs label="Status" tabs={tabs}>
+      <UnderlineTabs label={t("statusLabel")} tabs={tabs}>
         <label className="flex h-[30px] w-full items-center gap-2 border bg-card px-2.5 text-muted-foreground focus-within:border-ring sm:w-[220px]">
           <Search aria-hidden className="size-3.5 shrink-0" />
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search decisions"
-            aria-label="Search decisions"
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("searchPlaceholder")}
             className="w-full min-w-0 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
           />
         </label>
       </UnderlineTabs>
       {shown.length === 0 ? (
-        <EmptyState title="No matching decisions" description={needle ? `Nothing here has “${query.trim()}” in its title or number.` : "No decisions have this status."} />
+        <EmptyState title={t("noMatchTitle")} description={needle ? t("noMatchQuery", { query: query.trim() }) : t("noMatchStatus")} />
       ) : (
         <ol className="flex flex-col border bg-card">
           {shown.map((a) => (
@@ -58,7 +60,7 @@ export function AdrList({ projectSlug, tabs, rows }: { projectSlug: string; tabs
               <Link
                 href={`/p/${projectSlug}/adrs/${a.number}`}
                 data-nav-item
-                className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted sm:grid-cols-[52px_minmax(0,1fr)_110px_80px] sm:px-[18px]"
+                className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted sm:grid-cols-[52px_minmax(0,1fr)_130px_90px] sm:px-[18px]"
               >
                 <span className="font-mono text-[12.5px] text-muted-foreground">{a.label}</span>
                 <span className="flex min-w-0 flex-col gap-1">

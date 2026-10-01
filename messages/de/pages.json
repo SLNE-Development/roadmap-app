@@ -1,1 +1,29 @@
-{}
+{
+  "title": "Seiten",
+  "description": "Was nicht an ein System gebunden ist: Onboarding, Konventionen, Architektur.",
+  "emptyTitle": "Noch keine Seiten",
+  "emptyDescription": "Seiten enthalten, was nicht an ein System gebunden ist: Onboarding, Konventionen, Architektur.",
+  "version": "v{version}",
+  "contents": "Inhalt",
+  "noSuchVersion": "Keine solche Version",
+  "emptyPage": "Leere Seite",
+  "new": {
+    "button": "Neue Seite",
+    "title": "Neue Seite",
+    "description": "Sie beginnt mit ihrem Titel als Überschrift. Schreibe den Rest, nachdem sie sich geöffnet hat.",
+    "titleLabel": "Titel",
+    "titlePlaceholder": "Onboarding",
+    "slugLabel": "Slug",
+    "slugHelp": "Agents verweisen so auf die Seite.",
+    "submit": "Seite erstellen",
+    "created": "{title} erstellt"
+  },
+  "editor": {
+    "viewLabel": "Editor-Ansicht",
+    "write": "Schreiben",
+    "preview": "Vorschau",
+    "bodyLabel": "Seiteninhalt (Markdown)",
+    "saveAs": "Als v{version} speichern",
+    "saved": "Als v{version} gespeichert"
+  }
+}

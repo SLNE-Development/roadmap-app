@@ -1,1 +1,42 @@
-{}
+{
+  "title": "Fragen",
+  "tabOpen": "Offen",
+  "tabResolved": "Geklärt",
+  "system": "System",
+  "emptyOpenTitle": "Keine offenen Fragen",
+  "emptyOpenDescription": "Fragen, die eine Antwort von einer Person brauchen, sammeln sich hier, gestellt von Personen oder von Agents bei der Arbeit.",
+  "emptyResolvedTitle": "Noch keine geklärten Fragen",
+  "emptyResolvedDescription": "Beantwortete und geklärte Fragen bleiben hier zum Nachschlagen.",
+  "unknownPerson": "unbekannt",
+  "priority": { "blocking": "Blockierend", "normal": "Normal", "nice": "Gut zu wissen" },
+  "card": {
+    "answeredOpen": "Beantwortet, noch offen",
+    "yourAnswer": "Deine Antwort",
+    "answerPlaceholder": "Antworte in ein bis zwei Sätzen; Markdown funktioniert.",
+    "saveKeepOpen": "Antwort speichern, offen lassen",
+    "answerResolve": "Beantworten und klären",
+    "priorityButton": "Priorität",
+    "priorityAria": "Priorität von {title}: {priority}",
+    "reopen": "Wieder öffnen",
+    "markResolved": "Als geklärt markieren",
+    "resolved": "Frage geklärt",
+    "answerSaved": "Antwort gespeichert",
+    "reopened": "Frage wieder geöffnet",
+    "prioritySet": "Priorität auf {priority} gesetzt"
+  },
+  "ask": {
+    "button": "Frage stellen",
+    "title": "Frage stellen",
+    "description": "Offene Fragen bleiben auf der Liste, bis jemand sie beantwortet und klärt.",
+    "questionLabel": "Frage",
+    "questionPlaceholder": "Wer ist nach dem Launch für das Mitarbeiter-Panel verantwortlich?",
+    "detailsLabel": "Details",
+    "detailsHelp": "Optional. Kontext, der beim Antworten hilft; Markdown funktioniert.",
+    "systemLabel": "System",
+    "noSystem": "Kein System",
+    "priorityLabel": "Priorität",
+    "priorityHelp": "Blockierend hält die Regel zur Planung des Systems an, bis die Frage geklärt ist.",
+    "submit": "Frage stellen",
+    "added": "Frage hinzugefügt"
+  }
+}

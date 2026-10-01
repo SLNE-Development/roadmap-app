@@ -1,5 +1,8 @@
-import { CATEGORY_LABEL, ROLE_LABEL, STATE_LABEL } from "@/components/chips";
-import type { ColumnCategory, TaskState } from "@/db/schema";
+import { createTranslator, type useTranslations } from "next-intl";
+import { PRIORITIES, TASK_STATES } from "@/db/schema";
+import { priorityKey } from "@/i18n/enums";
+import type { Messages } from "@/i18n/request";
+import en from "../../../messages/en";
 
 /** The parts of a change log entry the sentence is built from. */
 export interface ChangeFacts {
@@ -25,61 +28,52 @@ export interface ChangeContext {
 /**
  * A readable sentence about one change, without its author: `verb`, then the
  * `target` (the system when `targetIsSystem`, else plain text), then an
- * optional `from → to`.
+ * optional `suffix` (the rest of the clause, for languages that end it with the verb),
+ * then an optional `from → to`.
  */
 export interface ChangeSentence {
   verb: string;
   target: string | null;
   targetIsSystem: boolean;
+  suffix?: string;
   from?: string;
   to?: string;
 }
 
-/** Field names shown in the fallback sentence. */
-const FIELD_LABEL: Record<string, string> = {
-  summary: "summary",
-  notes: "notes",
-  priority: "priority",
-  domainId: "domain",
-  phaseId: "phase",
-  repoUrl: "repository URL",
-  description: "description",
-  name: "name",
-  title: "title",
-};
+/** The translator of the `activity.change` messages. */
+export type ChangeT = ReturnType<typeof useTranslations<"activity.change">>;
+/** The translator of the `enums` messages, for categories, roles, priorities and task states. */
+export type EnumsT = ReturnType<typeof useTranslations<"enums">>;
 
-/** Human names of the entities in the fallback sentence. */
-const ENTITY_LABEL: Record<string, string> = {
-  system: "a system",
-  task: "a task",
-  adr: "a decision",
-  question: "a question",
-  board: "a board",
-  column: "a column",
-  project: "the project",
-  member: "a member",
-  domain: "a domain",
-  phase: "a phase",
-  planning: "planning",
-  document: "a document",
-  glossary: "a glossary term",
-  page: "a page",
-  update: "an update",
-  webhook: "a Discord webhook",
-  repo: "a repository",
-  code: "linked code",
-  release: "a release",
-};
-
-/** Quotes a user-written value, shortened for one line. */
-function quote(value: string | null): string {
-  const text = (value ?? "").trim();
-  return `“${text.length > 60 ? `${text.slice(0, 57)}…` : text}”`;
+/** The two translators {@link describeChange} writes with. */
+export interface ChangeTranslators {
+  t: ChangeT;
+  te: EnumsT;
 }
 
-/** The column name of a logged "Board / Column" value. */
-function columnOf(value: string | null): string {
-  if (!value) return "none";
+type ChangeKey = keyof Messages["activity"]["change"];
+type Values = Record<string, string | number>;
+
+/** The English translators, for agent-facing text that has no reader language (such as my_work). */
+export function englishChangeTranslators(): ChangeTranslators {
+  return {
+    t: createTranslator({ locale: "en", messages: en, namespace: "activity.change" }) as ChangeT,
+    te: createTranslator({ locale: "en", messages: en, namespace: "enums" }) as EnumsT,
+  };
+}
+
+/** Marks where the target goes while a message is formatted; the message is split there. */
+const MARK = "\u0001";
+
+/** Shortens a user-written value for one line. */
+function shorten(value: string | null): string {
+  const text = (value ?? "").trim();
+  return text.length > 60 ? `${text.slice(0, 57)}…` : text;
+}
+
+/** The column name of a logged "Board / Column" value, or `none` when there is no value. */
+function columnOf(value: string | null, none: string): string {
+  if (!value) return none;
   const i = value.lastIndexOf(" / ");
   return i === -1 ? value : value.slice(i + 3);
 }
@@ -91,20 +85,15 @@ function boardOf(value: string | null): string | null {
   return i === -1 ? null : value.slice(0, i);
 }
 
-/** Splits a logged "Name: role" member value. */
-function memberOf(value: string | null): { name: string; role: string } {
-  const text = value ?? "";
-  const i = text.lastIndexOf(": ");
-  if (i === -1) return { name: text || "someone", role: "" };
-  const role = text.slice(i + 2);
-  return { name: text.slice(0, i), role: ROLE_LABEL[role] ?? role };
-}
+/** The `enums.planningArea` keys of the stored area slugs. */
+const AREA_KEYS = { "failure-modes": "failureModes", dependencies: "dependencies", scope: "scope", "ops-testing": "opsTesting" } as const;
 
-/** Sentence for an entry, with category names such as `Review` readable. */
-function label(value: string | null): string {
-  if (value === null || value === "") return "none";
-  return CATEGORY_LABEL[value as ColumnCategory] ?? value;
-}
+/** The enum groups whose stored values this file shows, with the values each knows. */
+const ENUM_VALUES: Record<"category" | "role" | "taskState", readonly string[]> = {
+  category: ["planning", "todo", "active", "review", "blocked", "done"],
+  role: ["owner", "editor", "viewer"],
+  taskState: TASK_STATES,
+};
 
 /**
  * Builds a readable sentence for a change log entry, e.g. "moved Inventory
@@ -113,220 +102,247 @@ function label(value: string | null): string {
  *
  * @param e the logged change
  * @param ctx titles the sentence can name
+ * @param tr the translators; English when omitted
  */
-export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeSentence {
+export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}, tr: ChangeTranslators = englishChangeTranslators()): ChangeSentence {
+  const { t, te } = tr;
   const system = ctx.systemTitle ?? null;
-  /** A sentence ending in the system: "`base` `prep` System", or `alone` without one. */
-  const onSystem = (base: string, prep: string, alone = base, extra: Partial<ChangeSentence> = {}): ChangeSentence =>
-    system
-      ? { verb: prep ? `${base} ${prep}` : base, target: system, targetIsSystem: true, ...extra }
-      : { verb: alone, target: null, targetIsSystem: false, ...extra };
-  const plain = (verb: string, target: string | null = null, extra: Partial<ChangeSentence> = {}): ChangeSentence => ({
-    verb,
-    target,
-    targetIsSystem: false,
-    ...extra,
-  });
+  const c = (key: ChangeKey, values: Values = {}) => (t as (key: ChangeKey, values?: Values) => string)(key, values);
+  const quote = (value: string | null) => c("quoted", { title: shorten(value) });
+  const none = c("none");
+  /** Looks up an enum label; a value the enum does not know shows as stored; no value gives `null`. */
+  const known = (group: "category" | "role" | "taskState", value: string | null): string | null => {
+    if (value === null || value === "") return null;
+    return ENUM_VALUES[group].includes(value) ? (te as (key: string) => string)(`${group}.${value}`) : value;
+  };
+  const label = (value: string | null) => known("category", value) ?? none;
+  const priority = (value: string | null) => ((PRIORITIES as readonly string[]).includes(value ?? "") ? te(`priority.${priorityKey(value as (typeof PRIORITIES)[number])}`) : label(value));
+  /** Formats a message with a target at the `{target}` mark and splits it into the text before and after. */
+  const withTarget = (key: ChangeKey, values: Values, target: string | null, targetIsSystem: boolean, extra: Partial<ChangeSentence>): ChangeSentence => {
+    if (target === null) {
+      const alone = `${key}Alone` as ChangeKey;
+      return { verb: c(alone in en.activity.change ? alone : key, values).trim(), target: null, targetIsSystem: false, ...extra };
+    }
+    const [before, after = ""] = c(key, { ...values, target: MARK }).split(MARK);
+    return { verb: before.trim(), target, targetIsSystem, ...(after.trim() ? { suffix: after.trim() } : {}), ...extra };
+  };
+  /** A sentence that ends in the system, or reads alone without one. */
+  const onSystem = (key: ChangeKey, values: Values = {}, extra: Partial<ChangeSentence> = {}) => withTarget(key, values, system, true, extra);
+  /** A sentence with a plain-text target, or none. */
+  const plain = (key: ChangeKey, target: string | null = null, extra: Partial<ChangeSentence> = {}, values: Values = {}) => withTarget(key, values, target, false, extra);
   const release = ctx.releaseName ?? null;
-  /** A sentence about the release: "`verb` release X", or "`verb` a release" when its name is unknown. */
-  const ofRelease = (verb: string, extra: Partial<ChangeSentence> = {}): ChangeSentence =>
-    release ? plain(`${verb} release`, release, extra) : plain(`${verb} a release`, null, extra);
   const change = { from: label(e.oldValue), to: label(e.newValue) };
+  const text = (v: string | null) => v ?? "";
+  const id = e.entityId;
+  /** The name and role of a logged "Name: role" member value. */
+  const memberOf = (value: string | null): { name: string; role: string } => {
+    const raw = value ?? "";
+    const i = raw.lastIndexOf(": ");
+    if (i === -1) return { name: raw || c("someone"), role: "" };
+    const role = raw.slice(i + 2);
+    return { name: raw.slice(0, i), role: known("role", role) ?? role };
+  };
+  const area = (slug: string | null) => (slug && slug in AREA_KEYS ? te(`planningArea.${AREA_KEYS[slug as keyof typeof AREA_KEYS]}`) : (slug ?? c("planningArea")));
 
   switch (`${e.entity}:${e.field}`) {
     case "system:created":
-      return onSystem("created", "", `created ${quote(e.newValue)}`);
+      return onSystem("systemCreated", { title: quote(e.newValue) });
     case "system:column": {
       const [fromBoard, toBoard] = [boardOf(e.oldValue), boardOf(e.newValue)];
       const sameBoard = fromBoard === toBoard;
-      return onSystem("moved", "", "moved a system", {
-        from: sameBoard ? columnOf(e.oldValue) : (e.oldValue ?? "none"),
-        to: sameBoard ? columnOf(e.newValue) : (e.newValue ?? "none"),
-      });
+      return onSystem(
+        "systemColumn",
+        {},
+        {
+          from: sameBoard ? columnOf(e.oldValue, none) : (e.oldValue ?? none),
+          to: sameBoard ? columnOf(e.newValue, none) : (e.newValue ?? none),
+        },
+      );
     }
     case "system:owner":
-      return onSystem("changed the owner of", "", "changed the owner", { from: e.oldValue ?? "Unowned", to: e.newValue ?? "Unowned" });
+      return onSystem("systemOwner", {}, { from: e.oldValue ?? c("unowned"), to: e.newValue ?? c("unowned") });
     case "system:title":
-      return onSystem("renamed", "", "renamed a system", { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return onSystem("systemTitle", {}, { from: text(e.oldValue), to: text(e.newValue) });
     case "system:priority":
-      return onSystem("changed the priority of", "", "changed the priority", change);
+      return onSystem("systemPriority", {}, { from: priority(e.oldValue), to: priority(e.newValue) });
     case "system:summary":
-      return onSystem("edited the summary of", "", "edited the summary");
+      return onSystem("systemSummary");
     case "system:notes":
-      return onSystem("edited the notes of", "", "edited the notes");
+      return onSystem("systemNotes");
     case "system:domainId":
-      return onSystem("changed the domain of", "", "changed the domain");
+      return onSystem("systemDomain");
     case "system:phaseId":
-      return onSystem("changed the phase of", "", "changed the phase");
+      return onSystem("systemPhase");
     case "system:release":
-      return onSystem("changed the release of", "", "changed the release", { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+      return onSystem("systemRelease", {}, { from: e.oldValue ?? none, to: e.newValue ?? none });
     case "system:gateOverride": {
       // newValue is "<column>: <reason>".
-      const text = e.newValue ?? "";
-      const i = text.indexOf(": ");
-      return onSystem("moved", "", "moved a system", { to: `past unmet rules: ${i === -1 ? text : text.slice(i + 2)}` });
+      const raw = e.newValue ?? "";
+      const i = raw.indexOf(": ");
+      return onSystem("gateOverride", {}, { to: c("pastUnmetRules", { reason: i === -1 ? raw : raw.slice(i + 2) }) });
     }
 
     case "task:created":
-      return onSystem(`added task ${quote(e.newValue)}`, "to");
+      return onSystem("taskCreated", { title: quote(e.newValue) });
     case "task:deleted":
-      return onSystem(`deleted task ${quote(e.oldValue)}`, "from");
+      return onSystem("taskDeleted", { title: quote(e.oldValue) });
     case "task:title":
-      return onSystem(`renamed task #${e.entityId}`, "on", undefined, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return onSystem("taskTitle", { id }, { from: text(e.oldValue), to: text(e.newValue) });
     case "task:priority":
-      return onSystem(`changed the priority of task #${e.entityId}`, "on", undefined, change);
+      return onSystem("taskPriority", { id }, { from: priority(e.oldValue), to: priority(e.newValue) });
     case "task:owner":
-      return e.newValue
-        ? onSystem(`assigned task #${e.entityId} to ${e.newValue}`, "on")
-        : onSystem(`unassigned task #${e.entityId}`, "on");
+      return e.newValue ? onSystem("taskAssigned", { id, name: e.newValue }) : onSystem("taskUnassigned", { id });
     case "task:state": {
-      const id = `task #${e.entityId}`;
-      if (e.newValue === "done") return onSystem(`completed ${id}`, "on");
-      if (e.newValue === "doing") return onSystem(`started ${id}`, "on");
-      if (e.newValue === "blocked") return onSystem(`set ${id} to blocked`, "on");
-      const state = STATE_LABEL[e.newValue as TaskState] ?? label(e.newValue);
-      return onSystem(`moved ${id} back to ${state}`, "on");
+      if (e.newValue === "done") return onSystem("taskDone", { id });
+      if (e.newValue === "doing") return onSystem("taskStarted", { id });
+      if (e.newValue === "blocked") return onSystem("taskBlocked", { id });
+      return onSystem("taskBack", { id, state: known("taskState", e.newValue) ?? none });
     }
 
     case "document:spec":
+      return onSystem("specPublished", { version: e.newValue ?? c("aNewVersion") });
     case "document:plan":
-      return onSystem(`published ${e.newValue ?? "a new version"} of the ${e.field}`, "for");
+      return onSystem("planPublished", { version: e.newValue ?? c("aNewVersion") });
 
     case "planning:round":
-      return onSystem("opened a planning round", "on");
+      return onSystem("planningRound");
     case "planning:answers":
-      return onSystem("answered planning questions", "on");
+      return onSystem("planningAnswers");
     case "planning:completed":
-      return onSystem("completed planning of", "", "completed planning");
+      return onSystem("planningCompleted");
     case "planning:reopened":
-      return onSystem("reopened planning of", "", "reopened planning");
+      return onSystem("planningReopened");
     case "planning:area-reopened":
-      return onSystem(`reopened the ${e.newValue ?? "planning"} area of`, "", "reopened a planning area");
+      return onSystem("areaReopened", { area: area(e.newValue) });
     case "planning:area-completed":
-      return onSystem(`completed the ${e.newValue ?? "planning"} area of`, "", "completed a planning area");
+      return onSystem("areaCompleted", { area: area(e.newValue) });
 
     case "question:created":
-      return onSystem(`asked ${quote(e.newValue)}`, "on");
+      return onSystem("questionAsked", { title: quote(e.newValue) });
     case "question:answer":
-      return onSystem("answered a question", "on");
+      return onSystem("questionAnswered");
     case "question:resolved":
-      return onSystem(e.newValue === "true" ? "resolved a question" : "reopened a question", "on");
+      return onSystem(e.newValue === "true" ? "questionResolved" : "questionReopened");
 
     case "glossary:created":
-      return plain("added glossary term", quote(e.newValue));
+      return plain("glossaryCreated", quote(e.newValue));
     case "glossary:definition":
-      return plain("changed a glossary definition");
+      return plain("glossaryDefinition");
     case "glossary:deleted":
-      return plain("deleted glossary term", quote(e.oldValue));
+      return plain("glossaryDeleted", quote(e.oldValue));
 
     case "page:created":
-      return plain("created page", quote(e.newValue));
+      return plain("pageCreated", quote(e.newValue));
     case "page:title":
-      return plain("renamed a page", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return plain("pageRenamed", null, { from: text(e.oldValue), to: text(e.newValue) });
     case "page:version":
-      return plain("wrote a new version of a page", null, { to: e.newValue ?? "" });
+      return plain("pageVersion", null, { to: text(e.newValue) });
     case "page:deleted":
-      return plain("deleted page", quote(e.oldValue));
+      return plain("pageDeleted", quote(e.oldValue));
 
     case "webhook:created":
-      return plain("added Discord webhook", quote(e.newValue));
+      return plain("webhookCreated", quote(e.newValue));
     case "webhook:deleted":
-      return plain("deleted Discord webhook", quote(e.oldValue));
+      return plain("webhookDeleted", quote(e.oldValue));
     case "webhook:events":
-      return plain("changed the events of a Discord webhook", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return plain("webhookEvents", null, { from: text(e.oldValue), to: text(e.newValue) });
     case "webhook:boards":
-      return plain("changed the boards of a Discord webhook", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return plain("webhookBoards", null, { from: text(e.oldValue), to: text(e.newValue) });
     case "webhook:enabled":
-      return plain(e.newValue === "true" ? "turned on a Discord webhook" : "turned off a Discord webhook");
+      return plain(e.newValue === "true" ? "webhookOn" : "webhookOff");
 
     case "repo:created":
-      return plain("linked repository", e.newValue);
+      return plain("repoLinked", e.newValue);
     case "repo:deleted":
-      return plain("unlinked repository", e.oldValue);
+      return plain("repoUnlinked", e.oldValue);
     case "repo:rules":
-      return plain("changed the automation rules of a repository");
+      return plain("repoRules");
 
     case "code:created":
-      return onSystem(`linked ${e.newValue ?? "code"}`, "to", "linked code");
+      return onSystem("codeLinked", { code: e.newValue ?? "" });
     case "code:state":
-      return onSystem("changed the state of a linked pull request", "on", undefined, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+      return onSystem("codeState", {}, { from: e.oldValue ?? none, to: e.newValue ?? none });
     case "code:checks":
-      return onSystem("changed the checks of linked code", "on", undefined, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+      return onSystem("codeChecks", {}, { from: e.oldValue ?? none, to: e.newValue ?? none });
 
     case "release:created":
-      return plain("created release", e.newValue);
+      return plain("releaseCreated", e.newValue);
     case "release:name":
-      return plain("renamed a release", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return plain("releaseRenamed", null, { from: text(e.oldValue), to: text(e.newValue) });
     case "release:slug":
-      return ofRelease("changed the slug of", { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return plain("releaseSlug", release, { from: text(e.oldValue), to: text(e.newValue) });
     case "release:targetDate":
-      return ofRelease("changed the target date of", { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+      return plain("releaseTarget", release, { from: e.oldValue ?? none, to: e.newValue ?? none });
     case "release:status": {
-      if (e.newValue === "frozen") return ofRelease("froze");
-      if (e.newValue === "shipped") return ofRelease("shipped");
-      return e.oldValue === "frozen" ? ofRelease("unfroze") : ofRelease("changed the status of", change);
+      if (e.newValue === "frozen") return plain("releaseFroze", release);
+      if (e.newValue === "shipped") return plain("releaseShipped", release);
+      return e.oldValue === "frozen" ? plain("releaseUnfroze", release) : plain("releaseStatus", release, change);
     }
     case "release:notes":
-      return release ? plain("wrote notes of release", release, { to: e.newValue ?? "" }) : plain("wrote release notes", null, { to: e.newValue ?? "" });
+      return plain("releaseNotes", release, { to: text(e.newValue) });
     case "release:deleted":
-      return plain("deleted release", e.oldValue);
+      return plain("releaseDeleted", e.oldValue);
 
     case "update:posted":
-      return onSystem("posted an update on", "", "posted an update");
+      return onSystem("updatePosted");
 
     case "adr:created": {
       const match = /^ADR (\d+): (.*)$/.exec(e.newValue ?? "");
-      return plain("proposed", match ? `ADR-${match[1]} ${match[2]}` : (ctx.adrLabel ?? "a decision"));
+      return plain("adrProposed", match ? `ADR-${match[1]} ${match[2]}` : (ctx.adrLabel ?? c("aDecision")));
     }
     case "adr:edited":
-      return plain("edited", ctx.adrLabel ?? "a proposed decision");
+      return plain("adrEdited", ctx.adrLabel ?? c("aProposedDecision"));
     case "adr:status": {
-      const target = ctx.adrLabel ?? "a decision";
-      if (e.newValue === "accepted") return plain("accepted", target);
+      const target = ctx.adrLabel ?? c("aDecision");
+      if (e.newValue === "accepted") return plain("adrAccepted", target);
       const by = /^superseded by (\d+)$/.exec(e.newValue ?? "");
-      if (by) return plain("superseded", target, { to: `ADR-${by[1]}`, from: undefined });
-      return plain("changed the status of", target, change);
+      if (by) return plain("adrSuperseded", target, { to: `ADR-${by[1]}`, from: undefined });
+      return plain("adrStatus", target, change);
     }
 
     case "board:created":
-      return plain("created the board", e.newValue);
+      return plain("boardCreated", e.newValue);
     case "board:name":
-      return plain("renamed a board", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return plain("boardRenamed", null, { from: text(e.oldValue), to: text(e.newValue) });
     case "board:columns":
-      return plain("changed the columns of a board");
+      return plain("boardColumns");
     case "column:rules": {
-      const column = ctx.columnName ? `column ${ctx.columnName}` : "a column";
-      return e.newValue ? plain(`set entry rules of ${column}:`, null, { to: e.newValue }) : plain(`removed the entry rules of ${column}`);
+      const key = e.newValue ? "columnRulesSet" : "columnRulesRemoved";
+      const verb = c(ctx.columnName ? key : (`${key}Alone` as ChangeKey), { name: ctx.columnName ?? "" });
+      return { verb, target: null, targetIsSystem: false, ...(e.newValue ? { to: e.newValue } : {}) };
     }
 
     case "member:role": {
       const next = memberOf(e.newValue);
-      if (!e.oldValue) return plain(`added ${next.name} as ${next.role}`);
-      return plain("changed the role of", next.name, { from: memberOf(e.oldValue).role, to: next.role });
+      if (!e.oldValue) return plain("memberAdded", null, {}, { name: next.name, role: next.role });
+      return plain("memberRole", next.name, { from: memberOf(e.oldValue).role, to: next.role });
     }
     case "member:removed":
-      return plain(`removed ${memberOf(e.oldValue).name} from the project`);
+      return plain("memberRemoved", null, {}, { name: memberOf(e.oldValue).name });
 
     case "project:created":
-      return plain("created the project", e.newValue);
+      return plain("projectCreated", e.newValue);
     case "project:name":
-      return plain("renamed the project", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return plain("projectRenamed", null, { from: text(e.oldValue), to: text(e.newValue) });
     case "project:description":
-      return plain("edited the project description");
+      return plain("projectDescription");
     case "project:repoUrl":
-      return plain("changed the repository URL", null, { to: e.newValue ?? "none" });
+      return plain("projectRepoUrl", null, { to: e.newValue ?? none });
 
     case "domain:created":
+      return plain("domainAdded", e.newValue);
     case "phase:created":
-      return plain(`added the ${e.entity}`, e.newValue);
+      return plain("phaseAdded", e.newValue);
     case "domain:deleted":
+      return plain("domainDeleted", e.oldValue);
     case "phase:deleted":
-      return plain(`deleted the ${e.entity}`, e.oldValue);
+      return plain("phaseDeleted", e.oldValue);
   }
 
-  const field = FIELD_LABEL[e.field] ?? e.field;
-  if (e.entity === "system" && system) return { verb: `changed ${field} of`, target: system, targetIsSystem: true };
-  return plain(`changed ${field} of ${ENTITY_LABEL[e.entity] ?? e.entity}`);
+  const field = e.field in en.activity.change.fields ? t(`fields.${e.field as keyof typeof en.activity.change.fields}`) : e.field;
+  if (e.entity === "system" && system) return withTarget("fallbackSystem", { field }, system, true, {});
+  const entity = e.entity in en.activity.change.entities ? t(`entities.${e.entity as keyof typeof en.activity.change.entities}`) : e.entity;
+  return plain("fallback", null, {}, { field, entity });
 }
 
 /**

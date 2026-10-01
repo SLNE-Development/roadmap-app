@@ -4,6 +4,7 @@ import { useSuspenseQueries } from "@tanstack/react-query";
 import { Scale } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useMemo, useTransition } from "react";
 import { SegmentedLinks, withQuery } from "@/components/activity/url-tabs";
 import { FilterChip, ToggleChip } from "@/components/filter-chip";
@@ -15,9 +16,6 @@ import { formatAdrNumber } from "@/lib/adr-number";
 import { layoutGraph } from "@/lib/graph/layout";
 import type { DecisionNode } from "@/lib/ops/decisions";
 import { useTRPC } from "@/trpc/client";
-
-/** Display names of the status filter. */
-const STATUS_OPTIONS = ADR_STATUSES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }));
 
 /** Node sizes by kind. */
 const SIZE = { adr: { width: 200, height: 44 }, system: { width: 160, height: 36 }, task: { width: 180, height: 32 } } as const;
@@ -59,10 +57,10 @@ function hrefOf(base: string, n: DecisionNode): string {
 }
 
 /** The accessible name of a node. */
-function labelOf(n: DecisionNode): string {
+function labelOf(t: ReturnType<typeof useTranslations<"adrs.map">>, n: DecisionNode): string {
   if (n.kind === "adr") return `ADR-${formatAdrNumber(n.number)} ${n.title}`;
-  if (n.kind === "system") return `System ${n.title}`;
-  return `Task ${n.taskId} ${n.title}`;
+  if (n.kind === "system") return t("nodeSystem", { title: n.title });
+  return t("nodeTask", { id: n.taskId, title: n.title });
 }
 
 /**
@@ -74,6 +72,9 @@ function labelOf(n: DecisionNode): string {
  * @param props.status only ADRs of this status
  */
 export function DecisionMapView({ slug, systems, tasks, status }: { slug: string; systems: boolean; tasks: boolean; status: AdrStatus | undefined }) {
+  const t = useTranslations("adrs.map");
+  const tl = useTranslations("adrs");
+  const te = useTranslations("enums.adrStatus");
   const trpc = useTRPC();
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -97,42 +98,42 @@ export function DecisionMapView({ slug, systems, tasks, status }: { slug: string
       <PageHeader
         crumbs={[
           { label: detail.project.name, href: base },
-          { label: "Decisions", href: `${base}/adrs` },
+          { label: tl("title"), href: `${base}/adrs` },
         ]}
-        title="Decision map"
-        description="Which decision supersedes which, and the work each one touches."
+        title={t("title")}
+        description={t("description")}
         actions={
           <SegmentedLinks
-            label="View"
+            label={tl("view.label")}
             items={[
-              { label: "List", href: `${base}/adrs`, active: false },
-              { label: "Map", href: path, active: true },
+              { label: tl("view.list"), href: `${base}/adrs`, active: false },
+              { label: tl("view.map"), href: path, active: true },
             ]}
           />
         }
       />
       <div className="flex flex-wrap items-center gap-2">
-        <ToggleChip label="Systems" on={systems} onChange={(on) => go({ systems: on ? null : "0" })} />
-        <ToggleChip label="Tasks" on={tasks} onChange={(on) => go({ tasks: on ? "1" : null })} />
-        <FilterChip label="Status" value={status ?? ""} options={STATUS_OPTIONS} onChange={(v) => go({ status: v || null })} />
+        <ToggleChip label={t("systems")} on={systems} onChange={(on) => go({ systems: on ? null : "0" })} />
+        <ToggleChip label={t("tasks")} on={tasks} onChange={(on) => go({ tasks: on ? "1" : null })} />
+        <FilterChip label={t("status")} value={status ?? ""} options={ADR_STATUSES.map((s) => ({ value: s, label: te(s) }))} onChange={(v) => go({ status: v || null })} />
       </div>
       {graph.nodes.length === 0 ? (
         <EmptyState
           icon={<Scale />}
-          title={status ? "No decisions with this status" : "No decisions yet"}
-          description={status ? "Try another status, or clear the filter." : "Decisions recorded by agents show up here as a map."}
+          title={status ? t("emptyStatusTitle") : tl("emptyTitle")}
+          description={status ? t("emptyStatusDescription") : t("emptyDescription")}
           action={
             <Button asChild variant="outline" size="sm">
-              <Link href={`${base}/adrs`}>Back to the list</Link>
+              <Link href={`${base}/adrs`}>{t("backToList")}</Link>
             </Button>
           }
         />
       ) : (
         <GraphView
-          label="Decision map"
+          label={t("title")}
           layout={layout}
           nodeHref={(id) => hrefOf(base, byId.get(id)!)}
-          nodeLabel={(id) => labelOf(byId.get(id)!)}
+          nodeLabel={(id) => labelOf(t, byId.get(id)!)}
           edgeClassName={(kind) => EDGE[kind] ?? ""}
           renderNode={({ id, width, height }) => {
             const n = byId.get(id)!;

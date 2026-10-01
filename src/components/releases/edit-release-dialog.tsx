@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ export function EditReleaseDialog({
   projectSlug: string;
   release: { slug: string; name: string; targetDate: string | null };
 }) {
+  const t = useTranslations("insight.releases");
+  const tc = useTranslations("common");
   const router = useRouter();
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
@@ -34,7 +37,7 @@ export function EditReleaseDialog({
     trpc.releases.update.mutationOptions({
       onSuccess: ({ slug: next, name: nextName }) => {
         setOpen(false);
-        toast.success(`Saved ${nextName}`);
+        toast.success(t("edit.saved", { name: nextName }));
         if (next !== release.slug) router.replace(`/p/${projectSlug}/releases/${next}`);
       },
     }),
@@ -60,7 +63,7 @@ export function EditReleaseDialog({
       <DialogTrigger asChild>
         <Button variant="outline">
           <Pencil aria-hidden />
-          Edit
+          {tc("edit")}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -72,33 +75,33 @@ export function EditReleaseDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle className="font-display text-[19px] font-semibold">Edit release</DialogTitle>
-            <DialogDescription>Change the name, the slug or the target date.</DialogDescription>
+            <DialogTitle className="font-display text-[19px] font-semibold">{t("edit.title")}</DialogTitle>
+            <DialogDescription>{t("edit.description")}</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="edit-release-name">Name</FieldLabel>
+              <FieldLabel htmlFor="edit-release-name">{t("form.name")}</FieldLabel>
               <Input id="edit-release-name" value={name} autoFocus onChange={(e) => setName(e.target.value)} />
             </Field>
             <Field>
-              <FieldLabel htmlFor="edit-release-slug">Slug</FieldLabel>
+              <FieldLabel htmlFor="edit-release-slug">{t("form.slug")}</FieldLabel>
               <Input id="edit-release-slug" className="font-mono" value={slug} onChange={(e) => setSlug(e.target.value)} />
-              <FieldDescription>Agents and links refer to the release by this. Old links stop working when it changes.</FieldDescription>
+              <FieldDescription>{t("edit.slugHelp")}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="edit-release-target">Target date</FieldLabel>
+              <FieldLabel htmlFor="edit-release-target">{t("form.target")}</FieldLabel>
               <Input id="edit-release-target" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-              <FieldDescription>Optional. Without one there is no slip risk.</FieldDescription>
+              <FieldDescription>{t("form.targetHelp")}</FieldDescription>
             </Field>
           </FieldGroup>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
-                Cancel
+                {tc("cancel")}
               </Button>
             </DialogClose>
             <Button type="submit" disabled={update.isPending || !name.trim() || !slug.trim() || Object.keys(patch).length === 0}>
-              Save
+              {tc("save")}
             </Button>
           </DialogFooter>
         </form>

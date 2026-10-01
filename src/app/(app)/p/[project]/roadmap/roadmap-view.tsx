@@ -3,6 +3,7 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { Check, Milestone } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { SegmentedLinks } from "@/components/activity/url-tabs";
 import { CategoryDot } from "@/components/chips";
 import { EmptyState, Page, PageHeader, Panel, ProgressBar } from "@/components/page";
@@ -17,11 +18,7 @@ import { ProgressView, type ProgressParams } from "./progress-view";
 export type RoadmapMode = "rail" | "graph" | "progress";
 
 /** The tabs of the view switch and the `?view=` value each one sets. */
-const VIEWS = [
-  { value: "rail", label: "Rail" },
-  { value: "graph", label: "Graph" },
-  { value: "progress", label: "Progress" },
-] as const;
+const VIEWS = ["rail", "graph", "progress"] as const;
 
 /** Zero-pads a phase's position to two digits, "01". */
 function phaseNumber(index: number): string {
@@ -51,6 +48,8 @@ function SystemChip({ system, projectSlug }: { system: SystemListItem; projectSl
  * @param props.progress the URL filters of the Progress view
  */
 export function RoadmapView({ slug, mode, progress }: { slug: string; mode: RoadmapMode; progress: ProgressParams }) {
+  const t = useTranslations("roadmap");
+  const format = useFormatter();
   const trpc = useTRPC();
   const [{ data: detail }, { data: phases }, { data: systems }, { data: phaseRollups }] = useSuspenseQueries({
     queries: [
@@ -75,7 +74,7 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
   const showGraph = mode === "graph" && hasPhaseDependencies(graphRows);
   const editPhases = canEdit && (
     <Button variant="outline" asChild>
-      <Link href={`/p/${slug}/settings/structure`}>Edit phases</Link>
+      <Link href={`/p/${slug}/settings/structure`}>{t("editPhases")}</Link>
     </Button>
   );
 
@@ -83,27 +82,27 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
     <Page width="full">
       <PageHeader
         crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]}
-        title="Roadmap"
+        title={t("title")}
         actions={
           <>
             <SegmentedLinks
-              label="View"
+              label={t("views.label")}
               items={VIEWS.map((v) => ({
-                label: v.label,
-                href: v.value === "rail" ? `/p/${slug}/roadmap` : `/p/${slug}/roadmap?view=${v.value}`,
-                active: v.value === mode,
+                label: t(`views.${v}`),
+                href: v === "rail" ? `/p/${slug}/roadmap` : `/p/${slug}/roadmap?view=${v}`,
+                active: v === mode,
               }))}
             />
             {mode !== "progress" && rows.length > 0 && (
               <span className="text-[13px] text-fg-2">
-                {nowIndex >= 0 ? (
-                  <>
-                    Now in <b className="font-semibold text-foreground">{rows[nowIndex].phase.name}</b> ·{" "}
-                  </>
-                ) : (
-                  "Every phase is done · "
-                )}
-                {doneCount} of {systems.length} systems done
+                {nowIndex >= 0
+                  ? t.rich("nowSummary", {
+                      phase: rows[nowIndex].phase.name,
+                      done: doneCount,
+                      total: systems.length,
+                      b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b>,
+                    })
+                  : t("allDoneSummary", { done: doneCount, total: systems.length })}
               </span>
             )}
             {editPhases}
@@ -115,8 +114,8 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<Milestone />}
-          title="No phases yet"
-          description="Phases order the work into milestones. Add them in settings, or let an agent create them with create_phase."
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
           action={editPhases}
         />
       ) : (
@@ -125,7 +124,7 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
             (showGraph ? (
               <PhaseGraph slug={slug} rows={graphRows} />
             ) : (
-              <p className="text-[13px] text-muted-foreground">No phase dependencies yet. Add them in Settings → Structure.</p>
+              <p className="text-[13px] text-muted-foreground">{t("noDependencies")}</p>
             ))}
           {!showGraph && (
             <ol className="flex flex-col border bg-card">
@@ -152,19 +151,20 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
                       <div className="flex flex-wrap items-baseline gap-2">
                         <span className="font-mono text-[11.5px] text-muted-foreground">{r.n}</span>
                         <span className="text-[14.5px] font-semibold">{r.phase.name}</span>
-                        {now && <span className="bg-brand-soft px-1.5 py-px text-[11px] font-bold text-brand-strong">NOW</span>}
-                        {r.complete && <span className="sr-only">(done)</span>}
+                        {now && <span className="bg-brand-soft px-1.5 py-px text-[11px] font-bold text-brand-strong">{t("now")}</span>}
+                        {r.complete && <span className="sr-only">{t("doneSr")}</span>}
                       </div>
                       {r.phase.goal && <span className="text-[12.5px] leading-[1.45] text-fg-2">{r.phase.goal}</span>}
                       {r.rollup && r.rollup.tasks > 0 && (
                         <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                          {r.rollup.points > 0 && `${r.rollup.pointsDone}/${r.rollup.points} pts · `}
-                          {r.rollup.done}/{r.rollup.tasks} tasks done
+                          {r.rollup.points > 0
+                            ? t("pointsAndTasks", { points: `${r.rollup.pointsDone}/${r.rollup.points}`, done: r.rollup.done, tasks: r.rollup.tasks })
+                            : t("tasksOnly", { done: r.rollup.done, tasks: r.rollup.tasks })}
                         </span>
                       )}
                       {deps.length > 0 && (
                         <span className="text-xs text-muted-foreground">
-                          Builds on {deps.map((d) => `${d.n} ${d.phase.name}`).join(", ").replace(/, ([^,]*)$/, " and $1")}
+                          {t("buildsOn", { phases: format.list(deps.map((d) => `${d.n} ${d.phase.name}`), { type: "conjunction" }) })}
                         </span>
                       )}
                     </div>
@@ -172,7 +172,7 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
                       {r.items.length > 0 ? (
                         r.items.map((s) => <SystemChip key={s.id} system={s} projectSlug={slug} />)
                       ) : (
-                        <span className="text-[12.5px] text-muted-foreground">No systems yet</span>
+                        <span className="text-[12.5px] text-muted-foreground">{t("noSystems")}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2.5 pb-3.5 lg:pb-0">
@@ -194,7 +194,7 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
       {mode !== "progress" &&
         systems.length > 0 &&
         (unphased.length > 0 ? (
-          <Panel title="Without a phase" meta={`${unphased.length} ${unphased.length === 1 ? "system" : "systems"}`} bodyClassName="px-4 pb-4 sm:px-5">
+          <Panel title={t("withoutPhase")} meta={t("systemCount", { count: unphased.length })} bodyClassName="px-4 pb-4 sm:px-5">
             <div className="flex flex-wrap gap-1.5">
               {unphased.map((s) => (
                 <SystemChip key={s.id} system={s} projectSlug={slug} />
@@ -205,7 +205,7 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
           rows.length > 0 && (
             <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
               <Check aria-hidden className="size-3.5" />
-              Every system has a phase.
+              {t("allPhased")}
             </p>
           )
         ))}

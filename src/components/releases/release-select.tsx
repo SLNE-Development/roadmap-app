@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -44,13 +45,14 @@ export function ReleaseSelect({
   isOwner: boolean;
   className: string;
 }) {
+  const t = useTranslations("insight.releases.select");
   const trpc = useTRPC();
   const update = useMutation(trpc.systems.update.mutationOptions());
   const now = releases.find((r) => r.slug === current);
   const locked = now?.status === "shipped" || (now?.status === "frozen" && !isOwner);
   if (locked) {
     return (
-      <span className="truncate" title={now.status === "frozen" ? "Frozen: ask an owner" : undefined}>
+      <span className="truncate" title={now.status === "frozen" ? t("frozenHint") : undefined}>
         {now.name}
       </span>
     );
@@ -58,31 +60,31 @@ export function ReleaseSelect({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild disabled={update.isPending}>
-        <button type="button" aria-label={`Release: ${now?.name ?? "none"}. Change release`} className={className}>
-          <span className="truncate">{now?.name ?? <span className="text-muted-foreground">No release</span>}</span>
+        <button type="button" aria-label={t("aria", { name: now?.name ?? t("none") })} className={className}>
+          <span className="truncate">{now?.name ?? <span className="text-muted-foreground">{t("noRelease")}</span>}</span>
           <ChevronDown aria-hidden className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel>Release</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("label")}</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={current ?? ""}
           onValueChange={(v) => {
             if (v === (current ?? "")) return;
-            const chosen = releases.find((r) => r.slug === v)?.name ?? "No release";
+            const chosen = releases.find((r) => r.slug === v)?.name ?? t("noRelease");
             update.mutate(
               { project: projectSlug, system: systemSlug, patch: { release: v || null } },
-              { onSuccess: () => toast.success(`Release set to ${chosen}`) },
+              { onSuccess: () => toast.success(t("set", { name: chosen })) },
             );
           }}
         >
-          <DropdownMenuRadioItem value="">No release</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="">{t("noRelease")}</DropdownMenuRadioItem>
           {releases
             .filter((r) => r.status !== "shipped")
             .map((r) => (
               <DropdownMenuRadioItem key={r.slug} value={r.slug} disabled={r.status === "frozen" && !isOwner}>
                 {r.name}
-                {r.status === "frozen" && <span className="text-muted-foreground">{isOwner ? "Frozen" : "Frozen: ask an owner"}</span>}
+                {r.status === "frozen" && <span className="text-muted-foreground">{isOwner ? t("frozen") : t("frozenHint")}</span>}
               </DropdownMenuRadioItem>
             ))}
         </DropdownMenuRadioGroup>

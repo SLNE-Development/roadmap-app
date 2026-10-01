@@ -1,1 +1,34 @@
-{}
+{
+  "title": "Roadmap",
+  "views": { "label": "View", "rail": "Rail", "graph": "Graph", "progress": "Progress" },
+  "nowSummary": "Now in <b>{phase}</b> · {done} of {total} systems done",
+  "allDoneSummary": "Every phase is done · {done} of {total} systems done",
+  "editPhases": "Edit phases",
+  "emptyTitle": "No phases yet",
+  "emptyDescription": "Phases order the work into milestones. Add them in settings, or let an agent create them with create_phase.",
+  "noDependencies": "No phase dependencies yet. Add them in Settings → Structure.",
+  "now": "NOW",
+  "doneSr": "(done)",
+  "pointsAndTasks": "{points} pts · {done}/{tasks} tasks done",
+  "tasksOnly": "{done}/{tasks} tasks done",
+  "buildsOn": "Builds on {phases}",
+  "noSystems": "No systems yet",
+  "withoutPhase": "Without a phase",
+  "systemCount": "{count, plural, one {# system} other {# systems}}",
+  "allPhased": "Every system has a phase.",
+  "graph": {
+    "label": "Phase dependencies",
+    "nodeLabel": "Phase {n} {name}, {done} of {total} systems done{state, select, done { (done)} now { (now)} other {}}"
+  },
+  "progress": {
+    "phase": "Phase",
+    "board": "Board",
+    "domain": "Domain",
+    "release": "Release",
+    "range": "Range",
+    "burnup": "Burn-up",
+    "noTasks": "No tasks yet.",
+    "longest": "Longest in their column",
+    "topTen": "Top 10 systems"
+  }
+}

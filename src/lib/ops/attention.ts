@@ -24,8 +24,20 @@ const DAY_MS = 86_400_000;
 /** What kind of thing needs attention. */
 export type AttentionKind = "blocked" | "blocked-task" | "stale" | "planning" | "decision" | "question";
 
-/** One row of a project's "Needs attention" list. */
-export interface AttentionItem {
+/** The facts each kind of attention item is written from, so the UI can phrase them in the reader's language. */
+export type AttentionParams =
+  | { kind: "blocked"; system: string; summary: string | null }
+  | { kind: "blocked-task"; id: number; system: string; reason: string | null }
+  | { kind: "stale"; system: string; days: number }
+  | { kind: "planning"; system: string; areas: string[]; open: number; noSpec: boolean }
+  | { kind: "decision"; number: string; title: string }
+  | { kind: "question"; blocking: boolean; author: string; answered: boolean };
+
+/**
+ * One row of a project's "Needs attention" list. `title` and `detail` are English text for agent-facing
+ * consumers; the screen writes its own text from `params`.
+ */
+export type AttentionItem = {
   key: string;
   kind: AttentionKind;
   title: string;
@@ -34,21 +46,29 @@ export interface AttentionItem {
   /** When the thing happened or was asked, for ages; `null` when it has no single moment. */
   at: Date | null;
   systemId: string | null;
-}
+  params: AttentionParams;
+};
 
 /** Joins words as "a", "a and b" or "a, b and c". */
 function joinAnd(words: string[]): string {
   return words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
 }
 
+/** Reads the facts out of planning gaps: the areas without an answer, the open items and whether the spec is missing. */
+function planningFacts(gaps: string[]): { areas: string[]; open: number; noSpec: boolean } {
+  return {
+    areas: gaps.flatMap((g) => /^Area (.+) has no answered item\.$/.exec(g)?.[1] ?? []),
+    open: gaps.filter((g) => g.startsWith("Item ")).length,
+    noSpec: gaps.some((g) => g.startsWith("No spec")),
+  };
+}
+
 /** Turns planning gaps into one human sentence ("Scope and risks have no answer yet; 2 items are still open."). */
-function planningDetail(gaps: string[]): string {
-  const areas = gaps.flatMap((g) => /^Area (.+) has no answered item\.$/.exec(g)?.[1] ?? []);
-  const open = gaps.filter((g) => g.startsWith("Item ")).length;
+function planningDetail({ areas, open, noSpec }: { areas: string[]; open: number; noSpec: boolean }): string {
   const parts: string[] = [];
   if (areas.length) parts.push(`${joinAnd(areas)} ${areas.length === 1 ? "has" : "have"} no answer yet`);
   if (open) parts.push(`${open} ${open === 1 ? "item is" : "items are"} still open`);
-  if (gaps.some((g) => g.startsWith("No spec"))) parts.push("no spec is written");
+  if (noSpec) parts.push("no spec is written");
   if (parts.length === 0) return "Everything is answered; planning can be completed.";
   const text = parts.join("; ");
   return `${text[0].toUpperCase()}${text.slice(1)}.`;
@@ -139,6 +159,7 @@ export async function projectAttention(db: Executor, actor: Actor, projectSlug: 
       href: `${base}/systems/${s.slug}`,
       at: update?.createdAt ?? null,
       systemId: s.id,
+      params: { kind: "blocked", system: s.title, summary: update?.summary ?? null },
     });
   }
   for (const t of blockedTasks.slice(0, MAX_BLOCKED_TASKS)) {
@@ -150,6 +171,7 @@ export async function projectAttention(db: Executor, actor: Actor, projectSlug: 
       href: `${base}/systems/${t.systemSlug}`,
       at: t.since,
       systemId: bySlug.get(t.systemSlug)?.id ?? null,
+      params: { kind: "blocked-task", id: t.id, system: t.systemTitle, reason: t.reason ?? null },
     });
   }
   for (const s of systems.filter((s) => s.category === "active" || s.category === "review")) {
@@ -163,17 +185,20 @@ export async function projectAttention(db: Executor, actor: Actor, projectSlug: 
       href: `${base}/systems/${s.slug}`,
       at: last,
       systemId: s.id,
+      params: { kind: "stale", system: s.title, days: Math.floor((now.getTime() - last.getTime()) / DAY_MS) },
     });
   }
   for (const s of planning) {
+    const facts = planningFacts(gaps.get(s.id) ?? []);
     items.push({
       key: `planning-${s.id}`,
       kind: "planning",
       title: `${s.title} is still in planning`,
-      detail: planningDetail(gaps.get(s.id) ?? []),
+      detail: planningDetail(facts),
       href: `${base}/systems/${s.slug}?tab=planning`,
       at: null,
       systemId: s.id,
+      params: { kind: "planning", system: s.title, ...facts },
     });
   }
   for (const a of adrs) {
@@ -185,6 +210,7 @@ export async function projectAttention(db: Executor, actor: Actor, projectSlug: 
       href: `${base}/adrs/${a.number}`,
       at: a.createdAt,
       systemId: null,
+      params: { kind: "decision", number: formatAdrNumber(a.number), title: a.title },
     });
   }
   // `questionsOf` ranks blocking questions first, then normal and nice ones, newest first.
@@ -201,6 +227,7 @@ export async function projectAttention(db: Executor, actor: Actor, projectSlug: 
       href: owner ? `${base}/questions?system=${owner.slug}` : `${base}/questions`,
       at: q.createdAt,
       systemId: owner?.id ?? null,
+      params: { kind: "question", blocking, author: q.author, answered: Boolean(q.answer) },
     });
   }
   return items;

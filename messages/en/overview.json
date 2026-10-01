@@ -1,1 +1,64 @@
-{}
+{
+  "systemsByStatus": "Systems by status",
+  "systemCount": "{count, plural, one {# system} other {# systems}}",
+  "tasksDone": "{done} of {total} tasks done",
+  "tasksDoneLastChange": "{done} of {total} tasks done · last change {age}",
+  "customize": "Customize",
+  "panels": {
+    "status": "Systems by status",
+    "attention": "Needs attention",
+    "phases": "Phases",
+    "updates": "Latest updates"
+  },
+  "attention": {
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "emptyTitle": "Nothing needs attention",
+    "emptyDescription": "No blocked systems, open planning, pending decisions or stale questions.",
+    "kind": {
+      "blocked": "Blocked",
+      "blocked-task": "Blocked task",
+      "stale": "Stale",
+      "planning": "Planning",
+      "decision": "Decision",
+      "question": "Question"
+    },
+    "title": {
+      "blocked": "{system} is blocked",
+      "blockedTask": "Task #{id} is blocked",
+      "stale": "{system} has had no update for {days, plural, one {# day} other {# days}}",
+      "planning": "{system} is still in planning",
+      "decision": "ADR-{number} is waiting for acceptance"
+    },
+    "detail": {
+      "blockedNone": "No update explains why yet.",
+      "blockedTask": "{system} · {reason}",
+      "noReason": "no reason given",
+      "stale": "Last activity",
+      "areasNoAnswer": "{count, plural, one {{areas} has no answer yet} other {{areas} have no answer yet}}",
+      "itemsOpen": "{count, plural, one {# item is still open} other {# items are still open}}",
+      "noSpec": "no spec is written",
+      "allAnswered": "Everything is answered; planning can be completed.",
+      "question": "Asked by {author}{answered, select, yes {, answered but not resolved.} other {, no answer yet.}}",
+      "questionBlocking": "Blocking · {text}"
+    }
+  },
+  "phases": {
+    "openRoadmap": "Open roadmap",
+    "emptyTitle": "No phases yet",
+    "emptyDescription": "Phases order the work into milestones.",
+    "add": "Add phases"
+  },
+  "updates": {
+    "allActivity": "All activity",
+    "emptyTitle": "No updates yet",
+    "emptyDescription": "Progress updates from people and agents show up here.",
+    "on": "on"
+  },
+  "customizeDialog": {
+    "title": "Customize overview",
+    "description": "Choose which panels the overview of every project shows, and in which order.",
+    "moveUp": "Move {label} up",
+    "moveDown": "Move {label} down",
+    "saved": "Overview saved"
+  }
+}

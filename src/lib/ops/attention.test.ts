@@ -121,6 +121,16 @@ describe("projectAttention", () => {
     expect(items[0].href).toBe(`/p/${slug}/systems/a?tab=planning`);
   });
 
+  it("carries the facts of each item as params", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "a", title: "Alpha" });
+    await createAdr(db, owner, slug, { title: "Use X", context: "c", decision: "d", alternatives: "a", consequences: "q" });
+    const items = await projectAttention(db, owner, slug, now);
+    expect(items[0].params).toMatchObject({ kind: "planning", system: "Alpha", noSpec: true });
+    expect(items[1].params).toEqual({ kind: "decision", number: "0001", title: "Use X" });
+  });
+
   it("leaves out everything of an archived system", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

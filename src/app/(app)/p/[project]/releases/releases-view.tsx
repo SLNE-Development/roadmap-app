@@ -3,12 +3,12 @@
 import { useQueries, useSuspenseQueries } from "@tanstack/react-query";
 import { Rocket } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { CATEGORY_CLASS } from "@/components/chips";
 import { EmptyState, Page, PageHeader, ProgressBar } from "@/components/page";
 import { NewReleaseDialog } from "@/components/releases/new-release-dialog";
 import { ReleaseRiskChip, ReleaseStatusChip } from "@/components/releases/release-chips";
-import { useNow } from "@/components/clock";
-import { formatDate } from "@/lib/time";
+import { useShortDate } from "@/lib/use-short-date";
 import { useTRPC } from "@/trpc/client";
 
 /** Classes of the grid shared by the header and every row. */
@@ -21,8 +21,9 @@ const GRID = "grid grid-cols-[minmax(0,2fr)_100px_100px_minmax(120px,1fr)_110px]
  * @param props.slug the project slug
  */
 export function ReleasesView({ slug }: { slug: string }) {
+  const t = useTranslations("insight.releases");
+  const shortDate = useShortDate();
   const trpc = useTRPC();
-  const now = useNow();
   const [{ data: detail }, { data: releases }] = useSuspenseQueries({
     queries: [trpc.projects.get.queryOptions({ project: slug }), trpc.releases.list.queryOptions({ project: slug })],
   });
@@ -35,26 +36,26 @@ export function ReleasesView({ slug }: { slug: string }) {
 
   return (
     <Page>
-      <PageHeader crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]} title="Releases" actions={newRelease}>
-        {releases.length > 0 && <p className="text-sm text-fg-2">Groups of systems that ship together.</p>}
+      <PageHeader crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]} title={t("title")} actions={newRelease}>
+        {releases.length > 0 && <p className="text-sm text-fg-2">{t("intro")}</p>}
       </PageHeader>
       {releases.length === 0 ? (
         <EmptyState
           icon={<Rocket />}
-          title="No releases yet"
-          description="Releases group systems that ship together. Create one, then assign systems from their page."
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
           action={newRelease}
         />
       ) : (
         <div className="overflow-x-auto border bg-card">
-          <div role="table" aria-label="Releases" className="flex min-w-[640px] flex-col">
+          <div role="table" aria-label={t("title")} className="flex min-w-[640px] flex-col">
             <div role="rowgroup">
               <div role="row" className={`${GRID} border-b px-4 py-[9px] text-xs font-semibold text-muted-foreground`}>
-                <span role="columnheader">Release</span>
-                <span role="columnheader">Target</span>
-                <span role="columnheader">Status</span>
-                <span role="columnheader">Done</span>
-                <span role="columnheader">Risk</span>
+                <span role="columnheader">{t("columns.release")}</span>
+                <span role="columnheader">{t("columns.target")}</span>
+                <span role="columnheader">{t("columns.status")}</span>
+                <span role="columnheader">{t("columns.done")}</span>
+                <span role="columnheader">{t("columns.risk")}</span>
               </div>
             </div>
             <div role="rowgroup">
@@ -70,7 +71,7 @@ export function ReleasesView({ slug }: { slug: string }) {
                     </Link>
                   </span>
                   <span role="cell" className="text-fg-2">
-                    {r.targetDate ? formatDate(`${r.targetDate}T00:00:00Z`, now) : <span className="text-muted-foreground">—</span>}
+                    {r.targetDate ? shortDate(r.targetDate, { dayKey: true }) : <span className="text-muted-foreground">—</span>}
                   </span>
                   <span role="cell">
                     <ReleaseStatusChip status={r.status} />

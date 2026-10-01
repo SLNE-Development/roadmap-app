@@ -1,1 +1,69 @@
-{}
+{
+  "title": "Decisions",
+  "description": "Architecture decisions, numbered. Accepted ones never change; a new one supersedes them.",
+  "view": {
+    "label": "View",
+    "list": "List",
+    "map": "Map"
+  },
+  "tabAll": "All",
+  "statusLabel": "Status",
+  "emptyTitle": "No decisions yet",
+  "emptyDescription": "Agents record the decisions you make with <code>surf-roadmap:new-adr</code>. Proposed ones show up here to accept.",
+  "searchPlaceholder": "Search decisions",
+  "noMatchTitle": "No matching decisions",
+  "noMatchQuery": "Nothing here has “{query}” in its title or number.",
+  "noMatchStatus": "No decisions have this status.",
+  "supersededBy": "Superseded by ADR-{number}",
+  "supersedes": "Supersedes ADR-{number}",
+  "detail": {
+    "via": "via",
+    "acceptedOn": "Accepted {date}",
+    "proposedBanner": "Proposed decisions can still be edited. Accepting one freezes it.",
+    "sections": {
+      "context": "Context",
+      "decision": "Decision",
+      "alternatives": "Alternatives considered",
+      "consequences": "Consequences"
+    },
+    "tasks": "Tasks",
+    "noTasks": "No tasks linked.",
+    "history": "History",
+    "concerns": "Concerns",
+    "someone": "someone",
+    "historyWithAuthor": "{label} by {name}",
+    "historyProposed": "Proposed",
+    "historyAccepted": "Accepted",
+    "historyLinkedTask": "Linked task {task}",
+    "historyUnlinkedTask": "Unlinked task {task}",
+    "historyEdited": "Edited {what}",
+    "fieldTitle": "title",
+    "fieldSystems": "systems",
+    "historyChanged": "Changed {field}"
+  },
+  "linkTasks": {
+    "button": "Link tasks",
+    "search": "Search tasks…",
+    "loading": "Loading tasks…",
+    "none": "No tasks."
+  },
+  "map": {
+    "title": "Decision map",
+    "description": "Which decision supersedes which, and the work each one touches.",
+    "systems": "Systems",
+    "tasks": "Tasks",
+    "status": "Status",
+    "emptyStatusTitle": "No decisions with this status",
+    "emptyStatusDescription": "Try another status, or clear the filter.",
+    "emptyDescription": "Decisions recorded by agents show up here as a map.",
+    "backToList": "Back to the list",
+    "nodeSystem": "System {title}",
+    "nodeTask": "Task {id} {title}"
+  },
+  "accept": {
+    "button": "Accept decision",
+    "title": "Accept {label}?",
+    "description": "Accepted decisions can no longer be edited. To change it later, a new decision has to supersede it.",
+    "accepted": "{label} accepted"
+  }
+}

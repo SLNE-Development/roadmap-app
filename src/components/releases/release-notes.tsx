@@ -2,6 +2,7 @@
 
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/markdown";
@@ -26,18 +27,20 @@ function NotesEditor({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("insight.releases.notes");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const [body, setBody] = useState(initial);
   const [preview, setPreview] = useState(false);
   const save = useMutation(
     trpc.releases.writeNote.mutationOptions({
       onSuccess: ({ version }) => {
-        toast.success(`Saved notes version ${version}`);
+        toast.success(t("saved", { version }));
         onSaved();
       },
     }),
   );
-  const tab = (active: boolean) =>
+  const tabClass = (active: boolean) =>
     cn("h-[26px] px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50", active ? "bg-card font-semibold" : "font-medium text-fg-2 hover:text-foreground");
   return (
     <form
@@ -47,25 +50,25 @@ function NotesEditor({
         save.mutate({ project: projectSlug, release: releaseSlug, body });
       }}
     >
-      <div role="group" aria-label="Editor mode" className="flex w-fit bg-secondary p-[3px]">
-        <button type="button" aria-pressed={!preview} className={tab(!preview)} onClick={() => setPreview(false)}>
-          Write
+      <div role="group" aria-label={t("editorMode")} className="flex w-fit bg-secondary p-[3px]">
+        <button type="button" aria-pressed={!preview} className={tabClass(!preview)} onClick={() => setPreview(false)}>
+          {t("write")}
         </button>
-        <button type="button" aria-pressed={preview} className={tab(preview)} onClick={() => setPreview(true)}>
-          Preview
+        <button type="button" aria-pressed={preview} className={tabClass(preview)} onClick={() => setPreview(true)}>
+          {t("preview")}
         </button>
       </div>
       {preview ? (
-        <div className="min-h-40 border px-3 py-2">{body.trim() ? <Markdown>{body}</Markdown> : <p className="text-[13px] text-muted-foreground">Nothing to preview.</p>}</div>
+        <div className="min-h-40 border px-3 py-2">{body.trim() ? <Markdown>{body}</Markdown> : <p className="text-[13px] text-muted-foreground">{t("nothingToPreview")}</p>}</div>
       ) : (
-        <Textarea aria-label="Release notes" value={body} onChange={(e) => setBody(e.target.value)} className="min-h-60 font-mono text-[13px]" />
+        <Textarea aria-label={t("title")} value={body} onChange={(e) => setBody(e.target.value)} className="min-h-60 font-mono text-[13px]" />
       )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
+          {tc("cancel")}
         </Button>
         <Button type="submit" disabled={save.isPending || !body.trim()}>
-          Save as new version
+          {t("save")}
         </Button>
       </div>
     </form>
@@ -92,10 +95,11 @@ export function ReleaseNotes({
   version: number | undefined;
   canEdit: boolean;
 }) {
+  const t = useTranslations("insight.releases.notes");
   const [editing, setEditing] = useState(false);
   return (
     <Panel
-      title="Release notes"
+      title={t("title")}
       bodyClassName="pb-4"
       action={
         <>
@@ -103,7 +107,7 @@ export function ReleaseNotes({
           {latest !== null && <VersionPicker param="version" versions={Array.from({ length: latest }, (_, i) => latest - i)} current={version ?? latest} />}
           {canEdit && !editing && (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              Edit notes
+              {t("edit")}
             </Button>
           )}
         </>
@@ -113,7 +117,7 @@ export function ReleaseNotes({
         editing ? (
           <NotesEditor projectSlug={projectSlug} releaseSlug={releaseSlug} initial="" onSaved={() => setEditing(false)} onCancel={() => setEditing(false)} />
         ) : (
-          <p className="px-4 text-[13px] text-muted-foreground sm:px-5">No notes yet. Shipping the release writes the first version.</p>
+          <p className="px-4 text-[13px] text-muted-foreground sm:px-5">{t("empty")}</p>
         )
       ) : (
         <Shown projectSlug={projectSlug} releaseSlug={releaseSlug} version={version} editing={editing} onDone={() => setEditing(false)} />

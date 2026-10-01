@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "next-intl";
+import de from "../../../messages/de";
 import { describeChange, type ChangeFacts } from "./change-sentence";
 
 /** A change log entry with defaults for the fields a case does not care about. */
@@ -9,7 +11,7 @@ function entry(entity: string, field: string, oldValue: string | null = null, ne
 /** The sentence flattened to text, the way the timeline reads it. */
 function text(e: ChangeFacts, systemTitle: string | null = "Inventory", adrLabel: string | null = null): string {
   const s = describeChange(e, { systemTitle, adrLabel });
-  return [s.verb, s.target, s.from !== undefined ? `${s.from} →` : null, s.to].filter(Boolean).join(" ");
+  return [s.verb, s.target, s.suffix, s.from !== undefined ? `${s.from} →` : null, s.to].filter(Boolean).join(" ");
 }
 
 describe("describeChange", () => {
@@ -31,7 +33,7 @@ describe("describeChange", () => {
     expect(text(entry("task", "state", "doing", "done"))).toBe("completed task #11 on Inventory");
     expect(text(entry("task", "state", "todo", "doing"))).toBe("started task #11 on Inventory");
     expect(text(entry("task", "state", "doing", "blocked"))).toBe("set task #11 to blocked on Inventory");
-    expect(text(entry("task", "state", "done", "todo"))).toBe("moved task #11 back to Todo on Inventory");
+    expect(text(entry("task", "state", "done", "todo"))).toBe("moved task #11 back to To do on Inventory");
     expect(text(entry("task", "created", null, "Write tests"))).toBe("added task “Write tests” to Inventory");
     expect(text(entry("task", "owner", null, "Aiko"))).toBe("assigned task #11 to Aiko on Inventory");
   });
@@ -45,8 +47,8 @@ describe("describeChange", () => {
   it("describes documents, planning, questions and updates", () => {
     expect(text(entry("document", "spec", null, "v3"))).toBe("published v3 of the spec for Inventory");
     expect(text(entry("planning", "completed", null, "yes"))).toBe("completed planning of Inventory");
-    expect(text(entry("planning", "area-reopened", "new partner API", "scope"))).toBe("reopened the scope area of Inventory");
-    expect(text(entry("planning", "area-completed", "ok", "scope"))).toBe("completed the scope area of Inventory");
+    expect(text(entry("planning", "area-reopened", "new partner API", "scope"))).toBe("reopened the Scope area of Inventory");
+    expect(text(entry("planning", "area-completed", "ok", "scope"))).toBe("completed the Scope area of Inventory");
     expect(text(entry("planning", "area-reopened", "x", "scope"), null)).toBe("reopened a planning area");
     expect(text(entry("question", "created", null, "Who owns it?"))).toBe("asked “Who owns it?” on Inventory");
     expect(text(entry("question", "resolved", "false", "true"))).toBe("resolved a question on Inventory");
@@ -97,7 +99,7 @@ describe("describeChange", () => {
   it("names the release when it is known", () => {
     const named = (e: ChangeFacts) => {
       const s = describeChange(e, { releaseName: "One" });
-      return [s.verb, s.target, s.from !== undefined ? `${s.from} →` : null, s.to].filter(Boolean).join(" ");
+      return [s.verb, s.target, s.suffix, s.from !== undefined ? `${s.from} →` : null, s.to].filter(Boolean).join(" ");
     };
     expect(named(entry("release", "slug", "1-0", "one"))).toBe("changed the slug of release One 1-0 → one");
     expect(named(entry("release", "targetDate", null, "2026-12-01"))).toBe("changed the target date of release One none → 2026-12-01");
@@ -149,5 +151,15 @@ describe("describeChange", () => {
   it("falls back to the field and entity", () => {
     expect(text(entry("widget", "colour", "red", "blue"), null)).toBe("changed colour of widget");
     expect(text(entry("board", "sortOrder"), null)).toBe("changed sortOrder of a board");
+  });
+
+  it("writes German sentences with the target inside the clause", () => {
+    const tr = { t: createTranslator({ locale: "de", messages: de, namespace: "activity.change" }), te: createTranslator({ locale: "de", messages: de, namespace: "enums" }) };
+    const done = describeChange(entry("task", "state", "doing", "done"), { systemTitle: "Inventory" }, tr);
+    expect(done).toMatchObject({ verb: "hat Aufgabe #11 in", target: "Inventory", targetIsSystem: true, suffix: "erledigt" });
+    const moved = describeChange(entry("system", "column", "Dev / Todo", "Dev / Review"), { systemTitle: "Inventory" }, tr);
+    expect(moved).toMatchObject({ verb: "hat", target: "Inventory", suffix: "verschoben", from: "Todo", to: "Review" });
+    expect(describeChange(entry("task", "state", "done", "todo"), {}, tr).verb).toBe("hat Aufgabe #11 zurück auf Offen gesetzt");
+    expect(describeChange(entry("member", "role", null, "Aiko: editor"), {}, tr).verb).toBe("hat Aiko als Bearbeiter hinzugefügt");
   });
 });
