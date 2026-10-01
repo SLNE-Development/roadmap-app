@@ -66,6 +66,7 @@ const ENTITY_LABEL: Record<string, string> = {
   webhook: "a Discord webhook",
   repo: "a repository",
   code: "linked code",
+  release: "a release",
 };
 
 /** Quotes a user-written value, shortened for one line. */
@@ -151,6 +152,8 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return onSystem("changed the domain of", "", "changed the domain");
     case "system:phaseId":
       return onSystem("changed the phase of", "", "changed the phase");
+    case "system:release":
+      return onSystem("changed the release of", "", "changed the release", { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
     case "system:gateOverride": {
       // newValue is "<column>: <reason>".
       const text = e.newValue ?? "";
@@ -243,6 +246,24 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return onSystem("changed the state of a linked pull request", "on", undefined, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
     case "code:checks":
       return onSystem("changed the checks of linked code", "on", undefined, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+
+    case "release:created":
+      return plain("created release", e.newValue);
+    case "release:name":
+      return plain("renamed a release", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+    case "release:slug":
+      return plain("changed the slug of a release", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+    case "release:targetDate":
+      return plain("changed the target date of a release", null, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+    case "release:status": {
+      if (e.newValue === "frozen") return plain("froze a release");
+      if (e.newValue === "shipped") return plain("shipped a release");
+      return plain(e.oldValue === "frozen" ? "unfroze a release" : "changed the status of a release", null, e.oldValue === "frozen" ? {} : change);
+    }
+    case "release:notes":
+      return plain("wrote release notes", null, { to: e.newValue ?? "" });
+    case "release:deleted":
+      return plain("deleted release", e.oldValue);
 
     case "update:posted":
       return onSystem("posted an update on", "", "posted an update");

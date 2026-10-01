@@ -12,6 +12,7 @@ import {
   planningRound,
   PRIORITIES,
   question,
+  release,
   system,
   task,
   taskCheck,
@@ -37,6 +38,7 @@ import { notifyMentions, resolveMentionsIn } from "./mentions";
 import { actorLabel } from "./notifications";
 import { nullableEntityId } from "./params";
 import { openAreaReopens, planningGaps } from "./planning";
+import { assignRelease } from "./releases";
 import { systemRollups } from "./rollups";
 import type { DomainRow, PhaseRow } from "./structure";
 
@@ -62,6 +64,7 @@ export const systemFilter = z.object({
   category: z.enum(COLUMN_CATEGORIES).optional(),
   priority: z.enum(PRIORITIES).optional(),
   owner: z.string().optional(),
+  release: z.string().optional(),
   startable: z.boolean().optional(),
   archived: z.enum(["exclude", "include", "only"]).default("exclude"),
 });
@@ -75,6 +78,7 @@ export const updateSystemInput = z.object({
   notes: z.string().max(NOTES_MAX).optional(),
   domainId: nullableEntityId.optional(),
   phaseId: nullableEntityId.optional(),
+  release: slugSchema.nullable().optional(),
 });
 
 /** Input of {@link moveSystem}: a column id or name, on `board` or the current board; `overrideReason` lets an owner pass unmet column rules. */
@@ -98,6 +102,8 @@ export interface SystemListItem {
   columnCategory: ColumnCategory;
   domainId: string | null;
   phaseId: string | null;
+  releaseSlug: string | null;
+  releaseName: string | null;
   ownerUserId: string | null;
   ownerName: string | null;
   planningComplete: boolean;
@@ -263,6 +269,7 @@ export async function listSystems(
   if (filter.phase) conditions.push(eq(system.phaseId, filter.phase));
   if (filter.category) conditions.push(eq(boardColumn.category, filter.category));
   if (filter.priority) conditions.push(eq(system.priority, filter.priority));
+  if (filter.release) conditions.push(eq(release.slug, filter.release));
   if (filter.owner === "none") conditions.push(isNull(system.ownerUserId));
   else if (filter.owner) conditions.push(eq(system.ownerUserId, filter.owner));
   if (filter.archived === "exclude") conditions.push(isNull(system.archivedAt));
@@ -282,6 +289,8 @@ export async function listSystems(
       columnCategory: boardColumn.category,
       domainId: system.domainId,
       phaseId: system.phaseId,
+      releaseSlug: release.slug,
+      releaseName: release.name,
       ownerUserId: system.ownerUserId,
       ownerName: user.name,
       planningCompletedAt: system.planningCompletedAt,
@@ -291,6 +300,7 @@ export async function listSystems(
     .innerJoin(board, eq(board.id, system.boardId))
     .innerJoin(boardColumn, eq(boardColumn.id, system.columnId))
     .leftJoin(user, eq(user.id, system.ownerUserId))
+    .leftJoin(release, eq(release.id, system.releaseId))
     .where(and(...conditions))
     .orderBy(asc(board.sortOrder), asc(system.sortOrder));
 
@@ -448,6 +458,21 @@ export async function applySystemPatch(
   }
   await checkStructure(tx, project.id, patch.domainId, patch.phaseId);
   const changes: Partial<SystemRow> = {};
+  if (patch.release !== undefined) {
+    const assignment = await assignRelease(tx, actor, project, current, patch.release);
+    if (assignment) {
+      changes.releaseId = assignment.releaseId;
+      await logChange(tx, actor, {
+        projectId: project.id,
+        systemId: current.id,
+        entity: "system",
+        entityId: current.id,
+        field: "release",
+        oldValue: assignment.from,
+        newValue: assignment.to,
+      });
+    }
+  }
   for (const field of ["title", "summary", "priority", "ownerUserId", "notes", "domainId", "phaseId"] as const) {
     const next = patch[field];
     if (next === undefined || next === current[field]) continue;
@@ -577,6 +602,7 @@ export const updateSystemsInput = z.object({
       ownerUserId: nullableEntityId.optional(),
       phaseId: nullableEntityId.optional(),
       domainId: nullableEntityId.optional(),
+      release: slugSchema.nullable().optional(),
       priority: z.enum(PRIORITIES).optional(),
       move: moveSystemInput.optional(),
     })

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigserial, boolean, date, index, integer, pgTable, primaryKey, serial, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { board, boardColumn, customField, domain, phase, project } from "./projects";
 import { tsvector } from "./tsvector";
@@ -40,6 +40,48 @@ export const ADR_STATUSES = ["proposed", "accepted", "superseded"] as const;
 /** The lifecycle state of an ADR. */
 export type AdrStatus = (typeof ADR_STATUSES)[number];
 
+/** Lifecycle states of a release; scope is editable while `planned`, owner-only while `frozen`, fixed once `shipped`. */
+export const RELEASE_STATUSES = ["planned", "frozen", "shipped"] as const;
+
+/** The lifecycle state of a release. */
+export type ReleaseStatus = (typeof RELEASE_STATUSES)[number];
+
+/** A named set of systems shipped together, with a target date. */
+export const release = pgTable(
+  "release",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    targetDate: date("target_date", { mode: "string" }),
+    status: text("status", { enum: RELEASE_STATUSES }).notNull().default("planned"),
+    frozenAt: timestamp("frozen_at", tz),
+    shippedAt: timestamp("shipped_at", tz),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [unique("release_project_slug").on(t.projectId, t.slug)],
+);
+
+/** Versioned release notes of a release. */
+export const releaseNote = pgTable(
+  "release_note",
+  {
+    id: text("id").primaryKey(),
+    releaseId: text("release_id")
+      .notNull()
+      .references(() => release.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    body: text("body").notNull(),
+    authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
+    agent: text("agent"),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [unique("release_note_version").on(t.releaseId, t.version)],
+);
+
 /** Units of work tracked on a board: a feature, subsystem or build, with its planning state. */
 export const system = pgTable(
   "system",
@@ -56,6 +98,7 @@ export const system = pgTable(
       .references(() => boardColumn.id),
     domainId: text("domain_id").references(() => domain.id, { onDelete: "set null" }),
     phaseId: text("phase_id").references(() => phase.id, { onDelete: "set null" }),
+    releaseId: text("release_id").references(() => release.id, { onDelete: "set null" }),
     slug: text("slug").notNull(),
     title: text("title").notNull(),
     summary: text("summary").notNull().default(""),
@@ -78,6 +121,7 @@ export const system = pgTable(
     index("system_board_id_idx").on(t.boardId),
     index("system_column_id_idx").on(t.columnId),
     index("system_owner_user_id_idx").on(t.ownerUserId),
+    index("system_release_idx").on(t.releaseId),
     index("system_search").using("gin", t.search),
   ],
 );

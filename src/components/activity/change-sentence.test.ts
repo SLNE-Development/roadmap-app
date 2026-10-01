@@ -82,6 +82,23 @@ describe("describeChange", () => {
     expect(text(entry("webhook", "enabled", "false", "true"), null)).toBe("turned on a Discord webhook");
   });
 
+  it("describes release changes", () => {
+    expect(text(entry("release", "created", null, "1.0"), null)).toBe("created release 1.0");
+    expect(text(entry("release", "name", "1.0", "One"), null)).toBe("renamed a release 1.0 → One");
+    expect(text(entry("release", "slug", "1-0", "one"), null)).toBe("changed the slug of a release 1-0 → one");
+    expect(text(entry("release", "targetDate", null, "2026-12-01"), null)).toBe("changed the target date of a release none → 2026-12-01");
+    expect(text(entry("release", "status", "planned", "frozen"), null)).toBe("froze a release");
+    expect(text(entry("release", "status", "frozen", "planned"), null)).toBe("unfroze a release");
+    expect(text(entry("release", "status", "frozen", "shipped"), null)).toBe("shipped a release");
+    expect(text(entry("release", "notes", null, "v2"), null)).toBe("wrote release notes v2");
+    expect(text(entry("release", "deleted", "1.0", null), null)).toBe("deleted release 1.0");
+  });
+
+  it("describes a system joining or leaving a release", () => {
+    expect(text(entry("system", "release", null, "1.0"))).toBe("changed the release of Inventory none → 1.0");
+    expect(text(entry("system", "release", "1.0", null), null)).toBe("changed the release 1.0 → none");
+  });
+
   it("describes repository changes", () => {
     expect(text(entry("repo", "created", null, "Org/roadmap"), null)).toBe("linked repository Org/roadmap");
     expect(text(entry("repo", "deleted", "Org/roadmap", null), null)).toBe("unlinked repository Org/roadmap");

@@ -7,6 +7,7 @@ import { timeInCategory, type TimeCategory } from "@/lib/insight/column-time";
 import { projectFinish, replayTasks, sampleBurnup, type BurnupPoint, type Projection, type TaskLogEntry } from "@/lib/insight/burnup";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
+import { findRelease } from "./releases";
 
 const DAY_MS = 86_400_000;
 
@@ -32,26 +33,26 @@ const FIELDS = ["created", "state", "deleted", "moved"] as const;
 
 /**
  * Replays the project's task history into daily scope and done counts.
- * Archived systems' tasks are left out, as are tasks outside the filters; the
- * `release` filter is accepted and not applied yet.
+ * Archived systems' tasks are left out, as are tasks outside the filters.
  *
  * @param now the end of the window, injectable for tests
- * @throws NotFoundError if the project is unknown or the actor is not a member
+ * @throws NotFoundError if the project is unknown, the actor is not a member or the `release` is unknown
  */
 export async function getProgress(db: Executor, actor: Actor, slug: string, raw: z.input<typeof progressInput>, now: Date = new Date()): Promise<Progress> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
   const filter = progressInput.parse(raw);
-  const filtered = Boolean(filter.phase || filter.board || filter.domain);
+  const filtered = Boolean(filter.phase || filter.board || filter.domain || filter.release);
+  const releaseId = filter.release ? (await findRelease(db, project.id, filter.release)).id : null;
 
   const systems = await db
-    .select({ id: system.id, phaseId: system.phaseId, domainId: system.domainId, boardSlug: board.slug, archivedAt: system.archivedAt })
+    .select({ id: system.id, phaseId: system.phaseId, domainId: system.domainId, releaseId: system.releaseId, boardSlug: board.slug, archivedAt: system.archivedAt })
     .from(system)
     .innerJoin(board, eq(board.id, system.boardId))
     .where(eq(system.projectId, project.id));
   const passes = new Map(
     systems.map((s) => [
       s.id,
-      !s.archivedAt && (!filter.phase || s.phaseId === filter.phase) && (!filter.domain || s.domainId === filter.domain) && (!filter.board || s.boardSlug === filter.board),
+      !s.archivedAt && (!filter.phase || s.phaseId === filter.phase) && (!filter.domain || s.domainId === filter.domain) && (!filter.board || s.boardSlug === filter.board) && (!releaseId || s.releaseId === releaseId),
     ]),
   );
   const systemOk = (systemId: string | null) => (systemId !== null && passes.has(systemId) ? passes.get(systemId)! : !filtered);
