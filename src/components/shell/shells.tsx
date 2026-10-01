@@ -2,6 +2,7 @@
 
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc/client";
+import { useProjectEvents } from "@/trpc/use-project-events";
 import { AppShell } from "./app-shell";
 
 /**
@@ -37,6 +38,7 @@ export function GlobalShell({ children }: { children: React.ReactNode }) {
  */
 export function ProjectShell({ slug, children }: { slug: string; children: React.ReactNode }) {
   const trpc = useTRPC();
+  useProjectEvents(slug);
   const [{ data: me }, { data: projects }, { data: detail }, { data: nav }, { data: views }, { data: pages }] = useSuspenseQueries({
     queries: [
       trpc.account.me.queryOptions(),
