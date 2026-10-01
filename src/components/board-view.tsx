@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRightLeft, Ban, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Search, SquareKanban } from "lucide-react";
+import { ArrowRightLeft, Ban, ChevronDown, ChevronRight, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Rows3, Search, SquareKanban } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
@@ -15,11 +15,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
+import { PRIORITIES, type ColumnCategory } from "@/db/schema";
+import type { BoardCardView } from "@/lib/board-card";
 import { focusReady, moveKey, moveTargets } from "@/lib/board-moves";
+import { groupIntoLanes, LANE_KEYS, type LaneKey } from "@/lib/lanes";
 import { hasFilters, withParam, type BoardQuery } from "@/lib/url-filters";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -35,25 +39,7 @@ export interface BoardColumnView {
   category: ColumnCategory;
 }
 
-/** A system card on the board. */
-export interface BoardCardView {
-  slug: string;
-  title: string;
-  priority: Priority;
-  ownerUserId: string | null;
-  ownerName: string | null;
-  domainId: string | null;
-  phaseId: string | null;
-  columnId: string;
-  /** Planning areas (of 4) with an answered or accepted-risk item. */
-  planningAreasCovered: number;
-  /** Planning interview rounds recorded so far. */
-  planningRounds: number;
-  tasksDone: number;
-  tasksTotal: number;
-  /** Summary of the system's newest update; shown as the reason while it is blocked. */
-  latestSummary: string | null;
-}
+export type { BoardCardView };
 
 /** A named option of a filter (domain, phase, member). */
 interface NamedOption {
@@ -63,6 +49,9 @@ interface NamedOption {
 
 /** localStorage key remembering that the keyboard-move hint was shown. */
 const CARD_MOVE_HINT_KEY = "roadmap.hint.cardMove";
+
+/** The lane picker's option labels. */
+const LANE_LABEL: Record<LaneKey, string> = { none: "None", domain: "Domain", phase: "Phase", owner: "Owner", priority: "Priority" };
 
 /** Most avatars shown in the header's member stack. */
 const STACK_SIZE = 5;
@@ -113,6 +102,7 @@ export function BoardView({
   const searchParams = useSearchParams();
   const [, startFilter] = useTransition();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [collapsedLanes, setCollapsedLanes] = useState<Set<string>>(() => new Set());
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [optimistic, moveOptimistic] = useOptimistic(cards, (state, move: { slug: string; columnId: string }) =>
@@ -212,6 +202,14 @@ export function BoardView({
     },
   });
 
+  const toggleLane = (laneKey: string) =>
+    setCollapsedLanes((prev) => {
+      const next = new Set(prev);
+      if (next.has(laneKey)) next.delete(laneKey);
+      else next.add(laneKey);
+      return next;
+    });
+
   const toggle = (columnId: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -231,6 +229,52 @@ export function BoardView({
     startFilter(() => router.replace(pathname + withParam("", "lane", query.lane === "none" ? null : query.lane), { scroll: false }));
   const named = (list: NamedOption[]) => list.map((o) => ({ value: o.id, label: o.name }));
   const ownerOptions = [...members.map((m) => ({ value: m.userId, label: m.name })), { value: "none", label: "Unowned" }];
+
+  const lanes = groupIntoLanes(visible, query.lane, {
+    domains: domainName,
+    phases: new Map(phases.map((p) => [p.id, p.name])),
+    domainOrder: domains.map((d) => d.id),
+    phaseOrder: phases.map((p) => p.id),
+  });
+
+  /** A card of `col`; its drag and move handlers change only the column, whichever lane it sits in. */
+  const renderCard = (c: BoardCardView, col: BoardColumnView) => (
+    <SystemCard
+      key={c.slug}
+      card={c}
+      category={col.category}
+      columnName={col.name}
+      domain={c.domainId ? (domainName.get(c.domainId) ?? null) : null}
+      projectSlug={projectSlug}
+      columns={columns}
+      canEdit={canEdit}
+      pending={pending}
+      dragging={draggedSlug === c.slug}
+      bound={bind(c.slug)}
+      onFocus={hintOnce}
+      onMoveKey={(columnId) => moveByKey(c.slug, columnId)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", c.slug);
+        e.dataTransfer.effectAllowed = "move";
+        setDragging(c.slug);
+      }}
+      onDragEnd={() => {
+        setDragging(null);
+        setDragOver(null);
+      }}
+      onMove={(columnId) => move(c.slug, columnId)}
+    />
+  );
+
+  /** The drop placeholder of a column while a card hovers it, or the empty note. */
+  const dropHint = (col: BoardColumnView, count: number, isOver: boolean) =>
+    isOver ? (
+      <div className="flex h-16 shrink-0 items-center justify-center border-[1.5px] border-dashed border-primary bg-brand-soft text-xs font-medium text-brand-strong">
+        Drop to move to {col.name}
+      </div>
+    ) : (
+      count === 0 && <div className="flex h-16 shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">No systems</div>
+    );
 
   return (
     <>
@@ -254,6 +298,26 @@ export function BoardView({
                 <span className="sr-only">List view</span>
               </Link>
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label={`Lanes: ${LANE_LABEL[query.lane]}`}>
+                  <Rows3 />
+                  Lanes
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Lanes</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={query.lane} onValueChange={(v) => setParam("lane", v === "none" ? null : v)}>
+                  {LANE_KEYS.map((k) => (
+                    <DropdownMenuRadioItem key={k} value={k}>
+                      {LANE_LABEL[k]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">Dragging across lanes changes only the column.</p>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canEdit && (
               <NewSystemDialog projectSlug={projectSlug} boards={boards} defaultBoard={board.slug} open={newSystemOpen} onOpenChange={setNewSystemOpen} />
             )}
@@ -303,7 +367,14 @@ export function BoardView({
       {showHint && <p className="text-[12.5px] text-muted-foreground">Alt+← / Alt+→ moves a card</p>}
       <BoardAnnouncer message={announce} />
 
-      <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:px-6 lg:-mx-9 lg:px-9" aria-busy={pending}>
+      <div
+        className={cn(
+          "-mx-4 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:px-6 lg:-mx-9 lg:px-9",
+          query.lane !== "none" && "max-h-[calc(100dvh-15rem)] overflow-y-auto",
+        )}
+        aria-busy={pending}
+      >
+        {query.lane === "none" ? (
         <div className="flex min-h-[calc(100dvh-15rem)] w-max items-stretch gap-3">
           {columns.map((col) => {
             const items = visible.filter((c) => c.columnId === col.id);
@@ -354,46 +425,112 @@ export function BoardView({
                     Leaves after the planning interview
                   </p>
                 )}
-                {items.map((c) => (
-                  <SystemCard
-                    key={c.slug}
-                    card={c}
-                    category={col.category}
-                    columnName={col.name}
-                    domain={c.domainId ? (domainName.get(c.domainId) ?? null) : null}
-                    projectSlug={projectSlug}
-                    columns={columns}
-                    canEdit={canEdit}
-                    pending={pending}
-                    dragging={draggedSlug === c.slug}
-                    bound={bind(c.slug)}
-                    onFocus={hintOnce}
-                    onMoveKey={(columnId) => moveByKey(c.slug, columnId)}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", c.slug);
-                      e.dataTransfer.effectAllowed = "move";
-                      setDragging(c.slug);
-                    }}
-                    onDragEnd={() => {
-                      setDragging(null);
-                      setDragOver(null);
-                    }}
-                    onMove={(columnId) => move(c.slug, columnId)}
-                  />
-                ))}
-                {isOver ? (
-                  <div className="flex h-16 shrink-0 items-center justify-center border-[1.5px] border-dashed border-primary bg-brand-soft text-xs font-medium text-brand-strong">
-                    Drop to move to {col.name}
-                  </div>
-                ) : (
-                  items.length === 0 && (
-                    <div className="flex h-16 shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">No systems</div>
-                  )
-                )}
+                {items.map((c) => renderCard(c, col))}
+                {dropHint(col, items.length, isOver)}
               </section>
             );
           })}
         </div>
+        ) : (
+          <div className="w-max">
+            <div className="sticky top-0 z-20 flex h-9 items-center gap-3 bg-background">
+              {columns.map((col) => {
+                const total = visible.filter((c) => c.columnId === col.id).length;
+                if (col.category === "done" && !expanded.has(col.id)) {
+                  return (
+                    <button
+                      key={col.id}
+                      type="button"
+                      onClick={() => toggle(col.id)}
+                      aria-expanded={false}
+                      aria-label={`Expand ${col.name}, ${total} systems`}
+                      className="flex h-full w-10 shrink-0 items-center justify-center bg-column outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <CategoryDot category={col.category} />
+                    </button>
+                  );
+                }
+                return (
+                  <div key={col.id} className="flex h-full w-[228px] shrink-0 items-center gap-2 bg-column px-3">
+                    <CategoryDot category={col.category} />
+                    <h2 className="truncate text-[13px] font-semibold">{col.name}</h2>
+                    <span className="text-xs text-muted-foreground tabular-nums">{total}</span>
+                    <span className="flex-1" />
+                    {col.category === "done" && (
+                      <Button variant="ghost" size="icon-xs" aria-label={`Collapse ${col.name}`} onClick={() => toggle(col.id)} className="text-muted-foreground">
+                        <ChevronsLeft />
+                      </Button>
+                    )}
+                    {canEdit && col.category === "planning" && (
+                      <Button variant="ghost" size="icon-xs" aria-label="New system" onClick={openNewSystem} className="text-muted-foreground">
+                        <Plus className="size-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {lanes.map((lane) => {
+              const open = !collapsedLanes.has(lane.key);
+              return (
+                <div key={lane.key} role="group" aria-label={lane.name} className="mt-2">
+                  <div className="sticky top-9 z-10 bg-background pb-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleLane(lane.key)}
+                      aria-expanded={open}
+                      className="flex w-full items-center border-y bg-secondary px-3 py-1.5 text-left text-[13px] font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <span className="sticky left-3 flex items-center gap-2">
+                        {open ? <ChevronDown className="size-3.5" aria-hidden /> : <ChevronRight className="size-3.5" aria-hidden />}
+                        {lane.name}
+                        <span className="text-xs font-normal text-muted-foreground tabular-nums">{lane.cards.length}</span>
+                      </span>
+                    </button>
+                    <div className="flex gap-3 pt-0.5" aria-hidden>
+                      {columns.map((col) => (
+                        <span
+                          key={col.id}
+                          className={cn(
+                            "shrink-0 text-[11.5px] text-muted-foreground tabular-nums",
+                            col.category === "done" && !expanded.has(col.id) ? "w-10 text-center" : "w-[228px] px-3",
+                          )}
+                        >
+                          {lane.countByColumn[col.id] ?? 0}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {open && (
+                    <div className="flex items-stretch gap-3">
+                      {columns.map((col) => {
+                        const items = lane.cards.filter((c) => c.columnId === col.id);
+                        const isOver = (dragOver ?? overColumnId) === col.id && draggedFrom !== undefined && draggedFrom !== col.id;
+                        if (col.category === "done" && !expanded.has(col.id)) {
+                          return (
+                            <section
+                              key={col.id}
+                              data-column-id={col.id}
+                              aria-label={`${col.name}, collapsed`}
+                              {...dropTarget(col.id)}
+                              className={cn("w-10 shrink-0 bg-column", isOver && "border-[1.5px] border-dashed border-primary bg-brand-soft")}
+                            />
+                          );
+                        }
+                        return (
+                          <section key={col.id} data-column-id={col.id} aria-label={col.name} {...dropTarget(col.id)} className="flex w-[228px] shrink-0 flex-col gap-2 bg-column p-2">
+                            {items.map((c) => renderCard(c, col))}
+                            {dropHint(col, items.length, isOver)}
+                          </section>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );

@@ -1,10 +1,8 @@
 import { PRIORITIES, type Priority } from "@/db/schema";
+import { LANE_KEYS, type LaneKey } from "@/lib/lanes";
 
 /** The query keys of the board's filters and swimlanes. */
 export const BOARD_FILTER_KEYS = ["q", "domain", "phase", "priority", "owner", "lane"] as const;
-
-/** How the board groups its cards into swimlanes. */
-export type LaneKey = "none";
 
 /** The board's filters as read from the URL; `owner` is a user id or `none`. */
 export type BoardQuery = {
@@ -31,13 +29,14 @@ function first(value: string | string[] | undefined): string | null {
  */
 export function parseBoardQuery(sp: Record<string, string | string[] | undefined>): BoardQuery {
   const priority = first(sp.priority);
+  const lane = first(sp.lane);
   return {
     q: (first(sp.q) ?? "").trim().slice(0, MAX_Q),
     domain: first(sp.domain),
     phase: first(sp.phase),
     priority: PRIORITIES.find((p) => p === priority) ?? null,
     owner: first(sp.owner),
-    lane: "none",
+    lane: LANE_KEYS.find((k) => k === lane) ?? "none",
   };
 }
 

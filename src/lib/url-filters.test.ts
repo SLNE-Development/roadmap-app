@@ -19,6 +19,11 @@ describe("parseBoardQuery", () => {
     expect(query.lane).toBe("none");
   });
 
+  it("reads a valid lane", () => {
+    expect(parseBoardQuery({ lane: "owner" }).lane).toBe("owner");
+    expect(parseBoardQuery({ lane: "x" }).lane).toBe("none");
+  });
+
   it("uses the first element of an array", () => {
     expect(parseBoardQuery({ domain: ["a", "b"] }).domain).toBe("a");
   });
