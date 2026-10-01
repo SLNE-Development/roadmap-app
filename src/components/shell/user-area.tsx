@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, BellRing, KeyRound, Laptop, LogOut, Monitor, Moon, ShieldCheck, Sun, Users } from "lucide-react";
+import { Bell, BellRing, GitBranch, KeyRound, Laptop, LogOut, Monitor, Moon, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -19,7 +19,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { authClient } from "@/lib/auth/client";
 
 /**
- * The account row at the bottom of the sidebar: a menu with notifications, API keys, sessions, accounts and audit
+ * The account row at the bottom of the sidebar: a menu with notifications, API keys, sessions, accounts, GitHub App and audit
  * (admins), theme and sign-out, plus a one-click light/dark switch.
  */
 export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) {
@@ -62,6 +62,13 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
             <DropdownMenuItem asChild>
               <Link href="/admin/users">
                 <Users /> Accounts
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {isAdmin && (
+            <DropdownMenuItem asChild>
+              <Link href="/admin/github">
+                <GitBranch /> GitHub App
               </Link>
             </DropdownMenuItem>
           )}

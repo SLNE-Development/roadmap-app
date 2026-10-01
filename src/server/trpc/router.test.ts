@@ -235,4 +235,33 @@ describe("appRouter", () => {
       await expect(caller(db, stranger).notifications.members({ project: slug })).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
   });
+
+  it("refuses every github procedure to a non-admin", async () => {
+    const credentials = {
+      appId: 42,
+      slug: "roadmap-app",
+      name: "Roadmap App",
+      ownerLogin: "SLNE-Development",
+      htmlUrl: "https://github.com/apps/roadmap-app",
+      clientId: "Iv1.abc",
+      clientSecret: "client-secret",
+      privateKey: "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
+      webhookSecret: "hook-secret",
+    };
+    const db = await createTestDb();
+    const api = caller(db, await insertUser(db)).github;
+    const calls = [
+      () => api.app(),
+      () => api.health(),
+      () => api.installations(),
+      () => api.installRequests(),
+      () => api.startManifest({}),
+      () => api.saveCredentials({ credentials }),
+      () => api.startInstall({}),
+      () => api.dismissRequest({ id: "x" }),
+      () => api.rotateSecret(),
+      () => api.setLinkPolicy({ policy: "admins" }),
+    ];
+    for (const call of calls) await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });

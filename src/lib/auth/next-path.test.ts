@@ -15,6 +15,12 @@ describe("safeNextPath", () => {
     ["/login", "/"],
     ["/login?next=/x", "/"],
     ["/api/auth/sign-out", "/"],
+    ["/api/github/setup?installation_id=5&setup_action=install", "/api/github/setup?installation_id=5&setup_action=install"],
+    ["/api/github/manifest/callback?code=c&state=s", "/api/github/manifest/callback?code=c&state=s"],
+    ["/api/github/setup", "/api/github/setup"],
+    ["/api/github/setupx", "/"],
+    ["/api/github/app", "/"],
+    ["//api/github/setup", "/"],
     [["/a", "/b"], "/b"],
     ["/" + "a".repeat(2099), "/"],
   ])("maps %j to %j", (input, expected) => {

@@ -1,10 +1,20 @@
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { githubApp } from "@/db/schema";
+import { githubApp, user } from "@/db/schema";
+import { fakeGitHubApi } from "@/lib/github/fake";
+import { memoryKv } from "@/lib/kv";
 import { createTestDb } from "@/test/db";
 import { insertUser } from "@/test/fixtures";
-import { getAppSummary, loadAppConfig, saveAppCredentials } from "./github-app";
+import {
+  completeManifest,
+  getAppSummary,
+  loadAppConfig,
+  rotateWebhookSecret,
+  saveAppCredentials,
+  setLinkPolicy,
+  startManifest,
+} from "./github-app";
 
 const KEY = "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----";
 
@@ -81,5 +91,113 @@ describe("github app credentials", () => {
     expect(summary).toMatchObject({ appId: 42, slug: "roadmap-app", linkPolicy: "owners", createdByName: "Root" });
     for (const key of ["privateKey", "clientSecret", "webhookSecret"]) expect(summary).not.toHaveProperty(key);
     await expect(getAppSummary(db, user)).rejects.toMatchObject({ name: "ForbiddenError" });
+  });
+});
+
+describe("github app setup", () => {
+  const NOW = new Date("2026-10-01T12:00:00Z");
+  const conversion = {
+    id: 77,
+    slug: "roadmap-new",
+    name: "Roadmap (roadmap.example.com)",
+    ownerLogin: "SLNE-Development",
+    htmlUrl: "https://github.com/apps/roadmap-new",
+    clientId: "Iv1.new",
+    clientSecret: "new-client-secret",
+    webhookSecret: "new-hook-secret",
+    pem: KEY,
+  };
+
+  beforeEach(() => {
+    vi.stubEnv("ENCRYPTION_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("BETTER_AUTH_URL", "https://roadmap.example.com");
+    vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("refuses to start the manifest flow for a non-admin", async () => {
+    const db = await createTestDb();
+    const user = await insertUser(db);
+    await expect(startManifest(db, memoryKv(), user, {})).rejects.toMatchObject({ name: "ForbiddenError" });
+  });
+
+  it("starts the manifest flow with a state mapped to the admin", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const kv = memoryKv();
+    const started = await startManifest(db, kv, admin, { org: "SLNE-Development" });
+    expect(started.state).toMatch(/^[0-9a-f]{64}$/);
+    expect(started.action).toBe(`https://github.com/organizations/SLNE-Development/settings/apps/new?state=${started.state}`);
+    expect(JSON.parse(started.manifest)).toMatchObject({ hook_attributes: { url: "https://roadmap.example.com/api/github/app" } });
+    expect(await kv.get(`gh:manifest:${started.state}`)).toBe(admin.userId);
+  });
+
+  it("refuses an unknown state without storing an app", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const api = fakeGitHubApi({ conversion });
+    await expect(completeManifest(db, memoryKv(), api, admin.userId, "code", "nope")).rejects.toMatchObject({ name: "ForbiddenError" });
+    expect(await db.select().from(githubApp)).toHaveLength(0);
+    expect(api.calls).toHaveLength(0);
+  });
+
+  it("stores the converted app and consumes the state", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const kv = memoryKv();
+    const api = fakeGitHubApi({ conversion });
+    const { state } = await startManifest(db, kv, admin, {});
+    await completeManifest(db, kv, api, admin.userId, "code", state);
+    expect(await loadAppConfig(db)).toMatchObject({ appId: 77, slug: "roadmap-new", privateKey: KEY, webhookSecret: "new-hook-secret" });
+    expect(await kv.get(`gh:manifest:${state}`)).toBeNull();
+    await expect(completeManifest(db, kv, api, admin.userId, "code", state)).rejects.toMatchObject({ name: "ForbiddenError" });
+  });
+
+  it("refuses a state when the user is no longer an admin", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const kv = memoryKv();
+    const api = fakeGitHubApi({ conversion });
+    const { state } = await startManifest(db, kv, admin, {});
+    await db.update(user).set({ isAdmin: false }).where(eq(user.id, admin.userId));
+    await expect(completeManifest(db, kv, api, admin.userId, "code", state)).rejects.toMatchObject({ name: "ForbiddenError" });
+    expect(await db.select().from(githubApp)).toHaveLength(0);
+    expect(api.calls).toHaveLength(0);
+  });
+
+  it("keeps the secret when GitHub refuses the rotation", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    await saveAppCredentials(db, admin, input);
+    const api = fakeGitHubApi();
+    api.updateWebhookSecret = async () => {
+      throw new Error("GitHub is down");
+    };
+    await expect(rotateWebhookSecret(db, api, admin, NOW)).rejects.toThrow("GitHub is down");
+    expect(await loadAppConfig(db)).toMatchObject({ webhookSecret: "hook-secret", previousWebhookSecret: null, previousSecretExpiresAt: null });
+  });
+
+  it("keeps the old secret for ten minutes after a rotation", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    await saveAppCredentials(db, admin, input);
+    const api = fakeGitHubApi();
+    await rotateWebhookSecret(db, api, admin, NOW);
+    const sent = api.calls.find((c) => c.method === "updateWebhookSecret")?.args[0];
+    expect(sent).toMatch(/^[0-9a-f]{64}$/);
+    const config = await loadAppConfig(db);
+    expect(config).toMatchObject({ webhookSecret: sent, previousWebhookSecret: "hook-secret" });
+    expect(config?.previousSecretExpiresAt).toEqual(new Date(NOW.getTime() + 10 * 60_000));
+  });
+
+  it("changes the link policy", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    await saveAppCredentials(db, admin, input);
+    await setLinkPolicy(db, admin, "admins");
+    expect((await getAppSummary(db, admin))?.linkPolicy).toBe("admins");
   });
 });
