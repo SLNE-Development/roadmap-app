@@ -30,6 +30,7 @@ import { GATE_RULES } from "@/lib/ops/gates";
 import { deleteGlossaryTerm, listGlossary, setGlossaryTerm, setGlossaryTermInput } from "@/lib/ops/glossary";
 import { listMembers } from "@/lib/ops/members";
 import { getPage, listPages, writePage, writePageInput } from "@/lib/ops/pages";
+import { searchProjectInput, searchProjectWithRefs } from "@/lib/ops/search";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { myWork } from "@/lib/ops/my-work";
 import { MAX_INT } from "@/lib/ops/params";
@@ -418,6 +419,27 @@ register(
     method: "PUT",
     path: "/projects/:project/pages/:page",
     run: (db, actor, { project, ...input }) => writePage(db, actor, project, input),
+  }),
+  defineTool({
+    name: "search",
+    description: "Full-text search in a project's systems, latest specs and plans, ADRs, questions and pages; returns titles, links and short snippets.",
+    input: {
+      ...P,
+      ...searchProjectInput.shape,
+      // REST passes query values as strings: kinds may come comma-separated, limit as a numeric string.
+      kinds: z.preprocess((v) => (typeof v === "string" ? v.split(",") : v), searchProjectInput.shape.kinds),
+      limit: positiveInt(50).optional().describe("Maximum number of hits, 20 by default."),
+    },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/search",
+    run: async (db, actor, { project, ...input }) =>
+      (await searchProjectWithRefs(db, actor, project, input)).map((hit) => ({
+        kind: hit.kind,
+        title: hit.title,
+        ref: hit.ref,
+        snippet: hit.snippet.replace(/[\u0002\u0003]/g, "**"),
+      })),
   }),
   defineTool({
     name: "move_system",

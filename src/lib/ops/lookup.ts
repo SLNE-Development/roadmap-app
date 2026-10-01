@@ -1,12 +1,21 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, inArray } from "drizzle-orm";
 import { board, boardColumn, project, system, user, type ProjectRole } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectAccess, type ProjectAccess } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, NotFoundError } from "./errors";
 
-/** A system row. */
-export type SystemRow = typeof system.$inferSelect;
+/** A system row without its generated full-text `search` vector, which never leaves the database. */
+export type SystemRow = Omit<typeof system.$inferSelect, "search">;
+
+type SystemColumns = Omit<(typeof system)["_"]["columns"], "search">;
+
+/** The columns of {@link SystemRow}, for `select` and `returning`. */
+export const systemColumns: SystemColumns = (() => {
+  const columns: Partial<(typeof system)["_"]["columns"]> = { ...getTableColumns(system) };
+  delete columns.search;
+  return columns as SystemColumns;
+})();
 
 /** A board row. */
 export type BoardRow = typeof board.$inferSelect;
@@ -40,7 +49,7 @@ export async function findSystem(
   opts?: { allowArchived?: boolean },
 ): Promise<SystemRow> {
   const query = db
-    .select()
+    .select(systemColumns)
     .from(system)
     .where(and(eq(system.projectId, projectId), eq(system.slug, slug)))
     .limit(1);

@@ -1,11 +1,33 @@
 "use client";
 
-import { Activity, BookOpen, CircleHelp, FolderKanban, KanbanSquare, KeyRound, LayoutGrid, List, Map as MapIcon, Keyboard, Moon, Scale, SlidersHorizontal, Users } from "lucide-react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  Activity,
+  BookOpen,
+  CircleHelp,
+  FileText,
+  FolderKanban,
+  KanbanSquare,
+  KeyRound,
+  LayoutGrid,
+  List,
+  ListChecks,
+  Map as MapIcon,
+  Keyboard,
+  Moon,
+  Scale,
+  SlidersHorizontal,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/kbd";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import type { SearchHit } from "@/lib/ops/search";
+import { useTRPC } from "@/trpc/client";
 
 /** Browser event that opens the command menu from anywhere, e.g. the sidebar search button. */
 const OPEN_EVENT = "roadmap:open-command-menu";
@@ -13,6 +35,23 @@ const OPEN_EVENT = "roadmap:open-command-menu";
 /** Opens the command menu. */
 export function openCommandMenu() {
   window.dispatchEvent(new Event(OPEN_EVENT));
+}
+
+/** The icon of each kind of document search hit. */
+const HIT_ICON: Record<SearchHit["kind"], LucideIcon> = { system: List, spec: FileText, plan: ListChecks, adr: Scale, question: CircleHelp, page: BookOpen };
+
+/** Renders a search snippet with the matched words (between `\u0002` and `\u0003`) as `<mark>`, never as HTML. */
+function Snippet({ text }: { text: string }) {
+  return text.split("\u0002").map((part, i) => {
+    if (i === 0) return <span key={i}>{part}</span>;
+    const [match, rest = ""] = part.split("\u0003");
+    return (
+      <span key={i}>
+        <mark className="bg-brand-soft text-inherit">{match}</mark>
+        {rest}
+      </span>
+    );
+  });
 }
 
 /** What the command menu can jump to; callers pass active projects and systems only, leaving archived ones out. */
@@ -26,12 +65,27 @@ export interface CommandMenuData {
 
 /**
  * The ⌘K / Ctrl+K palette: jump to a section, board or system of the current
- * project, another project, or an account page, and switch the theme.
+ * project, another project, or an account page, and switch the theme. Inside a
+ * project, two or more typed characters also search its documents.
  */
 export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; onShowShortcuts: () => void }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
+  const trpc = useTRPC();
+  const [query, setQuery] = useState("");
+  // The dialog unmounts its input when closed, so the next opening starts empty.
+  if (!open && query !== "") setQuery("");
+  const searchable = (q: string) => data.project !== undefined && q.replace(/\s/g, "").length >= 2;
+  const debounced = useDebouncedValue(query.trim(), 200);
+  const search = useQuery({
+    ...trpc.search.project.queryOptions({ project: data.project?.slug ?? "", q: debounced }),
+    enabled: open && searchable(debounced),
+    placeholderData: keepPreviousData,
+  });
+  const showHits = searchable(query);
+  const hits = showHits ? (search.data ?? []) : [];
+  const searching = showHits && (search.isFetching || query.trim() !== debounced);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -68,7 +122,7 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title="Search" description="Jump to a project, system or page">
       <Command>
-      <CommandInput placeholder="Search or jump to…" />
+      <CommandInput placeholder="Search or jump to…" value={query} onValueChange={setQuery} />
       <CommandList>
         <CommandEmpty>Nothing matches.</CommandEmpty>
         {data.project && (
@@ -107,6 +161,26 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
                 <BookOpen /> {p.title}
               </CommandItem>
             ))}
+          </CommandGroup>
+        )}
+        {/* Outside the group, which cmdk hides while it has no items. */}
+        {searching && <div className="px-4 py-1.5 text-sm text-muted-foreground">Searching…</div>}
+        {hits.length > 0 && (
+          <CommandGroup heading="In documents">
+            {hits.map((hit) => {
+              const Icon = HIT_ICON[hit.kind];
+              return (
+                <CommandItem key={`${hit.kind} ${hit.href}`} value={`hit ${hit.kind} ${hit.href}`} keywords={[query]} onSelect={() => go(hit.href)} className="items-start">
+                  <Icon className="mt-0.5" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{hit.title}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      <Snippet text={hit.snippet} />
+                    </span>
+                  </span>
+                </CommandItem>
+              );
+            })}
           </CommandGroup>
         )}
         <CommandGroup heading="Projects">

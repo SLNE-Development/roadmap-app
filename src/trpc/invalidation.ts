@@ -6,10 +6,10 @@ import { queryProject } from "./query-client";
  */
 export const INVALIDATES: Record<string, readonly string[]> = {
   tasks: ["tasks", "systems", "planning", "history", "projects", "structure", "adrs", "gates"],
-  systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks", "gates"],
+  systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks", "gates", "search"],
   planning: ["planning", "systems", "history", "projects"],
-  adrs: ["adrs", "systems", "history", "projects", "gates"],
-  questions: ["questions", "systems", "planning", "history", "projects", "gates"],
+  adrs: ["adrs", "systems", "history", "projects", "gates", "search"],
+  questions: ["questions", "systems", "planning", "history", "projects", "gates", "search"],
   boards: ["boards", "systems", "planning", "projects", "history", "gates"],
   fields: ["fields", "systems", "projects", "history"],
   structure: ["structure", "systems", "projects", "history"],
@@ -21,7 +21,8 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   views: ["views"],
   gates: ["gates"],
   glossary: ["glossary", "history"],
-  pages: ["pages", "history", "projects"],
+  pages: ["pages", "history", "projects", "search"],
+  search: ["search"],
 };
 
 /**

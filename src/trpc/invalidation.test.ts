@@ -37,6 +37,10 @@ describe("INVALIDATES", () => {
     expect(affectedRouters([["projects", "archive"]])).toContain("views");
   });
 
+  it("refetches search hits after content mutations", () => {
+    for (const router of ["systems", "adrs", "questions", "pages"]) expect(affectedRouters([[router, "x"]]), router).toContain("search");
+  });
+
   it("scopes a board mutation to the planning gaps too", () => {
     expect(affectedRouters([["boards", "update"]])).toContain("planning");
   });

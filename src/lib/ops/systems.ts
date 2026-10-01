@@ -30,7 +30,7 @@ import { ConflictError, ForbiddenError, InvalidError, isUniqueViolation, NotFoun
 import { fieldValuesByKey } from "./fields";
 import { columnRulesOf, evaluateGates, gateMessage } from "./gates";
 import { logChange } from "./log";
-import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
+import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, systemColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
 import { nullableEntityId } from "./params";
 import { openAreaReopens, planningGaps } from "./planning";
@@ -227,7 +227,7 @@ export async function createSystem(db: Db, actor: Actor, projectSlug: string, ra
           priority: input.priority,
           sortOrder: (last ?? -1) + 1,
         })
-        .returning();
+        .returning(systemColumns);
       await logChange(tx, actor, { projectId: project.id, systemId: row.id, entity: "system", entityId: row.id, field: "created", newValue: row.title });
       return row;
     });
@@ -453,7 +453,7 @@ export async function applySystemPatch(
     });
   }
   if (Object.keys(changes).length === 0) return current;
-  const [row] = await tx.update(system).set(changes).where(eq(system.id, current.id)).returning();
+  const [row] = await tx.update(system).set(changes).where(eq(system.id, current.id)).returning(systemColumns);
   return row;
 }
 
@@ -535,7 +535,7 @@ export async function applySystemMove(
     await claimSystem(tx, actor, current);
   }
   const fromColumn = from.columns.find((c) => c.id === current.columnId);
-  const [row] = await tx.update(system).set({ boardId: target.id, columnId: column.id }).where(eq(system.id, current.id)).returning();
+  const [row] = await tx.update(system).set({ boardId: target.id, columnId: column.id }).where(eq(system.id, current.id)).returning(systemColumns);
   await logChange(tx, actor, {
     projectId: project.id,
     systemId: current.id,

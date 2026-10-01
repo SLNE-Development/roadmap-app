@@ -1,6 +1,8 @@
+import { sql } from "drizzle-orm";
 import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { board, boardColumn, customField, domain, phase, project } from "./projects";
+import { tsvector } from "./tsvector";
 
 /** Priority classes, from most to least urgent. */
 export const PRIORITIES = ["MVP", "Later", "Nice to have"] as const;
@@ -66,12 +68,17 @@ export const system = pgTable(
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
     /** When the system was archived (hidden, read-only); null while active. */
     archivedAt: timestamp("archived_at", tz),
+    /** Full-text search vector: title, then summary, then notes. */
+    search: tsvector("search").generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(title,'')), 'A') || setweight(to_tsvector('english', coalesce(summary,'')), 'B') || setweight(to_tsvector('english', coalesce(notes,'')), 'C')`,
+    ),
   },
   (t) => [
     unique("system_project_slug").on(t.projectId, t.slug),
     index("system_board_id_idx").on(t.boardId),
     index("system_column_id_idx").on(t.columnId),
     index("system_owner_user_id_idx").on(t.ownerUserId),
+    index("system_search").using("gin", t.search),
   ],
 );
 
@@ -159,8 +166,10 @@ export const systemDocument = pgTable(
     authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
     agent: text("agent"),
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+    /** Full-text search vector of the body. */
+    search: tsvector("search").generatedAlwaysAs(sql`to_tsvector('english', body)`),
   },
-  (t) => [unique("system_document_version").on(t.systemId, t.kind, t.version)],
+  (t) => [unique("system_document_version").on(t.systemId, t.kind, t.version), index("system_document_search").using("gin", t.search)],
 );
 
 /** Pages of a project that belong to no system, such as onboarding, conventions and architecture. */
@@ -192,8 +201,10 @@ export const pageVersion = pgTable(
     authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
     agent: text("agent"),
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+    /** Full-text search vector of the body. */
+    search: tsvector("search").generatedAlwaysAs(sql`to_tsvector('english', body)`),
   },
-  (t) => [unique("page_version_page_version").on(t.pageId, t.version)],
+  (t) => [unique("page_version_page_version").on(t.pageId, t.version), index("page_version_search").using("gin", t.search)],
 );
 
 /** Architecture decision records, numbered per project and immutable once accepted. */
@@ -217,8 +228,12 @@ export const adr = pgTable(
     agent: text("agent"),
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
     acceptedAt: timestamp("accepted_at", tz),
+    /** Full-text search vector: title, then context, decision, alternatives and consequences. */
+    search: tsvector("search").generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(title,'')), 'A') || setweight(to_tsvector('english', coalesce(context,'') || ' ' || coalesce(decision,'') || ' ' || coalesce(alternatives,'') || ' ' || coalesce(consequences,'')), 'B')`,
+    ),
   },
-  (t) => [unique("adr_project_number").on(t.projectId, t.number)],
+  (t) => [unique("adr_project_number").on(t.projectId, t.number), index("adr_search").using("gin", t.search)],
 );
 
 /** Links between ADRs and the systems they concern. */
@@ -270,8 +285,16 @@ export const question = pgTable(
     answeredByUserId: text("answered_by_user_id").references(() => user.id, { onDelete: "set null" }),
     answeredAgent: text("answered_agent"),
     answeredAt: timestamp("answered_at", tz),
+    /** Full-text search vector: title, then text, then answer. */
+    search: tsvector("search").generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(title,'')), 'A') || setweight(to_tsvector('english', coalesce(text,'')), 'B') || setweight(to_tsvector('english', coalesce(answer,'')), 'C')`,
+    ),
   },
-  (t) => [index("question_project_id_idx").on(t.projectId, t.resolved), index("question_system_id_idx").on(t.systemId)],
+  (t) => [
+    index("question_project_id_idx").on(t.projectId, t.resolved),
+    index("question_system_id_idx").on(t.systemId),
+    index("question_search").using("gin", t.search),
+  ],
 );
 
 /** Progress reports by people or agents about their work on a system. */
