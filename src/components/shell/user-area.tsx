@@ -1,26 +1,31 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, BellRing, GitBranch, KeyRound, Laptop, LogOut, Monitor, Moon, ShieldCheck, Sun, Users } from "lucide-react";
+import { BellRing, GitBranch, KeyRound, Laptop, LogOut, Monitor, Moon, Palette, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PersonAvatar } from "@/components/person-avatar";
 import { authClient } from "@/lib/auth/client";
 
 /**
- * The account row at the bottom of the sidebar: a menu with notifications, API keys, sessions, accounts, GitHub App and audit
- * (admins), theme and sign-out, plus a one-click light/dark switch.
+ * The account row at the bottom of the sidebar: a menu grouped into personal settings (notifications, API keys,
+ * sessions), admin pages (accounts, GitHub App, audit; admins only), a theme submenu and sign-out, plus a one-click
+ * light/dark switch. The notification inbox opens from the bell.
  */
 export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) {
   const router = useRouter();
@@ -38,61 +43,66 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top" className="w-56">
           <DropdownMenuLabel>{name}</DropdownMenuLabel>
-          <DropdownMenuItem asChild>
-            <Link href="/notifications">
-              <Bell /> Notifications
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/settings/notifications">
-              <BellRing /> Notification settings
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/settings/api-keys">
-              <KeyRound /> API keys
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/settings/sessions">
-              <Laptop /> Sessions
-            </Link>
-          </DropdownMenuItem>
-          {isAdmin && (
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-              <Link href="/admin/users">
-                <Users /> Accounts
+              <Link href="/settings/notifications">
+                <BellRing /> Notification settings
               </Link>
             </DropdownMenuItem>
-          )}
-          {isAdmin && (
             <DropdownMenuItem asChild>
-              <Link href="/admin/github">
-                <GitBranch /> GitHub App
+              <Link href="/settings/api-keys">
+                <KeyRound /> API keys
               </Link>
             </DropdownMenuItem>
-          )}
-          {isAdmin && (
             <DropdownMenuItem asChild>
-              <Link href="/admin/audit">
-                <ShieldCheck /> Audit
+              <Link href="/settings/sessions">
+                <Laptop /> Sessions
               </Link>
             </DropdownMenuItem>
+          </DropdownMenuGroup>
+          {isAdmin && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Admin</DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/users">
+                    <Users /> Accounts
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/github">
+                    <GitBranch /> GitHub App
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/audit">
+                    <ShieldCheck /> Audit
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
-            <DropdownMenuRadioItem value="system">
-              <Monitor /> System
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="light">
-              <Sun /> Light
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="dark">
-              <Moon /> Dark
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Palette /> Theme
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+                <DropdownMenuRadioItem value="system">
+                  <Monitor /> System
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  <Sun /> Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">
+                  <Moon /> Dark
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuItem
             variant="destructive"
             onSelect={async () => {
