@@ -4,19 +4,16 @@ import { useSuspenseQueries } from "@tanstack/react-query";
 import { CircleAlert, ExternalLink } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
+import { historySentence } from "@/components/events/history-sentence";
 import { EventProgressBar } from "@/components/events/progress-bar";
 import { openCount } from "@/components/events/question-form";
 import { PersonName } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { REQUEST_STATUSES, type RequestStatus } from "@/lib/event-status";
 import type { RequestDetail, RequestHistoryItem } from "@/lib/ops/requests";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
-
-/** Returns whether `value` is a request status. */
-const isStatus = (value: string | null): value is RequestStatus => REQUEST_STATUSES.includes(value as RequestStatus);
 
 /** The kinds of post the rail shows the state of, in due order. */
 const POST_KINDS = ["team", "announcement", "reminder"] as const;
@@ -48,19 +45,7 @@ const PANEL_LINK = "text-[12.5px] font-medium text-brand-strong hover:underline"
 /** Turns a history row into a sentence, in the request's words. */
 export function useHistorySentence(): (row: RequestHistoryItem) => string {
   const t = useTranslations("events");
-  return (r) => {
-    const name = r.author;
-    const status = (value: string | null) => (isStatus(value) ? t(`status.${value}`) : (value ?? ""));
-    if (r.field === "created") return t("history.created", { name });
-    if (r.field === "brief") return t("history.brief", { name, from: r.oldValue ?? "", to: r.newValue ?? "" });
-    if (r.field === "status") {
-      if (isStatus(r.oldValue) && !isStatus(r.newValue)) return t("history.cancelled", { name, reason: r.newValue ?? "" });
-      return t("history.status", { name, from: status(r.oldValue), to: status(r.newValue) });
-    }
-    const known = ["title", "startsAt", "durationMinutes", "where", "summary", "banner", "eventDocsUrl", "requesterId"] as const;
-    const field = known.find((k) => k === r.field);
-    return t("history.entry", { name, field: field ? t(`history.field.${field}`) : r.field });
-  };
+  return (r) => historySentence(r, (key, values) => t(key as never, values as never));
 }
 
 /** The history rows as sentences with their time. */
@@ -110,7 +95,8 @@ export function RequestRail({ detail }: { detail: RequestDetail }) {
   const base = `/requests/${id}`;
   const open = status === "draft" || status === "submitted" || status === "accepted" || status === "event_week";
   const live = status === "accepted" || status === "event_week";
-  const showEvent = live || status === "done";
+  // The Discord panel stays for a finished or cancelled event (its posts); to-dos only matter while the event is live.
+  const showEvent = live || status === "done" || status === "cancelled";
 
   const questions = canEdit ? openCount(rounds) : 0;
   const incomplete = fallbacks.filter((f) => f.required && (!f.whatWeDo.trim() || !f.whoDecides.trim()));
@@ -177,7 +163,7 @@ export function RequestRail({ detail }: { detail: RequestDetail }) {
               <ExternalLink aria-hidden className="size-3.5" />
             </a>
           ) : (
-            <p className="text-[12.5px] text-fg-2">{t(`discordEvent.${noEventReason}`)}</p>
+            live && <p className="text-[12.5px] text-fg-2">{t(`discordEvent.${noEventReason}`)}</p>
           )}
           <ul className="flex flex-col gap-1.5">
             {POST_KINDS.map((kind) => {
@@ -199,7 +185,7 @@ export function RequestRail({ detail }: { detail: RequestDetail }) {
         </RailPanel>
       )}
       {progress && <EventProgressBar progress={progress} />}
-      {showEvent && (
+      {live && (
         <RailPanel title={tr("todos.title")} action={<Link href={`${base}?tab=prep`} className={PANEL_LINK}>{tr("todos.all")}</Link>}>
           {nextTodos.length === 0 ? (
             <p className="text-[12.5px] text-fg-2">{tr("todos.empty")}</p>

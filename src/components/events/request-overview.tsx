@@ -50,7 +50,6 @@ function SummaryCard({ detail }: { detail: RequestDetail }) {
     trpc.requests.update.mutationOptions({
       onSuccess: (_row, vars) => {
         setSaved(vars.summary ?? "");
-        setDraft(vars.summary ?? "");
         toast.success(t("saved"));
       },
     }),
@@ -73,7 +72,7 @@ function SummaryCard({ detail }: { detail: RequestDetail }) {
         )}
       </div>
       <DirtyBar
-        dirty={canEdit && draft !== saved}
+        dirty={canEdit && draft.trim() !== saved.trim()}
         canSave
         pending={update.isPending}
         onSave={() => update.mutate({ id: request.id, summary: draft.trim() })}
@@ -110,8 +109,15 @@ function DetailsCard({ detail }: { detail: RequestDetail }) {
   const [draft, setDraft] = useState(initial);
   const update = useMutation(
     trpc.requests.update.mutationOptions({
-      onSuccess: () => {
-        setSaved(draft);
+      // The baseline is what was sent; text typed while the save ran stays unsaved.
+      onSuccess: (_row, vars) => {
+        setSaved((s) => ({
+          title: vars.title ?? s.title,
+          start: vars.startsAt === undefined ? s.start : vars.startsAt ? toZonedInput(new Date(vars.startsAt), zone) : "",
+          end: vars.endsAt === undefined ? s.end : vars.endsAt ? toZonedInput(new Date(vars.endsAt), zone) : "",
+          where: vars.where ?? s.where,
+          docs: vars.eventDocsUrl === undefined ? s.docs : (vars.eventDocsUrl ?? ""),
+        }));
         toast.success(t("saved"));
       },
     }),
@@ -132,13 +138,15 @@ function DetailsCard({ detail }: { detail: RequestDetail }) {
   const end = fromZonedInput(draft.end, zone);
   const endBeforeStart = start !== null && end !== null && end.getTime() <= start.getTime();
   const invalid = !draft.title.trim() || (draft.start !== "" && start === null) || (draft.end !== "" && end === null) || endBeforeStart;
-  const dirty = (Object.keys(draft) as (keyof DetailsDraft)[]).some((k) => draft[k] !== saved[k]);
+  // Text is saved trimmed, so trailing spaces alone are no change.
+  const changed = (k: keyof DetailsDraft) => draft[k].trim() !== saved[k].trim();
+  const dirty = (Object.keys(draft) as (keyof DetailsDraft)[]).some(changed);
   const patch = {
-    ...(draft.title !== saved.title ? { title: draft.title.trim() } : {}),
-    ...(draft.start !== saved.start ? { startsAt: start } : {}),
-    ...(draft.end !== saved.end ? { endsAt: end } : {}),
-    ...(draft.where !== saved.where ? { where: draft.where.trim() } : {}),
-    ...(draft.docs !== saved.docs ? { eventDocsUrl: draft.docs.trim() || null } : {}),
+    ...(changed("title") ? { title: draft.title.trim() } : {}),
+    ...(changed("start") ? { startsAt: start } : {}),
+    ...(changed("end") ? { endsAt: end } : {}),
+    ...(changed("where") ? { where: draft.where.trim() } : {}),
+    ...(changed("docs") ? { eventDocsUrl: draft.docs.trim() || null } : {}),
   };
   return (
     <div id="request-details">

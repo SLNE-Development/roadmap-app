@@ -130,7 +130,40 @@
       "banner": "the banner"
     },
     "showAll": "Show all",
-    "sheetDescription": "Every change to this request, newest first."
+    "sheetDescription": "Every change to this request, newest first.",
+    "project": "{name} linked the project {slug}",
+    "post": {
+      "saved": "{name} saved the {kind} draft",
+      "pasted": "{name} pasted a {kind} draft",
+      "sending": "{name} sent the {kind} message",
+      "resumed": "{name} resumed sending the {kind} message",
+      "edited": "{name} edited the posted {kind} message",
+      "deleting": "{name} deleted the {kind} message"
+    },
+    "postKind": {
+      "team": "team",
+      "announcement": "announcement",
+      "reminder": "reminder",
+      "disaster": "disaster",
+      "resolved": "resolved",
+      "cancelled": "cancelled"
+    },
+    "fallback": "{name} changed the fallback scenario \"{title}\"",
+    "fallbackRemoved": "{name} removed the fallback scenario \"{title}\"",
+    "todo": "{name} set up the to-do \"{title}\"",
+    "todoDone": "{name} ticked off the to-do \"{title}\"",
+    "todoReopened": "{name} reopened the to-do \"{title}\"",
+    "todoRemoved": "{name} removed the to-do \"{title}\"",
+    "checklistSet": "{name} set the event-day checklist ({count, plural, one {# item} other {# items}})",
+    "checklistAdded": "{name} added \"{label}\" to the event-day checklist",
+    "checklistDone": "{name} ticked off \"{label}\" on the event-day checklist",
+    "checklistReopened": "{name} reopened \"{label}\" on the event-day checklist",
+    "checklistRemoved": "{name} removed \"{label}\" from the event-day checklist",
+    "questions": "{name} asked round {round} of questions",
+    "answered": "{name} answered question {question} of round {round}",
+    "notSure": "{name} was not sure about question {question} of round {round}",
+    "other": "{name} changed the request",
+    "via": "(via {agent})"
   },
   "image": {
     "choose": "Choose image",

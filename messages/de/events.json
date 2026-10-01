@@ -130,7 +130,40 @@
       "banner": "das Banner"
     },
     "showAll": "Alle anzeigen",
-    "sheetDescription": "Alle Änderungen an dieser Anfrage, die neueste zuerst."
+    "sheetDescription": "Alle Änderungen an dieser Anfrage, die neueste zuerst.",
+    "project": "{name} hat das Projekt {slug} verknüpft",
+    "post": {
+      "saved": "{name} hat den Entwurf der Nachricht „{kind}“ gespeichert",
+      "pasted": "{name} hat einen Entwurf für „{kind}“ eingefügt",
+      "sending": "{name} hat die Nachricht „{kind}“ gesendet",
+      "resumed": "{name} hat das Senden der Nachricht „{kind}“ fortgesetzt",
+      "edited": "{name} hat die gepostete Nachricht „{kind}“ bearbeitet",
+      "deleting": "{name} hat die Nachricht „{kind}“ gelöscht"
+    },
+    "postKind": {
+      "team": "Team",
+      "announcement": "Ankündigung",
+      "reminder": "Erinnerung",
+      "disaster": "Störfall",
+      "resolved": "Entwarnung",
+      "cancelled": "Absage"
+    },
+    "fallback": "{name} hat das Notfallszenario „{title}“ geändert",
+    "fallbackRemoved": "{name} hat das Notfallszenario „{title}“ entfernt",
+    "todo": "{name} hat die Aufgabe „{title}“ angelegt",
+    "todoDone": "{name} hat die Aufgabe „{title}“ abgehakt",
+    "todoReopened": "{name} hat die Aufgabe „{title}“ wieder geöffnet",
+    "todoRemoved": "{name} hat die Aufgabe „{title}“ entfernt",
+    "checklistSet": "{name} hat die Eventtag-Checkliste gesetzt ({count, plural, one {# Punkt} other {# Punkte}})",
+    "checklistAdded": "{name} hat „{label}“ zur Eventtag-Checkliste hinzugefügt",
+    "checklistDone": "{name} hat „{label}“ auf der Eventtag-Checkliste abgehakt",
+    "checklistReopened": "{name} hat „{label}“ auf der Eventtag-Checkliste wieder geöffnet",
+    "checklistRemoved": "{name} hat „{label}“ von der Eventtag-Checkliste entfernt",
+    "questions": "{name} hat Fragerunde {round} gestellt",
+    "answered": "{name} hat Frage {question} der Runde {round} beantwortet",
+    "notSure": "{name} war bei Frage {question} der Runde {round} unsicher",
+    "other": "{name} hat die Anfrage geändert",
+    "via": "(über {agent})"
   },
   "image": {
     "choose": "Bild auswählen",

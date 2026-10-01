@@ -86,4 +86,18 @@ describe("RequestOverview details", () => {
     expect((screen.getByLabelText("Where") as HTMLInputElement).value).toBe("Garden");
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
   });
+
+  it("keeps text typed while a save runs unsaved", async () => {
+    let finish: () => void = () => {};
+    handlers["requests.update"] = () => new Promise((resolve) => (finish = () => resolve({})));
+    render(tree(detail(1), new QueryClient()));
+    const where = (await screen.findByLabelText("Where")) as HTMLInputElement;
+    fireEvent.change(where, { target: { value: "Garden" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
+    await waitFor(() => expect(calls["requests.update"]).toHaveLength(1));
+    fireEvent.change(where, { target: { value: "Garden, north gate" } });
+    finish();
+    await waitFor(() => expect(screen.getByText("Unsaved changes")).toBeTruthy());
+    expect(where.value).toBe("Garden, north gate");
+  });
 });
