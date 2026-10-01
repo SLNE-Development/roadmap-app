@@ -1,7 +1,7 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { BellRing, GitBranch, KeyRound, Laptop, LogOut, Monitor, Moon, Palette, ShieldCheck, Sun, Users } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BellRing, GitBranch, KeyRound, Laptop, Link2, LogOut, Monitor, Moon, Palette, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -21,16 +21,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PersonAvatar } from "@/components/person-avatar";
 import { authClient } from "@/lib/auth/client";
+import { useTRPC } from "@/trpc/client";
 
 /**
  * The account row at the bottom of the sidebar: a menu grouped into personal settings (notifications, API keys,
- * sessions), admin pages (accounts, GitHub App, audit; admins only), a theme submenu and sign-out, plus a one-click
- * light/dark switch. The notification inbox opens from the bell.
+ * connections when the GitHub App is set up, sessions), admin pages (accounts, GitHub App, audit; admins only), a
+ * theme submenu and sign-out, plus a one-click light/dark switch. The notification inbox opens from the bell.
  */
 export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const trpc = useTRPC();
+  const { data: github } = useQuery(trpc.github.account.queryOptions());
   return (
     <div className="flex items-center gap-2.5 px-2 py-1.5">
       <DropdownMenu>
@@ -55,6 +58,13 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
                 <KeyRound /> API keys
               </Link>
             </DropdownMenuItem>
+            {github?.configured && (
+              <DropdownMenuItem asChild>
+                <Link href="/settings/connections">
+                  <Link2 /> Connections
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href="/settings/sessions">
                 <Laptop /> Sessions

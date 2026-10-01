@@ -121,6 +121,12 @@ export async function saveAppCredentials(db: Db, actor: Actor, raw: z.input<type
   console.info("github app configured", c.appId);
 }
 
+/** Returns whether a GitHub App is configured, without decrypting its secrets. */
+export async function githubAppConfigured(db: Db): Promise<boolean> {
+  const [row] = await db.select({ id: githubApp.id }).from(githubApp).where(eq(githubApp.id, "default"));
+  return row !== undefined;
+}
+
 /** Returns the App with its secrets decrypted, or null when none is configured. */
 export async function loadAppConfig(db: Db): Promise<GitHubAppConfig | null> {
   const [row] = await db.select().from(githubApp).where(eq(githubApp.id, "default"));

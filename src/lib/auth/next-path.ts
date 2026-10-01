@@ -2,7 +2,7 @@
 const MAX_LENGTH = 2048;
 
 /** The only API routes a sign-in may return to: GitHub's redirects, whose query must survive the sign-in. */
-const API_RETURNS = ["/api/github/setup", "/api/github/manifest/callback"];
+const API_RETURNS = ["/api/github/setup", "/api/github/manifest/callback", "/api/github/oauth/callback"];
 
 /**
  * Turns a `next` query value into a same-origin relative path to return to after sign-in.

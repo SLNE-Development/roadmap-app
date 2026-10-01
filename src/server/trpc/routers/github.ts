@@ -2,11 +2,13 @@ import "server-only";
 import { z } from "zod";
 import { getGitHubApi } from "@/lib/github/api";
 import { ForbiddenError } from "@/lib/ops/errors";
+import { myGitHubAccount, startGitHubLink, unlinkGitHub } from "@/lib/ops/github-accounts";
 import {
   appCredentialsInput,
   appHealth,
   dismissInstallRequest,
   getAppSummary,
+  githubAppConfigured,
   linkPolicyInput,
   listInstallations,
   listInstallRequests,
@@ -120,4 +122,16 @@ export const githubRouter = router({
 
   /** Starts installing the App on more repositories, returning to the project's GitHub settings. */
   installMoreUrl: protectedProcedure.input(z.object(P)).mutation(({ ctx, input }) => installMoreUrl(ctx.db, ctx.kv, ctx.actor, input.project)),
+
+  /** Whether an App is set up, and the actor's linked GitHub login. Any signed-in user. */
+  account: protectedProcedure.query(async ({ ctx }) => ({
+    configured: await githubAppConfigured(ctx.db),
+    account: await myGitHubAccount(ctx.db, ctx.actor),
+  })),
+
+  /** Starts linking the actor's GitHub login; the browser opens `url`. */
+  startLink: protectedProcedure.mutation(({ ctx }) => startGitHubLink(ctx.db, ctx.kv, ctx.actor)),
+
+  /** Removes the actor's linked GitHub login. */
+  unlinkAccount: protectedProcedure.mutation(({ ctx }) => unlinkGitHub(ctx.db, ctx.actor)),
 });

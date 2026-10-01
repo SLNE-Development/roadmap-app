@@ -17,6 +17,8 @@ describe("safeNextPath", () => {
     ["/api/auth/sign-out", "/"],
     ["/api/github/setup?installation_id=5&setup_action=install", "/api/github/setup?installation_id=5&setup_action=install"],
     ["/api/github/manifest/callback?code=c&state=s", "/api/github/manifest/callback?code=c&state=s"],
+    ["/api/github/oauth/callback?code=c&state=s", "/api/github/oauth/callback?code=c&state=s"],
+    ["/api/github/oauth/callbackx", "/"],
     ["/api/github/setup", "/api/github/setup"],
     ["/api/github/setupx", "/"],
     ["/api/github/app", "/"],
