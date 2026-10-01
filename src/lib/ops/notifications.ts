@@ -67,6 +67,11 @@ export function actorLabel(name: string | null | undefined, agent: string | null
   return agent ? `${agent} for ${who}` : who;
 }
 
+/** Returns whether a `system/column` change, whose value reads "<board> / <column>", moved the system into the column it is in now. */
+export function inMovedColumn(newValue: string | null, columnName: string): boolean {
+  return newValue?.endsWith(` / ${columnName}`) ?? false;
+}
+
 /** Returns whether the user may get notices of the project: it is not archived and they are an active member. Admins get nothing for membership alone. */
 export async function canReceive(tx: Executor, userId: string, projectId: string): Promise<boolean> {
   const [row] = await tx.select({ archivedAt: project.archivedAt }).from(project).where(eq(project.id, projectId)).limit(1);

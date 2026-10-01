@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { adr, adrSystem, boardColumn, project, question, system, task, user, type NotificationKind } from "@/db/schema";
 import { formatAdrNumber } from "@/lib/adr-number";
-import { actorLabel, notify } from "@/lib/ops/notifications";
+import { actorLabel, inMovedColumn, notify } from "@/lib/ops/notifications";
 import type { WorkerDeps } from "../deps";
 import { registerFeedConsumer, type ChangeEvent } from "../feed";
 
@@ -85,7 +85,7 @@ const RULES: Record<string, Rule> = {
   "system/column": (event, ctx, base) => {
     const sys = ctx.systems.get(event.entityId);
     // The system must still be in the column the event moved it to.
-    if (!sys || !event.newValue?.endsWith(` / ${sys.columnName}`)) return null;
+    if (!sys || !inMovedColumn(event.newValue, sys.columnName)) return null;
     if (sys.category !== "blocked" && sys.category !== "done") return null;
     const kind = sys.category === "blocked" ? "system.blocked" : "system.done";
     return { kind, recipients: [sys.ownerUserId], title: `${sys.title} is ${sys.category}`, href: `${base}/systems/${sys.slug}` };
