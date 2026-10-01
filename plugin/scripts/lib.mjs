@@ -261,3 +261,18 @@ export function auditRepo(repo, conv, gitLog = []) {
   if (sample.length && !badFormat.length && !attributed.length) add("commits", "conforming", "Recent commits follow the rules.");
   return findings;
 }
+
+/**
+ * Renders the rules for agents without the plugin. Both outputs carry the other-agents
+ * header and the convention blocks `expectedBlocks` selects (minus the CLAUDE.md-only
+ * header), each in marked sections so reruns replace only those sections.
+ *
+ * @param link the parsed `surf-roadmap.json`; its `project` is named in the header
+ */
+export function renderOtherAgents(conv, answers, link) {
+  const header = conv.read("other-agents/header.md").replace(/\{\{project\}\}/g, link?.project ?? "named in surf-roadmap.json");
+  const blocks = [{ id: "header", variant: null, text: header.trim() }, ...expectedBlocks(conv, answers).filter((b) => b.id !== "header")];
+  const agentsMd = `${blocks.map((b) => renderBlock(b.id, b.text, b.variant)).join("\n\n")}\n`;
+  const cursorRule = `---\ndescription: surf-roadmap conventions\nalwaysApply: true\n---\n${agentsMd}`;
+  return { agentsMd, cursorRule, blocks };
+}

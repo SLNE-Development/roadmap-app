@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { auditRepo, detectRestrictions, expectedBlocks, loadConventions, planClaudeMd, planGitignore, removeSection } from "./lib.mjs";
+import { auditRepo, detectRestrictions, expectedBlocks, loadConventions, planClaudeMd, planGitignore, removeSection, renderOtherAgents } from "./lib.mjs";
 
 /** Raised for invalid input; its message is reported to the caller as the error. */
 class UsageError extends Error {}
 
 /** Accepted values of the setup answers. */
 const CHOICES = { worktrees: ["allowed", "forbidden", "none"], execution: ["subagent", "inline", "none"] };
+
+/** Accepted values of `--targets` for the other-agents command. */
+const TARGETS = ["agents", "cursor"];
 
 /** Parses `--name value` flags into an object; a flag without a value or a stray argument is an error. */
 function flags(argv) {
@@ -144,6 +147,30 @@ async function main() {
       done({ ok: true, link, claudeMd: { added: claude.added, updated: claude.updated, divergent: claude.divergent, problems: claude.problems }, gitignore: ignore.added });
       break;
     }
+    case "other-agents": {
+      const repo = repoOf(f);
+      const targets = (f.targets ?? "").split(",").filter(Boolean);
+      if (!targets.length) throw new UsageError(`--targets is required (${TARGETS.join(", ")}).`);
+      const unknown = targets.find((t) => !TARGETS.includes(t));
+      if (unknown) throw new UsageError(`Unknown target ${unknown}; use ${TARGETS.join(", ")}.`);
+      const answers = { worktrees: choice(f, "worktrees"), execution: choice(f, "execution") };
+      const rendered = renderOtherAgents(conv, answers, readLink(join(repo, "surf-roadmap.json")));
+      const written = [];
+      if (targets.includes("agents")) {
+        const path = join(repo, "AGENTS.md");
+        const plan = planClaudeMd(readOr(path), rendered.blocks, rendered.blocks.map((b) => b.id));
+        if (plan.added.length || plan.updated.length) writeFileSync(path, plan.content);
+        written.push(path);
+      }
+      if (targets.includes("cursor")) {
+        const path = join(repo, ".cursor", "rules", "surf-roadmap.mdc");
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, rendered.cursorRule);
+        written.push(path);
+      }
+      done({ ok: true, written });
+      break;
+    }
     case "audit": {
       const repo = repoOf(f);
       const order = { missing: 0, divergent: 1, conforming: 2 };
@@ -151,7 +178,7 @@ async function main() {
       break;
     }
     default:
-      throw new UsageError("usage: surf-roadmap.mjs <whoami|detect-global|remove-global|apply|audit> [flags]");
+      throw new UsageError("usage: surf-roadmap.mjs <whoami|detect-global|remove-global|apply|other-agents|audit> [flags]");
   }
 }
 

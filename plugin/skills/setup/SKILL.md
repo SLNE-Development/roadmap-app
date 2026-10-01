@@ -109,6 +109,17 @@ are left untouched and the user must fix the markers by hand. `apply` keeps othe
 keys already in `surf-roadmap.json`; `--repo` defaults to the git top level and
 `--board` may be omitted.
 
+**Other agents.** After `apply`, ask one question: **"Also write rules for Codex
+and Cursor (AGENTS.md, .cursor/rules)?"** with options Yes / No. On Yes, run:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/scripts/surf-roadmap.mjs" other-agents --repo <repo> --targets agents,cursor --worktrees <same answer> --execution <same answer>
+```
+
+It writes `AGENTS.md` with the same marked sections (the user's own text outside
+them is kept) and overwrites `.cursor/rules/surf-roadmap.mdc`. Report the
+`written` paths.
+
 ## Step 6 — Other plugins
 
 Check `claude plugin list` (or `~/.claude/settings.json` → `enabledPlugins`). If

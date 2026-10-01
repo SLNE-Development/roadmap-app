@@ -224,3 +224,40 @@ test("CLI remove-global removes only the requested section", () => {
   assert.equal(out.json.ok, true);
   assert.equal(readFileSync(file, "utf8"), "# Keep\r\nme\r\n");
 });
+
+test("CLI other-agents writes AGENTS.md and the Cursor rule, and a rerun keeps the user's text", () => {
+  const repo = mkdtempSync(join(tmpdir(), "cli-agents-"));
+  writeFileSync(join(repo, "surf-roadmap.json"), JSON.stringify({ project: "demo" }));
+  const out = run("other-agents", "--repo", repo, "--targets", "agents,cursor");
+  assert.equal(out.status, 0);
+  assert.equal(out.json.ok, true);
+  assert.equal(out.json.written.length, 2);
+  const agents = readFileSync(join(repo, "AGENTS.md"), "utf8");
+  assert.ok(agents.includes("id=header") && agents.includes("id=roadmap") && agents.includes("id=commits"));
+  assert.ok(agents.includes("/api/mcp") && agents.includes("`demo`"));
+  const rule = readFileSync(join(repo, ".cursor", "rules", "surf-roadmap.mdc"), "utf8");
+  assert.ok(rule.startsWith("---\ndescription: surf-roadmap conventions\nalwaysApply: true\n---\n"));
+  assert.ok(rule.endsWith(agents));
+
+  writeFileSync(join(repo, "AGENTS.md"), `My own paragraph.\n\n${agents}`);
+  assert.equal(run("other-agents", "--repo", repo, "--targets", "agents,cursor").status, 0);
+  assert.equal(readFileSync(join(repo, "AGENTS.md"), "utf8"), `My own paragraph.\n\n${agents}`);
+});
+
+test("CLI other-agents rejects an unknown target", () => {
+  const repo = mkdtempSync(join(tmpdir(), "cli-agents-bad-"));
+  const out = run("other-agents", "--repo", repo, "--targets", "vim");
+  assert.equal(out.status, 1);
+  assert.equal(out.json.ok, false);
+  assert.equal(typeof out.json.error, "string");
+});
+
+test("CLI other-agents follows --worktrees like CLAUDE.md", () => {
+  const repo = mkdtempSync(join(tmpdir(), "cli-agents-wt-"));
+  assert.equal(run("other-agents", "--repo", repo, "--targets", "agents", "--worktrees", "forbidden").status, 0);
+  const agents = readFileSync(join(repo, "AGENTS.md"), "utf8");
+  assert.ok(agents.includes("id=worktrees variant=forbidden"));
+  const none = mkdtempSync(join(tmpdir(), "cli-agents-wt2-"));
+  run("other-agents", "--repo", none, "--targets", "agents");
+  assert.ok(!readFileSync(join(none, "AGENTS.md"), "utf8").includes("id=worktrees"));
+});
