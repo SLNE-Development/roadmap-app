@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import de from "../../messages/de.json";
-import en from "../../messages/en.json";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import de from "../../messages/de";
+import en from "../../messages/en";
 
 /** Flattens nested messages to dotted keys. */
 function flatten(obj: Record<string, unknown>, prefix = ""): Record<string, string> {
@@ -31,12 +33,22 @@ const flatEn = flatten(en);
 const flatDe = flatten(de);
 
 describe("message files", () => {
+  it("list every namespace file in the index of its language", () => {
+    for (const [locale, messages] of [["en", en], ["de", de]] as const) {
+      const files = readdirSync(join(__dirname, "../../messages", locale))
+        .filter((f) => f.endsWith(".json"))
+        .map((f) => f.slice(0, -".json".length))
+        .sort();
+      expect({ [locale]: Object.keys(messages).sort() }).toEqual({ [locale]: files });
+    }
+  });
+
   it("have the same keys", () => {
     const missingInDe = Object.keys(flatEn).filter((k) => !(k in flatDe));
     const missingInEn = Object.keys(flatDe).filter((k) => !(k in flatEn));
-    expect({ "missing in de.json": missingInDe, "missing in en.json": missingInEn }).toEqual({
-      "missing in de.json": [],
-      "missing in en.json": [],
+    expect({ "missing in de": missingInDe, "missing in en": missingInEn }).toEqual({
+      "missing in de": [],
+      "missing in en": [],
     });
   });
 

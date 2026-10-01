@@ -1,15 +1,13 @@
 {
-  "common": {
-    "appName": "Roadmap",
-    "save": "Save",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "close": "Close",
-    "create": "Create",
-    "edit": "Edit",
-    "loading": "Loading…",
-    "retry": "Try again",
-    "search": "Search",
-    "somethingWentWrong": "Something went wrong."
-  }
+  "appName": "Roadmap",
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "close": "Close",
+  "create": "Create",
+  "edit": "Edit",
+  "loading": "Loading…",
+  "retry": "Try again",
+  "search": "Search",
+  "somethingWentWrong": "Something went wrong."
 }

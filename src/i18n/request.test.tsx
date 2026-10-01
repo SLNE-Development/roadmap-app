@@ -5,7 +5,7 @@ import type { Db } from "@/db/types";
 import { setPref } from "@/lib/ops/prefs";
 import { createTestDb } from "@/test/db";
 import { insertUser } from "@/test/fixtures";
-import de from "../../messages/de.json";
+import de from "../../messages/de";
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/auth/actor", () => ({ sessionActor: async () => null }));

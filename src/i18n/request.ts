@@ -4,10 +4,15 @@ import { getDb } from "@/db/client";
 import type { Db } from "@/db/types";
 import { sessionActor } from "@/lib/auth/actor";
 import { getPref } from "@/lib/ops/prefs";
+import de from "../../messages/de";
+import en from "../../messages/en";
 import { resolveLocale, resolveTimeZone, type Locale } from "./locale";
 
+/** The message catalogue of every language. */
+const MESSAGES: Record<Locale, Messages> = { en, de };
+
 /** The message catalogue of the default language. */
-export type Messages = typeof import("../../messages/en.json");
+export type Messages = typeof import("../../messages/en").default;
 
 /**
  * Resolves the language, time zone and messages of one request from the user's `locale` and
@@ -26,7 +31,7 @@ export async function loadRequestConfig(opts: {
     ? await Promise.all([getPref(opts.db, opts.userId, "locale"), getPref(opts.db, opts.userId, "timeZone")])
     : [null, null];
   const locale = resolveLocale(localePref, opts.acceptLanguage);
-  const messages = (await import(`../../messages/${locale}.json`)).default as Messages;
+  const messages = MESSAGES[locale];
   return { locale, timeZone: resolveTimeZone(timeZonePref), messages };
 }
 
