@@ -289,7 +289,7 @@ export function BoardView({
       ? t(query.lane === "domain" ? "lane.noDomain" : query.lane === "phase" ? "lane.noPhase" : "lane.unassigned")
       : query.lane === "priority"
         ? tp(priorityKey(lane.key as Priority))
-        : lane.name;
+        : lane.name || t("lane.unknown");
 
   /** A card of `col`; its drag and move handlers change only the column, whichever lane it sits in. */
   const renderCard = (c: BoardCardView, col: BoardColumnView) => (

@@ -15,6 +15,7 @@
     "noDomain": "No domain",
     "noPhase": "No phase",
     "unassigned": "Unassigned",
+    "unknown": "Unknown",
     "button": "Lanes",
     "buttonLabel": "Lanes: {lane}",
     "hint": "Dragging across lanes changes only the column."

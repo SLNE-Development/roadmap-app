@@ -93,7 +93,11 @@ function RulesForm({
   // Chosen rules by id; the value is the parameter, null for rules without one.
   /** The translated name of a rule, with the day count for the rule that takes one. */
   const nameOf = (rule: { id: string; label: string }, param: number | null) =>
-    rule.id in RULE_NAMES ? t(`rules.names.${RULE_NAMES[rule.id as keyof typeof RULE_NAMES]}`, { days: param ?? 3 }) : rule.label;
+    rule.id === "update-within-days" && (param ?? 3) === 1
+      ? t("rules.names.updateWithinDay")
+      : rule.id in RULE_NAMES
+        ? t(`rules.names.${RULE_NAMES[rule.id as keyof typeof RULE_NAMES]}`, { days: param ?? 3 })
+        : rule.label;
   const [chosen, setChosen] = useState(() => new Map<string, number | null>(column.rules.map((r) => [r.rule, r.param])));
 
   return (

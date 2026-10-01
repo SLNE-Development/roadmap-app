@@ -39,21 +39,8 @@ const CATEGORY_CHIP: Record<ColumnCategory, string> = {
   done: "bg-cat-done-soft text-cat-done",
 };
 
-/** Display names of the categories, for filters and editors. */
-export const CATEGORY_LABEL: Record<ColumnCategory, string> = {
-  planning: "Planning",
-  todo: "Todo",
-  active: "In progress",
-  review: "Review",
-  blocked: "Blocked",
-  done: "Done",
-};
-
 /** Category colour used for each task state. */
 export const STATE_CATEGORY: Record<TaskState, ColumnCategory> = { todo: "todo", doing: "active", blocked: "blocked", done: "done" };
-
-/** Display names of task states. */
-export const STATE_LABEL: Record<TaskState, string> = { todo: "Todo", doing: "Doing", blocked: "Blocked", done: "Done" };
 
 /** A small round dot in a category's colour. */
 export function CategoryDot({ category, className }: { category: ColumnCategory; className?: string }) {
@@ -102,9 +89,6 @@ export function AgentTag({ agent, className }: { agent: string; className?: stri
 export function Tag({ children, className }: { children: React.ReactNode; className?: string }) {
   return <span className={cn("inline-block bg-secondary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-fg-2", className)}>{children}</span>;
 }
-
-/** Display names of project roles. */
-export const ROLE_LABEL: Record<string, string> = { owner: "Owner", editor: "Editor", viewer: "Viewer", admin: "Admin" };
 
 /** Returns a function giving the display name of a project role; `admin` (an admin acting on any project) and unknown roles fall back to their own names. */
 export function useRoleLabel(): (role: string) => string {

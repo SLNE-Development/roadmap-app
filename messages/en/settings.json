@@ -68,7 +68,8 @@
       "noOpenQuestions": "No open questions",
       "specExists": "Spec exists",
       "planCoversTasks": "Plan covers all tasks",
-      "updateWithinDays": "Progress update in the last {days, plural, one {# day} other {# days}}",
+      "updateWithinDay": "Progress update in the last day",
+      "updateWithinDays": "Progress update in the last {days} days",
       "adrLinked": "Accepted ADR linked",
       "prOpen": "An open or merged pull request",
       "prMerged": "A merged pull request"
@@ -144,7 +145,7 @@
     "systemCount": "{count, plural, one {# system} other {# systems}}",
     "noSystems": "No systems",
     "deleteDomainTitle": "Delete domain {name}?",
-    "deleteDomainDescription": "Systems in it: {count}. They keep existing without a domain.",
+    "deleteDomainDescription": "{count, plural, one {# system keeps} other {# systems keep}} existing without a domain.",
     "deleteDomainUnused": "No systems use it.",
     "domainsEmpty": "No domains yet.",
     "domainsEmptyEditor": "No domains yet. Add areas such as Police or Vehicles to group systems.",

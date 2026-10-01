@@ -88,6 +88,10 @@ describe("untranslated strings", () => {
     expect(offenders('toast.success("Board renamed");')).toEqual(["Board renamed"]);
   });
 
+  it("keeps PENDING_FILES empty", () => {
+    expect(PENDING_FILES, "every file is migrated; do not add files back").toEqual([]);
+  });
+
   it("keeps PENDING_FILES to existing, sorted files", () => {
     expect(PENDING_FILES.filter((f) => !files.includes(f))).toEqual([]);
     expect(PENDING_FILES).toEqual([...PENDING_FILES].sort());

@@ -29,16 +29,3 @@ export function normalizeCardFields(raw: unknown, customFieldKeys: string[]): Ca
   return result.slice(0, MAX_CARD_FIELDS);
 }
 
-/** Names of the built-in fields as the card fields dialog shows them. */
-export const CARD_FIELD_LABELS: Record<(typeof BUILTIN_CARD_FIELDS)[number], string> = {
-  owner: "Owner",
-  tasks: "Task progress",
-  blocked: "Blocked reason",
-  phase: "Phase",
-  domain: "Domain",
-  priority: "Priority",
-  questions: "Open questions",
-  estimate: "Open points",
-  dependencies: "Waiting on",
-  gates: "Gates",
-};

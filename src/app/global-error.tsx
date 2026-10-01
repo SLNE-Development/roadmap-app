@@ -4,7 +4,8 @@ import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { ErrorScreen } from "@/components/status-screens";
 import { cn } from "@/lib/utils";
-import en from "../../messages/en";
+import common from "../../messages/en/common.json";
+import errors from "../../messages/en/errors.json";
 import "./globals.css";
 
 /** Same fonts as the root layout, which this boundary replaces. */
@@ -13,7 +14,7 @@ const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-disp
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 /** The messages this boundary needs; it replaces the root layout and its provider, so it cannot read the user's language and stays English. */
-const MESSAGES = { common: en.common, errors: en.errors };
+const MESSAGES = { common, errors };
 
 /** Error boundary of the root layout; replaces it, so it renders its own `<html>`, `<body>` and message provider with the same styles. */
 export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {

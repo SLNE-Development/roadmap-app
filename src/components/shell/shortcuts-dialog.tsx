@@ -15,7 +15,7 @@ interface Row {
 type ShortcutLabel = keyof typeof en.shell.shortcuts;
 
 /** The `shell.shortcuts` key of each shortcut's label, by its keys; `SHORTCUTS` keeps the English labels for other users. */
-const LABELS: Record<string, ShortcutLabel> = {
+export const LABELS: Record<string, ShortcutLabel> = {
   "g h": "goHome",
   "g o": "goOverview",
   "g b": "goBoards",

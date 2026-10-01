@@ -8,7 +8,7 @@ export type LaneKey = (typeof LANE_KEYS)[number];
 /** The `Lane.key` of cards without a domain, phase or owner. */
 export const NO_LANE = "__none";
 
-/** One swimlane: the cards sharing a group value, with their count per column. */
+/** One swimlane: the cards sharing a group value, with their count per column. An unresolvable domain, phase or owner has an empty `name`, which the view labels. */
 export interface Lane {
   /** The group value, `"__none"` for "No domain", "No phase" or "Unassigned", `"all"` without lanes. */
   key: string;
@@ -47,13 +47,13 @@ export function groupIntoLanes(cards: BoardCardView[], by: LaneKey, names: LaneN
     let label: string;
     if (by === "domain") {
       key = c.domainId ?? NO_LANE;
-      label = c.domainId ? (names.domains.get(c.domainId) ?? "Unknown domain") : "No domain";
+      label = c.domainId ? (names.domains.get(c.domainId) ?? "") : "No domain";
     } else if (by === "phase") {
       key = c.phaseId ?? NO_LANE;
-      label = c.phaseId ? (names.phases.get(c.phaseId) ?? "Unknown phase") : "No phase";
+      label = c.phaseId ? (names.phases.get(c.phaseId) ?? "") : "No phase";
     } else if (by === "owner") {
       key = c.ownerUserId ?? NO_LANE;
-      label = c.ownerUserId ? (c.ownerName ?? "Unknown") : "Unassigned";
+      label = c.ownerUserId ? (c.ownerName ?? "") : "Unassigned";
     } else {
       key = c.priority;
       label = c.priority;

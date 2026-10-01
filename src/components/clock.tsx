@@ -25,7 +25,7 @@ export function ClockProvider({ serverNow, children }: { serverNow: number; chil
   return <ClockContext.Provider value={now}>{children}</ClockContext.Provider>;
 }
 
-/** Returns the render clock's time, for `relativeAge`, `dayLabel` and other comparisons with now. */
+/** Returns the render clock's time, for comparisons with now. */
 export function useNow(): Date {
   return useContext(ClockContext) ?? new Date();
 }

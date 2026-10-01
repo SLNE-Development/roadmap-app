@@ -6,13 +6,3 @@ export function BoardAnnouncer({ message }: { message: string }) {
     </div>
   );
 }
-
-/** Announcement for a card that moved. */
-export function moveMessage(title: string, columnName: string): string {
-  return `Moved ${title} to ${columnName}.`;
-}
-
-/** Announcement for a card that snapped back, with the server's reason. */
-export function refusedMessage(title: string, reason: string): string {
-  return `${title} stayed put: ${reason}`;
-}

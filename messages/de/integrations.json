@@ -27,7 +27,7 @@
     "showWebhook": "Webhook-Einstellungen anzeigen",
     "unlink": "Verknüpfung aufheben",
     "unlinkTitle": "Verknüpfung mit {name} aufheben?",
-    "unlinkDescription": "Seine Pull Requests und Commits verschwinden aus Aufgaben und Systemen, und neue Ereignisse davon werden ignoriert.",
+    "unlinkDescription": "Dessen Pull Requests und Commits verschwinden aus Aufgaben und Systemen, und neue Ereignisse davon werden ignoriert.",
     "keep": "Behalten",
     "needsApp": "Braucht die GitHub-App",
     "rules": {

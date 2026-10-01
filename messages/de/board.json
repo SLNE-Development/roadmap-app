@@ -15,6 +15,7 @@
     "noDomain": "Kein Bereich",
     "noPhase": "Keine Phase",
     "unassigned": "Nicht zugewiesen",
+    "unknown": "Unbekannt",
     "button": "Bahnen",
     "buttonLabel": "Bahnen: {lane}",
     "hint": "Beim Ziehen über Bahnen hinweg ändert sich nur die Spalte."

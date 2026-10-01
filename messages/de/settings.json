@@ -68,7 +68,8 @@
       "noOpenQuestions": "Keine offenen Fragen",
       "specExists": "Spezifikation vorhanden",
       "planCoversTasks": "Plan deckt alle Aufgaben ab",
-      "updateWithinDays": "Fortschrittsmeldung in den letzten {days, plural, one {# Tag} other {# Tagen}}",
+      "updateWithinDay": "Fortschrittsmeldung im letzten Tag",
+      "updateWithinDays": "Fortschrittsmeldung in den letzten {days} Tagen",
       "adrLinked": "Angenommener ADR verknüpft",
       "prOpen": "Ein offener oder gemergter Pull Request",
       "prMerged": "Ein gemergter Pull Request"
@@ -144,7 +145,7 @@
     "systemCount": "{count, plural, one {# System} other {# Systeme}}",
     "noSystems": "Keine Systeme",
     "deleteDomainTitle": "Bereich {name} löschen?",
-    "deleteDomainDescription": "Systeme darin: {count}. Sie bleiben ohne Bereich bestehen.",
+    "deleteDomainDescription": "{count, plural, one {# System bleibt} other {# Systeme bleiben}} ohne Bereich bestehen.",
     "deleteDomainUnused": "Kein System verwendet ihn.",
     "domainsEmpty": "Noch keine Bereiche.",
     "domainsEmptyEditor": "Noch keine Bereiche. Lege Bereiche wie Polizei oder Fahrzeuge an, um Systeme zu gruppieren.",
