@@ -4,6 +4,7 @@ import {
   cardFieldsInput,
   createBoard,
   createBoardInput,
+  listBoards,
   setBoardCardFields,
   setBoardColumns,
   setColumnRules,
@@ -15,8 +16,11 @@ import {
 import { protectedProcedure, router } from "../init";
 import { B, P } from "./shared";
 
-/** Boards and their columns; boards are read through `projects.get`. */
+/** Boards and their columns; also read through `projects.get`. */
 export const boardsRouter = router({
+  /** The project's boards with their columns and each column's entry rules. */
+  list: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => listBoards(ctx.db, ctx.actor, input.project)),
+
   /** Adds a board and returns its slug. */
   create: protectedProcedure
     .input(z.object({ ...P, board: createBoardInput }))

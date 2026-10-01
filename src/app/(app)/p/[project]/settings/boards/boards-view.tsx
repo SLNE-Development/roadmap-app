@@ -23,8 +23,8 @@ const systemsLabel = (n: number) => (n === 1 ? "1 system" : `${n} systems`);
  */
 export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: string }) {
   const trpc = useTRPC();
-  const [{ data: detail }, { data: systems }] = useSuspenseQueries({
-    queries: [trpc.projects.get.queryOptions({ project: slug }), trpc.systems.list.queryOptions({ project: slug })],
+  const [{ data: detail }, { data: systems }, { data: withRules }] = useSuspenseQueries({
+    queries: [trpc.projects.get.queryOptions({ project: slug }), trpc.systems.list.queryOptions({ project: slug }), trpc.boards.list.queryOptions({ project: slug })],
   });
   const canOwn = (detail.role === "owner" || detail.role === "admin") && !detail.project.archivedAt;
   const boards = detail.boards;
@@ -42,7 +42,8 @@ export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: st
 
   const selected = boards.find((b) => b.slug === wanted) ?? boards[0];
   const countIn = (columnId: string) => systems.filter((s) => s.columnId === columnId).length;
-  const columns = selected.columns.map((c) => ({ id: c.id, name: c.name, category: c.category, systemCount: countIn(c.id) }));
+  const rulesOf = new Map(withRules.flatMap((b) => b.columns.map((c) => [c.id, c.rules] as const)));
+  const columns = selected.columns.map((c) => ({ id: c.id, name: c.name, category: c.category, systemCount: countIn(c.id), rules: rulesOf.get(c.id) ?? [] }));
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { z } from "zod";
 import { CategoryDot } from "@/components/chips";
@@ -17,7 +18,8 @@ import {
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
 import type { updateSystemInput } from "@/lib/ops/systems";
 import { useTRPC } from "@/trpc/client";
-import { moveErrorKind } from "./move-error";
+import { isGateRefusal, moveErrorKind } from "./move-error";
+import { MoveOverrideDialog } from "./move-override-dialog";
 import { describeGaps } from "./text";
 
 /** A column of the system's board as the controls need it. */
@@ -76,7 +78,8 @@ export function planningGateToast(gaps: string[]) {
 /**
  * Returns a pending flag and a `move` function that moves the system to a
  * column, toasts "Moved to …" with an undo, and shows the planning notice
- * when the gate refuses the move.
+ * when the gate refuses the move. When column rules refuse it and the viewer
+ * is an owner, `dialog` (render it once) asks for a reason and retries with it.
  */
 export function useMoveSystem(data: SystemControlsData) {
   const trpc = useTRPC();
@@ -90,27 +93,41 @@ export function useMoveSystem(data: SystemControlsData) {
     }),
   );
   const ref = { project: data.projectSlug, system: data.systemSlug };
-  const move = (target: ColumnOption) => {
+  const { data: detail } = useQuery(trpc.projects.get.queryOptions({ project: data.projectSlug }));
+  const canOwn = (detail?.role === "owner" || detail?.role === "admin") && !detail.project.archivedAt;
+  const [refused, setRefused] = useState<{ target: ColumnOption; message: string } | null>(null);
+  const move = (target: ColumnOption, overrideReason?: string) => {
     const from = currentColumn(data);
     if (target.id === from.id) return;
     mutation.mutate(
-      { ...ref, to: { column: target.id } },
+      { ...ref, to: { column: target.id, overrideReason } },
       {
         onError: (error) => {
           if (moveErrorKind(error) === "planning-gate") planningGateToast(data.gaps);
+          else if (canOwn && !overrideReason && isGateRefusal(error)) setRefused({ target, message: error.message });
           else toast.error(error.message);
         },
-        onSuccess: () =>
+        onSuccess: () => {
+          setRefused(null);
           toast.success(`Moved to ${target.name}`, {
             action: {
               label: "Undo",
               onClick: () => undo.mutate({ ...ref, to: { column: from.id } }),
             },
-          }),
+          });
+        },
       },
     );
   };
-  return { pending: mutation.isPending || undo.isPending, move };
+  const dialog = (
+    <MoveOverrideDialog
+      message={refused?.message ?? null}
+      pending={mutation.isPending}
+      onCancel={() => setRefused(null)}
+      onConfirm={(reason) => refused && move(refused.target, reason)}
+    />
+  );
+  return { pending: mutation.isPending || undo.isPending, move, dialog };
 }
 
 /**
@@ -118,39 +135,42 @@ export function useMoveSystem(data: SystemControlsData) {
  * is incomplete, every column but planning is disabled with a hint.
  */
 export function StatusMenu({ data, children, align = "end" }: { data: SystemControlsData; children: React.ReactNode; align?: "start" | "end" }) {
-  const { pending, move } = useMoveSystem(data);
+  const { pending, move, dialog } = useMoveSystem(data);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={pending}>
-        {children}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="w-60">
-        <DropdownMenuLabel>Move to</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={data.columnId}
-          onValueChange={(id) => {
-            const target = data.columns.find((c) => c.id === id);
-            if (target) move(target);
-          }}
-        >
-          {data.columns.map((c) => (
-            <DropdownMenuRadioItem key={c.id} value={c.id} disabled={!data.planningComplete && c.category !== "planning"}>
-              <CategoryDot category={c.category} />
-              {c.name}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        {!data.planningComplete && (
-          <>
-            <DropdownMenuSeparator />
-            <p className="flex gap-2 px-1.5 py-1 text-xs leading-normal text-cat-planning">
-              <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-              Other columns unlock when the planning interview is complete.
-            </p>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={pending}>
+          {children}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align={align} className="w-60">
+          <DropdownMenuLabel>Move to</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={data.columnId}
+            onValueChange={(id) => {
+              const target = data.columns.find((c) => c.id === id);
+              if (target) move(target);
+            }}
+          >
+            {data.columns.map((c) => (
+              <DropdownMenuRadioItem key={c.id} value={c.id} disabled={!data.planningComplete && c.category !== "planning"}>
+                <CategoryDot category={c.category} />
+                {c.name}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          {!data.planningComplete && (
+            <>
+              <DropdownMenuSeparator />
+              <p className="flex gap-2 px-1.5 py-1 text-xs leading-normal text-cat-planning">
+                <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+                Other columns unlock when the planning interview is complete.
+              </p>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {dialog}
+    </>
   );
 }
 

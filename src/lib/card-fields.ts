@@ -1,4 +1,4 @@
-/** Fields a board card can show; `gates` renders nothing until column gates exist. */
+/** Fields a board card can show; `gates` is the status towards the next column with entry rules. */
 export const BUILTIN_CARD_FIELDS = ["owner", "tasks", "blocked", "phase", "domain", "priority", "questions", "estimate", "dependencies", "gates"] as const;
 
 /** A card field: a built-in one, or `custom:<key>` for the custom field with that key. */
@@ -8,7 +8,7 @@ export type CardField = (typeof BUILTIN_CARD_FIELDS)[number] | `custom:${string}
 export const MAX_CARD_FIELDS = 8;
 
 /** Fields cards show until a board chooses its own. */
-export const DEFAULT_CARD_FIELDS: CardField[] = ["domain", "priority", "blocked", "tasks", "owner"];
+export const DEFAULT_CARD_FIELDS: CardField[] = ["domain", "priority", "blocked", "tasks", "owner", "gates"];
 
 /**
  * Keeps the valid fields of `raw` in order: drops unknown values, duplicates and custom

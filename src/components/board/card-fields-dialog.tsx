@@ -20,14 +20,12 @@ export interface CardFieldCustom {
  * Dialog choosing which fields the cards of a board show and in which order.
  *
  * @param props.fields the fields shown now, in order
- * @param props.gatesLanded whether systems carry a gate status yet; until then "Gates" is marked as pending
  */
 export function CardFieldsDialog({
   projectSlug,
   boardSlug,
   fields,
   customFields,
-  gatesLanded,
   open,
   onOpenChange,
 }: {
@@ -35,7 +33,6 @@ export function CardFieldsDialog({
   boardSlug: string;
   fields: CardField[];
   customFields: CardFieldCustom[];
-  gatesLanded: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -47,7 +44,6 @@ export function CardFieldsDialog({
           boardSlug={boardSlug}
           fields={fields}
           customFields={customFields}
-          gatesLanded={gatesLanded}
           onDone={() => onOpenChange(false)}
         />
       </DialogContent>
@@ -61,20 +57,18 @@ function CardFieldsForm({
   boardSlug,
   fields,
   customFields,
-  gatesLanded,
   onDone,
 }: {
   projectSlug: string;
   boardSlug: string;
   fields: CardField[];
   customFields: CardFieldCustom[];
-  gatesLanded: boolean;
   onDone: () => void;
 }) {
   const trpc = useTRPC();
   const save = useMutation(trpc.boards.setCardFields.mutationOptions({ onSuccess: () => (toast.success("Card fields saved"), onDone()) }));
   const labels = new Map<string, string>([
-    ...BUILTIN_CARD_FIELDS.map((f): [string, string] => [f, f === "gates" && !gatesLanded ? `${CARD_FIELD_LABELS[f]} (after column gates)` : CARD_FIELD_LABELS[f]]),
+    ...BUILTIN_CARD_FIELDS.map((f): [string, string] => [f, CARD_FIELD_LABELS[f]]),
     ...customFields.map((f): [string, string] => [`custom:${f.key}`, f.name]),
   ]);
   // Every option in display order: the chosen ones first, then the rest.

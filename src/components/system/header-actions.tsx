@@ -57,13 +57,16 @@ function StatusButton({ data, className }: { data: SystemControlsData; className
 
 /** The primary contextual action: "Move to <next column>", or nothing when there is no sensible next step. */
 function PrimaryMove({ data, className }: { data: SystemControlsData; className?: string }) {
-  const { pending, move } = useMoveSystem(data);
+  const { pending, move, dialog } = useMoveSystem(data);
   const next = nextColumn(data);
   if (!data.canEdit || !next) return null;
   return (
-    <Button className={className} disabled={pending} onClick={() => move(next)}>
-      Move to {next.name}
-    </Button>
+    <>
+      <Button className={className} disabled={pending} onClick={() => move(next)}>
+        Move to {next.name}
+      </Button>
+      {dialog}
+    </>
   );
 }
 

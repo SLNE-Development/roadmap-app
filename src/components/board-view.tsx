@@ -1,15 +1,19 @@
 "use client";
 
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { ArrowRightLeft, Ban, ChevronDown, ChevronRight, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Rows3, Search, SquareKanban } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { FilterChip } from "@/components/filter-chip";
+import { GateStatus } from "@/components/gate-status";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { PageHeader, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
 import { SaveViewButton } from "@/components/save-view-button";
+import { isGateRefusal } from "@/components/system/move-error";
+import { MoveOverrideDialog } from "@/components/system/move-override-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,6 +29,7 @@ import { PRIORITIES, type ColumnCategory } from "@/db/schema";
 import type { BoardCardView } from "@/lib/board-card";
 import type { CardField } from "@/lib/card-fields";
 import { focusReady, moveKey, moveTargets } from "@/lib/board-moves";
+import type { GateResult } from "@/lib/ops/gates";
 import { groupIntoLanes, LANE_KEYS, type LaneKey } from "@/lib/lanes";
 import { BOARD_COLLAPSED_SCHEMA } from "@/lib/pref-keys";
 import { plural } from "@/lib/text";
@@ -83,7 +88,6 @@ export function BoardView({
   cards,
   cardFields,
   customFields,
-  gatesLanded,
   query,
 }: {
   projectSlug: string;
@@ -101,13 +105,15 @@ export function BoardView({
   /** Fields the cards show, in order. */
   cardFields: CardField[];
   customFields: CardFieldCustom[];
-  gatesLanded: boolean;
   query: BoardQuery;
 }) {
   const [newSystemOpen, setNewSystemOpen] = useState(false);
   const [cardFieldsOpen, setCardFieldsOpen] = useState(false);
   const trpc = useTRPC();
-  const moveSystem = useMutation(trpc.systems.move.mutationOptions());
+  // Quiet: `move` toasts the refusal itself, unless an owner is asked whether to move anyway.
+  const moveSystem = useMutation({ ...trpc.systems.move.mutationOptions(), meta: { quiet: true } });
+  const { data: gates } = useQuery(trpc.gates.board.queryOptions({ project: projectSlug, board: board.slug }));
+  const [overriding, setOverriding] = useState<{ slug: string; columnId: string; message: string } | null>(null);
   const [announce, setAnnounce] = useState("");
   const [showHint, setShowHint] = useState(false);
   // The card to refocus and the column it must be in first; moving a card re-creates its element, so the effect waits for that.
@@ -162,16 +168,18 @@ export function BoardView({
    * Returns whether the move was accepted. A keyboard move keeps focus on the card and
    * opens a collapsed Done column once the server accepts it.
    */
-  const move = (slug: string, columnId: string, byKey = false): boolean => {
+  const move = (slug: string, columnId: string, byKey = false, overrideReason?: string): boolean => {
     const card = optimistic.find((c) => c.slug === slug);
     if (!card || card.columnId === columnId || !canEdit) return false;
     if (byKey) focusTarget.current = { slug, columnId };
     startTransition(async () => {
       moveOptimistic({ slug, columnId });
-      // A refusal is toasted by the mutation cache; the card falls back once the transition ends.
+      // A refusal is toasted below, or asks an owner to override; the card falls back once the transition ends.
       const failure = await moveSystem
-        .mutateAsync({ project: projectSlug, system: slug, to: { column: columnId } })
+        .mutateAsync({ project: projectSlug, system: slug, to: { column: columnId, overrideReason } })
         .then(() => null, (error: Error) => error);
+      if (failure && canOwn && !overrideReason && isGateRefusal(failure)) setOverriding({ slug, columnId, message: failure.message });
+      else if (failure) toast.error(failure.message);
       // Re-armed after settling: on a refusal the card must end up back in its original column.
       if (byKey) focusTarget.current = { slug, columnId: failure ? card.columnId : columnId };
       if (!failure && collapsed.columns.has(columnId)) flipCollapsed("columns", columnId, false);
@@ -281,6 +289,7 @@ export function BoardView({
       domain={c.domainId ? (domainName.get(c.domainId) ?? null) : null}
       phase={c.phaseId ? (phaseName.get(c.phaseId) ?? null) : null}
       fields={cardFields}
+      gate={gates?.[c.id]}
       customName={customName}
       projectSlug={projectSlug}
       columns={columns}
@@ -382,7 +391,6 @@ export function BoardView({
                 boardSlug={board.slug}
                 fields={cardFields}
                 customFields={customFields}
-                gatesLanded={gatesLanded}
                 open={cardFieldsOpen}
                 onOpenChange={setCardFieldsOpen}
               />
@@ -433,6 +441,15 @@ export function BoardView({
 
       {showHint && <p className="text-[12.5px] text-muted-foreground">Alt+← / Alt+→ moves a card</p>}
       <BoardAnnouncer message={announce} />
+      <MoveOverrideDialog
+        message={overriding?.message ?? null}
+        pending={pending}
+        onCancel={() => setOverriding(null)}
+        onConfirm={(reason) => {
+          if (overriding) move(overriding.slug, overriding.columnId, false, reason);
+          setOverriding(null);
+        }}
+      />
 
       <div
         className={cn(
@@ -611,6 +628,7 @@ function SystemCard({
   domain,
   phase,
   fields,
+  gate,
   customName,
   projectSlug,
   columns,
@@ -631,6 +649,8 @@ function SystemCard({
   phase: string | null;
   /** The fields to show, in order. */
   fields: CardField[];
+  /** How far the card is from the next gated column, when there is one. */
+  gate: GateResult | undefined;
   /** Names of the custom fields by key. */
   customName: Map<string, string>;
   projectSlug: string;
@@ -685,8 +705,9 @@ function SystemCard({
         return phase ? <span className={chip}>{phase}</span> : null;
       case "domain":
       case "priority":
-      case "gates":
         return null;
+      case "gates":
+        return gate ? <GateStatus gate={gate} /> : null;
       case "questions":
         return card.openQuestions > 0 ? (
           <span className={chip} title={plural(card.openQuestions, "open question")}>

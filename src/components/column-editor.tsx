@@ -4,10 +4,12 @@ import { useMutation } from "@tanstack/react-query";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ColumnRulesDialog } from "@/components/settings/column-rules-dialog";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { COLUMN_CATEGORIES, type ColumnCategory } from "@/db/schema";
+import type { ColumnRuleRow } from "@/lib/ops/gates";
 import { useTRPC } from "@/trpc/client";
 import { CATEGORY_LABEL, CategoryDot } from "./chips";
 import { mergeColumnCounts, type DraftColumn } from "./column-draft";
@@ -55,7 +57,7 @@ export function ColumnEditor({
 }: {
   projectSlug: string;
   boardSlug: string;
-  columns: { id: string; name: string; category: ColumnCategory; systemCount: number }[];
+  columns: { id: string; name: string; category: ColumnCategory; systemCount: number; rules: ColumnRuleRow[] }[];
   canEdit: boolean;
 }) {
   const initial = () => columns.map((c) => ({ key: c.id, ...c }));
@@ -102,6 +104,7 @@ export function ColumnEditor({
               <CategoryDot category={c.category} />
               <span className="flex-1 font-medium">{c.name}</span>
               <span className="text-xs text-muted-foreground">{CATEGORY_LABEL[c.category]}</span>
+              <ColumnRulesDialog projectSlug={projectSlug} boardSlug={boardSlug} column={c} canEdit={false} />
               <span className="w-16 text-right text-xs text-muted-foreground">{holding(c.systemCount)}</span>
             </li>
           ))}
@@ -120,7 +123,7 @@ export function ColumnEditor({
         {draft.map((c, i) => (
           <li
             key={c.key}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5 border-b px-2.5 py-2 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_150px_60px_auto]"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5 border-b px-2.5 py-2 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_150px_60px_auto_auto]"
           >
             <Input
               aria-label={`Name of column ${i + 1}`}
@@ -132,6 +135,16 @@ export function ColumnEditor({
               <CategoryMenu value={c.category} onChange={(category) => change(i, { category })} label={`Category of ${c.name || `column ${i + 1}`}`} />
             </div>
             <span className="hidden text-xs text-muted-foreground sm:block">{c.id ? holding(c.systemCount) : "new"}</span>
+            {c.id ? (
+              <ColumnRulesDialog
+                projectSlug={projectSlug}
+                boardSlug={boardSlug}
+                column={{ id: c.id, name: c.name, category: c.category, rules: columns.find((s) => s.id === c.id)?.rules ?? [] }}
+                canEdit
+              />
+            ) : (
+              <span className="text-xs text-muted-foreground">Save columns to add rules</span>
+            )}
             <span className="flex items-center">
               <Button variant="ghost" size="icon-sm" aria-label={`Move ${c.name} up`} onClick={() => shift(i, -1)} disabled={i === 0} className="text-muted-foreground">
                 <ArrowUpIcon />

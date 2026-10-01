@@ -1,6 +1,9 @@
 import { and, asc, count, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import { adr, adrSystem, columnRule, progressUpdate, question, system, systemDocument, task } from "@/db/schema";
 import type { Executor } from "@/db/types";
+import { projectAccess } from "./access";
+import type { Actor } from "./actor";
+import { findBoard } from "./lookup";
 import { plural } from "@/lib/text";
 
 /** A system a column's entry rules are checked for. */
@@ -218,4 +221,36 @@ export async function columnRulesOf(tx: Executor, columnIds: string[]): Promise<
 /** Summarises rules for the change log, e.g. `all-tasks-done, update-within-days(3)`. */
 export function rulesSummary(rules: ColumnRuleRow[]): string {
   return rules.map((r) => (r.param === null ? r.rule : `${r.rule}(${r.param})`)).join(", ");
+}
+
+/** The registered rules as the column rules editor lists them. */
+export function listGateRules(): { id: string; label: string; param?: GateRule["param"] }[] {
+  return [...GATE_RULES.values()].map((r) => ({ id: r.id, label: r.label(null), ...(r.param ? { param: r.param } : {}) }));
+}
+
+/**
+ * Evaluates, for each active system of the board, the rules of the first column to the right
+ * of its own that has any. Systems without such a column are missing from the result. One
+ * evaluation per gated column, not per system.
+ */
+export async function boardGates(db: Executor, actor: Actor, projectSlug: string, boardSlug: string, now = new Date()): Promise<Record<string, GateResult>> {
+  const { project } = await projectAccess(db, actor, projectSlug, "viewer");
+  const current = await findBoard(db, project.id, boardSlug);
+  const rules = await columnRulesOf(db, current.columns.map((c) => c.id));
+  const subjects = await db
+    .select({ id: system.id, slug: system.slug, projectId: system.projectId, columnId: system.columnId })
+    .from(system)
+    .where(and(eq(system.boardId, current.id), isNull(system.archivedAt)));
+  const byGate = new Map<string, GateSubject[]>();
+  for (const { columnId, ...subject } of subjects) {
+    const here = current.columns.findIndex((c) => c.id === columnId);
+    const next = current.columns.slice(here + 1).find((c) => rules.has(c.id));
+    if (next) byGate.set(next.id, [...(byGate.get(next.id) ?? []), subject]);
+  }
+  const result: Record<string, GateResult> = {};
+  for (const [columnId, list] of byGate) {
+    const column = current.columns.find((c) => c.id === columnId) as (typeof current.columns)[number];
+    for (const [id, gate] of await evaluateGates(db, list, column.name, rules.get(columnId) ?? [], now)) result[id] = gate;
+  }
+  return result;
 }

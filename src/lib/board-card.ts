@@ -2,6 +2,7 @@ import type { Priority } from "@/db/schema";
 
 /** A system card on the board. */
 export interface BoardCardView {
+  id: string;
   slug: string;
   title: string;
   priority: Priority;

@@ -4,6 +4,7 @@ import { groupIntoLanes, type LaneNames } from "./lanes";
 
 function card(slug: string, over: Partial<BoardCardView>): BoardCardView {
   return {
+    id: slug,
     slug,
     title: slug,
     priority: "MVP",

@@ -1,6 +1,8 @@
 import { Link2 } from "lucide-react";
 import Link from "next/link";
 import { useNow } from "@/components/clock";
+import { GateStatus } from "@/components/gate-status";
+import type { GateResult } from "@/lib/ops/gates";
 import type { SystemListItem } from "@/lib/ops/systems";
 import { relativeAge } from "@/lib/time";
 import { CATEGORY_CLASS, PriorityTag, StatusChip } from "./chips";
@@ -19,11 +21,13 @@ export function SystemCard({
   latest,
   projectSlug,
   domainName,
+  gate,
 }: {
   system: SystemListItem;
   latest?: { summary: string; createdAt: string };
   projectSlug: string;
   domainName?: string | null;
+  gate?: GateResult;
 }) {
   const now = useNow();
   return (
@@ -53,6 +57,7 @@ export function SystemCard({
             Blocked by {system.blockedBy.length}
           </span>
         )}
+        {gate && <GateStatus gate={gate} />}
         {latest && <span className="text-[11.5px] text-muted-foreground">Updated {relativeAge(latest.createdAt, now)}</span>}
       </div>
       <div className="mt-auto flex items-center gap-2">

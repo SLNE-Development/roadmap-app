@@ -50,6 +50,7 @@ export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardS
         phases={phases.map((p) => ({ id: p.id, name: p.name }))}
         columns={board.columns.map((c) => ({ id: c.id, name: c.name, category: c.category }))}
         cards={systems.map((s) => ({
+          id: s.id,
           slug: s.slug,
           title: s.title,
           priority: s.priority,
@@ -71,7 +72,6 @@ export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardS
         }))}
         cardFields={normalizeCardFields(board.cardFields, customFields.map((f) => f.key))}
         customFields={customFields.map((f) => ({ key: f.key, name: f.name }))}
-        gatesLanded={systems.some((s) => "gateStatus" in s)}
         query={query}
       />
     </Page>
