@@ -86,6 +86,23 @@ describe("previewPost", () => {
     expect(json).not.toContain(PUBLIC_TOKEN);
   });
 
+  it("plans a preview from the given text without a saved post and writes nothing", async () => {
+    const w = await postWorld();
+    const preview = await previewPost(w.db, w.requester, w.request.id, "team", { text: "Hallo {event}" });
+    expect(preview.parts.map((p) => p.kind)).toEqual(["text", "embed"]);
+    expect(preview.parts[0].content).toContain("Hallo");
+    expect(await w.db.select().from(eventPost).where(eq(eventPost.requestId, w.request.id))).toHaveLength(0);
+    expect((await previewPost(w.db, w.requester, w.request.id, "team", { text: "  " })).parts).toEqual([]);
+  });
+
+  it("previews the given text instead of the saved one", async () => {
+    const w = await postWorld();
+    await savePostDraft(w.db, w.manager, w.request.id, "reminder", { text: "Gespeichert" });
+    const preview = await previewPost(w.db, w.requester, w.request.id, "reminder", { text: "Neu getippt" });
+    expect(preview.parts[0].content).toContain("Neu getippt");
+    expect(preview.parts[0].content).not.toContain("Gespeichert");
+  });
+
   it("is empty without a saved post", async () => {
     const w = await postWorld();
     expect((await previewPost(w.db, w.manager, w.request.id, "reminder")).parts).toEqual([]);

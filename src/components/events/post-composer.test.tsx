@@ -61,7 +61,6 @@ describe("MessagesTab", () => {
     show();
     fireEvent.change(await editor(), { target: { value: "Changed" } });
     expect(await screen.findAllByText("Save your changes first.")).toHaveLength(1);
-    expect(screen.getByText("Preview shows the saved text.")).toBeTruthy();
   });
 
   it("confirms a delete and says the text stays as a draft", async () => {
@@ -91,6 +90,16 @@ describe("MessagesTab", () => {
     area.setSelectionRange(5, 5);
     fireEvent.click(screen.getAllByRole("button", { name: "Insert event" })[1]);
     expect(area.value).toBe("Hello{event} world");
+  });
+
+  it("keeps the Discord preview closed until opened", async () => {
+    show();
+    await editor();
+    expect(screen.queryByRole("group", { name: "Discord message preview" })).toBeNull();
+    const triggers = await screen.findAllByRole("button", { name: /Discord preview/ });
+    expect(triggers).toHaveLength(3);
+    fireEvent.click(triggers[1]);
+    expect(await screen.findByRole("group", { name: "Discord message preview" })).toBeTruthy();
   });
 
   it("lists a cancelled post as a read-only entry", async () => {

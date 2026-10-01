@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { POST_KINDS } from "@/lib/event-messages";
+import { MAX_POST_TEXT, POST_KINDS } from "@/lib/event-messages";
 import { askRoundInput } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { dbInt } from "@/lib/ops/params";
@@ -242,7 +242,7 @@ export const requestsRouter = router({
       .mutation(({ ctx, input: { id, kind, ...draft } }) => savePostDraft(ctx.db, ctx.actor, id, kind, draft)),
 
     /** How many messages a saved post becomes and how long each is; calls nothing. */
-    preview: protectedProcedure.input(z.object(POST)).query(({ ctx, input }) => previewPost(ctx.db, ctx.actor, input.id, input.kind)),
+    preview: protectedProcedure.input(z.object({ ...POST, text: z.string().max(MAX_POST_TEXT).optional(), pingRole: z.boolean().optional() })).query(({ ctx, input }) => previewPost(ctx.db, ctx.actor, input.id, input.kind, { text: input.text, pingRole: input.pingRole })),
 
     /** Starts posting; returns at once while the worker sends. */
     start: protectedProcedure.input(z.object(POST)).mutation(({ ctx, input }) => startPost(ctx.db, ctx.actor, input.id, input.kind, bullQueue(QUEUE.deliver))),

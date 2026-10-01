@@ -48,7 +48,7 @@ export function DiscordPreview({ parts, postAs, locale, timeZone }: { parts: Pre
             );
           }
           if (part.kind === "embed" && part.embed) return <EmbedCard key={i} embed={part.embed} rich={rich} plain={plain} />;
-          return <Markdown key={i} className={`text-sm ${PILL}`}>{rich(part.content)}</Markdown>;
+          return <Markdown breaks key={i} className={`text-sm ${PILL}`}>{rich(part.content)}</Markdown>;
         })}
       </div>
     </div>
@@ -72,11 +72,11 @@ function EmbedCard({ embed, rich, plain }: { embed: Embed; rich: (text: string) 
             ) : (
               <span className="text-sm font-semibold">{plain(embed.title)}</span>
             ))}
-          {embed.description && <Markdown className={`text-[13px] ${PILL}`}>{rich(embed.description)}</Markdown>}
+          {embed.description && <Markdown breaks className={`text-[13px] ${PILL}`}>{rich(embed.description)}</Markdown>}
           {embed.fields.map((field, i) => (
             <div key={i}>
               <div className="text-[13px] font-semibold">{plain(field.name)}</div>
-              <Markdown className={`text-[13px] ${PILL}`}>{rich(field.value)}</Markdown>
+              <Markdown breaks className={`text-[13px] ${PILL}`}>{rich(field.value)}</Markdown>
             </div>
           ))}
         </div>

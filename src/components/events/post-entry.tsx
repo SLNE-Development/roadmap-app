@@ -3,6 +3,7 @@
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { DeleteDialog, PostPreview, STATUS_VARIANT, usePostActions } from "@/components/events/post-card";
+import { Markdown } from "@/components/markdown";
 import { Panel } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,10 +44,10 @@ export function PostEntry({ requestId, post, view, latest, canEdit }: { requestI
       bodyClassName="gap-3 px-4 pb-4 sm:px-5"
     >
       {post.note && (
-        <p className="text-[13.5px]">
-          <span className="font-medium">{t("entryNote")}: </span>
-          {post.note}
-        </p>
+        <div className="flex flex-col gap-0.5 text-[13.5px]">
+          <span className="font-medium">{t("entryNote")}</span>
+          <Markdown>{post.note}</Markdown>
+        </div>
       )}
       {post.status === "posted" && post.postedByName && <p className="text-[13px] text-fg-2">{t("postedBy", { date: format.dateTime(post.postedAt ?? new Date(), { dateStyle: "medium", timeStyle: "short" }), name: post.postedByName })}</p>}
       {post.partsCount > 0 && post.status !== "posted" && <p className="text-[12.5px] text-muted-foreground">{t("sentOf", { sent: post.sentCount, total: post.partsCount })}</p>}
@@ -55,7 +56,7 @@ export function PostEntry({ requestId, post, view, latest, canEdit }: { requestI
           {post.lastError}
         </p>
       )}
-      {latest && <PostPreview requestId={requestId} kind={kind} dirty={false} />}
+      {latest && <PostPreview requestId={requestId} kind={kind} />}
       {canEdit && (canResume || canDelete) && (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-2">

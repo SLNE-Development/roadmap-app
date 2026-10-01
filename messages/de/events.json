@@ -483,12 +483,12 @@
     "testFailed": "Testversand fehlgeschlagen: {error}",
     "testTimeout": "Der Testversand hat noch nicht geantwortet. Versuche es gleich noch einmal.",
     "deleteBodyEntry": "{count, plural, one {# Nachricht wird} other {# Nachrichten werden}} aus dem {target} entfernt. Ein Discord-Event bleibt bestehen.",
-    "timeline": "Nachrichten-Zeitplan",
+    "timeline": "Nachrichten",
     "previewTitle": "Discord-Vorschau",
-    "previewSaved": "Die Vorschau zeigt den gespeicherten Text.",
     "previewEmpty": "Speichere einen Text, um die Vorschau zu sehen.",
     "noDue": "Noch kein Eventbeginn",
-    "entryNote": "Notiz"
+    "entryNote": "Notiz",
+    "previewCount": "{count, plural, one {# Nachricht} other {# Nachrichten}}"
   },
   "disaster": {
     "title": "Störfallnachricht",

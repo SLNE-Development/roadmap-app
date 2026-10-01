@@ -483,12 +483,12 @@
     "testFailed": "Test send failed: {error}",
     "testTimeout": "The test send has not answered yet. Try again in a moment.",
     "deleteBodyEntry": "{count, plural, one {# message is} other {# messages are}} removed from the {target}. A Discord event stays.",
-    "timeline": "Message timeline",
+    "timeline": "Messages",
     "previewTitle": "Discord preview",
-    "previewSaved": "Preview shows the saved text.",
     "previewEmpty": "Save some text to see the preview.",
     "noDue": "No event start yet",
-    "entryNote": "Note"
+    "entryNote": "Note",
+    "previewCount": "{count, plural, one {# message} other {# messages}}"
   },
   "disaster": {
     "title": "Disaster message",

@@ -25,6 +25,11 @@ describe("DiscordPreview", () => {
     expect(screen.getByText(/20:00/)).toBeTruthy();
   });
 
+  it("shows the lines of an embed description on separate lines", () => {
+    const { container } = show([{ kind: "embed", content: "", embed: { ...embed, description: "Datum: 1.\nUhrzeit: 2." } }]);
+    expect(container.querySelectorAll("br").length).toBe(1);
+  });
+
   it("shows a thumbnail embed with its upload", () => {
     const { container } = show([{ kind: "embed", content: "", embed }]);
     expect(container.querySelector("img")?.getAttribute("src")).toBe("/api/uploads/up1");

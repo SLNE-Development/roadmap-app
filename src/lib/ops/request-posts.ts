@@ -126,18 +126,21 @@ export interface PreviewPart {
 }
 
 /**
- * Plans the messages a saved post becomes, without calling Discord and without any secret, so the editor can show how many
- * messages it makes and how long each is. Empty while the kind has no saved post.
+ * Plans the messages a post becomes, without calling Discord and without any secret, so the editor can show how many
+ * messages it makes and how long each is. `draft` plans the preview from the text and ping the editor holds instead of the
+ * saved ones; nothing is written. Empty while there is neither a saved post nor a text.
  *
+ * @param draft the unsaved text and ping to preview in place of the saved post's
  * @throws NotFoundError for a request the actor cannot see, InvalidError when a part would not fit Discord
  */
-export async function previewPost(db: Db, actor: Actor, requestId: string, kind: PostKind): Promise<{ parts: PreviewPart[]; embeds: Embed[] }> {
+export async function previewPost(db: Db, actor: Actor, requestId: string, kind: PostKind, draft: { text?: string; pingRole?: boolean } = {}): Promise<{ parts: PreviewPart[]; embeds: Embed[] }> {
   const { request } = await requestAccess(db, actor, requestId, "view");
   const post = await livePost(db, requestId, kind);
-  if (!post) return { parts: [], embeds: [] };
+  const text = draft.text ?? post?.text;
+  if (text === undefined || (draft.text !== undefined && text.trim() === "")) return { parts: [], embeds: [] };
   const settings = await loadPostSettings(db);
-  const planned = plan(post, request, settings);
-  const parts = planned.map((p, i): PreviewPart => ({ kind: p.kind, content: p.content, length: p.embed ? countEmbedChars(p.embed) : textLength(p.content), sent: post.parts[i]?.messageId != null, ...(p.embed ? { embed: p.embed } : {}) }));
+  const planned = plan({ kind, text, embed: post?.embed ?? null, pingRole: draft.pingRole ?? post?.pingRole ?? false, note: post?.note ?? null }, request, settings);
+  const parts = planned.map((p, i): PreviewPart => ({ kind: p.kind, content: p.content, length: p.embed ? countEmbedChars(p.embed) : textLength(p.content), sent: post?.parts[i]?.messageId != null, ...(p.embed ? { embed: p.embed } : {}) }));
   return { parts, embeds: parts.flatMap((p) => (p.embed ? [p.embed] : [])) };
 }
 

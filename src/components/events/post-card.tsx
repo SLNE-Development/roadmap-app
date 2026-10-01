@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 import { useFormatter, useLocale, useTimeZone, useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -11,7 +12,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { MAX_POST_TEXT, POST_TARGET, type PostKind } from "@/lib/event-messages";
 import { VISIBLE_PLACEHOLDERS } from "@/lib/event-placeholders";
 import type { PostsView, PostView } from "@/lib/ops/request-posts";
@@ -30,33 +33,54 @@ const TEST_WAIT_MS = 60_000;
 export const STATUS_VARIANT = { draft: "outline", sending: "secondary", partial: "destructive", posted: "default", failed: "destructive", deleted: "outline" } as const;
 
 /**
- * The Discord-style preview of the saved post, as the planned messages: rendered Markdown, timestamps in the viewer's zone and
- * the embed card. Says so when the editor holds unsaved text, since the preview comes from the saved post.
+ * The Discord-style preview of a post, in a collapsible that is closed by default: the planned messages with rendered
+ * Markdown, timestamps in the viewer's zone and the embed card. With `text` it plans from what the editor holds, shortly
+ * after typing stops, and keeps the last preview on screen while the next one loads.
  *
  * @param props.requestId the request
  * @param props.kind the kind of post
- * @param props.dirty whether the editor differs from the saved post
+ * @param props.text the editor text to preview; omitted, the saved post is previewed
+ * @param props.pingRole whether the preview mentions the ping role; omitted, the saved post's value
+ * @param props.open the open state when the parent keeps it, so a remount of the card does not close it
+ * @param props.onOpenChange called when the person opens or closes it
  */
-export function PostPreview({ requestId, kind, dirty }: { requestId: string; kind: PostKind; dirty: boolean }) {
+export function PostPreview({ requestId, kind, text, pingRole, open, onOpenChange }: { requestId: string; kind: PostKind; text?: string; pingRole?: boolean; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const t = useTranslations("events.messages");
   const trpc = useTRPC();
   const locale = useLocale();
   const zone = useTimeZone() ?? "UTC";
-  const preview = useQuery(trpc.requests.posts.preview.queryOptions({ id: requestId, kind }));
+  const [own, setOwn] = useState(false);
+  const shown = open ?? own;
+  const settled = useDebouncedValue(text, 400);
+  const preview = useQuery({ ...trpc.requests.posts.preview.queryOptions({ id: requestId, kind, ...(settled === undefined ? {} : { text: settled }), ...(pingRole === undefined ? {} : { pingRole }) }), placeholderData: keepPreviousData });
   const settings = useQuery({ ...trpc.requests.settings.get.queryOptions(), retry: false });
   const parts = preview.data?.parts ?? [];
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h4 className="text-[13px] font-semibold">{t("previewTitle")}</h4>
-        {dirty && <span className="text-[12.5px] text-muted-foreground">{t("previewSaved")}</span>}
-      </div>
-      {parts.length > 0 ? (
-        <DiscordPreview parts={parts.map((p) => ({ kind: p.kind, content: p.content, embed: p.embed }))} postAs={settings.data?.postAs ?? "Events"} locale={locale} timeZone={settings.data?.timeZone ?? zone} />
-      ) : (
-        <p className="border border-dashed px-4 py-3 text-[13px] text-muted-foreground">{t("previewEmpty")}</p>
-      )}
-    </div>
+    <Collapsible
+      open={shown}
+      onOpenChange={(next) => {
+        setOwn(next);
+        onOpenChange?.(next);
+      }}
+      className="flex min-w-0 flex-col gap-2"
+    >
+      <CollapsibleTrigger className="group flex items-center gap-2 self-start text-[13px] font-semibold">
+        <ChevronRight aria-hidden className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+        {t("previewTitle")}
+        {parts.length > 0 && <span className="font-normal text-muted-foreground">{t("previewCount", { count: parts.length })}</span>}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {preview.isError ? (
+          <p role="alert" className="text-[13px] text-destructive">
+            {preview.error.message}
+          </p>
+        ) : parts.length > 0 ? (
+          <DiscordPreview parts={parts.map((p) => ({ kind: p.kind, content: p.content, embed: p.embed }))} postAs={settings.data?.postAs ?? "Events"} locale={locale} timeZone={settings.data?.timeZone ?? zone} />
+        ) : (
+          <p className="border border-dashed px-4 py-3 text-[13px] text-muted-foreground">{t("previewEmpty")}</p>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -141,8 +165,10 @@ export function DeleteDialog({ open, onOpenChange, count, target, keepsText, pen
  * @param props.view the posts view the card belongs to
  * @param props.requestStatus the request's status
  * @param props.canEdit whether the actor may change and post
+ * @param props.previewOpen whether the Discord preview is open; the tab keeps it, so saving the first draft does not close it
+ * @param props.onPreviewOpenChange called when the preview is opened or closed
  */
-export function PostCard({ requestId, kind, post, view, requestStatus, canEdit }: { requestId: string; kind: CardKind; post: PostView | undefined; view: PostsView; requestStatus: string; canEdit: boolean }) {
+export function PostCard({ requestId, kind, post, view, requestStatus, canEdit, previewOpen, onPreviewOpenChange }: { requestId: string; kind: CardKind; post: PostView | undefined; view: PostsView; requestStatus: string; canEdit: boolean; previewOpen: boolean; onPreviewOpenChange: (open: boolean) => void }) {
   const t = useTranslations("events.messages");
   const tc = useTranslations("events.card");
   const format = useFormatter();
@@ -235,7 +261,7 @@ export function PostCard({ requestId, kind, post, view, requestStatus, canEdit }
           {!view.pingRoleSet && <p className="text-[12.5px] text-muted-foreground">{t("pingUnset")}</p>}
         </div>
       )}
-      {post && <PostPreview requestId={requestId} kind={kind} dirty={dirty} />}
+      <PostPreview requestId={requestId} kind={kind} text={text} {...(canPing ? { pingRole: editing ? serverPing : pingRole } : {})} open={previewOpen} onOpenChange={onPreviewOpenChange} />
       {post && post.partsCount > 0 && status !== "posted" && (
         <p className="text-[12.5px] text-muted-foreground">{t("sentOf", { sent: post.sentCount, total: post.partsCount })}</p>
       )}

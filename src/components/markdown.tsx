@@ -1,8 +1,10 @@
 import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import type { Root } from "mdast";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
+import { visit } from "unist-util-visit";
 import { TaskStateChip } from "@/components/chips";
 import { MentionChip } from "@/components/mentions/mention-chip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -21,6 +23,18 @@ function urlTransform(url: string): string {
   return MENTION_HREF.test(url) ? url : defaultUrlTransform(url);
 }
 
+/** A remark plugin that turns each single line break in running text into a `break` node, the way Discord shows it; code is left alone. */
+function remarkBreaks() {
+  return (tree: Root) => {
+    visit(tree, "text", (node, index, parent) => {
+      if (!parent || index === undefined || !node.value.includes("\n")) return;
+      const nodes = node.value.split("\n").flatMap((line, i) => (i === 0 ? [{ type: "text" as const, value: line }] : [{ type: "break" as const }, { type: "text" as const, value: line }]));
+      parent.children.splice(index, 1, ...nodes);
+      return index + nodes.length;
+    });
+  };
+}
+
 /**
  * Renders GitHub-flavoured markdown written by people or agents. Raw HTML is
  * skipped and unsafe URLs (such as `javascript:`) are removed by react-markdown's
@@ -31,6 +45,7 @@ function urlTransform(url: string): string {
  *   and h1-h3 a hover link to their section; only specs and plans set it
  * @param props.stepStates the task state of each plan step; a heading such as
  *   "Step 2: ..." with an entry ends in a state chip. Only the plan sets it
+ * @param props.breaks keep single line breaks as line breaks, as Discord does; only the Discord preview sets it
  * @param props.glossary the project glossary; the first whole-word occurrence of each term (outside
  *   code, links and headings) gets a tooltip with its definition
  */
@@ -39,18 +54,20 @@ export function Markdown({
   className,
   headingIds,
   stepStates,
+  breaks,
   glossary,
 }: {
   children: string;
   className?: string;
   headingIds?: boolean;
   stepStates?: StepStates;
+  breaks?: boolean;
   glossary?: GlossaryTerm[];
 }) {
   return (
     <div className={className ? `prose-md ${className}` : "prose-md"}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={breaks ? [remarkGfm, remarkBreaks] : [remarkGfm]}
         rehypePlugins={[...(headingIds ? [rehypeSlug] : []), ...(glossary?.length ? [rehypeGlossary(glossary)] : [])]}
         skipHtml
         urlTransform={urlTransform}

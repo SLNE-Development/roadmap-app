@@ -17,6 +17,12 @@ const intl = (node: ReactNode, locale: "en" | "de" = "en") => (
 );
 
 describe("Markdown", () => {
+  it("keeps single line breaks only with breaks", () => {
+    expect(renderToStaticMarkup(<Markdown breaks>{"one\ntwo"}</Markdown>)).toContain("one<br/>");
+    expect(renderToStaticMarkup(<Markdown>{"one\ntwo"}</Markdown>)).not.toContain("<br");
+    expect(renderToStaticMarkup(<Markdown breaks>{"```\na\nb\n```"}</Markdown>)).not.toContain("<br");
+  });
+
   it("renders GitHub-flavoured markdown", () => {
     const html = renderToStaticMarkup(<Markdown>{"# Title\n\n- [x] done\n\n| a | b |\n| - | - |\n| 1 | 2 |"}</Markdown>);
     expect(html).toContain("<h1>Title</h1>");
