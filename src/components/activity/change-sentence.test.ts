@@ -71,6 +71,17 @@ describe("describeChange", () => {
     expect(text(entry("page", "deleted", "Onboarding", null), null)).toBe("deleted page “Onboarding”");
   });
 
+  it("describes Discord webhook changes", () => {
+    expect(text(entry("webhook", "created", null, "#roadmap"), null)).toBe("added Discord webhook “#roadmap”");
+    expect(text(entry("webhook", "deleted", "#roadmap", null), null)).toBe("deleted Discord webhook “#roadmap”");
+    expect(text(entry("webhook", "events", "system.done", "system.done, adr.accepted"), null)).toBe(
+      "changed the events of a Discord webhook system.done → system.done, adr.accepted",
+    );
+    expect(text(entry("webhook", "boards", "All boards", "Launch"), null)).toBe("changed the boards of a Discord webhook All boards → Launch");
+    expect(text(entry("webhook", "enabled", "true", "false"), null)).toBe("turned off a Discord webhook");
+    expect(text(entry("webhook", "enabled", "false", "true"), null)).toBe("turned on a Discord webhook");
+  });
+
   it("describes glossary changes", () => {
     expect(text(entry("glossary", "created", null, "Outbox"), null)).toBe("added glossary term “Outbox”");
     expect(text(entry("glossary", "definition", "Queue", "Pending events"), null)).toBe("changed a glossary definition");

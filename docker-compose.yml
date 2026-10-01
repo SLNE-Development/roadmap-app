@@ -14,6 +14,7 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${APP_PORT:-3000}}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?Set DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?Set DISCORD_CLIENT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
       VALKEY_URL: redis://valkey:6379
       METRICS_TOKEN: ${METRICS_TOKEN:-}
     depends_on:
@@ -30,6 +31,7 @@ services:
     environment:
       DATABASE_URL: postgres://roadmap:${POSTGRES_PASSWORD:-roadmap}@postgres:5432/roadmap
       VALKEY_URL: redis://valkey:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
     depends_on:
       app:
         condition: service_healthy

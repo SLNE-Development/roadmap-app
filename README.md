@@ -18,6 +18,7 @@ Better Auth (Discord), MCP TypeScript SDK.
 | `BETTER_AUTH_SECRET` | yes | Random secret signing sessions (`openssl rand -base64 32`). |
 | `BETTER_AUTH_URL` | yes | Public base URL, e.g. `https://roadmap.example.com`. |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | yes | Discord OAuth application. Redirect URL: `<BETTER_AUTH_URL>/api/auth/callback/discord`. |
+| `ENCRYPTION_KEY` | yes | 32-byte base64 key encrypting stored secrets such as Discord webhook URLs (`openssl rand -base64 32`). |
 | `VALKEY_URL` | yes | Valkey (Redis-compatible) URL for background jobs, caching and live updates. |
 | `METRICS_TOKEN` | no | Bearer token for `/api/metrics` (Prometheus). Empty disables the endpoint. |
 | `POSTGRES_PASSWORD` | compose only | Password of the bundled Postgres. |

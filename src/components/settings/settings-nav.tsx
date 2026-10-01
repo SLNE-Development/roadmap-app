@@ -7,17 +7,20 @@ import { cn } from "@/lib/utils";
 /**
  * The project settings sub-navigation: a vertical list beside the content on
  * wide screens, a horizontal row above it on phones. The active item follows the URL.
+ * Notifications shows only to owners.
  */
 export function SettingsNav({
   projectSlug,
   memberCount,
   boardCount,
   fieldCount,
+  canOwn,
 }: {
   projectSlug: string;
   memberCount: number;
   boardCount: number;
   fieldCount: number;
+  canOwn: boolean;
 }) {
   const pathname = usePathname();
   const base = `/p/${projectSlug}/settings`;
@@ -28,6 +31,7 @@ export function SettingsNav({
     { href: `${base}/glossary`, label: "Glossary", count: null },
     { href: `${base}/boards`, label: "Boards", count: boardCount },
     { href: `${base}/fields`, label: "Fields", count: fieldCount },
+    ...(canOwn ? [{ href: `${base}/notifications`, label: "Notifications", count: null }] : []),
   ];
   return (
     <nav aria-label="Settings" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">

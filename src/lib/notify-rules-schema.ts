@@ -14,7 +14,8 @@ export function activeKey(userId: string): string {
 
 const kindRule = z.object({ inbox: z.boolean(), push: z.boolean() });
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-const timeZone = z.string().refine((tz) => {
+/** An IANA time zone name the runtime knows, such as `Europe/Berlin`. */
+export const timeZoneSchema = z.string().refine((tz) => {
   try {
     new Intl.DateTimeFormat(undefined, { timeZone: tz });
     return true;
@@ -22,7 +23,7 @@ const timeZone = z.string().refine((tz) => {
     return false;
   }
 }, "Unknown time zone.");
-const quiet = z.object({ enabled: z.boolean(), start: clock, end: clock, timeZone });
+const quiet = z.object({ enabled: z.boolean(), start: clock, end: clock, timeZone: timeZoneSchema });
 const kindShape = Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k, kindRule])) as Record<NotificationKind, typeof kindRule>;
 
 /** Schema of the stored rules. */

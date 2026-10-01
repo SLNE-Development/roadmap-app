@@ -26,6 +26,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   agents: ["agents"],
   admin: ["admin"],
   notifications: ["notifications", "account"],
+  webhooks: ["webhooks", "history"],
 };
 
 /**

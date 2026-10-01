@@ -63,6 +63,7 @@ const ENTITY_LABEL: Record<string, string> = {
   glossary: "a glossary term",
   page: "a page",
   update: "an update",
+  webhook: "a Discord webhook",
 };
 
 /** Quotes a user-written value, shortened for one line. */
@@ -215,6 +216,17 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return plain("wrote a new version of a page", null, { to: e.newValue ?? "" });
     case "page:deleted":
       return plain("deleted page", quote(e.oldValue));
+
+    case "webhook:created":
+      return plain("added Discord webhook", quote(e.newValue));
+    case "webhook:deleted":
+      return plain("deleted Discord webhook", quote(e.oldValue));
+    case "webhook:events":
+      return plain("changed the events of a Discord webhook", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+    case "webhook:boards":
+      return plain("changed the boards of a Discord webhook", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+    case "webhook:enabled":
+      return plain(e.newValue === "true" ? "turned on a Discord webhook" : "turned off a Discord webhook");
 
     case "update:posted":
       return onSystem("posted an update on", "", "posted an update");

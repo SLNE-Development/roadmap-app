@@ -25,7 +25,13 @@ export function SettingsFrame({ slug, children }: { slug: string; children: Reac
     <Page width="wide">
       <PageHeader crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]} title="Project settings" />
       <div className="grid items-start gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
-        <SettingsNav projectSlug={slug} memberCount={members.length} boardCount={detail.boards.length} fieldCount={fields.length} />
+        <SettingsNav
+          projectSlug={slug}
+          memberCount={members.length}
+          boardCount={detail.boards.length}
+          fieldCount={fields.length}
+          canOwn={detail.role === "owner" || detail.role === "admin"}
+        />
         <div className="min-w-0">{children}</div>
       </div>
     </Page>

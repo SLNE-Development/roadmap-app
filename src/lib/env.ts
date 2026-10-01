@@ -6,10 +6,11 @@ export const APP_REQUIRED_ENV = [
   "BETTER_AUTH_URL",
   "DISCORD_CLIENT_ID",
   "DISCORD_CLIENT_SECRET",
+  "ENCRYPTION_KEY",
 ] as const;
 
 /** Environment variables the worker refuses to start without. */
-export const WORKER_REQUIRED_ENV = ["DATABASE_URL", "VALKEY_URL"] as const;
+export const WORKER_REQUIRED_ENV = ["DATABASE_URL", "VALKEY_URL", "ENCRYPTION_KEY"] as const;
 
 /**
  * Checks that every named variable is set and non-empty.

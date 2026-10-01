@@ -21,6 +21,7 @@ import { structureRouter } from "./routers/structure";
 import { systemsRouter } from "./routers/systems";
 import { tasksRouter } from "./routers/tasks";
 import { viewsRouter } from "./routers/views";
+import { webhooksRouter } from "./routers/webhooks";
 
 /**
  * The web UI's API: one router per area, each procedure a thin call into
@@ -48,6 +49,7 @@ export const appRouter = router({
   agents: agentsRouter,
   admin: adminRouter,
   notifications: notificationsRouter,
+  webhooks: webhooksRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */
