@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAuth } from "@/lib/auth/server";
 import { slugSchema } from "@/lib/ops/access";
 import { myWork, myWorkSeenAt, markMyWorkSeen } from "@/lib/ops/my-work";
-import { createApiKeyInput, listApiKeys, revokeApiKey } from "@/lib/ops/api-keys";
+import { createApiKeyInput, listApiKeys, revokeApiKey, rotateApiKey } from "@/lib/ops/api-keys";
 import { addAllowedAccount, addAllowedAccountInput, listAllowedAccounts, listUsers, removeAllowedAccount, setAdmin } from "@/lib/ops/users";
 import { teamWorkload, workloadProjects } from "@/lib/ops/workload";
 import { protectedProcedure, router } from "../init";
@@ -46,6 +46,16 @@ export const accountRouter = router({
 
   /** Revokes one of the actor's keys. */
   revokeApiKey: protectedProcedure.input(z.object({ id: z.string().min(1) })).mutation(({ ctx, input }) => revokeApiKey(ctx.db, ctx.actor, input.id)),
+
+  /** Replaces a key by a new one with the same name; the old key works for 24 more hours. Returns the new key, shown once. */
+  rotateApiKey: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(({ ctx, input }) =>
+      rotateApiKey(ctx.db, ctx.actor, input.id, async (body) => {
+        const created = await getAuth().api.createApiKey({ body });
+        return { key: created.key, id: created.id };
+      }),
+    ),
 
   /** The provisioned Discord accounts. Admin only. */
   accounts: protectedProcedure.query(({ ctx }) => listAllowedAccounts(ctx.db, ctx.actor)),

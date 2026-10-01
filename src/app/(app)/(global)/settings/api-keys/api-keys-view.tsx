@@ -30,7 +30,9 @@ export function ApiKeysView({ appUrl }: { appUrl: string }) {
       created: formatDate(k.createdAt.toISOString(), now),
       expires: expiry === "none" ? "Never" : expiry === "expired" ? `Expired ${date}` : date,
       expiry,
-      lastUsed: k.lastRequest ? relativeAge(k.lastRequest.toISOString(), now) : "Never",
+      lastUsed: k.lastRequest ? relativeAge(k.lastRequest.toISOString(), now) : "never",
+      usage: k.usage,
+      grace: k.graceUntil && k.graceUntil.getTime() > now.getTime() ? `expires in ${Math.ceil((k.graceUntil.getTime() - now.getTime()) / 3_600_000)} h` : null,
     };
   });
   return (
