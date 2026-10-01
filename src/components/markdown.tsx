@@ -13,7 +13,7 @@ import { stepNumberOf } from "@/lib/plan-steps";
 export type StepStates = Map<number, { taskId: number; state: TaskState }>;
 
 /** The href of a mention token, `user:<id>`. */
-const MENTION_HREF = /^user:([0-9a-f-]{36})$/;
+const MENTION_HREF = /^user:([A-Za-z0-9_-]{1,64})$/;
 
 /** Keeps mention hrefs and otherwise applies react-markdown's default transform, which removes unsafe URLs. */
 function urlTransform(url: string): string {

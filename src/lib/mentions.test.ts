@@ -35,6 +35,12 @@ describe("mention tokens", () => {
     expect(mentionsToPlain(`ping [@Jules](user:${A}).`)).toBe("ping @Jules.");
   });
 
+  it("parses Better Auth user ids, which are not UUIDs", () => {
+    const id = "WjfU86uAv39fliVDHVg25eKwQdOlvSuH";
+    expect(parseMentions(`[@Ammo](user:${id}) look`)).toEqual([{ userId: id, name: "Ammo" }]);
+    expect(resolveMentionNames(`[@Ammo](user:${id}) and @Rik look`, members)).toBe(`[@Ammo](user:${id}) and @Rik look`);
+  });
+
   it("returns only ids that are new", () => {
     expect(newMentions(`[@Jules](user:${A})`, `[@Jules](user:${A}) [@Rik](user:${C})`)).toEqual([C]);
     expect(newMentions(null, `[@Jules](user:${A})`)).toEqual([A]);

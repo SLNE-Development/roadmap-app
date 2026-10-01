@@ -1,5 +1,5 @@
 /** Matches a stored mention token, `[@Name](user:<id>)`. */
-export const MENTION_RE = /\[@([^\]\n]{1,64})\]\(user:([0-9a-f-]{36})\)/g;
+export const MENTION_RE = /\[@([^\]\n]{1,64})\]\(user:([A-Za-z0-9_-]{1,64})\)/g;
 
 /** A user as a mention can name them. */
 export interface MentionMember {
@@ -40,7 +40,7 @@ export function newMentions(before: string | null, after: string): string[] {
 }
 
 /** Code (fenced with ``` or ~~~, an unclosed fence running to the end, or inline) and existing tokens: segments that are never resolved. */
-const PROTECTED_RE = /(```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`|\[@[^\]\n]{1,64}\]\(user:[0-9a-f-]{36}\))/;
+const PROTECTED_RE = /(```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`|\[@[^\]\n]{1,64}\]\(user:[A-Za-z0-9_-]{1,64}\))/;
 const BOUNDARY_RE = /^(?:$|[\s.,;:!?)])/;
 const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
 

@@ -30,6 +30,12 @@ describe("Markdown", () => {
     expect(html).not.toContain("<a");
   });
 
+  it("draws mentions of Better Auth user ids as chips", () => {
+    const html = renderToStaticMarkup(<Markdown>{"[@Ammo](user:WjfU86uAv39fliVDHVg25eKwQdOlvSuH) hi"}</Markdown>);
+    expect(html).toMatch(/<span[^>]*>@Ammo<\/span>/);
+    expect(html).not.toContain("<a");
+  });
+
   it("still removes javascript hrefs next to mentions", () => {
     const html = renderToStaticMarkup(<Markdown>{"[x](javascript:alert(1)) [@Rik](user:0190c0de-0000-7000-8000-000000000001)"}</Markdown>);
     expect(html).not.toContain("javascript:");
