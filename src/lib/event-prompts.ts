@@ -90,7 +90,7 @@ const block = (heading: string, lines: string[]): string => (lines.length > 0 ? 
 const join = (parts: string[]): string => parts.filter((p) => p.trim() !== "").join("\n\n");
 
 /** What each placeholder stands for, as the prompts explain it to the assistant. */
-const PLACEHOLDER_MEANINGS: Record<string, string> = {
+export const PLACEHOLDER_MEANINGS: Record<string, string> = {
   event: "Name des Events",
   start: "Beginn mit Datum und Uhrzeit",
   start_date: "Datum des Beginns",

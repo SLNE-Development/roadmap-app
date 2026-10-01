@@ -26,7 +26,7 @@ const SPEC_TOOLS = [
   "list_questions", "add_question", "answer_question", "answer_questions", "set_question_priority",
   "list_activity", "get_progress", "list_releases", "get_release",
   "start_agent_run", "report_agent_usage",
-  "ask_requester", "get_request", "set_event_checklist",
+  "ask_requester", "get_request", "set_event_checklist", "write_event_messages",
 ];
 
 describe("tool registry", () => {

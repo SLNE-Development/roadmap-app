@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventBriefVersion, eventChecklistItem, eventRequest, eventSpecBasis, system, task } from "@/db/schema";
+import { eventBriefVersion, eventChecklistItem, eventPost, eventRequest, eventSettings, eventSpecBasis, requestLog, system, task } from "@/db/schema";
+import { DEFAULT_STYLE_GUIDES } from "@/lib/event-templates";
 import { TOOLS } from "@/lib/tools/definitions";
 import { runTool } from "@/lib/tools/registry";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture, insertUser, requestFixture } from "@/test/fixtures";
-import { ForbiddenError, InvalidError, NotFoundError } from "./errors";
-import type { RequestForAgent } from "./request-agent";
+import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
+import { writeEventMessages, type RequestForAgent } from "./request-agent";
 import { answerQuestions } from "./request-questions";
 
 /** `get_request` output with the brief union flattened for assertions. */
@@ -149,5 +150,76 @@ describe("write_spec brief", () => {
     const { owner, slug } = await createProjectFixture(db);
     await runTool(db, owner, tool("create_system"), { project: slug, slug: "s", title: "S" });
     await expect(runTool(db, owner, tool("write_spec"), { project: slug, system: "s", body: "Spec", brief: 1 })).rejects.toThrow(new InvalidError("This system has no request."));
+  });
+});
+
+describe("write_event_messages", () => {
+  const write = (w: Awaited<ReturnType<typeof world>>, input: Record<string, unknown>, actor = w.D) => runTool(w.db, actor, tool("write_event_messages"), { request: w.request.id, ...input }) as Promise<{ saved: string[]; skipped: { kind: string; reason: string }[] }>;
+  const posts = (w: Awaited<ReturnType<typeof world>>) => w.db.select().from(eventPost).where(eq(eventPost.requestId, w.request.id));
+  const TEXTS = { team: "Team: {start_date} um {start_time} in {where}", announcement: "# {event}\nAm {start_date} geht es los!", reminder: "Heute um {start_time}: {event}" };
+
+  it("lets a developer write the three drafts and the summary with placeholders untouched", async () => {
+    const w = await world();
+    const result = await write(w, { ...TEXTS, summary: " Ein Abend im Schnee. ", pingRole: { announcement: true } });
+    expect(result).toEqual({ saved: ["team", "announcement", "reminder", "summary"], skipped: [] });
+    const rows = await posts(w);
+    expect(rows).toHaveLength(3);
+    for (const kind of ["team", "announcement", "reminder"] as const) expect(rows.find((r) => r.kind === kind)).toMatchObject({ text: TEXTS[kind], status: "draft" });
+    expect(rows.find((r) => r.kind === "announcement")?.pingRole).toBe(true);
+    expect(rows.find((r) => r.kind === "reminder")?.pingRole).toBe(false);
+    const [row] = await w.db.select().from(eventRequest).where(eq(eventRequest.id, w.request.id));
+    expect(row.summary).toBe("Ein Abend im Schnee.");
+    const log = await w.db.select().from(requestLog).where(eq(requestLog.requestId, w.request.id));
+    expect(log.filter((l) => l.field === "post").map((l) => l.newValue).sort()).toEqual(["announcement draft written", "reminder draft written", "team draft written"]);
+    expect(log.filter((l) => l.field === "post").every((l) => l.agent !== undefined)).toBe(true);
+  });
+
+  it("changes an existing draft and keeps one post per kind", async () => {
+    const w = await world();
+    await write(w, { team: "Eins" });
+    await write(w, { team: "Zwei" });
+    expect(await posts(w)).toMatchObject([{ kind: "team", text: "Zwei" }]);
+  });
+
+  it("skips a posted kind with the reason while the others save", async () => {
+    const w = await world();
+    await write(w, TEXTS);
+    await w.db.update(eventPost).set({ status: "posted" }).where(eq(eventPost.kind, "announcement"));
+    const result = await write(w, { team: "Neu", announcement: "Neu", reminder: "Neu" });
+    expect(result.saved).toEqual(["team", "reminder"]);
+    expect(result.skipped).toEqual([{ kind: "announcement", reason: "already posted; change it with Edit in the app" }]);
+    const rows = await posts(w);
+    expect(rows.find((r) => r.kind === "announcement")?.text).toBe(TEXTS.announcement);
+    expect(rows.find((r) => r.kind === "team")?.text).toBe("Neu");
+  });
+
+  it("refuses a closed request, hides it from strangers and needs a message", async () => {
+    const w = await world();
+    await expect(write(w, {})).rejects.toBeInstanceOf(InvalidError);
+    await expect(write(w, { team: "x" }, w.U)).rejects.toBeInstanceOf(NotFoundError);
+    await w.db.update(eventRequest).set({ status: "cancelled" }).where(eq(eventRequest.id, w.request.id));
+    await expect(write(w, { team: "x" })).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("saves nothing when a text is invalid", async () => {
+    const w = await world();
+    await expect(writeEventMessages(w.db, w.D, w.request.id, { team: "ok", reminder: "a".repeat(40_001) })).rejects.toBeInstanceOf(InvalidError);
+    expect(await posts(w)).toHaveLength(0);
+  });
+});
+
+describe("get_request writing", () => {
+  it("returns the placeholders, the styles with their defaults, the examples and the live messages", async () => {
+    const w = await world();
+    await runTool(w.db, w.D, tool("write_event_messages"), { request: w.request.id, team: "Team {event}" });
+    const got = await w.get();
+    expect(got.writing.placeholders).toHaveLength(11);
+    expect(got.writing.placeholders[0]).toEqual({ name: "event", meaning: "Name des Events" });
+    expect(got.writing.styles).toEqual({ announcement: DEFAULT_STYLE_GUIDES.announcement, team: DEFAULT_STYLE_GUIDES.team, summary: DEFAULT_STYLE_GUIDES.summary });
+    expect(got.writing.messages).toEqual([{ kind: "team", status: "draft", text: "Team {event}", pingRole: false }]);
+    await w.db.insert(eventSettings).values({ id: "default", teamStyle: "Locker", announcementExample: "Beispiel" }).onConflictDoUpdate({ target: eventSettings.id, set: { teamStyle: "Locker", announcementExample: "Beispiel" } });
+    const again = await w.get();
+    expect(again.writing.styles.team).toBe("Locker");
+    expect(again.writing.examples.announcement).toBe("Beispiel");
   });
 });

@@ -28,7 +28,7 @@ import {
   updateBoardInput,
 } from "@/lib/ops/boards";
 import { InvalidError } from "@/lib/ops/errors";
-import { askRequester, requestForAgent } from "@/lib/ops/request-agent";
+import { askRequester, requestForAgent, writeEventMessages, writeEventMessagesInput } from "@/lib/ops/request-agent";
 import { setEventChecklist, setEventChecklistInput } from "@/lib/ops/request-prep";
 import { recordSpecBasis } from "@/lib/ops/request-link";
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
@@ -840,6 +840,15 @@ register(
     method: "PUT",
     path: "/requests/:request/checklist",
     run: (db, actor, { request, ...input }) => setEventChecklist(db, actor, request, input),
+  }),
+  defineTool({
+    name: "write_event_messages",
+    description: "Write the event's Discord message drafts (team, announcement, reminder) and short description. Use placeholders like {start_date}; nothing is posted.",
+    input: { request: z.string().min(1).max(64), ...writeEventMessagesInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/requests/:request/messages",
+    run: (db, actor, { request, ...input }) => writeEventMessages(db, actor, request, input),
   }),
   defineTool({
     name: "start_agent_run",

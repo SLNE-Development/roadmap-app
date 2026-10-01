@@ -14,6 +14,8 @@ describe("historySentence", () => {
     expect(say(row("post", null, "announcement draft saved"))).toBe("Ammo saved the announcement draft");
     expect(say(row("post", "draft", "announcement sending"), german)).toBe("Ammo hat die Nachricht „Ankündigung“ gesendet");
     expect(say(row("post", "posted", "disaster deleting"))).toBe("Ammo deleted the disaster message");
+    expect(say(row("post", null, "team draft written"))).toBe("Ammo wrote a team draft");
+    expect(say(row("post", null, "reminder draft written"), german)).toBe("Ammo hat einen Entwurf für „Erinnerung“ geschrieben");
   });
 
   it("writes status changes, cancels and creation", () => {

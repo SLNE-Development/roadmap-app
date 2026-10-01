@@ -16,7 +16,7 @@ const isStatus = (value: string | null): value is RequestStatus => REQUEST_STATU
 const FIELDS = ["title", "startsAt", "durationMinutes", "where", "summary", "banner", "eventDocsUrl", "requesterId"] as const;
 
 const POST_KINDS = ["team", "announcement", "reminder", "disaster", "resolved", "cancelled"] as const;
-const POST_ACTIONS: Record<string, string> = { "draft saved": "saved", "draft pasted": "pasted", sending: "sending", resumed: "resumed", edited: "edited", deleting: "deleting" };
+const POST_ACTIONS: Record<string, string> = { "draft saved": "saved", "draft pasted": "pasted", "draft written": "written", sending: "sending", resumed: "resumed", edited: "edited", deleting: "deleting" };
 
 /**
  * Describes one `request_log` row as a message key and values: every field the ops write has its own sentence; a value
@@ -36,7 +36,7 @@ export function describeHistory(r: Pick<RequestHistoryItem, "field" | "oldValue"
     case "project":
       return { key: "project", values: { slug: to ?? "" } };
     case "post": {
-      const m = /^(\w+) (draft saved|draft pasted|sending|resumed|edited|deleting)$/.exec(to ?? "");
+      const m = /^(\w+) (draft saved|draft pasted|draft written|sending|resumed|edited|deleting)$/.exec(to ?? "");
       if (m && (POST_KINDS as readonly string[]).includes(m[1])) return { key: `post.${POST_ACTIONS[m[2]]}`, values: { kind: m[1] } };
       return { key: "other", values: {} };
     }

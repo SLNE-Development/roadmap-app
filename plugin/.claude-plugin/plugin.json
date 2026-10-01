@@ -1,7 +1,7 @@
 {
   "name": "surf-roadmap",
   "displayName": "surf roadmap",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Connects Claude Code to the roadmap app: exhaustive planning interviews, database-held specs, plans, ADRs and questions, progress tracking, the surf conventions, and replacements for every superpowers skill.",
   "author": { "name": "SLNE Development", "url": "https://github.com/SLNE-Development" },
   "homepage": "https://github.com/SLNE-Development/roadmap-app",

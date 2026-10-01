@@ -141,6 +141,7 @@
     "post": {
       "saved": "{name} saved the {kind} draft",
       "pasted": "{name} pasted a {kind} draft",
+      "written": "{name} wrote a {kind} draft",
       "sending": "{name} sent the {kind} message",
       "resumed": "{name} resumed sending the {kind} message",
       "edited": "{name} edited the posted {kind} message",

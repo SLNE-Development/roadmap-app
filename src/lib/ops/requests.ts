@@ -127,7 +127,7 @@ export async function onDateChanged(tx: Tx, actor: Actor, request: EventRequestR
  * the request's last change, so every saved change queues its own job (completed jobs are kept, a minute bucket would drop a second edit). A queue that is down never fails the change that was already saved: the event is brought in line by the
  * next change.
  */
-async function queueDiscordEventSync(db: Db, queue: JobQueue | undefined, request: Pick<EventRequestRow, "id" | "discordEventId" | "updatedAt">, action: "update" | "delete"): Promise<void> {
+export async function queueDiscordEventSync(db: Db, queue: JobQueue | undefined, request: Pick<EventRequestRow, "id" | "discordEventId" | "updatedAt">, action: "update" | "delete"): Promise<void> {
   if (!queue || !request.discordEventId || !(await botConfigured(db))) return;
   try {
     await addWithTimeout(queue, "events.discord-event", { requestId: request.id, action }, { jobId: `event-dev-${request.id}-${action}-${request.updatedAt.getTime()}`, attempts: 3, backoffMs: 10_000 });

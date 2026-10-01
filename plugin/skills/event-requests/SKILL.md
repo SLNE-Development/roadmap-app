@@ -1,7 +1,7 @@
 ---
 name: event-requests
 description: Develop an event request that was accepted into this project, or update its system after the requester changed the brief. Reads the request with get_request, plans the system with the requester answering event questions through ask_requester, and keeps spec, plan and tasks in line with the brief without touching finished work. Use when /surf-roadmap:requests runs, when the project shows "Brief changed since spec vN", or when a system belongs to an event request.
-argument-hint: "[update] <request-id>"
+argument-hint: "[update|event-day|messages] <request-id>"
 ---
 
 # surf-roadmap:event-requests
@@ -56,3 +56,28 @@ app turns an accepted request into a project and system; you build it with the d
    ```
 5. **Report** what changed (spec sections, plan steps, tasks added, changed and left
    because their step was removed) in one `post_update`.
+
+## Write the event messages
+
+`messages <request-id>`: write the Discord drafts of an event. Nothing is posted; the planner
+posts from the app.
+
+1. Read `get_request` (brief, answers, fallback and `writing`: placeholders, styles, examples,
+   rulebook link and the live `messages`).
+2. Write the team notice, the announcement and the reminder in German, following
+   `writing.styles` and `writing.examples`. Use the placeholders for date, time, place and links
+   (for example `{start_date}`, `{start_time}`, `{where}`, `{docs}`), never a literal date. They stay
+   as written; the app fills them when it sends.
+   - Team notice: the fallback plan and who does what.
+   - Announcement: starts with `# <event name>`.
+   - Reminder: short.
+   Also write a short description (`summary`, at most 300 characters, no placeholders, no Markdown)
+   in the `writing.styles.summary` style.
+3. Call `write_event_messages` with `request`, `team`, `announcement`, `reminder` and `summary`.
+   Set `pingRole.announcement` to true unless the planner said otherwise.
+
+   ```json
+   { "request": "<request-id>", "announcement": "# {event}\n...", "pingRole": { "announcement": true } }
+   ```
+4. Report what was saved and what was skipped (a message that is already posted is skipped; it is
+   changed with Edit in the app) and remind the user that posting happens in the app.

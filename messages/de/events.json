@@ -141,6 +141,7 @@
     "post": {
       "saved": "{name} hat den Entwurf der Nachricht „{kind}“ gespeichert",
       "pasted": "{name} hat einen Entwurf für „{kind}“ eingefügt",
+      "written": "{name} hat einen Entwurf für „{kind}“ geschrieben",
       "sending": "{name} hat die Nachricht „{kind}“ gesendet",
       "resumed": "{name} hat das Senden der Nachricht „{kind}“ fortgesetzt",
       "edited": "{name} hat die gepostete Nachricht „{kind}“ bearbeitet",

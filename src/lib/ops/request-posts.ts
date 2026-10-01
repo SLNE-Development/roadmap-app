@@ -66,7 +66,7 @@ async function assertEmbedImage(tx: Executor, requestId: string, imageId: string
 }
 
 /** The newest post of `kind` that is not deleted. */
-async function livePost(tx: Executor, requestId: string, kind: PostKind): Promise<EventPostRow | undefined> {
+export async function livePost(tx: Executor, requestId: string, kind: PostKind): Promise<EventPostRow | undefined> {
   const [row] = await tx
     .select()
     .from(eventPost)
@@ -145,7 +145,7 @@ export async function previewPost(db: Db, actor: Actor, requestId: string, kind:
 }
 
 /** Plans the parts of `post`, turning a part that breaks Discord's limits into an InvalidError. */
-function plan(post: Parameters<typeof plannedParts>[0], request: Parameters<typeof plannedParts>[1] & Parameters<typeof discordEventUrl>[0], settings: PostSettings): PostPart[] {
+export function plan(post: Parameters<typeof plannedParts>[0], request: Parameters<typeof plannedParts>[1] & Parameters<typeof discordEventUrl>[0], settings: PostSettings): PostPart[] {
   try {
     return plannedParts(post, request, settings, { discordEventUrl: discordEventUrl(request, settings) });
   } catch (error) {
