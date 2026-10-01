@@ -68,11 +68,11 @@ export function LifecycleStepper({ requestId, status, cancelNote, canReopen, onR
         const label = t(`status.${step}`);
         return (
           <li key={step} aria-current={state === "current" ? "step" : undefined} className="relative flex min-w-0 flex-col items-center gap-1.5">
-            {i > 0 && <span aria-hidden className={cn("absolute top-[11px] right-1/2 h-px w-full", i <= reached || status === "done" ? "bg-primary" : "bg-border")} />}
+            {i > 0 && <span aria-hidden className={cn("absolute top-[11px] right-1/2 z-0 h-px w-full", i <= reached || status === "done" ? "bg-primary" : "bg-border")} />}
             <span
               aria-hidden
               className={cn(
-                "relative flex size-[22px] items-center justify-center rounded-full border text-[11px] font-semibold",
+                "relative z-10 flex size-[22px] items-center justify-center rounded-full border text-[11px] font-semibold",
                 state === "done" && "border-primary bg-primary text-primary-foreground",
                 state === "current" && "border-primary bg-brand-soft text-brand-strong ring-4 ring-brand-soft",
                 state === "upcoming" && "bg-card text-muted-foreground",
