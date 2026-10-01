@@ -87,6 +87,7 @@ export function HomeView() {
       byCategory: s?.byCategory ?? {},
       lastActivity: last,
       lastActivityLabel: relativeAge(last, now),
+      health: s?.health ?? { status: "empty", reasons: [] },
     };
   });
 

@@ -1,8 +1,10 @@
-import { and, asc, count, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, max, or } from "drizzle-orm";
 import { adr, allowedAccount, board, boardColumn, changeLog, projectMember, question, system, user, type ColumnCategory } from "@/db/schema";
 import type { Executor } from "@/db/types";
+import { projectHealth, type ProjectHealth } from "@/lib/health";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
+import { lastActivityBySystemMany, STALE_SYSTEM_DAYS } from "./attention";
 
 /** What a project card on the home page shows. */
 export interface ProjectSummary {
@@ -10,18 +12,21 @@ export interface ProjectSummary {
   byCategory: Partial<Record<ColumnCategory, number>>;
   openQuestions: number;
   lastChange: Date | null;
+  health: ProjectHealth;
 }
 
 /**
- * Returns the home-page numbers of each project in `projectIds` with three
- * grouped queries, however many projects there are. Archived systems are not counted. The caller passes ids it
+ * Returns the home-page numbers of each project in `projectIds` with a fixed
+ * number of grouped queries, however many projects there are, including its
+ * health as of `now`. Archived systems are not counted. The caller passes ids it
  * already resolved through {@link listProjects}, which checks access.
  */
-export async function projectSummaries(db: Executor, projectIds: string[]): Promise<Map<string, ProjectSummary>> {
+export async function projectSummaries(db: Executor, projectIds: string[], now: Date = new Date()): Promise<Map<string, ProjectSummary>> {
   const out = new Map<string, ProjectSummary>();
   if (projectIds.length === 0) return out;
-  for (const id of projectIds) out.set(id, { systems: 0, byCategory: {}, openQuestions: 0, lastChange: null });
-  const [systems, questions, changes] = await Promise.all([
+  const empty = projectHealth({ systems: 0, notDone: 0, blocked: 0, activeOrReview: 0, staleSystems: 0, blockingQuestions: 0, lastChange: null, now });
+  for (const id of projectIds) out.set(id, { systems: 0, byCategory: {}, openQuestions: 0, lastChange: null, health: empty });
+  const [systems, questions, changes, inProgress, blocking, activity] = await Promise.all([
     db
       .select({ projectId: system.projectId, category: boardColumn.category, n: count() })
       .from(system)
@@ -38,6 +43,18 @@ export async function projectSummaries(db: Executor, projectIds: string[]): Prom
       .from(changeLog)
       .where(inArray(changeLog.projectId, projectIds))
       .groupBy(changeLog.projectId),
+    db
+      .select({ id: system.id, projectId: system.projectId, createdAt: system.createdAt })
+      .from(system)
+      .innerJoin(boardColumn, eq(boardColumn.id, system.columnId))
+      .where(and(inArray(system.projectId, projectIds), isNull(system.archivedAt), inArray(boardColumn.category, ["active", "review"]))),
+    db
+      .select({ projectId: question.projectId, n: count() })
+      .from(question)
+      .leftJoin(system, eq(system.id, question.systemId))
+      .where(and(inArray(question.projectId, projectIds), eq(question.resolved, false), eq(question.priority, "blocking"), or(isNull(question.systemId), isNull(system.archivedAt))))
+      .groupBy(question.projectId),
+    lastActivityBySystemMany(db, projectIds),
   ]);
   for (const row of systems) {
     const s = out.get(row.projectId);
@@ -52,6 +69,25 @@ export async function projectSummaries(db: Executor, projectIds: string[]): Prom
   for (const row of changes) {
     const s = out.get(row.projectId);
     if (s) s.lastChange = row.last;
+  }
+  const staleBefore = now.getTime() - STALE_SYSTEM_DAYS * 86_400_000;
+  const stale = new Map<string, number>();
+  for (const row of inProgress) {
+    if ((activity.get(row.id) ?? row.createdAt).getTime() < staleBefore) stale.set(row.projectId, (stale.get(row.projectId) ?? 0) + 1);
+  }
+  const blockingByProject = new Map(blocking.map((row) => [row.projectId, row.n]));
+  for (const [id, s] of out) {
+    const notDone = s.systems - (s.byCategory.done ?? 0);
+    s.health = projectHealth({
+      systems: s.systems,
+      notDone,
+      blocked: s.byCategory.blocked ?? 0,
+      activeOrReview: (s.byCategory.active ?? 0) + (s.byCategory.review ?? 0),
+      staleSystems: stale.get(id) ?? 0,
+      blockingQuestions: blockingByProject.get(id) ?? 0,
+      lastChange: s.lastChange,
+      now,
+    });
   }
   return out;
 }

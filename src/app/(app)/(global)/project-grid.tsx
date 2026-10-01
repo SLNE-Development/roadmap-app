@@ -16,7 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ColumnCategory } from "@/db/schema";
+import type { ProjectHealth } from "@/lib/health";
 
 /** A project card's data, computed on the server. */
 export interface ProjectCardItem {
@@ -32,14 +34,53 @@ export interface ProjectCardItem {
   lastActivity: string;
   /** The latest change as "2 h ago", rendered on the server so both sides agree. */
   lastActivityLabel: string;
+  health: ProjectHealth;
 }
 
 /** Order of the segments in a card's status bar: finished work first, planning last. */
 const SEGMENT_ORDER: ColumnCategory[] = ["done", "review", "active", "todo", "blocked", "planning"];
 
 /** Sort options of the grid. */
-const SORTS = { recent: "Recent activity", name: "Name" } as const;
+const SORTS = { recent: "Recent activity", name: "Name", health: "Health" } as const;
 type SortKey = keyof typeof SORTS;
+
+/** The badge of each health status; `empty` has none. */
+const HEALTH_BADGE = {
+  "on-track": { label: "On track", className: "bg-cat-done-soft text-cat-done" },
+  "at-risk": { label: "At risk", className: "bg-cat-review-soft text-cat-review" },
+  stalled: { label: "Stalled", className: "bg-cat-blocked-soft text-cat-blocked" },
+} as const;
+
+/** Sort position of each health status: stalled first, empty last. */
+const HEALTH_RANK: Record<ProjectHealth["status"], number> = { stalled: 0, "at-risk": 1, "on-track": 2, empty: 3 };
+
+/** The health badge with the reasons in a tooltip; nothing for a project without systems. */
+function HealthBadge({ health }: { health: ProjectHealth }) {
+  if (health.status === "empty") return null;
+  const { label, className } = HEALTH_BADGE[health.status];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          role="img"
+          aria-label={`Health: ${label}. ${health.reasons.join(" ")}`}
+          className={`px-1.5 py-0.5 text-[11px] font-semibold ${className}`}
+        >
+          {label}
+        </span>
+      </TooltipTrigger>
+      {health.reasons.length > 0 && (
+        <TooltipContent>
+          <ul className="list-disc pl-3.5">
+            {health.reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </TooltipContent>
+      )}
+    </Tooltip>
+  );
+}
 
 /** A segmented bar with one segment per category, sized by its number of systems. */
 function StatusBar({ byCategory, total }: { byCategory: ProjectCardItem["byCategory"]; total: number }) {
@@ -66,6 +107,7 @@ function ProjectCard({ p }: { p: ProjectCardItem }) {
       <span className="flex items-center gap-2.5">
         <ProjectMark name={p.name} slug={p.slug} />
         <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{p.name}</span>
+        <HealthBadge health={p.health} />
         <RoleTag role={p.role} />
       </span>
       <span className="line-clamp-2 h-[39px] text-[13px] leading-normal text-fg-2">{p.description}</span>
@@ -89,7 +131,10 @@ export function ProjectGrid({ projects, summary }: { projects: ProjectCardItem[]
     const q = query.trim().toLowerCase();
     const matches = q ? projects.filter((p) => `${p.name} ${p.description}`.toLowerCase().includes(q)) : projects;
     return [...matches].sort((a, b) =>
-      sort === "name" ? a.name.localeCompare(b.name) : b.lastActivity.localeCompare(a.lastActivity),
+      sort === "name"
+        ? a.name.localeCompare(b.name)
+        : (sort === "health" ? HEALTH_RANK[a.health.status] - HEALTH_RANK[b.health.status] : 0) ||
+          b.lastActivity.localeCompare(a.lastActivity),
     );
   }, [projects, query, sort]);
 

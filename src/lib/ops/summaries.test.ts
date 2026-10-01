@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
-import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
+import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createAdr } from "./adrs";
 import { createBoard, updateBoard } from "./boards";
 import { setMember } from "./members";
 import { listProjects } from "./projects";
 import { addQuestion, answerQuestion } from "./questions";
 import { projectNav, projectSummaries } from "./summaries";
-import { createSystem } from "./systems";
+import { createSystem, moveSystem } from "./systems";
 import { removeAllowedAccount } from "./users";
 
 describe("projectSummaries", () => {
@@ -28,12 +28,38 @@ describe("projectSummaries", () => {
     expect(s?.lastChange).toBeInstanceOf(Date);
   });
 
+  it("rates a project with one blocked system out of three open ones as at risk", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db, "risky");
+    for (const key of ["a", "b", "c"]) {
+      const created = await createSystem(db, owner, slug, { slug: key, title: key.toUpperCase() });
+      if (key === "a") {
+        await completePlanningFixture(db, created.id);
+        await moveSystem(db, owner, slug, "a", { column: "Blocked" });
+      }
+    }
+    const [p] = await listProjects(db, owner);
+    const s = (await projectSummaries(db, [p.id])).get(p.id);
+    expect(s?.health).toEqual({ status: "at-risk", reasons: ["1 of 3 open systems are blocked."] });
+  });
+
+  it("counts blocking questions and rates a quiet project as stalled", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db, "quiet");
+    await createSystem(db, owner, slug, { slug: "a", title: "A" });
+    await addQuestion(db, owner, slug, { title: "Q?", priority: "blocking" });
+    const [p] = await listProjects(db, owner);
+    expect((await projectSummaries(db, [p.id])).get(p.id)?.health.reasons).toEqual(["1 blocking question is open."]);
+    const later = new Date(Date.now() + 15 * 86_400_000);
+    expect((await projectSummaries(db, [p.id], later)).get(p.id)?.health.status).toBe("stalled");
+  });
+
   it("returns zeroes for an empty project and nothing for no ids", async () => {
     const db = await createTestDb();
     const { owner } = await createProjectFixture(db, "empty");
     const [p] = await listProjects(db, owner);
     const s = (await projectSummaries(db, [p.id])).get(p.id);
-    expect(s).toMatchObject({ systems: 0, byCategory: {}, openQuestions: 0 });
+    expect(s).toMatchObject({ systems: 0, byCategory: {}, openQuestions: 0, health: { status: "empty", reasons: [] } });
     expect((await projectSummaries(db, [])).size).toBe(0);
   });
 });
