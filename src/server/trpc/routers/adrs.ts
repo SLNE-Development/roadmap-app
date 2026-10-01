@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { acceptAdr, adrFilter, getAdr, linkableTasks, listAdrs, updateAdr } from "@/lib/ops/adrs";
+import { decisionGraphInput, getDecisionGraph } from "@/lib/ops/decisions";
 import { dbInt } from "@/lib/ops/params";
 import { protectedProcedure, router } from "../init";
 import { P } from "./shared";
@@ -25,6 +26,11 @@ export const adrsRouter = router({
   setTasks: protectedProcedure
     .input(z.object({ ...ADR, tasks: z.array(dbInt).max(50) }))
     .mutation(({ ctx, input }) => updateAdr(ctx.db, ctx.actor, input.project, input.number, { tasks: input.tasks })),
+
+  /** The decision map: ADRs, supersedes chains and the systems and tasks they link to. */
+  graph: protectedProcedure
+    .input(z.object({ ...P, filter: decisionGraphInput.optional() }))
+    .query(({ ctx, input }) => getDecisionGraph(ctx.db, ctx.actor, input.project, input.filter ?? {})),
 
   /** Accepts a proposed ADR. */
   accept: protectedProcedure.input(z.object(ADR)).mutation(({ ctx, input }) => acceptAdr(ctx.db, ctx.actor, input.project, input.number)),

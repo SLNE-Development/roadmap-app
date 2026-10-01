@@ -2,6 +2,7 @@
 
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { Scale } from "lucide-react";
+import { SegmentedLinks } from "@/components/activity/url-tabs";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { ADR_STATUSES, type AdrStatus } from "@/db/schema";
 import { formatAdrNumber } from "@/lib/adr-number";
@@ -57,6 +58,15 @@ export function AdrsView({ slug, status }: { slug: string; status: AdrStatus | u
         crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]}
         title="Decisions"
         description="Architecture decisions, numbered. Accepted ones never change; a new one supersedes them."
+        actions={
+          <SegmentedLinks
+            label="View"
+            items={[
+              { label: "List", href: path, active: true },
+              { label: "Map", href: `${path}/map`, active: false },
+            ]}
+          />
+        }
       />
       {adrs.length === 0 ? (
         <EmptyState
