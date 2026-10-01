@@ -99,6 +99,13 @@ The stack has four services: `app`, `worker`, `postgres` and `valkey`. Coolify g
 Postgres runs with small buffers and a 256 MB / 0.5 CPU limit; the app keeps at
 most 5 connections.
 
+### Live updates
+
+The browser keeps one server-sent-events connection (`/api/events/<project>`) per open project page and
+refetches what a change notice names. Coolify's Traefik doesn't buffer streams, so nothing needs configuring
+there. Behind nginx, set `proxy_buffering off` for `/api/events/`. The worker must be running for live
+updates; without it, pages still work and update on navigation.
+
 ## Agents: MCP and REST
 
 Create a key under account menu → **API keys**. It acts as you in every project

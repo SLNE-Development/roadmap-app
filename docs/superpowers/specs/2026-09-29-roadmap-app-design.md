@@ -39,7 +39,7 @@ written into the repository.
 - Changing the `surf-claude` repository.
 - OAuth for MCP. Agents authenticate with API keys only.
 - Email/password or any login provider other than Discord.
-- Real-time updates (websockets). Pages render fresh on navigation.
+- Real-time updates: lifted in v2. Pages receive change notices over server-sent events (`/api/events/[project]`) and refetch what changed; see `docs/superpowers/plans/2026-10-01-roadmap-v2-09-realtime-i18n.md`.
 
 ## 3. Starting point
 
