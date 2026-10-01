@@ -63,7 +63,7 @@ function SummaryCard({ detail }: { detail: RequestDetail }) {
   );
 }
 
-/** The values of the details form: the two times are `datetime-local` text on the event's clock. */
+/** The values of the details form: the two times are `datetime-local` text in the viewer's time zone. */
 interface DetailsDraft {
   title: string;
   start: string;

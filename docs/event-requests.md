@@ -15,7 +15,7 @@ The planner is the requester of a request. Event managers and admins create requ
 ### Create the request and write the brief
 
 1. **Requests** → **New request**, give a title, **Create draft**.
-2. On the **Overview** tab fill the details: **Start** and **End** (in the event time zone; the app stores the length, so moving the start keeps it; events of up to 7 days are fine), where, the link to the event documents (an https link) and the short description. Every card shows "Unsaved changes" until you save it.
+2. On the **Overview** tab fill the details: **Start** and **End** (entered in your own time zone, the one in your account preferences, UTC until you set one; the app stores the length, so moving the start keeps it; events of up to 7 days are fine), where, the link to the event documents (an https link) and the short description. Every card shows "Unsaved changes" until you save it.
 3. Write the brief on the **Brief** tab in the Markdown editor (toolbar, shortcuts, Write, Preview or Split). A new request starts with an empty brief and no version; the first save is version 1. Every saved change is a new version; **Versions** lists them and **Compare with current** shows what changed. If someone saved in the meantime you get a conflict and reload first.
 4. A request can be submitted when it has a title, a brief and an event date in the future. Once submitted, the date can no longer be cleared.
 
@@ -46,7 +46,7 @@ Accepting a request creates six to-dos, due at 09:00 in the event time zone: pos
 The **Messages** tab has one card each for the team notice, the announcement and the reminder, and read-only cards for the disaster, resolved and cancel messages once they exist. Each card has a Markdown editor (with placeholder chips and a count of how many Discord messages the text becomes; at most 40,000 characters) and a collapsible **Discord-Vorschau**, closed by default. The preview works for all three messages, also for text you have not saved yet: it renders Markdown the way Discord does, shows the date placeholders as times in your own time zone and shows the details card. A request must be accepted (or in event week) before it posts, and an admin must have set the matching webhook.
 
 - **Send to staff channel**: a test send of the saved draft. It goes to the staff channel only, never pings and never creates a Discord event.
-- **Post now**: asks for confirmation, then posts. Announcement and reminder can ping the event role once, on their first message, when the ping box is ticked. The team notice never pings. Every post ends with the details card (date, time, duration, place, links), which carries the banner.
+- **Post now**: asks for confirmation, then posts. Announcement and reminder can ping the event role once, on their first message, when the ping box is ticked. The team notice never pings. The details card is a summary (the short description) followed by the lines of the details template (by default start, end, place, docs and rules), with the banner as its thumbnail.
 - Once any part of a post has been sent, its draft text is locked. Change it with **Edit**: it updates every sent message in place and never pings.
 - **Delete messages** removes the messages from Discord (a Discord event stays). Your text stays on the card as a new draft, so you can post it again or edit it first.
 - If a post stalls (shown as "Partly posted" or "Failed"): check the channel first, then press **Resume**. A crash between Discord answering and the database write can repeat one message. A post that shows "Sending" for more than six minutes has lost its job (for example after a worker crash); Resume and Delete work again then.
@@ -75,9 +75,9 @@ Event developers see requests once they are submitted.
 2. **Accept.** On a submitted request press **Accept request**. Either **Create project** (the Event board, three phases, one system with the brief as spec version 1, deadline at the end of the event) or **Link to an existing project** (you must be an editor of it; pick a system or create a new one). A system belongs to at most one request, so linking one that is already linked elsewhere is refused. Linking writes no spec: the banner then reads "This system was linked to an existing spec; the brief was not applied to it." The requester is not added to the project; they see a progress bar of task counts only.
 3. **Brief changed.** When the requester edits the brief after the spec was written, the project shows **Brief changed since spec vN** with **Show changes**, and **Update from brief** gives you the command `/surf-roadmap:requests update <request-id>` to paste into your agent. The app runs nothing itself.
 4. **`/surf-roadmap:requests`.** `/surf-roadmap:requests <request-id>` develops a request the first time, `update <request-id>` brings the system in line with the changed brief. Without an id the command asks for it (the last part of the request's URL), because there is no list tool. The skill `event-requests` reads `get_request` (use `specBasis.briefVersion` as `sinceBrief` to get the brief diff; it also returns `endsAt`, `summary`, the `checklist` and `writing`, the style guides and examples to write in), plans the system with `plan-system`, asks the planner through `ask_requester` and reports with one `post_update`.
-6. **Event-day checklist.** `set_event_checklist` replaces the unticked items of the checklist with 1 to 30 concrete checks (ticked items stay). `/surf-roadmap:requests event-day <request-id>` writes 5 to 12 of them from the plan and the fallback scenarios. It needs develop or edit access and is refused for done, withdrawn and cancelled requests.
-7. **Messages.** `write_event_messages` writes the drafts of the team notice, the announcement and the reminder and the short description in one call, exactly as given (use placeholders; the app fills them when it sends). It never posts: a kind that is already sending, partial or posted is skipped with a reason while the others are saved. `/surf-roadmap:requests messages <request-id>` does it from `get_request`'s `writing`. Posting stays a click in the app.
-5. **Never delete done work.** Tasks in state `done` are never changed. Steps that the brief dropped keep their tasks and are listed in the report.
+5. **Event-day checklist.** `set_event_checklist` replaces the unticked items of the checklist with 1 to 30 concrete checks (ticked items stay). `/surf-roadmap:requests event-day <request-id>` writes 5 to 12 of them from the plan and the fallback scenarios. It needs develop or edit access and is refused for done, withdrawn and cancelled requests.
+6. **Messages.** `write_event_messages` writes the drafts of the team notice, the announcement and the reminder and the short description in one call, exactly as given (use placeholders; the app fills them when it sends). It never posts: a kind that is already sending, partial or posted is skipped with a reason while the others are saved. `/surf-roadmap:requests messages <request-id>` does it from `get_request`'s `writing`. Posting stays a click in the app.
+7. **Never delete done work.** Tasks in state `done` are never changed. Steps that the brief dropped keep their tasks and are listed in the report.
 
 ## Part 3: the admin
 
@@ -134,7 +134,7 @@ German template examples:
 
 ```
 Datum: {start_date}
-Uhrzeit: {start_time} Uhr
+Uhrzeit: {start_time}
 Dauer: {duration}
 Ort: {where}
 Infos: {docs}
