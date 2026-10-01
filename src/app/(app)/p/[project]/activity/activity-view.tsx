@@ -118,6 +118,9 @@ export function ActivityView({
   const path = `/p/${slug}/activity`;
   const personValue = person ?? legacyPerson;
   const query = { kind, person: personValue, system: system?.slug, agents, groups: groups.join(",") || undefined };
+  const exportQuery = new URLSearchParams(
+    Object.entries({ person, agents, groups: query.groups, system: system?.slug }).filter((e): e is [string, string] => Boolean(e[1])),
+  ).toString();
   const filtered = Boolean(personValue || system || agents || groups.length);
   /** Replaces the URL with the current query changed by `patch`. */
   const go = (patch: Record<string, string | null>) => startTransition(() => router.replace(withQuery(path, query, patch), { scroll: false }));
@@ -151,6 +154,11 @@ export function ActivityView({
         {ACTIVITY_GROUP_KEYS.map((g) => (
           <ToggleChip key={g} label={ACTIVITY_GROUPS[g].label} on={groups.includes(g)} onChange={(on) => toggleGroup(g, on)} />
         ))}
+        <Button asChild variant="outline" size="sm">
+          <a href={`/api/projects/${slug}/activity/csv${exportQuery ? `?${exportQuery}` : ""}`} download>
+            Export CSV
+          </a>
+        </Button>
         {filtered && (
           <SaveViewButton
             path={path}
