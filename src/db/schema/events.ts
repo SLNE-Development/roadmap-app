@@ -27,6 +27,8 @@ export const eventRequest = pgTable(
     durationMinutes: integer("duration_minutes"),
     /** Where the event takes place: a world, server or area. */
     where: text("where").notNull().default(""),
+    /** The short description of the event (at most 500 characters); empty falls back to the brief's first paragraph. */
+    summary: text("summary").notNull().default(""),
     eventDocsUrl: text("event_docs_url"),
     /** The current version number of the brief (see {@link eventBriefVersion}). */
     briefVersion: integer("brief_version").notNull().default(1),

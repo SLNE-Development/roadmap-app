@@ -229,7 +229,7 @@ export const requestsRouter = router({
     /** Stores text pasted back from a chat assistant as the draft of the matching post; sends nothing. */
     savePasteBack: protectedProcedure
       .input(z.object({ ...R, ...savePasteBackInput.shape }))
-      .mutation(({ ctx, input }) => savePasteBack(ctx.db, ctx.actor, input.id, input.kind, input.text)),
+      .mutation(({ ctx, input }) => savePasteBack(ctx.db, ctx.actor, input.id, input.kind, input.text, bullQueue(QUEUE.deliver))),
 
     /** Saves the draft of one post. */
     saveDraft: protectedProcedure

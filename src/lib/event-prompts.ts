@@ -1,9 +1,9 @@
-import { placeholderValues } from "@/lib/event-placeholders";
+import { placeholderValues, VISIBLE_PLACEHOLDERS } from "@/lib/event-placeholders";
 import { DEFAULT_STYLE_GUIDES } from "@/lib/event-templates";
 import type { QuestionType } from "@/lib/event-questions";
 
-/** The three texts the planner copies: the announcement, the reminder and the team message. */
-export const PROMPT_KINDS = ["announcement", "reminder", "team"] as const;
+/** The texts the planner copies: the announcement, the reminder, the team message and the short description. */
+export const PROMPT_KINDS = ["announcement", "reminder", "team", "summary"] as const;
 
 /** One of {@link PROMPT_KINDS}. */
 export type PromptKind = (typeof PROMPT_KINDS)[number];
@@ -88,6 +88,30 @@ const block = (heading: string, lines: string[]): string => (lines.length > 0 ? 
 
 const join = (parts: string[]): string => parts.filter((p) => p.trim() !== "").join("\n\n");
 
+/** What each placeholder stands for, as the prompts explain it to the assistant. */
+const PLACEHOLDER_MEANINGS: Record<string, string> = {
+  event: "Name des Events",
+  start: "Beginn mit Datum und Uhrzeit",
+  start_date: "Datum des Beginns",
+  start_time: "Uhrzeit des Beginns",
+  end_date: "Datum des Endes",
+  end_time: "Uhrzeit des Endes",
+  countdown: 'z. B. "in 3 Tagen" bis zum Beginn',
+  duration: "Dauer",
+  where: "Ort",
+  docs: "Link zu den Infos",
+  rules: "Link zum Regelwerk",
+};
+
+/** The fixed German block that tells the assistant to write placeholders instead of dates, places and links. */
+export const PLACEHOLDER_GUIDE = block(
+  "Platzhalter",
+  [
+    ...VISIBLE_PLACEHOLDERS.map((p) => `{${p}} ${PLACEHOLDER_MEANINGS[p]}`),
+    "Schreibe Datum, Uhrzeit, Dauer, Ort und Links nie aus, sondern nur als Platzhalter. Die App ersetzt sie beim Senden; Datum und Uhrzeit erscheinen dann in der Zeitzone jedes Lesers.",
+  ],
+);
+
 /** The essentials of the event: name, date, time, duration and place; empty facts are left out. */
 function facts(input: PromptInput, withDuration: boolean): string[] {
   const v = placeholderValues(input.request, input.settings).text;
@@ -109,7 +133,7 @@ function announcement(input: PromptInput): string {
   const { settings: s } = input;
   const info = join([
     "Alle Informationen zum Event",
-    block("Eckdaten", facts(input, true)),
+    block("Zur Orientierung (nicht abschreiben)", facts(input, true)),
     block("Briefing", input.brief.trim() ? [input.brief.trim()] : []),
     block("Antworten des Planers", qa(input.answers)),
     block("Fallback-Pläne (Nicht in der Ankündigung nennen, nur zur Information)", input.fallback.filter((f) => f.title.trim()).map((f) => `- ${f.title.trim()}`)),
@@ -121,6 +145,7 @@ function announcement(input: PromptInput): string {
     exampleBlock("Beispiel einer Ankündigung", s.announcementExample),
     info,
     "Schreibe die Ankündigung auf Deutsch. Beginne mit `# <Eventname>`, dann fließender Text in Absätzen, keine Stichpunktlisten, keine Kopie des Briefings.\nAusgabe: nur der reine Text der Ankündigung, ohne Kommentar davor oder danach.",
+    PLACEHOLDER_GUIDE,
   ]);
 }
 
@@ -137,8 +162,9 @@ function reminder(input: PromptInput): string {
     "Du schreibst die kurze Erinnerung an ein Community-Event, das bald stattfindet.",
     styleBlock(s.announcementStyle, DEFAULT_STYLE_GUIDES.announcement),
     exampleBlock("Beispiel einer Erinnerung", s.reminderExample),
-    block("Das Wichtigste", [...facts(input, false), ...line("Worum es geht", summary(input.brief)), ...links(input)]),
+    block("Zur Orientierung (nicht abschreiben)", [...facts(input, false), ...line("Worum es geht", summary(input.brief)), ...links(input)]),
     "Schreibe die kurze Erinnerung auf Deutsch im gleichen Stil.\nAusgabe: nur der reine Text, ohne Kommentar davor oder danach.",
+    PLACEHOLDER_GUIDE,
   ]);
 }
 
@@ -148,7 +174,7 @@ function team(input: PromptInput): string {
     "Du schreibst die Nachricht an das Team, das dieses Community-Event betreut.",
     styleBlock(s.teamStyle, DEFAULT_STYLE_GUIDES.team),
     exampleBlock("Beispiel einer Team-Nachricht", s.teamExample),
-    block("Allgemeine Informationen", facts(input, true)),
+    block("Zur Orientierung (nicht abschreiben)", facts(input, true)),
     block("Briefing", input.brief.trim() ? [input.brief.trim()] : []),
     block("Moderation (Rollen und Anzahl, Chatregeln, was bestraft wird, verbotene Dinge, wer Bereitschaft hat)", qa(input.moderation)),
     block("Besetzung und weitere Antworten", qa(input.answers.filter((a) => !input.moderation.some((m) => m.question === a.question && m.answer === a.answer)))),
@@ -158,10 +184,21 @@ function team(input: PromptInput): string {
     ),
     block("Links", links(input)),
     "Schreibe die Team-Nachricht auf Deutsch.\nAusgabe: nur der reine Text, ohne Kommentar davor oder danach.",
+    PLACEHOLDER_GUIDE,
   ]);
 }
 
-/** Builds the three copy prompts from `input`. Pure; missing data is left out together with its label. */
+/** The prompt for the short description: one or two sentences, no placeholders, with the facts and the brief as context. */
+function summaryPrompt(input: PromptInput): string {
+  return join([
+    "Du schreibst die Kurzbeschreibung für ein Community-Event.",
+    block("Zur Orientierung (nicht abschreiben)", facts(input, true)),
+    block("Briefing", input.brief.trim() ? [input.brief.trim()] : []),
+    "Schreibe eine Kurzbeschreibung des Events auf Deutsch: ein bis zwei Sätze, höchstens 300 Zeichen, keine Platzhalter, keine Überschrift, kein Markdown. Ausgabe: nur der Text.",
+  ]);
+}
+
+/** Builds the four copy prompts from `input`. Pure; missing data is left out together with its label. */
 export function buildPrompts(input: PromptInput): Record<PromptKind, string> {
-  return { announcement: announcement(input), reminder: reminder(input), team: team(input) };
+  return { announcement: announcement(input), reminder: reminder(input), team: team(input), summary: summaryPrompt(input) };
 }

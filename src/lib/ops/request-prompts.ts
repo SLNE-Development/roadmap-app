@@ -11,7 +11,8 @@ import { requestAccess } from "./request-access";
 import { listFallbacks } from "./request-fallback";
 import { savePostDraft } from "./request-posts";
 import { listRounds } from "./request-questions";
-import { getBrief, logRequest } from "./requests";
+import { getBrief, logRequest, updateRequest } from "./requests";
+import type { JobQueue } from "@/lib/queue";
 
 /** Input of {@link savePasteBack}: the text the planner pasted back. */
 export const savePasteBackInput = z.object({ kind: z.enum(PROMPT_KINDS), text: z.string().max(MAX_POST_TEXT) });
@@ -58,16 +59,21 @@ export async function getPrompts(db: Db, actor: Actor, requestId: string): Promi
 }
 
 /**
- * Stores the text pasted back from a chat assistant as the draft of the matching post, for review in the composer.
- * Sends nothing and changes no status.
+ * Stores the text pasted back from a chat assistant as the draft of the matching post, for review in the composer, or, for
+ * the `summary` kind, as the short description of the request (cut to 500 characters; a changed one queues the Discord
+ * event update when a `queue` is given). Sends nothing and changes no status.
  *
  * @throws InvalidError for an empty paste or a text over 40,000 characters, ConflictError once the post is sending, partial or posted
  * (use Edit), NotFoundError / ForbiddenError as {@link savePostDraft}
  */
-export async function savePasteBack(db: Db, actor: Actor, requestId: string, kind: PromptKind, text: string): Promise<void> {
+export async function savePasteBack(db: Db, actor: Actor, requestId: string, kind: PromptKind, text: string, queue?: JobQueue): Promise<void> {
   const parsed = savePasteBackInput.safeParse({ kind, text });
   if (!parsed.success) throw new InvalidError(parsed.error.issues.map((i) => i.message).join(" "));
   if (!parsed.data.text.trim()) throw new InvalidError("Paste the text first.");
+  if (parsed.data.kind === "summary") {
+    await updateRequest(db, actor, requestId, { summary: parsed.data.text.trim().slice(0, 500) }, queue);
+    return;
+  }
   await savePostDraft(db, actor, requestId, parsed.data.kind, { text: parsed.data.text });
   await logRequest(db, actor, { requestId, field: "post", newValue: `${parsed.data.kind} draft pasted` });
 }

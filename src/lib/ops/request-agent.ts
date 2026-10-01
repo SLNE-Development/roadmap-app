@@ -22,6 +22,7 @@ export interface RequestForAgent {
   startsAt: Date | null;
   durationMinutes: number | null;
   where: string;
+  summary: string;
   eventDocsUrl: string | null;
   requester: { name: string };
   project: { slug: string } | null;
@@ -103,6 +104,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     startsAt: request.startsAt,
     durationMinutes: request.durationMinutes,
     where: request.where,
+    summary: request.summary,
     eventDocsUrl: request.eventDocsUrl,
     requester: { name: requester?.name?.trim() || "unknown" },
     project: proj ?? null,

@@ -46,7 +46,7 @@ export interface PlanPost {
 /** What the builders read from the settings. */
 export type PlanSettings = Pick<EventSettingsRow, "pingRoleId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate">;
 
-type PlanRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl" | "bannerUploadId">;
+type PlanRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl" | "bannerUploadId" | "summary">;
 
 /** Fixed phrases the app writes into Discord; German because the players read them. */
 export const GERMAN = {
@@ -66,7 +66,7 @@ export function buildDetailsEmbed(request: PlanRequest, settings: Pick<PlanSetti
   const values = placeholderValues(request, settings);
   const t = settings.detailsTemplate;
   const lines = t.lines.map((line) => fillPlaceholders(line, values, { allow: NO_NOTE, mode: "discord" })).join("\n");
-  const summary = "summary" in request && typeof request.summary === "string" ? request.summary : "";
+  const summary = request.summary;
   return {
     title: request.title,
     url: request.eventDocsUrl,
@@ -154,7 +154,7 @@ export function plannedParts(post: PlanPost, request: PlanRequest, settings: Pla
 }
 
 /** What the Discord event of a request is built from: the request's fields and its brief. */
-export type PayloadRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl"> & { brief: string };
+export type PayloadRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl"> & { summary: string; brief: string };
 
 const EVENT_NAME_MAX = 100;
 const EVENT_DESCRIPTION_MAX = 1000;
@@ -174,7 +174,7 @@ function firstParagraph(brief: string): string {
 }
 
 /**
- * The Discord scheduled event of a request. The description is the brief's first paragraph (at most 700 characters) and,
+ * The Discord scheduled event of a request. The description is the short description, else the brief's first paragraph (at most 700 characters) and,
  * when the request has an event docs url, a final German `Infos:` line with it; the whole stays within Discord's 1,000. A
  * request without a start has no event: the caller checks `startsAt` first.
  *
@@ -184,7 +184,7 @@ export function eventPayload(request: PayloadRequest, imageDataUri?: string): Sc
   if (!request.startsAt) throw new Error("A request without a start date has no Discord event.");
   const infos = request.eventDocsUrl ? `Infos: ${request.eventDocsUrl}` : "";
   const room = EVENT_DESCRIPTION_MAX - (infos ? textLength(infos) + 2 : 0);
-  const lead = cut(firstParagraph(request.brief), Math.min(EVENT_BRIEF_MAX, room));
+  const lead = cut(request.summary.trim() || firstParagraph(request.brief), Math.min(EVENT_BRIEF_MAX, room));
   return {
     name: cut(request.title, EVENT_NAME_MAX),
     description: [lead, infos].filter((part) => part !== "").join("\n\n"),

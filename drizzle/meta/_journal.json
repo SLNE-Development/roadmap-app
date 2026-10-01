@@ -281,6 +281,13 @@
       "when": 1790881154280,
       "tag": "0039_placeholder-rename",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790881825172,
+      "tag": "0040_event-summary",
+      "breakpoints": true
     }
   ]
 }

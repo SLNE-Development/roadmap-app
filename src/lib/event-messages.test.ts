@@ -4,7 +4,7 @@ import { buildDetailsEmbed, buildDisasterEmbed, buildResolvedEmbed, eventPayload
 import { textLength } from "./discord-limits";
 
 const ROLE = "123456789012345678";
-const request = { title: "Piratenfest", startsAt: new Date("2026-10-17T16:00:00Z"), durationMinutes: 90, where: "Hafenwelt", eventDocsUrl: "https://example.com/infos", bannerUploadId: null as string | null };
+const request = { title: "Piratenfest", startsAt: new Date("2026-10-17T16:00:00Z"), durationMinutes: 90, where: "Hafenwelt", eventDocsUrl: "https://example.com/infos", bannerUploadId: null as string | null, summary: "" };
 const settings: PlanSettings = {
   pingRoleId: ROLE,
   timeZone: "Europe/Berlin",
@@ -46,7 +46,7 @@ describe("buildDetailsEmbed", () => {
   });
 
   it("puts the summary before the lines when the request has one", () => {
-    const e = buildDetailsEmbed({ ...request, summary: "Ein Fest." } as typeof request, settings);
+    const e = buildDetailsEmbed({ ...request, summary: "Ein Fest." }, settings);
     expect(e.description.startsWith("Ein Fest.\n\nStart: ")).toBe(true);
   });
 });
@@ -146,6 +146,11 @@ describe("eventPayload", () => {
     expect(p.description).toBe("Kommt vorbei und segelt mit uns.\n\nInfos: https://example.com/infos");
     expect(p.name).toBe("Piratenfest");
     expect(p.location).toBe("Hafenwelt");
+  });
+
+  it("leads with the summary when there is one and falls back to the brief without", () => {
+    expect(eventPayload({ ...base, summary: "  Kurz und gut.  " }).description).toBe("Kurz und gut.\n\nInfos: https://example.com/infos");
+    expect(eventPayload({ ...base, summary: "" }).description).toBe("Kommt vorbei und segelt mit uns.\n\nInfos: https://example.com/infos");
   });
 
   it("keeps the description within 1000 characters, docs line included", () => {

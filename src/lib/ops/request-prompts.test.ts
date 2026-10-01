@@ -7,7 +7,7 @@ import { draftPost, postWorld, stubEncryptionKey } from "@/test/post-fixtures";
 import { updateEventSettings } from "./event-settings";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { getPrompts, savePasteBack } from "./request-prompts";
-import { startPost } from "./request-posts";
+import { savePostDraft, startPost } from "./request-posts";
 import { answerQuestions, askRound, listRounds } from "./request-questions";
 
 beforeEach(stubEncryptionKey);
@@ -58,6 +58,24 @@ describe("savePasteBack", () => {
     expect(after.status).toBe(before.status);
     const log = await w.db.select().from(requestLog).where(eq(requestLog.requestId, w.request.id));
     expect(log.some((l) => l.field === "post" && l.newValue === "announcement draft pasted")).toBe(true);
+  });
+
+  it("stores the summary trimmed on the request and writes no post", async () => {
+    const w = await postWorld();
+    await savePasteBack(w.db, w.requester, w.request.id, "summary", "  Kurz.  ");
+    const [after] = await w.db.select().from(eventRequest).where(eq(eventRequest.id, w.request.id));
+    expect(after.summary).toBe("Kurz.");
+    expect(await w.db.select().from(eventPost).where(eq(eventPost.requestId, w.request.id))).toHaveLength(0);
+  });
+
+  it("keeps placeholders as written in a draft and a paste-back", async () => {
+    const w = await postWorld();
+    await savePasteBack(w.db, w.requester, w.request.id, "announcement", "Am {start_date}");
+    const [post] = await w.db.select().from(eventPost).where(eq(eventPost.requestId, w.request.id));
+    expect(post.text).toBe("Am {start_date}");
+    await savePostDraft(w.db, w.requester, w.request.id, "reminder", { text: "Um {start_time}" });
+    const posts = await w.db.select().from(eventPost).where(eq(eventPost.requestId, w.request.id));
+    expect(posts.find((r) => r.kind === "reminder")?.text).toBe("Um {start_time}");
   });
 
   it("refuses an empty paste", async () => {

@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventBriefVersion, eventQuestion, eventQuestionRound, eventRequest, eventTodo, requestLog } from "@/db/schema";
+import { eventBriefVersion, eventQuestion, eventQuestionRound, eventRequest, eventSettings, eventTodo, requestLog } from "@/db/schema";
 import { newId } from "@/lib/id";
+import { memoryQueue } from "@/lib/queue";
 import { createTestDb } from "@/test/db";
 import { insertUser, requestFixture } from "@/test/fixtures";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
@@ -210,6 +211,18 @@ describe("updateRequest", () => {
     expect(await w.logFields(req.id)).toEqual(["title", "startsAt", "durationMinutes"]);
     await updateRequest(w.db, w.R, req.id, { title: "New", durationMinutes: 90 });
     expect(await w.logFields(req.id)).toHaveLength(3);
+  });
+
+  it("queues one Discord event update for a changed summary", async () => {
+    const w = await world();
+    await w.db.insert(eventSettings).values({ id: "default", botTokenEnc: "x", guildId: "1" }).onConflictDoUpdate({ target: eventSettings.id, set: { botTokenEnc: "x", guildId: "1" } });
+    const req = await requestFixture(w.db, w.R, { discordEventId: "evt-1", startsAt: FUTURE });
+    const queue = memoryQueue();
+    await updateRequest(w.db, w.R, req.id, { summary: "  Neu  " }, queue);
+    expect(queue.jobs.map((j) => j.jobName)).toEqual(["events.discord-event"]);
+    expect(await w.logFields(req.id)).toEqual(["summary"]);
+    await updateRequest(w.db, w.R, req.id, { summary: "Neu" }, queue);
+    expect(queue.jobs).toHaveLength(1);
   });
 
   it("lets only managers change the requester", async () => {

@@ -1,0 +1,3 @@
+ALTER TABLE "event_settings" ALTER COLUMN "disaster_template" SET DEFAULT '{"title":"Wir arbeiten an einer Lösung","text":"{event} ist gerade nicht erreichbar. Wir arbeiten an einer Lösung und melden uns hier, sobald es weitergeht.\n\n{note}","color":"#c23636","imageUploadId":null}'::jsonb;--> statement-breakpoint
+ALTER TABLE "event_settings" ALTER COLUMN "details_template" SET DEFAULT '{"lines":["Start: {start}","Ende: {end_time}","Ort: {where}","Infos: {docs}","Regeln: {rules}"],"color":"#2a5db0","footer":"Viel Spaß!"}'::jsonb;--> statement-breakpoint
+ALTER TABLE "event_request" ADD COLUMN "summary" text DEFAULT '' NOT NULL;

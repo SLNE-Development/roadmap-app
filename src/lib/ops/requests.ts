@@ -40,6 +40,7 @@ const dateSchema = z.union([z.date(), z.string().datetime({ offset: true })]).tr
 const titleSchema = z.string().trim().min(1).max(120);
 const durationSchema = z.number().int().min(5).max(1440);
 const whereSchema = z.string().trim().max(200);
+const summarySchema = z.string().trim().max(500);
 const docsUrlSchema = z
   .string()
   .trim()
@@ -65,6 +66,7 @@ export const updateRequestInput = z.object({
   startsAt: dateSchema.nullable().optional(),
   durationMinutes: durationSchema.nullable().optional(),
   where: whereSchema.optional(),
+  summary: summarySchema.optional(),
   eventDocsUrl: docsUrlSchema.nullable().optional(),
   requesterId: z.string().min(1).optional(),
 });
@@ -188,7 +190,7 @@ export async function createRequest(db: Db, actor: Actor, raw: unknown): Promise
 /**
  * Changes fields of a request and logs one row per changed field. Requesters edit their open requests, managers and admins
  * every request (also closed ones); only managers change the requester. A past date is refused once the request is submitted.
- * A changed title, date, duration, place or docs link queues one `events.discord-event` update when the request has a Discord
+ * A changed title, date, duration, place, short description or docs link queues one `events.discord-event` update when the request has a Discord
  * event, after the change is committed; without a `queue` nothing is queued.
  *
  * @throws ForbiddenError, ConflictError (closed request), InvalidError
@@ -221,6 +223,7 @@ export async function updateRequest(db: Db, actor: Actor, requestId: string, raw
       note("durationMinutes", { durationMinutes: input.durationMinutes }, request.durationMinutes?.toString() ?? null, input.durationMinutes?.toString() ?? null);
     }
     if (input.where !== undefined) note("where", { where: input.where }, request.where, input.where);
+    if (input.summary !== undefined) note("summary", { summary: input.summary }, request.summary, input.summary);
     if (input.eventDocsUrl !== undefined) note("eventDocsUrl", { eventDocsUrl: input.eventDocsUrl }, request.eventDocsUrl, input.eventDocsUrl);
     if (input.requesterId !== undefined) note("requesterId", { requesterId: input.requesterId }, request.requesterId, input.requesterId);
     if (changes.length === 0) return request;
@@ -241,7 +244,7 @@ export async function updateRequest(db: Db, actor: Actor, requestId: string, raw
 }
 
 /** The request fields the Discord event shows. */
-const EVENT_FIELDS = ["title", "startsAt", "durationMinutes", "where", "eventDocsUrl"];
+const EVENT_FIELDS = ["title", "startsAt", "durationMinutes", "where", "summary", "eventDocsUrl"];
 
 /** The statuses in which the brief can be edited. */
 const BRIEF_EDITABLE: readonly RequestStatus[] = ["draft", "submitted", "accepted", "event_week"];

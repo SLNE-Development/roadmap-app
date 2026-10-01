@@ -478,7 +478,8 @@
     "kind": {
       "announcement": "Announcement",
       "reminder": "Reminder",
-      "team": "Team message"
+      "team": "Team message",
+      "summary": "Short description"
     },
     "instruction": "Paste this into any chat assistant, then paste the text it writes back below.",
     "promptLabel": "Prompt",

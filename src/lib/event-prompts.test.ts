@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompts, describeAnswer, type PromptInput } from "./event-prompts";
+import { buildPrompts, describeAnswer, PLACEHOLDER_GUIDE, type PromptInput } from "./event-prompts";
 import { DEFAULT_STYLE_GUIDES } from "./event-templates";
 
 const input: PromptInput = {
@@ -51,6 +51,21 @@ describe("buildPrompts", () => {
     expect(p.reminder).toContain("EXAMPLE-REM");
     expect(p.reminder).toContain("20:00 Uhr");
     expect(p.reminder).not.toContain("Server fällt aus");
+  });
+
+  it("tells every prompt but the summary to write placeholders", () => {
+    for (const kind of ["announcement", "reminder", "team"] as const) {
+      expect(p[kind]).toContain(PLACEHOLDER_GUIDE);
+      expect(p[kind]).toContain("Zur Orientierung (nicht abschreiben)");
+    }
+    for (const text of Object.values(p)) expect(text).not.toContain("Schreibe das Datum");
+  });
+
+  it("asks the summary prompt for a short text without placeholders", () => {
+    expect(p.summary).toContain("höchstens 300 Zeichen");
+    expect(p.summary).not.toContain(PLACEHOLDER_GUIDE);
+    expect(p.summary).toContain("BRIEF-TEXT");
+    expect(p.summary).toContain("Piratenfest");
   });
 
   it("stays generic", () => {
