@@ -2,6 +2,7 @@ import "server-only";
 import { router } from "./init";
 import { accountRouter } from "./routers/account";
 import { adrsRouter } from "./routers/adrs";
+import { agentsRouter } from "./routers/agents";
 import { boardsRouter } from "./routers/boards";
 import { fieldsRouter } from "./routers/fields";
 import { gatesRouter } from "./routers/gates";
@@ -42,6 +43,7 @@ export const appRouter = router({
   gates: gatesRouter,
   pages: pagesRouter,
   search: searchRouter,
+  agents: agentsRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

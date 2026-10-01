@@ -54,7 +54,7 @@ export function ProjectShell({ slug, children }: { slug: string; children: React
     role: detail.role,
     memberCount: nav.memberCount,
     boards: detail.boards.map((b) => ({ slug: b.slug, name: b.name, count: systems.filter((s) => s.boardSlug === b.slug).length })),
-    counts: { systems: systems.length, adrs: nav.adrCount, pages: nav.pageCount, openQuestions: nav.openQuestionCount },
+    counts: { systems: systems.length, adrs: nav.adrCount, pages: nav.pageCount, openQuestions: nav.openQuestionCount, liveRuns: nav.liveRuns },
   };
   return (
     <AppShell

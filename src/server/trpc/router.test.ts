@@ -80,6 +80,17 @@ describe("appRouter", () => {
     ).rejects.toMatchObject({ message: expect.stringMatching(/^columns\.0\.name: /) });
   });
 
+  it("lets a viewer list agent runs and read the cost of a system", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const viewer = await addMemberFixture(db, owner, slug, "viewer");
+    await caller(db, owner).systems.create({ project: slug, system: { slug: "login", title: "Login" } });
+    const api = caller(db, viewer);
+    expect(await api.agents.runs({ project: slug, state: "live" })).toEqual([]);
+    expect(await api.agents.systemCost({ project: slug, system: "login" })).toBeNull();
+    await expect(api.agents.run({ project: slug, runId: "nope" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
   it("lists users to project owners only", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createAdr } from "./adrs";
+import { recordCall } from "./agent-runs";
 import { createBoard, updateBoard } from "./boards";
 import { setMember } from "./members";
 import { listProjects } from "./projects";
@@ -77,6 +78,15 @@ describe("projectNav", () => {
     expect(nav.systems.map((s) => s.title)).toEqual(["Beta", "Alpha"]);
     expect(nav.systems[0].boardSlug).toBe("development");
     expect(nav).toMatchObject({ adrCount: 1, pageCount: 0, openQuestionCount: 1, memberCount: 2 });
+  });
+
+  it("counts the runs live within 2 minutes", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db, "live");
+    const at = new Date("2026-10-01T10:00:00Z");
+    await recordCall(db, { apiKeyId: "K", userId: owner.userId, agent: null, tool: "get_system", transport: "rest", input: { project: slug }, ok: true, status: 200, error: null, durationMs: 1, at });
+    expect((await projectNav(db, owner, slug, new Date(at.getTime() + 60_000))).liveRuns).toBe(1);
+    expect((await projectNav(db, owner, slug, new Date(at.getTime() + 180_000))).liveRuns).toBe(0);
   });
 
   it("lists systems in board order", async () => {

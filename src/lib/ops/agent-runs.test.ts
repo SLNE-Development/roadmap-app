@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { agentCall, agentRun } from "@/db/schema";
+import { agentCall, agentRun, changeLog } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
 import { NotFoundError } from "@/lib/ops/errors";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture, insertUser } from "@/test/fixtures";
-import { callTarget, recordCall, recordUsage, startRun, type CallRecord } from "./agent-runs";
+import { callTarget, getRun, listProjectRuns, recordCall, recordUsage, startRun, systemAgentCost, type CallRecord } from "./agent-runs";
+import { createSystem } from "./systems";
 
 /** A start time for the grouping tests. */
 const T = new Date("2026-10-01T10:00:00Z");
@@ -159,5 +160,115 @@ describe("recordUsage", () => {
     const other = await insertUser(db);
     await startRun(db, user, "K", { clientSessionId: "sess-1" });
     await expect(recordUsage(db, other, "L", usage("sess-1", 1))).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+/** Records a call of `actor` at `at` in `slug`, on `system` when given. */
+async function call(db: Db, actor: Actor, key: string, slug: string, at: Date, system?: string, overrides: Partial<CallRecord> = {}) {
+  await recordCall(db, rec(actor, key, { at, input: { project: slug, ...(system ? { system } : {}) }, ...overrides }));
+}
+
+describe("listProjectRuns", () => {
+  it("filters live, recent and failed runs against the injected clock", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const now = plus(60);
+    await call(db, owner, "live", slug, plus(59));
+    await call(db, owner, "recent", slug, plus(55));
+    await call(db, owner, "old", slug, plus(-60 * 24));
+    await call(db, owner, "bad", slug, plus(-60 * 24 * 2), undefined, { ok: false, status: 500, error: "boom" });
+    await call(db, owner, "elsewhere", "other-project", plus(59));
+    const keys = async (state?: "live" | "recent" | "failed") =>
+      (await listProjectRuns(db, owner, slug, { state }, now)).map((r) => [r.live, r.errorCount]);
+    expect(await keys("live")).toEqual([[true, 0]]);
+    expect(await keys("recent")).toEqual([
+      [true, 0],
+      [false, 0],
+    ]);
+    expect(await keys("failed")).toEqual([[false, 1]]);
+    expect(await keys()).toHaveLength(4);
+    expect(await listProjectRuns(db, owner, slug, { limit: 1 }, now)).toHaveLength(1);
+  });
+
+  it("counts calls and errors of this project only", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await call(db, owner, "K", slug, plus(0));
+    await call(db, owner, "K", slug, plus(1));
+    await call(db, owner, "K", "other-project", plus(2), undefined, { ok: false, status: 500, error: "boom" });
+    const now = plus(3);
+    expect(await listProjectRuns(db, owner, slug, { state: "failed" }, now)).toEqual([]);
+    const [run] = await listProjectRuns(db, owner, slug, {}, now);
+    expect(run).toMatchObject({ callCount: 2, errorCount: 0 });
+  });
+
+  it("returns names, tokens and refuses non-members", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const { runId } = await startRun(db, owner, "K", { title: "Fix login", clientSessionId: "s1" });
+    await recordUsage(db, owner, "K", usage("s1", 1));
+    await recordCall(db, rec(owner, "K", { at: new Date(), input: { project: slug } }));
+    const [run] = await listProjectRuns(db, owner, slug, {});
+    expect(run).toMatchObject({ id: runId, title: "Fix login", userName: "Owner", callCount: 1, tokens: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 } });
+    const stranger = await insertUser(db);
+    await expect(listProjectRuns(db, stranger, slug, {})).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("getRun", () => {
+  it("returns the run's calls in this project and only the changes inside its window", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    await call(db, owner, "K", slug, plus(0), "a");
+    await call(db, owner, "K", slug, plus(1), "a");
+    await call(db, owner, "K", "other-project", plus(2));
+    const [{ id: runId }] = await runsOf(db, "K");
+    const row = (at: Date, over: Partial<typeof changeLog.$inferInsert> = {}) => ({
+      projectId,
+      entity: "system",
+      entityId: "x",
+      field: "notes",
+      authorUserId: owner.userId,
+      agent: "Claude Code",
+      createdAt: at,
+      ...over,
+    });
+    const inside = new Date(plus(1).getTime() + 3000);
+    await db.insert(changeLog).values([
+      row(plus(0.5), { field: "inside" }),
+      row(inside, { field: "grace" }),
+      row(new Date(plus(2).getTime() + 6000), { field: "late" }),
+      row(plus(-1), { field: "early" }),
+      row(plus(0.5), { field: "human", agent: null }),
+      row(plus(0.5), { field: "other-user", authorUserId: (await insertUser(db)).userId }),
+    ]);
+    const { run, calls, changes } = await getRun(db, owner, slug, runId);
+    expect(run.id).toBe(runId);
+    expect(calls).toHaveLength(2);
+    expect(changes.map((c) => c.field)).toEqual(["inside", "grace"]);
+  });
+
+  it("is not found for a run without calls in the project", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await call(db, owner, "K", "other-project", plus(0));
+    const [{ id }] = await runsOf(db, "K");
+    await expect(getRun(db, owner, slug, id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("systemAgentCost", () => {
+  it("shares a run's tokens by its calls per system, leaving out runs without tokens", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "a", title: "A" });
+    await createSystem(db, owner, slug, { slug: "b", title: "B" });
+    for (const [i, system] of ["a", "a", "a", "b"].entries()) await call(db, owner, "K", slug, plus(i), system);
+    await db.update(agentRun).set({ inputTokens: 100, outputTokens: 200, cacheWriteTokens: 700, cacheReadTokens: 5_000_000 }).where(eq(agentRun.apiKeyId, "K"));
+    await call(db, owner, "N", slug, plus(0), "a");
+    expect(await systemAgentCost(db, owner, slug, "a")).toEqual({ runs: 1, tokens: 750 });
+    expect(await systemAgentCost(db, owner, slug, "b")).toEqual({ runs: 1, tokens: 250 });
+    await createSystem(db, owner, slug, { slug: "c", title: "C" });
+    expect(await systemAgentCost(db, owner, slug, "c")).toBeNull();
   });
 });

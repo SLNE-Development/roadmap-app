@@ -1,9 +1,11 @@
 "use client";
 
-import { useMutation, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
 import { Check, Lock } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
+import { formatTokens } from "@/components/agents/run-list";
 import { ArchivedBanner } from "@/components/archive-banner";
 import { PriorityTag } from "@/components/chips";
 import { DocumentDiff } from "@/components/document-diff";
@@ -25,6 +27,7 @@ import { SystemTabs, tabHref, type SystemTab } from "@/components/system/tabs";
 import { AREA_LABEL } from "@/components/system/text";
 import type { GlossaryTerm } from "@/lib/glossary-match";
 import { stepStates } from "@/lib/plan-steps";
+import { plural } from "@/lib/text";
 import { formatDate } from "@/lib/time";
 import { describeGaps } from "@/components/system/text";
 import { TaskList } from "@/components/task-list";
@@ -131,6 +134,7 @@ export function SystemView({
       trpc.glossary.list.queryOptions({ project: slug }),
     ],
   });
+  const { data: agentCost } = useQuery(trpc.agents.systemCost.queryOptions(ref));
   // Editors of an active project may archive or restore; edits also need the system itself active.
   const canArchive = o.role !== "viewer" && !o.project.archivedAt;
   const archived = o.system.archivedAt !== null;
@@ -221,6 +225,14 @@ export function SystemView({
           )}
         </div>
         <SystemFacts data={controls} planningHref={tabHref(base, "planning")} />
+        {agentCost && (
+          <Link href={`/p/${slug}/agents`} className="flex w-fit items-baseline gap-2 text-[13px] text-fg-2 hover:text-foreground">
+            <span>Agent cost</span>
+            <span className="font-semibold text-foreground">
+              {formatTokens(agentCost.tokens)} tokens · {plural(agentCost.runs, "run")}
+            </span>
+          </Link>
+        )}
         {o.system.summary && <p className="max-w-[720px] text-[14.5px] leading-[1.55] text-fg-2 lg:text-[15px]">{o.system.summary}</p>}
       </PageHeader>
 

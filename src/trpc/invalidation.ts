@@ -23,6 +23,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   glossary: ["glossary", "history"],
   pages: ["pages", "history", "projects", "search"],
   search: ["search"],
+  agents: ["agents"],
 };
 
 /**

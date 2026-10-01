@@ -37,7 +37,7 @@ export function UnderlineTabs({ label, tabs, children }: { label: string; tabs: 
   );
 }
 
-/** A segmented control of links (`?kind=`), the current one raised on the sunken track. */
+/** A segmented control of links (`?kind=`), the current one raised on the sunken track, with optional counts. */
 export function SegmentedLinks({ label, items }: { label: string; items: UrlTab[] }) {
   return (
     <nav aria-label={label} className="flex w-fit bg-secondary p-[3px]">
@@ -52,6 +52,7 @@ export function SegmentedLinks({ label, items }: { label: string; items: UrlTab[
           )}
         >
           {t.label}
+          {t.count !== undefined && <span className="ml-1.5 text-xs text-muted-foreground">{t.count}</span>}
         </Link>
       ))}
     </nav>

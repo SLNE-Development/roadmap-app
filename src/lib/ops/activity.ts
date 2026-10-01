@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { changeLog, user } from "@/db/schema";
 import type { Executor } from "@/db/types";
@@ -22,17 +22,8 @@ export interface HistoryEntry extends AuthorFields {
   createdAt: Date;
 }
 
-/** Lists the project's changes, or one system's history, newest first. */
-export async function listActivity(
-  db: Executor,
-  actor: Actor,
-  projectSlug: string,
-  raw: z.input<typeof activityFilter> = {},
-): Promise<HistoryEntry[]> {
-  const filter = activityFilter.parse(raw);
-  const { project } = await projectAccess(db, actor, projectSlug, "viewer");
-  const conditions = [eq(changeLog.projectId, project.id)];
-  if (filter.system) conditions.push(eq(changeLog.systemId, (await findSystem(db, project.id, filter.system)).id));
+/** Selects change log rows matching `conditions`, newest first, with their authors split into person and agent. */
+export async function selectHistory(db: Executor, conditions: SQL[], limit: number): Promise<HistoryEntry[]> {
   const rows = await db
     .select({
       id: changeLog.id,
@@ -50,6 +41,20 @@ export async function listActivity(
     .leftJoin(user, eq(user.id, changeLog.authorUserId))
     .where(and(...conditions))
     .orderBy(desc(changeLog.id))
-    .limit(filter.limit);
+    .limit(limit);
   return rows.map(({ authorName, agent, ...r }) => ({ ...r, ...authorFields(authorName, agent) }));
+}
+
+/** Lists the project's changes, or one system's history, newest first. */
+export async function listActivity(
+  db: Executor,
+  actor: Actor,
+  projectSlug: string,
+  raw: z.input<typeof activityFilter> = {},
+): Promise<HistoryEntry[]> {
+  const filter = activityFilter.parse(raw);
+  const { project } = await projectAccess(db, actor, projectSlug, "viewer");
+  const conditions = [eq(changeLog.projectId, project.id)];
+  if (filter.system) conditions.push(eq(changeLog.systemId, (await findSystem(db, project.id, filter.system)).id));
+  return selectHistory(db, conditions, filter.limit);
 }

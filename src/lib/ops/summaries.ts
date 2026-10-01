@@ -4,6 +4,7 @@ import type { Executor } from "@/db/types";
 import { projectHealth, type ProjectHealth } from "@/lib/health";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
+import { liveRunCount } from "./agent-runs";
 import { lastActivityBySystemMany, STALE_SYSTEM_DAYS } from "./attention";
 
 /** What a project card on the home page shows. */
@@ -99,18 +100,20 @@ export interface ProjectNav {
   pageCount: number;
   openQuestionCount: number;
   memberCount: number;
+  /** Agent runs with a call in the last 2 minutes. */
+  liveRuns: number;
 }
 
 /**
  * Returns a project's systems (slug, title, board) in board order, leaving out archived ones, and the
- * sidebar's ADR, page, open-question and member counts, with light queries instead
+ * sidebar's ADR, page, open-question and member counts and live agent runs, with light queries instead
  * of the full system listing.
  *
  * @throws NotFoundError if the actor cannot see the project
  */
-export async function projectNav(db: Executor, actor: Actor, slug: string): Promise<ProjectNav> {
+export async function projectNav(db: Executor, actor: Actor, slug: string, now: Date = new Date()): Promise<ProjectNav> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
-  const [systems, [adrs], [questions], [members], [pages]] = await Promise.all([
+  const [systems, [adrs], [questions], [members], [pages], liveRuns] = await Promise.all([
     db
       .select({ slug: system.slug, title: system.title, boardSlug: board.slug })
       .from(system)
@@ -129,6 +132,7 @@ export async function projectNav(db: Executor, actor: Actor, slug: string): Prom
       .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
       .where(eq(projectMember.projectId, project.id)),
     db.select({ n: count() }).from(projectPage).where(eq(projectPage.projectId, project.id)),
+    liveRunCount(db, project.id, now),
   ]);
-  return { systems, adrCount: adrs.n, pageCount: pages.n, openQuestionCount: questions.n, memberCount: members.n };
+  return { systems, adrCount: adrs.n, pageCount: pages.n, openQuestionCount: questions.n, memberCount: members.n, liveRuns };
 }
