@@ -1,0 +1,20 @@
+/** Files of the account area not yet migrated to next-intl; the area task empties this list. */
+export const PENDING_ACCOUNT: string[] = [
+  "src/app/(app)/(global)/admin/audit/audit-view.tsx",
+  "src/app/(app)/(global)/admin/github/github-admin-view.tsx",
+  "src/app/(app)/(global)/admin/users/users-view.tsx",
+  "src/app/(app)/(global)/notifications/notifications-view.tsx",
+  "src/app/(app)/(global)/settings/api-keys/api-keys-view.tsx",
+  "src/app/(app)/(global)/settings/connections/connections-view.tsx",
+  "src/app/(app)/(global)/settings/notifications/devices-section.tsx",
+  "src/app/(app)/(global)/settings/notifications/notifications-settings-view.tsx",
+  "src/app/(app)/(global)/settings/sessions/sessions-view.tsx",
+  "src/components/allowlist-manager.tsx",
+  "src/components/api-key-manager.tsx",
+  "src/components/notifications/bell.tsx",
+  "src/components/notifications/enable-push.tsx",
+  "src/components/notifications/notification-list.tsx",
+  "src/components/notifications/push-devices.tsx",
+  "src/components/notifications/quiet-hours.tsx",
+  "src/components/notifications/rules-table.tsx",
+];

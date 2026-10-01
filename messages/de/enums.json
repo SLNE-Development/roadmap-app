@@ -1,0 +1,8 @@
+{
+  "role": { "owner": "Inhaber", "editor": "Bearbeiter", "viewer": "Betrachter" },
+  "priority": { "mvp": "MVP", "later": "Später", "niceToHave": "Optional" },
+  "taskState": { "todo": "Offen", "doing": "In Arbeit", "blocked": "Blockiert", "done": "Erledigt" },
+  "category": { "planning": "Planung", "todo": "Offen", "active": "Aktiv", "review": "Review", "blocked": "Blockiert", "done": "Erledigt" },
+  "adrStatus": { "proposed": "Vorgeschlagen", "accepted": "Angenommen", "superseded": "Ersetzt" },
+  "planningArea": { "failureModes": "Fehlerfälle", "dependencies": "Abhängigkeiten", "scope": "Umfang", "opsTesting": "Betrieb und Tests" }
+}

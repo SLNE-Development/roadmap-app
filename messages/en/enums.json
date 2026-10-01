@@ -1,0 +1,8 @@
+{
+  "role": { "owner": "Owner", "editor": "Editor", "viewer": "Viewer" },
+  "priority": { "mvp": "MVP", "later": "Later", "niceToHave": "Nice to have" },
+  "taskState": { "todo": "To do", "doing": "Doing", "blocked": "Blocked", "done": "Done" },
+  "category": { "planning": "Planning", "todo": "To do", "active": "Active", "review": "Review", "blocked": "Blocked", "done": "Done" },
+  "adrStatus": { "proposed": "Proposed", "accepted": "Accepted", "superseded": "Superseded" },
+  "planningArea": { "failureModes": "Failure modes", "dependencies": "Dependencies", "scope": "Scope", "opsTesting": "Ops and testing" }
+}

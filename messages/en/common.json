@@ -9,5 +9,22 @@
   "loading": "Loading…",
   "retry": "Try again",
   "search": "Search",
-  "somethingWentWrong": "Something went wrong."
+  "somethingWentWrong": "Something went wrong.",
+  "add": "Add",
+  "remove": "Remove",
+  "back": "Back",
+  "confirm": "Confirm",
+  "none": "None",
+  "optional": "Optional",
+  "saved": "Saved",
+  "copied": "Copied",
+  "copy": "Copy",
+  "more": "More",
+  "apply": "Apply",
+  "reset": "Reset",
+  "done": "Done",
+  "open": "Open",
+  "archive": "Archive",
+  "restore": "Restore",
+  "rename": "Rename"
 }

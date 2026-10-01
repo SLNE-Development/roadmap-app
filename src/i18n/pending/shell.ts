@@ -1,0 +1,21 @@
+/** Files of the shell area not yet migrated to next-intl; the area task empties this list. */
+export const PENDING_SHELL: string[] = [
+  "src/app/(app)/(global)/home-view.tsx",
+  "src/app/(app)/(global)/loading.tsx",
+  "src/app/(app)/(global)/project-grid.tsx",
+  "src/app/(app)/(global)/workload/workload-view.tsx",
+  "src/app/(app)/p/[project]/loading.tsx",
+  "src/app/(app)/p/[project]/not-found.tsx",
+  "src/app/login/page.tsx",
+  "src/app/not-found.tsx",
+  "src/components/archive-banner.tsx",
+  "src/components/my-work-panel.tsx",
+  "src/components/new-project-dialog.tsx",
+  "src/components/page.tsx",
+  "src/components/shell/app-shell.tsx",
+  "src/components/shell/app-sidebar.tsx",
+  "src/components/shell/command-menu.tsx",
+  "src/components/shell/shortcuts-dialog.tsx",
+  "src/components/shell/sidebar-views.tsx",
+  "src/components/status-screens.tsx",
+];

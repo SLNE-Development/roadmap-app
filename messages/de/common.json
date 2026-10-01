@@ -9,5 +9,22 @@
   "loading": "Wird geladen …",
   "retry": "Erneut versuchen",
   "search": "Suchen",
-  "somethingWentWrong": "Etwas ist schiefgelaufen."
+  "somethingWentWrong": "Etwas ist schiefgelaufen.",
+  "add": "Hinzufügen",
+  "remove": "Entfernen",
+  "back": "Zurück",
+  "confirm": "Bestätigen",
+  "none": "Keine",
+  "optional": "Optional",
+  "saved": "Gespeichert",
+  "copied": "Kopiert",
+  "copy": "Kopieren",
+  "more": "Mehr",
+  "apply": "Übernehmen",
+  "reset": "Zurücksetzen",
+  "done": "Fertig",
+  "open": "Öffnen",
+  "archive": "Archivieren",
+  "restore": "Wiederherstellen",
+  "rename": "Umbenennen"
 }
