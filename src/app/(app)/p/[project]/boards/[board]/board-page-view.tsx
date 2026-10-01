@@ -3,6 +3,7 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { BoardView } from "@/components/board-view";
 import { Page } from "@/components/page";
+import type { BoardQuery } from "@/lib/url-filters";
 import { useTRPC } from "@/trpc/client";
 
 /**
@@ -11,8 +12,9 @@ import { useTRPC } from "@/trpc/client";
  *
  * @param props.slug the project slug
  * @param props.boardSlug the board slug
+ * @param props.query the filters parsed from the URL
  */
-export function BoardPageView({ slug, boardSlug }: { slug: string; boardSlug: string }) {
+export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardSlug: string; query: BoardQuery }) {
   const trpc = useTRPC();
   const [{ data: detail }, { data: systems }, { data: members }, { data: domains }, { data: phases }, { data: latest }] = useSuspenseQueries({
     queries: [
@@ -59,6 +61,7 @@ export function BoardPageView({ slug, boardSlug }: { slug: string; boardSlug: st
           tasksTotal: s.tasksTotal,
           latestSummary: latest.get(s.id)?.summary ?? null,
         }))}
+        query={query}
       />
     </Page>
   );

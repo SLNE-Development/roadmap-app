@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronDown, LayoutGrid, Search, Table2, X } from "lucide-react";
+import { ChevronDown, LayoutGrid, Search, Table2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { FilterChip, type FilterOption } from "@/components/filter-chip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,12 +13,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-
-/** One choice of a filter chip. */
-export interface FilterOption {
-  value: string;
-  label: string;
-}
 
 /** A filter chip: the query key it sets, its name and its choices. */
 export interface FilterDef {
@@ -118,7 +113,7 @@ export function SystemsToolbar({
         />
       </label>
       {filters.map((f) => (
-        <FilterChip key={f.key} def={f} value={current[f.key] ?? ""} onChange={(v) => update({ [f.key]: v })} />
+        <FilterChip key={f.key} label={f.label} options={f.options} value={current[f.key] ?? ""} onChange={(v) => update({ [f.key]: v })} />
       ))}
       <span className="hidden flex-1 sm:block" />
       <DropdownMenu>
@@ -172,54 +167,5 @@ function ViewButton({ label, active, onClick, children }: { label: string; activ
     >
       {children}
     </button>
-  );
-}
-
-/**
- * A filter chip: dashed with a chevron when unset, brand-soft with the chosen
- * value and a clear button when set.
- */
-function FilterChip({ def, value, onChange }: { def: FilterDef; value: string; onChange: (value: string) => void }) {
-  const chosen = def.options.find((o) => o.value === value);
-  return (
-    <div
-      className={cn(
-        "flex h-8 items-center text-[13px]",
-        chosen ? "border border-primary bg-brand-soft font-medium text-brand-strong" : "border border-dashed text-fg-2",
-      )}
-    >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="flex h-full items-center gap-1.5 px-2.5 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
-            {chosen ? `${def.label}: ${chosen.label}` : def.label}
-            {!chosen && <ChevronDown aria-hidden className="size-3" />}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-auto min-w-44">
-          <DropdownMenuLabel>{def.label}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
-            <DropdownMenuRadioItem value="">Any</DropdownMenuRadioItem>
-            {def.options.map((o) => (
-              <DropdownMenuRadioItem key={o.value} value={o.value}>
-                {o.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {chosen && (
-        <button
-          type="button"
-          aria-label={`Clear ${def.label.toLowerCase()} filter`}
-          onClick={() => onChange("")}
-          className="flex h-full items-center pr-2 pl-0.5 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          <X aria-hidden className="size-3" />
-        </button>
-      )}
-    </div>
   );
 }

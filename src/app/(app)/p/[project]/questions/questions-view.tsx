@@ -2,8 +2,10 @@
 
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { CircleHelp } from "lucide-react";
-import { FilterChip } from "@/components/activity/filter-chip";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { UnderlineTabs, withQuery } from "@/components/activity/url-tabs";
+import { FilterChip } from "@/components/filter-chip";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { QuestionCard } from "@/components/question-card";
 import { AskQuestionDialog } from "@/components/questions/ask-question-dialog";
@@ -19,6 +21,8 @@ import { useTRPC } from "@/trpc/client";
  */
 export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "open" | "resolved"; systemSlug: string | undefined }) {
   const trpc = useTRPC();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [{ data: questions }, { data: systems }, { data: detail }] = useSuspenseQueries({
     queries: [
       trpc.questions.list.queryOptions({ project: slug }),
@@ -53,8 +57,11 @@ export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "o
       >
         <FilterChip
           label="System"
-          clearHref={withQuery(path, query, { system: null })}
-          options={withSystems.map((s) => ({ label: s.title, href: withQuery(path, query, { system: s.slug }), selected: s.slug === system?.slug }))}
+          value={system?.slug ?? ""}
+          onChange={(v) =>
+            startTransition(() => router.replace(withQuery(path, query, { system: v || null }), { scroll: false }))
+          }
+          options={withSystems.map((s) => ({ value: s.slug, label: s.title }))}
         />
       </UnderlineTabs>
       {shown.length === 0 ? (

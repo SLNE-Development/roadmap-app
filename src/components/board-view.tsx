@@ -1,9 +1,11 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRightLeft, Ban, ChevronDown, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Search, SquareKanban, X } from "lucide-react";
+import { ArrowRightLeft, Ban, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Search, SquareKanban } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { FilterChip } from "@/components/filter-chip";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { PageHeader, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -13,15 +15,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
+import { hasFilters, withParam, type BoardQuery } from "@/lib/url-filters";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 import { CATEGORY_CLASS, CategoryDot, PriorityTag } from "./chips";
+import { isOwnPush } from "./systems/systems-toolbar";
 
 /** A column of the board. */
 export interface BoardColumnView {
@@ -56,22 +58,12 @@ interface NamedOption {
   name: string;
 }
 
-/** The chip filters of the board; `owner` is a user id or `none`. */
-interface BoardFilters {
-  domain: string | null;
-  phase: string | null;
-  priority: string | null;
-  owner: string | null;
-}
-
-const NO_FILTERS: BoardFilters = { domain: null, phase: null, priority: null, owner: null };
-
 /** Most avatars shown in the header's member stack. */
 const STACK_SIZE = 5;
 
 /**
  * The board page body: header with members, view toggle and actions, a filter
- * bar, and the kanban over the board's columns. Dragging a card onto a column,
+ * bar (its values live in the URL, see `query`), and the kanban over the board's columns. Dragging a card onto a column,
  * or choosing one in the card's menu, moves the system; the server enforces the
  * planning gate and a refusal restores the card with a toast.
  */
@@ -87,6 +79,7 @@ export function BoardView({
   phases,
   columns,
   cards,
+  query,
 }: {
   projectSlug: string;
   projectName: string;
@@ -99,13 +92,16 @@ export function BoardView({
   phases: NamedOption[];
   columns: BoardColumnView[];
   cards: BoardCardView[];
+  query: BoardQuery;
 }) {
   const [newSystemOpen, setNewSystemOpen] = useState(false);
   const trpc = useTRPC();
   const moveSystem = useMutation(trpc.systems.move.mutationOptions());
   const [pending, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<BoardFilters>(NO_FILTERS);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startFilter] = useTransition();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -127,14 +123,14 @@ export function BoardView({
     });
   };
 
-  const needle = query.trim().toLowerCase();
+  const needle = query.q.toLowerCase();
   const visible = optimistic.filter(
     (c) =>
       (!needle || c.title.toLowerCase().includes(needle)) &&
-      (!filters.domain || c.domainId === filters.domain) &&
-      (!filters.phase || c.phaseId === filters.phase) &&
-      (!filters.priority || c.priority === filters.priority) &&
-      (!filters.owner || (filters.owner === "none" ? c.ownerUserId === null : c.ownerUserId === filters.owner)),
+      (!query.domain || c.domainId === query.domain) &&
+      (!query.phase || c.phaseId === query.phase) &&
+      (!query.priority || c.priority === query.priority) &&
+      (!query.owner || (query.owner === "none" ? c.ownerUserId === null : c.ownerUserId === query.owner)),
   );
   const blocked = visible.filter((c) => categoryOf.get(c.columnId) === "blocked").length;
   const planning = visible.filter((c) => categoryOf.get(c.columnId) === "planning").length;
@@ -171,8 +167,14 @@ export function BoardView({
   /** Opens the header's New system dialog, which creates the system in planning. */
   const openNewSystem = () => setNewSystemOpen(true);
 
-  const setFilter = (key: keyof BoardFilters) => (value: string | null) => setFilters((f) => ({ ...f, [key]: value }));
-  const ownerOptions: NamedOption[] = [...members.map((m) => ({ id: m.userId, name: m.name })), { id: "none", name: "Unowned" }];
+  /** Replaces the URL query with `key` set to `value`; empty removes it. */
+  const setParam = (key: string, value: string | null) =>
+    startFilter(() => router.replace(pathname + withParam(searchParams.toString(), key, value), { scroll: false }));
+  /** Replaces the URL query with only the lane kept. */
+  const clearFilters = () =>
+    startFilter(() => router.replace(pathname + withParam("", "lane", query.lane === "none" ? null : query.lane), { scroll: false }));
+  const named = (list: NamedOption[]) => list.map((o) => ({ value: o.id, label: o.name }));
+  const ownerOptions = [...members.map((m) => ({ value: m.userId, label: m.name })), { value: "none", label: "Unowned" }];
 
   return (
     <>
@@ -221,26 +223,21 @@ export function BoardView({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-8 w-full items-center gap-2 border bg-card px-2.5 text-muted-foreground focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:w-60">
-          <Search className="size-3.5 shrink-0" aria-hidden />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter systems"
-            aria-label="Filter systems"
-            className="w-full min-w-0 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
-          />
-        </label>
-        {domains.length > 0 && <FilterChip label="Domain" options={domains} value={filters.domain} onChange={setFilter("domain")} />}
-        {phases.length > 0 && <FilterChip label="Phase" options={phases} value={filters.phase} onChange={setFilter("phase")} />}
+        <BoardSearch value={query.q} onCommit={(q) => setParam("q", q)} />
+        {domains.length > 0 && <FilterChip label="Domain" options={named(domains)} value={query.domain ?? ""} onChange={(v) => setParam("domain", v)} />}
+        {phases.length > 0 && <FilterChip label="Phase" options={named(phases)} value={query.phase ?? ""} onChange={(v) => setParam("phase", v)} />}
         <FilterChip
           label="Priority"
-          options={PRIORITIES.map((p) => ({ id: p, name: p }))}
-          value={filters.priority}
-          onChange={setFilter("priority")}
+          options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+          value={query.priority ?? ""}
+          onChange={(v) => setParam("priority", v)}
         />
-        <FilterChip label="Owner" options={ownerOptions} value={filters.owner} onChange={setFilter("owner")} />
+        <FilterChip label="Owner" options={ownerOptions} value={query.owner ?? ""} onChange={(v) => setParam("owner", v)} />
+        {hasFilters(query) && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
+            Clear filters
+          </Button>
+        )}
         <span className="ml-auto text-[12.5px] text-muted-foreground" aria-live="polite">
           {visible.length} {visible.length === 1 ? "system" : "systems"} ·{" "}
           <span className={cn(blocked > 0 && "font-semibold text-cat-blocked")}>{blocked} blocked</span> · {planning} in planning
@@ -460,44 +457,49 @@ function MemberStack({ members }: { members: { userId: string; name: string }[] 
 }
 
 /**
- * A filter chip over a list of options: dashed while empty, a Tide chip with
- * `Label: value` and a clear button while set.
+ * The board's search box. It keeps a draft and hands it to `onCommit` after
+ * 250 ms without typing. The URL is the source of truth: when `value` changes
+ * to something this box did not push (back/forward, Clear filters), the draft
+ * resets to it.
  */
-function FilterChip({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: NamedOption[];
-  value: string | null;
-  onChange: (value: string | null) => void;
-}) {
-  const selected = options.find((o) => o.id === value);
-  const chip = "flex h-8 items-center gap-1.5 px-2.5 text-[13px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+function BoardSearch({ value, onCommit }: { value: string; onCommit: (q: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  // The last `q` this box pushed; its arrival must not reset a draft that may be newer.
+  const [pushed, setPushed] = useState<string | undefined>(undefined);
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    if (!isOwnPush(value, pushed)) {
+      setDraft(value);
+      setPushed(undefined);
+    }
+  }
+
+  const commit = useRef(onCommit);
+  useEffect(() => {
+    commit.current = onCommit;
+  });
+  useEffect(() => {
+    const q = draft.trim();
+    if (q === value) return;
+    const timer = setTimeout(() => {
+      setPushed(q);
+      commit.current(q);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [draft, value]);
+
   return (
-    <div className={cn("flex items-center border", selected ? "border-primary bg-brand-soft text-brand-strong" : "border-dashed text-fg-2")}>
-      <DropdownMenu>
-        <DropdownMenuTrigger className={cn(chip, selected ? "pr-1.5 font-medium" : "hover:text-foreground")}>
-          {selected ? `${label}: ${selected.name}` : label}
-          {!selected && <ChevronDown className="size-3" aria-hidden />}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-52">
-          <DropdownMenuRadioGroup value={value ?? ""} onValueChange={(v) => onChange(v || null)}>
-            {options.map((o) => (
-              <DropdownMenuRadioItem key={o.id} value={o.id}>
-                {o.name}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {selected && (
-        <button type="button" aria-label={`Clear ${label.toLowerCase()} filter`} onClick={() => onChange(null)} className={cn(chip, "px-1.5 pl-0.5")}>
-          <X className="size-3" aria-hidden />
-        </button>
-      )}
-    </div>
+    <label className="flex h-8 w-full items-center gap-2 border bg-card px-2.5 text-muted-foreground focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:w-60">
+      <Search className="size-3.5 shrink-0" aria-hidden />
+      <input
+        type="search"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Filter systems"
+        aria-label="Filter systems"
+        className="w-full min-w-0 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
+      />
+    </label>
   );
 }

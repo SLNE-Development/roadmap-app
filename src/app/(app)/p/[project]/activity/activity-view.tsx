@@ -3,9 +3,11 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { Activity } from "lucide-react";
 import Link from "next/link";
-import { FilterChip, ToggleChip } from "@/components/activity/filter-chip";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { changeItems, Timeline, updateItems, type TimelineItem } from "@/components/activity/timeline";
 import { SegmentedLinks, withQuery } from "@/components/activity/url-tabs";
+import { FilterChip, ToggleChip } from "@/components/filter-chip";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import type { ColumnCategory } from "@/db/schema";
@@ -53,6 +55,8 @@ export function ActivityView({
   limit: number;
 }) {
   const trpc = useTRPC();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const filter = { system: systemSlug, limit };
   const [{ data: detail }, { data: systems }] = useSuspenseQueries({
     queries: [trpc.projects.get.queryOptions({ project: slug }), trpc.systems.list.queryOptions({ project: slug })],
@@ -75,6 +79,8 @@ export function ActivityView({
   const path = `/p/${slug}/activity`;
   const query = { kind, person, system: system?.slug, agents: agentsOnly ? "1" : undefined };
   const filtered = Boolean(person || system || agentsOnly);
+  /** Replaces the URL with the current query changed by `patch`. */
+  const go = (patch: Record<string, string | null>) => startTransition(() => router.replace(withQuery(path, query, patch), { scroll: false }));
 
   return (
     <Page width="narrow">
@@ -86,15 +92,17 @@ export function ActivityView({
         />
         <FilterChip
           label="Person"
-          clearHref={withQuery(path, query, { person: null })}
-          options={people.map((p) => ({ label: p, href: withQuery(path, query, { person: p }), selected: p === person }))}
+          value={person ?? ""}
+          onChange={(v) => go({ person: v || null })}
+          options={people.map((p) => ({ value: p, label: p }))}
         />
         <FilterChip
           label="System"
-          clearHref={withQuery(path, query, { system: null })}
-          options={systems.map((s) => ({ label: s.title, href: withQuery(path, query, { system: s.slug }), selected: s.slug === system?.slug }))}
+          value={system?.slug ?? ""}
+          onChange={(v) => go({ system: v || null })}
+          options={systems.map((s) => ({ value: s.slug, label: s.title }))}
         />
-        <ToggleChip label="Agents only" on={agentsOnly} href={withQuery(path, query, { agents: agentsOnly ? null : "1" })} />
+        <ToggleChip label="Agents only" on={agentsOnly} onChange={(on) => go({ agents: on ? "1" : null })} />
       </div>
       {items.length === 0 ? (
         <EmptyState
