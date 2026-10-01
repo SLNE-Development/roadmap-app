@@ -22,7 +22,7 @@ import {
   type TaskEstimate,
   type TaskState,
 } from "@/db/schema";
-import type { Db, Executor } from "@/db/types";
+import type { Db, Executor, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./access";
 import type { Actor } from "./actor";
@@ -207,6 +207,42 @@ async function checkStructure(tx: Executor, projectId: string, domainId?: string
 }
 
 /**
+ * The body of {@link createSystem} on an open transaction, so other ops can create a system in the same transaction.
+ * A taken slug surfaces as a unique violation for the caller to translate.
+ */
+export async function insertSystem(tx: Tx, actor: Actor, projectSlug: string, input: z.output<typeof createSystemInput>): Promise<SystemRow> {
+  const { project } = await projectAccess(tx, actor, projectSlug, "editor");
+  const first = input.board ? await findBoard(tx, project.id, input.board) : (await loadBoards(tx, project.id))[0];
+  if (!first) throw new NotFoundError(`Project ${projectSlug} has no board.`);
+  // Share-lock the board so a concurrent column edit cannot delete the column used below.
+  await tx.select({ id: board.id }).from(board).where(eq(board.id, first.id)).for("share");
+  const target = await findBoard(tx, project.id, first.slug);
+  const planning = target.columns.find((c) => c.category === "planning");
+  if (!planning) throw new ConflictError(`Board ${target.slug} has no planning column.`);
+  await checkStructure(tx, project.id, input.domainId, input.phaseId);
+  await lockProject(tx, project.id);
+  const [{ last }] = await tx.select({ last: max(system.sortOrder) }).from(system).where(eq(system.projectId, project.id));
+  const [row] = await tx
+    .insert(system)
+    .values({
+      id: newId(),
+      projectId: project.id,
+      boardId: target.id,
+      columnId: planning.id,
+      domainId: input.domainId,
+      phaseId: input.phaseId,
+      slug: input.slug,
+      title: input.title,
+      summary: input.summary,
+      priority: input.priority,
+      sortOrder: (last ?? -1) + 1,
+    })
+    .returning(systemColumns);
+  await logChange(tx, actor, { projectId: project.id, systemId: row.id, entity: "system", entityId: row.id, field: "created", newValue: row.title });
+  return row;
+}
+
+/**
  * Creates a system in the planning column of `board` (default: the first board). Editor or higher.
  *
  * @throws ConflictError if the slug is taken in this project
@@ -215,37 +251,7 @@ async function checkStructure(tx: Executor, projectId: string, domainId?: string
 export async function createSystem(db: Db, actor: Actor, projectSlug: string, raw: z.input<typeof createSystemInput>): Promise<SystemRow> {
   const input = createSystemInput.parse(raw);
   try {
-    return await db.transaction(async (tx) => {
-      const { project } = await projectAccess(tx, actor, projectSlug, "editor");
-      const first = input.board ? await findBoard(tx, project.id, input.board) : (await loadBoards(tx, project.id))[0];
-      if (!first) throw new NotFoundError(`Project ${projectSlug} has no board.`);
-      // Share-lock the board so a concurrent column edit cannot delete the column used below.
-      await tx.select({ id: board.id }).from(board).where(eq(board.id, first.id)).for("share");
-      const target = await findBoard(tx, project.id, first.slug);
-      const planning = target.columns.find((c) => c.category === "planning");
-      if (!planning) throw new ConflictError(`Board ${target.slug} has no planning column.`);
-      await checkStructure(tx, project.id, input.domainId, input.phaseId);
-      await lockProject(tx, project.id);
-      const [{ last }] = await tx.select({ last: max(system.sortOrder) }).from(system).where(eq(system.projectId, project.id));
-      const [row] = await tx
-        .insert(system)
-        .values({
-          id: newId(),
-          projectId: project.id,
-          boardId: target.id,
-          columnId: planning.id,
-          domainId: input.domainId,
-          phaseId: input.phaseId,
-          slug: input.slug,
-          title: input.title,
-          summary: input.summary,
-          priority: input.priority,
-          sortOrder: (last ?? -1) + 1,
-        })
-        .returning(systemColumns);
-      await logChange(tx, actor, { projectId: project.id, systemId: row.id, entity: "system", entityId: row.id, field: "created", newValue: row.title });
-      return row;
-    });
+    return await db.transaction((tx) => insertSystem(tx, actor, projectSlug, input));
   } catch (error) {
     if (isUniqueViolation(error)) throw new ConflictError(`System slug ${input.slug} is taken in this project.`);
     throw error;

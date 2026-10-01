@@ -153,5 +153,44 @@
     "invalid": "Diese Antwort passt nicht zur Frage. Bitte prüfe sie.",
     "save": "Antworten speichern",
     "saved": "Antworten gespeichert"
+  },
+  "accept": {
+    "button": "Anfrage annehmen",
+    "title": "Diese Anfrage annehmen",
+    "description": "Mache die Anfrage zu einem Projekt, das das Team baut, oder verknüpfe sie mit einem bestehenden Projekt.",
+    "tabs": "Art der Annahme",
+    "tabCreate": "Projekt erstellen",
+    "tabLink": "Mit bestehendem Projekt verknüpfen",
+    "projectName": "Projektname",
+    "projectSlug": "Projektadresse",
+    "slugPreview": "Das Projekt öffnet sich unter /p/{slug}.",
+    "deadline": "Deadline",
+    "deadlineValue": "Die Projekt-Deadline ist das Ende des Events: {date}.",
+    "createHelp": "Das Projekt bekommt das Event-Board, drei Phasen und ein System mit dem Brief als erstem Spec-Entwurf.",
+    "project": "Projekt",
+    "projectPlaceholder": "Projekt auswählen",
+    "system": "System",
+    "newSystem": "Neues System",
+    "noProjects": "Du bist in keinem Projekt Editor.",
+    "linkHelp": "Der Brief wird nicht in die Spec eines bestehenden Systems geschrieben.",
+    "confirm": "Anfrage annehmen",
+    "accepted": "Anfrage angenommen"
+  },
+  "progress": {
+    "title": "Baufortschritt",
+    "label": "Baufortschritt des Events",
+    "summary": "{done} von {total} Aufgaben erledigt",
+    "none": "Noch keine Aufgaben.",
+    "done": "Erledigt",
+    "doing": "In Arbeit",
+    "blocked": "Blockiert",
+    "todo": "Offen",
+    "archived": "Das Projekt ist archiviert. Das sind die letzten Zahlen."
+  },
+  "link": {
+    "title": "Projekt",
+    "open": "Projekt {name} öffnen",
+    "deleted": "Projekt gelöscht",
+    "deletedHelp": "Das für diese Anfrage gebaute Projekt gibt es nicht mehr."
   }
 }

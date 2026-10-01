@@ -60,5 +60,7 @@
     "moveUp": "{label} nach oben verschieben",
     "moveDown": "{label} nach unten verschieben",
     "saved": "Übersicht gespeichert"
-  }
+  },
+  "deadline": "Deadline {date}",
+  "fromRequest": "Aus Event-Anfrage"
 }

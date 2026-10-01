@@ -15,6 +15,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
     trpc.history.activity.queryOptions({ project: slug, filter: { limit: 1 } }),
     trpc.projects.attention.queryOptions({ project: slug }),
     trpc.prefs.get.queryOptions({ key: "overview.panels" }),
+    trpc.requests.forProject.queryOptions({ project: slug }),
   );
   return (
     <HydrateClient>

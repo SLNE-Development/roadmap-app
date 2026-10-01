@@ -24,6 +24,8 @@ export const project = pgTable("project", {
   createdAt: timestamp("created_at", tz).notNull().defaultNow(),
   /** When an owner archived the project (hidden, read-only); null while active. */
   archivedAt: timestamp("archived_at", tz),
+  /** The date the project must be ready by; set by event requests only (the end of the linked event). */
+  deadline: timestamp("deadline", tz),
 });
 
 /** Membership of a user in a project, with their role and when they joined. */

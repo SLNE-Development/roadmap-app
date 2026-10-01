@@ -41,17 +41,17 @@ export function columnRuleViolation(columns: { name: string; category: ColumnCat
   return null;
 }
 
-/** Inserts a board with the default columns and returns it. */
+/** Inserts a board with `input.columns` (the default columns when omitted) and returns it. */
 export async function insertBoard(
   tx: Executor,
   projectId: string,
-  input: { slug: string; name: string },
+  input: { slug: string; name: string; columns?: readonly { name: string; category: ColumnCategory }[] },
   sortOrder: number,
 ): Promise<BoardWithColumns> {
   const [row] = await tx.insert(board).values({ id: newId(), projectId, slug: input.slug, name: input.name, sortOrder }).returning();
   const columns = await tx
     .insert(boardColumn)
-    .values(DEFAULT_COLUMNS.map((c, i) => ({ id: newId(), boardId: row.id, name: c.name, category: c.category, sortOrder: i })))
+    .values((input.columns ?? DEFAULT_COLUMNS).map((c, i) => ({ id: newId(), boardId: row.id, name: c.name, category: c.category, sortOrder: i })))
     .returning();
   return { ...row, columns };
 }

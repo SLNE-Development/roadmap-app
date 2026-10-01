@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventBriefVersion, eventRequest, system } from "@/db/schema";
+import { eventBriefVersion, eventRequest, eventSpecBasis, system, task } from "@/db/schema";
 import { TOOLS } from "@/lib/tools/definitions";
 import { runTool } from "@/lib/tools/registry";
 import { createTestDb } from "@/test/db";
@@ -103,6 +103,23 @@ describe("get_request", () => {
     const [sys] = await w.db.select().from(system).where(eq(system.slug, "party"));
     await w.db.update(eventRequest).set({ projectId, systemId: sys.id }).where(eq(eventRequest.id, w.request.id));
     expect(await w.get()).toMatchObject({ project: { slug }, system: { slug: "party" } });
+  });
+
+  it("returns the build progress and the latest spec basis of a linked system", async () => {
+    const w = await world();
+    const { owner, slug, projectId } = await createProjectFixture(w.db);
+    await runTool(w.db, owner, tool("create_system"), { project: slug, slug: "party", title: "Party" });
+    const [sys] = await w.db.select().from(system).where(eq(system.slug, "party"));
+    await w.db.update(eventRequest).set({ projectId, systemId: sys.id }).where(eq(eventRequest.id, w.request.id));
+    await w.db.insert(task).values([
+      { systemId: sys.id, title: "a", state: "done", sortOrder: 0 },
+      { systemId: sys.id, title: "b", state: "todo", sortOrder: 1 },
+    ]);
+    await w.db.insert(eventSpecBasis).values([
+      { systemId: sys.id, specVersion: 1, briefVersion: 1 },
+      { systemId: sys.id, specVersion: 2, briefVersion: 2 },
+    ]);
+    expect(await w.get()).toMatchObject({ progress: { total: 2, done: 1, todo: 1, percent: 50, archived: false }, specBasis: { specVersion: 2, briefVersion: 2 } });
   });
 });
 

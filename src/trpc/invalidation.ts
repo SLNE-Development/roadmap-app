@@ -5,9 +5,9 @@ import { queryProject } from "./query-client";
  * these; a router missing here refetches everything.
  */
 export const INVALIDATES: Record<string, readonly string[]> = {
-  tasks: ["tasks", "systems", "planning", "history", "projects", "structure", "adrs", "gates", "insight", "releases"],
-  systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks", "gates", "search", "insight", "releases"],
-  planning: ["planning", "systems", "history", "projects", "gates", "boards", "insight", "releases"],
+  tasks: ["tasks", "systems", "planning", "history", "projects", "structure", "adrs", "gates", "insight", "releases", "requests"],
+  systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks", "gates", "search", "insight", "releases", "requests"],
+  planning: ["planning", "systems", "history", "projects", "gates", "boards", "insight", "releases", "requests"],
   adrs: ["adrs", "systems", "history", "projects", "gates", "search"],
   questions: ["questions", "systems", "planning", "history", "projects", "gates", "search", "releases"],
   boards: ["boards", "systems", "planning", "projects", "history", "gates", "insight", "releases"],
@@ -31,7 +31,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   insight: ["insight"],
   releases: ["releases", "systems", "insight", "history", "projects", "boards"],
   presence: ["presence"],
-  requests: ["requests", "notifications", "history"],
+  requests: ["requests", "notifications", "history", "projects", "systems", "boards"],
 };
 
 /**

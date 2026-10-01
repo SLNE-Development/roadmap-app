@@ -3,6 +3,7 @@ import { z } from "zod";
 import { askRoundInput } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { dbInt } from "@/lib/ops/params";
+import { acceptInput, linkableProjects, acceptRequest, requestOfProject, requestProgress } from "@/lib/ops/request-link";
 import { answerQuestions, answerQuestionsInput, askRound, listRounds } from "@/lib/ops/request-questions";
 import {
   cancelRequest,
@@ -97,6 +98,20 @@ export const requestsRouter = router({
 
   /** The question rounds of a request with their answers. */
   rounds: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listRounds(ctx.db, ctx.actor, input.id)),
+
+  /** Accepts a submitted request into a new or an existing project (admins and event developers). */
+  accept: protectedProcedure
+    .input(z.intersection(z.object(R), acceptInput))
+    .mutation(({ ctx, input: { id, ...rest } }) => acceptRequest(ctx.db, ctx.actor, id, rest)),
+
+  /** The build progress of a request's project as task counts. */
+  progress: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => requestProgress(ctx.db, ctx.actor, input.id)),
+
+  /** The projects the actor may link a request to, with their systems. */
+  linkable: protectedProcedure.query(({ ctx }) => linkableProjects(ctx.db, ctx.actor)),
+
+  /** The request a project was built for, with whether the actor may open it. */
+  forProject: protectedProcedure.input(z.object({ project: z.string().min(1).max(64) })).query(({ ctx, input }) => requestOfProject(ctx.db, ctx.actor, input.project)),
 
   /** Sets or clears the banner image of a request. */
   setBanner: protectedProcedure.input(setBannerInput).mutation(({ ctx, input }) => setBanner(ctx.db, ctx.actor, input)),

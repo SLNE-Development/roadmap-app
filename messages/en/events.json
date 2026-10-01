@@ -153,5 +153,44 @@
     "invalid": "This answer does not fit the question. Check it.",
     "save": "Save answers",
     "saved": "Answers saved"
+  },
+  "accept": {
+    "button": "Accept request",
+    "title": "Accept this request",
+    "description": "Turn the request into a project the team builds, or link it to a project that already exists.",
+    "tabs": "How to accept",
+    "tabCreate": "Create project",
+    "tabLink": "Link to an existing project",
+    "projectName": "Project name",
+    "projectSlug": "Project address",
+    "slugPreview": "The project opens at /p/{slug}.",
+    "deadline": "Deadline",
+    "deadlineValue": "The project deadline is the end of the event: {date}.",
+    "createHelp": "The project gets the event board, three phases and one system with the brief as its first spec draft.",
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "system": "System",
+    "newSystem": "New system",
+    "noProjects": "You are not an editor of any project.",
+    "linkHelp": "The brief is not written into the spec of an existing system.",
+    "confirm": "Accept request",
+    "accepted": "Request accepted"
+  },
+  "progress": {
+    "title": "Build progress",
+    "label": "Build progress of the event",
+    "summary": "{done} of {total} tasks done",
+    "none": "No tasks yet.",
+    "done": "Done",
+    "doing": "In progress",
+    "blocked": "Blocked",
+    "todo": "To do",
+    "archived": "The project is archived. These are the last counts."
+  },
+  "link": {
+    "title": "Project",
+    "open": "Open project {name}",
+    "deleted": "Project deleted",
+    "deletedHelp": "The project built for this request no longer exists."
   }
 }

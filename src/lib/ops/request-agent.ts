@@ -7,7 +7,7 @@ import type { askRoundInput, QuestionType } from "@/lib/event-questions";
 import type { Actor } from "./actor";
 import { InvalidError, NotFoundError } from "./errors";
 import { requestAccess } from "./request-access";
-import { getSpecBasis, type SpecBasis } from "./request-link";
+import { getSpecBasis, requestProgress, type RequestProgress, type SpecBasis } from "./request-link";
 import { askRound, listRounds, openQuestionCount } from "./request-questions";
 import { compareBriefs, getBrief } from "./requests";
 
@@ -32,7 +32,7 @@ export interface RequestForAgent {
   openQuestions: number;
   notSure: { questionId: string; text: string }[];
   fallback: { key: string; title: string; filled: boolean }[];
-  progress: { done: number; total: number } | null;
+  progress: RequestProgress | null;
   /** True when a long answer was cut. */
   truncated?: true;
 }
@@ -68,7 +68,7 @@ function cutAnswer(value: unknown, cuts: { n: number }): unknown {
 
 /**
  * Returns a request for an agent: brief (or its diff since `sinceBrief`), event data, typed answers and open questions.
- * Fallback and progress stay empty until their tasks land.
+ * The fallback stays empty until its task lands.
  *
  * @throws InvalidError unless `sinceBrief` is lower than the current brief version
  * @throws NotFoundError when the request is unknown, invisible or a draft
@@ -81,13 +81,14 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     sinceBrief === undefined
       ? { version: request.briefVersion, body: (await getBrief(db, actor, requestId)).body }
       : { version: request.briefVersion, since: sinceBrief, diff: await compareBriefs(db, actor, requestId, sinceBrief, request.briefVersion) };
-  const [[requester], [proj], [sys], rounds, openQuestions, specBasis] = await Promise.all([
+  const [[requester], [proj], [sys], rounds, openQuestions, specBasis, progress] = await Promise.all([
     db.select({ name: user.name }).from(user).where(eq(user.id, request.requesterId ?? "")).limit(1),
     request.projectId ? db.select({ slug: project.slug }).from(project).where(eq(project.id, request.projectId)).limit(1) : [],
     request.systemId ? db.select({ slug: system.slug }).from(system).where(eq(system.id, request.systemId)).limit(1) : [],
     listRounds(db, actor, requestId),
     openQuestionCount(db, requestId),
     getSpecBasis(db, requestId),
+    requestProgress(db, actor, requestId),
   ]);
   const cuts = { n: 0 };
   const views = rounds.map((r) => ({
@@ -111,7 +112,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     openQuestions,
     notSure: views.flatMap((r) => r.questions.filter((q) => q.notSure).map((q) => ({ questionId: q.id, text: q.text }))),
     fallback: [],
-    progress: null,
+    progress,
     ...(cuts.n > 0 ? { truncated: true as const } : {}),
   };
 }

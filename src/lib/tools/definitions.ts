@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DOCUMENT_KINDS, QUESTION_PRIORITIES } from "@/db/schema";
 import { askRoundInput } from "@/lib/event-questions";
-import { projectAccess, slugSchema } from "@/lib/ops/access";
+import { slugSchema } from "@/lib/ops/access";
 import { listActivity } from "@/lib/ops/activity";
 import { recordUsage, recordUsageInput, startRun, startRunInput } from "@/lib/ops/agent-runs";
 import {
@@ -28,9 +28,8 @@ import {
   updateBoardInput,
 } from "@/lib/ops/boards";
 import { InvalidError } from "@/lib/ops/errors";
-import { findSystem } from "@/lib/ops/lookup";
 import { askRequester, requestForAgent } from "@/lib/ops/request-agent";
-import { recordSpecBasis, requestOfSystem } from "@/lib/ops/request-link";
+import { recordSpecBasis } from "@/lib/ops/request-link";
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
 import { GATE_RULES } from "@/lib/ops/gates";
 import { deleteGlossaryTerm, listGlossary, setGlossaryTerm, setGlossaryTermInput } from "@/lib/ops/glossary";
@@ -576,14 +575,8 @@ register(
     write: true,
     method: "POST",
     path: "/projects/:project/systems/:system/spec",
-    run: async (db, actor, { project, system, brief, ...input }) => {
-      if (brief === undefined) return writeSpec(db, actor, project, system, input);
-      const access = await projectAccess(db, actor, project, "editor");
-      const requestId = await requestOfSystem(db, (await findSystem(db, access.project.id, system)).id, brief);
-      const written = await writeSpec(db, actor, project, system, input);
-      await recordSpecBasis(db, requestId, written.version, brief);
-      return written;
-    },
+    run: (db, actor, { project, system, brief, ...input }) =>
+      writeSpec(db, actor, project, system, input, brief === undefined ? undefined : (tx, parent, version) => recordSpecBasis(tx, parent, version, brief)),
   }),
   defineTool({
     name: "write_plan",

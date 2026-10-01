@@ -1,7 +1,21 @@
-import { eq } from "drizzle-orm";
-import { eventRequest } from "@/db/schema";
-import type { Executor } from "@/db/types";
-import { InvalidError } from "./errors";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { z } from "zod";
+import { eventBriefVersion, eventRequest, eventSpecBasis, project, system, task } from "@/db/schema";
+import type { Db, Executor, Tx } from "@/db/types";
+import { EVENT_TEMPLATE, projectSlugFromTitle } from "@/lib/event-template";
+import { projectAccess, slugSchema } from "./access";
+import type { Actor } from "./actor";
+import { insertBoard } from "./boards";
+import { appendVersion } from "./documents";
+import { ConflictError, ForbiddenError, InvalidError, isUniqueViolation } from "./errors";
+import { logChange } from "./log";
+import { findSystem, lockProject, type SystemRow } from "./lookup";
+import { insertProject, listProjects } from "./projects";
+import { canAcceptRequests, eventFlags, requestAccess, requestViewableBy } from "./request-access";
+import { notifyRequest } from "./request-notify";
+import { eventEnd, lockRequest, logRequest, moveTo } from "./requests";
+import { insertDomain, insertPhase } from "./structure";
+import { insertSystem } from "./systems";
 
 /** The spec version a request's system was written against, and the brief version it was based on. */
 export interface SpecBasis {
@@ -9,25 +23,234 @@ export interface SpecBasis {
   briefVersion: number;
 }
 
-/** Returns the basis of the request's spec; always null until Task 7 adds the `event_spec_basis` table. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/** Returns the latest recorded basis of the request's spec, or null while none is recorded (no linked system, or no spec written with a brief version). */
 export async function getSpecBasis(db: Executor, requestId: string): Promise<SpecBasis | null> {
-  return null;
+  const [row] = await db
+    .select({ specVersion: eventSpecBasis.specVersion, briefVersion: eventSpecBasis.briefVersion })
+    .from(eventRequest)
+    .innerJoin(eventSpecBasis, eq(eventSpecBasis.systemId, eventRequest.systemId))
+    .where(eq(eventRequest.id, requestId))
+    .orderBy(desc(eventSpecBasis.specVersion))
+    .limit(1);
+  return row ?? null;
 }
 
 /**
- * Checks that the system belongs to a request and that `briefVersion` exists, so `write_spec` can record its basis.
+ * Records that the spec of `system` at `specVersion` is based on `briefVersion` of its request. It runs in the transaction
+ * that writes the spec, so a spec version never exists without its basis.
  *
- * @returns the request id
- * @throws InvalidError when no request is linked to the system or the brief version does not exist
+ * @throws InvalidError when the system belongs to no request or the request has no such brief version
  */
-export async function requestOfSystem(db: Executor, systemId: string, briefVersion: number): Promise<string> {
-  const [request] = await db.select({ id: eventRequest.id, current: eventRequest.briefVersion }).from(eventRequest).where(eq(eventRequest.systemId, systemId)).limit(1);
+export async function recordSpecBasis(tx: Tx, system: SystemRow, specVersion: number, briefVersion: number): Promise<void> {
+  const [request] = await tx.select({ current: eventRequest.briefVersion }).from(eventRequest).where(eq(eventRequest.systemId, system.id)).limit(1);
   if (!request) throw new InvalidError("This system has no request.");
   if (briefVersion > request.current) throw new InvalidError(`The request has no brief version ${briefVersion}.`);
-  return request.id;
+  await tx.insert(eventSpecBasis).values({ systemId: system.id, specVersion, briefVersion });
 }
 
-/** Records that the spec at `specVersion` is based on `briefVersion`; Task 7 stores it, until then this does nothing. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function recordSpecBasis(db: Executor, requestId: string, specVersion: number, briefVersion: number): Promise<void> {}
+/** Input of {@link acceptRequest}: create a project from the request, or link an existing project (and system). */
+export const acceptInput = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("create"), projectName: z.string().trim().min(1).max(100).optional(), projectSlug: slugSchema.optional(), systemSlug: slugSchema.optional() }),
+  z.object({ mode: z.literal("link"), project: slugSchema, system: slugSchema.optional() }),
+]);
+
+/** Where an accepted request landed; `specVersion` is null when no spec was written (linking an existing system). */
+export interface AcceptResult {
+  projectSlug: string;
+  systemSlug: string;
+  specVersion: number | null;
+}
+
+/** Whether a system slug is used in the project. */
+async function systemSlugTaken(tx: Executor, projectId: string, slug: string): Promise<boolean> {
+  const rows = await tx.select({ id: system.id }).from(system).where(and(eq(system.projectId, projectId), eq(system.slug, slug))).limit(1);
+  return rows.length > 0;
+}
+
+/** Whether a project slug is used. */
+async function projectSlugTaken(tx: Executor, slug: string): Promise<boolean> {
+  const rows = await tx.select({ id: project.id }).from(project).where(eq(project.slug, slug)).limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * Accepts a submitted request into a new project built from the event template (`create`) or into an existing project the
+ * actor edits (`link`), in one transaction. Admins and event developers only. A created project gets a draft spec holding the
+ * brief and its system stays in planning; linking an existing system writes no spec.
+ *
+ * @throws ForbiddenError for anyone but admins and event developers, or a viewer of the target project
+ * @throws ConflictError unless the request is submitted and unlinked, or when a slug is taken
+ * @throws NotFoundError for an unknown project or system
+ */
+export async function acceptRequest(db: Db, actor: Actor, requestId: string, raw: z.input<typeof acceptInput>): Promise<AcceptResult> {
+  const input = acceptInput.parse(raw);
+  try {
+    return await db.transaction(async (tx) => {
+      await lockRequest(tx, requestId);
+      const { request, flags } = await requestAccess(tx, actor, requestId, "view");
+      if (!canAcceptRequests(flags)) throw new ForbiddenError("Only admins and event developers can accept requests.");
+      if (request.status !== "submitted") throw new ConflictError(`A ${request.status} request cannot be accepted.`);
+      if (request.projectId) throw new ConflictError("This request already has a project.");
+      const end = eventEnd(request);
+      let projectId: string;
+      let projectSlug: string;
+      let systemRow: SystemRow;
+      let specVersion: number | null = null;
+
+      if (input.mode === "create") {
+        projectSlug = input.projectSlug ?? (await projectSlugFromTitle(request.title, (s) => projectSlugTaken(tx, s)));
+        if (await projectSlugTaken(tx, projectSlug)) throw new ConflictError(`Project slug ${projectSlug} is taken.`);
+        const created = await insertProject(tx, actor, { slug: projectSlug, name: input.projectName ?? request.title, description: "", repoUrl: null }, end);
+        projectId = created.id;
+        await insertBoard(tx, projectId, EVENT_TEMPLATE.board, 0);
+        const build = await insertPhase(tx, projectId, { name: EVENT_TEMPLATE.phases[0] });
+        for (const name of EVENT_TEMPLATE.phases.slice(1)) await insertPhase(tx, projectId, { name });
+        const domain = await insertDomain(tx, projectId, { name: EVENT_TEMPLATE.domain });
+        systemRow = await insertSystem(tx, actor, projectSlug, {
+          slug: input.systemSlug ?? "event",
+          title: request.title,
+          summary: "",
+          domainId: domain.id,
+          phaseId: build.id,
+          priority: EVENT_TEMPLATE.priority,
+        });
+        const [brief] = await tx
+          .select({ body: eventBriefVersion.body })
+          .from(eventBriefVersion)
+          .where(and(eq(eventBriefVersion.requestId, requestId), eq(eventBriefVersion.version, request.briefVersion)));
+        specVersion = await appendVersion(tx, actor, systemRow, "spec", brief?.body ?? "");
+        await tx.insert(eventSpecBasis).values({ systemId: systemRow.id, specVersion, briefVersion: request.briefVersion });
+      } else {
+        const { project: target } = await projectAccess(tx, actor, input.project, "editor");
+        projectId = target.id;
+        projectSlug = target.slug;
+        if (input.system) {
+          systemRow = await findSystem(tx, target.id, input.system, true);
+          const [linked] = await tx.select({ id: eventRequest.id }).from(eventRequest).where(eq(eventRequest.systemId, systemRow.id)).limit(1);
+          if (linked) throw new ConflictError("This system already belongs to another request.");
+        } else {
+          systemRow = await insertSystem(tx, actor, target.slug, {
+            slug: await projectSlugFromTitle("event", (s) => systemSlugTaken(tx, target.id, s)),
+            title: request.title,
+            summary: "",
+            domainId: null,
+            phaseId: null,
+            priority: EVENT_TEMPLATE.priority,
+          });
+        }
+        if (end && !target.deadline) {
+          await lockProject(tx, target.id);
+          await tx.update(project).set({ deadline: end }).where(eq(project.id, target.id));
+          await logChange(tx, actor, { projectId: target.id, entity: "project", entityId: target.id, field: "deadline", newValue: end.toISOString() });
+        }
+      }
+
+      await moveTo(tx, actor, request, "accepted", { projectId, systemId: systemRow.id, acceptedAt: new Date(), acceptedBy: actor.userId });
+      await logRequest(tx, actor, { requestId, field: "project", newValue: projectSlug });
+      if (request.requesterId) {
+        await notifyRequest(tx, {
+          requestId,
+          kind: "request.accepted",
+          userIds: [request.requesterId],
+          title: { key: "requestAccepted", values: { title: request.title } },
+          sourceKey: `req:${requestId}:accepted`,
+          actor,
+        });
+      }
+      return { projectSlug, systemSlug: systemRow.slug, specVersion };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new ConflictError("A project or system with that slug already exists.");
+    throw error;
+  }
+}
+
+/** The build progress of a request: task counts of the linked project, never task titles. */
+export interface RequestProgress {
+  total: number;
+  done: number;
+  doing: number;
+  blocked: number;
+  todo: number;
+  /** `done / total` as a rounded percentage; 0 without tasks. */
+  percent: number;
+  /** True when the project is archived; the counts are then the last ones. */
+  archived: boolean;
+}
+
+/**
+ * Counts the tasks of all non-archived systems of the request's project by state. Anyone who may view the request gets the
+ * counts and nothing else, so a requester outside the project learns no task titles.
+ *
+ * @returns null while the request has no project
+ * @throws NotFoundError when the actor may not view the request
+ */
+export async function requestProgress(db: Executor, actor: Actor, requestId: string): Promise<RequestProgress | null> {
+  const { request } = await requestAccess(db, actor, requestId, "view");
+  if (!request.projectId) return null;
+  const [[linked], rows] = await Promise.all([
+    db.select({ archivedAt: project.archivedAt }).from(project).where(eq(project.id, request.projectId)),
+    db
+      .select({ state: task.state, n: sql<number>`count(*)::int` })
+      .from(task)
+      .innerJoin(system, eq(system.id, task.systemId))
+      .where(and(eq(system.projectId, request.projectId), isNull(system.archivedAt)))
+      .groupBy(task.state),
+  ]);
+  const count = (state: string) => rows.find((r) => r.state === state)?.n ?? 0;
+  const [done, doing, blocked, todo] = [count("done"), count("doing"), count("blocked"), count("todo")];
+  const total = done + doing + blocked + todo;
+  return { total, done, doing, blocked, todo, percent: total === 0 ? 0 : Math.round((done / total) * 100), archived: linked?.archivedAt != null };
+}
+
+/** A project a request can be linked to, with its systems. */
+export interface LinkableProject {
+  slug: string;
+  name: string;
+  systems: { slug: string; title: string }[];
+}
+
+/**
+ * Lists the projects where the actor is an editor or higher (every active project for admins), each with its systems, for the
+ * "Link to an existing project" picker. Admins and event developers only.
+ *
+ * @throws ForbiddenError for everyone else
+ */
+export async function linkableProjects(db: Db, actor: Actor): Promise<LinkableProject[]> {
+  if (!canAcceptRequests(await eventFlags(db, actor))) throw new ForbiddenError("Only admins and event developers can accept requests.");
+  const projects = (await listProjects(db, actor)).filter((p) => p.role !== "viewer");
+  const result: LinkableProject[] = [];
+  for (const p of projects) {
+    const systems = await db
+      .select({ slug: system.slug, title: system.title })
+      .from(system)
+      .where(and(eq(system.projectId, p.id), isNull(system.archivedAt)))
+      .orderBy(system.sortOrder);
+    result.push({ slug: p.slug, name: p.name, systems });
+  }
+  return result;
+}
+
+/** The request a project was built for. */
+export interface ProjectRequest {
+  id: string;
+  title: string;
+  /** Whether the actor may open the request page; otherwise the project only shows a plain chip. */
+  canView: boolean;
+}
+
+/**
+ * Returns the (first) request linked to the project, for the "From event request" chip, or null.
+ *
+ * @throws NotFoundError when the actor may not see the project
+ */
+export async function requestOfProject(db: Executor, actor: Actor, projectSlug: string): Promise<ProjectRequest | null> {
+  const { project: found } = await projectAccess(db, actor, projectSlug, "viewer");
+  const [row] = await db
+    .select({ id: eventRequest.id, title: eventRequest.title, canView: sql<boolean>`${requestViewableBy(db, actor.userId, eventRequest.id)}` })
+    .from(eventRequest)
+    .where(eq(eventRequest.projectId, found.id))
+    .orderBy(asc(eventRequest.acceptedAt), asc(eventRequest.id))
+    .limit(1);
+  return row ?? null;
+}

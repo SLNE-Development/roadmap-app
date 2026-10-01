@@ -6,8 +6,10 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { UnderlineTabs } from "@/components/activity/url-tabs";
+import { AcceptDialog } from "@/components/events/accept-dialog";
 import { BriefHistory } from "@/components/events/brief-history";
 import { ImageUpload } from "@/components/events/image-upload";
+import { EventProgressBar } from "@/components/events/progress-bar";
 import { openCount, QuestionForm } from "@/components/events/question-form";
 import { StatusBar } from "@/components/events/status-bar";
 import { Markdown } from "@/components/markdown";
@@ -223,6 +225,38 @@ function HistoryList({ requestId }: { requestId: string }) {
   );
 }
 
+/** The linked project and system as a card for people who may open the project, or the note that the project is gone. */
+function LinkCard({ detail }: { detail: RequestDetail }) {
+  const t = useTranslations("events.link");
+  const { request, projectSlug, projectOpen } = detail;
+  if (!request.projectId) {
+    // A project deletion clears the link; an accepted request without a project lost it.
+    if (!request.acceptedAt) return null;
+    return (
+      <div role="status" className="border bg-secondary px-3 py-2 text-[13px]">
+        <p className="font-semibold">{t("deleted")}</p>
+        <p className="text-fg-2">{t("deletedHelp")}</p>
+      </div>
+    );
+  }
+  if (!projectOpen || !projectSlug) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border bg-card px-4 py-3 text-[13.5px]">
+      <span className="font-semibold">{t("title")}</span>
+      <Link href={`/p/${projectSlug}`} aria-label={t("open", { name: projectSlug })} className="font-mono text-brand-strong hover:underline">
+        {`/p/${projectSlug}`}
+      </Link>
+    </div>
+  );
+}
+
+/** The build progress of the linked project; renders nothing while the request has no project. */
+function ProgressPanel({ requestId }: { requestId: string }) {
+  const trpc = useTRPC();
+  const { data: progress } = useSuspenseQuery(trpc.requests.progress.queryOptions({ id: requestId }));
+  return progress ? <EventProgressBar progress={progress} /> : null;
+}
+
 /** The dialog that asks why an event is cancelled. */
 function CancelDialog({ requestId, open, onOpenChange }: { requestId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations("events.actions");
@@ -283,8 +317,9 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
   const t = useTranslations("events");
   const trpc = useTRPC();
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [acceptOpen, setAcceptOpen] = useState(false);
   const [{ data: detail }, { data: rounds }] = useSuspenseQueries({ queries: [trpc.requests.get.queryOptions({ id }), trpc.requests.rounds.queryOptions({ id })] });
-  const { request, canEdit, canCancel } = detail;
+  const { request, canEdit, canCancel, canAccept } = detail;
   const done = (key: "submitted" | "recalled" | "withdrawn" | "done") => ({ onSuccess: () => toast.success(t(`actions.${key}`)) });
   const submit = useMutation(trpc.requests.submit.mutationOptions(done("submitted")));
   const recall = useMutation(trpc.requests.recall.mutationOptions(done("recalled")));
@@ -318,6 +353,11 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
                 {t("actions.withdraw")}
               </Button>
             )}
+            {canAccept && status === "submitted" && (
+              <Button disabled={busy} onClick={() => setAcceptOpen(true)}>
+                {t("accept.button")}
+              </Button>
+            )}
             {canEdit && status === "event_week" && (
               <Button disabled={busy} onClick={() => markDone.mutate({ id })}>
                 {t("actions.markDone")}
@@ -334,6 +374,8 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
         <StatusBar status={status} />
       </PageHeader>
       {!canEdit && <p className="border bg-secondary px-3 py-2 text-[13px] text-fg-2">{t("page.readOnly")}</p>}
+      <LinkCard detail={detail} />
+      <ProgressPanel requestId={id} />
       {canEdit && open > 0 && (
         <p role="status" className="flex flex-wrap items-center gap-3 border border-primary/40 bg-secondary px-3 py-2 text-[13px]">
           <span className="min-w-0 flex-1 font-semibold">{t("questions.waiting", { count: open })}</span>
@@ -378,6 +420,13 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
         </div>
       )}
       <CancelDialog requestId={id} open={cancelOpen} onOpenChange={setCancelOpen} />
+      {canAccept && (
+        <AcceptDialog
+          request={{ id, title: request.title, end: request.startsAt ? new Date(request.startsAt.getTime() + (request.durationMinutes ?? 0) * 60_000) : null }}
+          open={acceptOpen}
+          onOpenChange={setAcceptOpen}
+        />
+      )}
     </Page>
   );
 }

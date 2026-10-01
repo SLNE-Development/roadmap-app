@@ -309,5 +309,25 @@ describe("appRouter", () => {
       await expect(caller(db, stranger).requests.rounds({ id: request.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
       expect((await caller(db, developer).requests.rounds({ id: request.id }))[0].questions[0]).toMatchObject({ answer: false, notSure: false });
     });
+
+    it("limits accepting to developers and shows progress counts to the requester only", async () => {
+      const db = await createTestDb();
+      const requester = await insertUser(db);
+      const developer = await insertUser(db, { isEventDeveloper: true });
+      const stranger = await insertUser(db);
+      const request = await requestFixture(db, requester, { status: "submitted", title: "Party", startsAt: new Date(Date.now() + 86_400_000) });
+      expect(await caller(db, requester).requests.progress({ id: request.id })).toBeNull();
+      await expect(caller(db, requester).requests.accept({ id: request.id, mode: "create" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(caller(db, stranger).requests.accept({ id: request.id, mode: "create" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(caller(db, requester).requests.linkable()).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect(await caller(db, developer).requests.linkable()).toEqual([]);
+      expect(await caller(db, developer).requests.accept({ id: request.id, mode: "create" })).toMatchObject({ projectSlug: "party", systemSlug: "event" });
+      await expect(caller(db, developer).requests.accept({ id: request.id, mode: "create" })).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(await caller(db, requester).requests.progress({ id: request.id })).toEqual({ total: 0, done: 0, doing: 0, blocked: 0, todo: 0, percent: 0, archived: false });
+      await expect(caller(db, stranger).requests.progress({ id: request.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect(await caller(db, developer).requests.forProject({ project: "party" })).toMatchObject({ id: request.id, canView: true });
+      expect(await caller(db, requester).requests.get({ id: request.id })).toMatchObject({ canAccept: false, projectOpen: false });
+      expect(await caller(db, developer).requests.get({ id: request.id })).toMatchObject({ canAccept: true, projectOpen: true });
+    });
   });
 });

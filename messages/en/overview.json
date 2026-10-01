@@ -60,5 +60,7 @@
     "moveUp": "Move {label} up",
     "moveDown": "Move {label} down",
     "saved": "Overview saved"
-  }
+  },
+  "deadline": "Deadline {date}",
+  "fromRequest": "From event request"
 }

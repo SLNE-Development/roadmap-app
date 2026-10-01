@@ -1,7 +1,7 @@
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { project, projectMember } from "@/db/schema";
-import type { Db, Executor } from "@/db/types";
+import type { Db, Executor, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./access";
 import type { Actor } from "./actor";
@@ -43,6 +43,14 @@ export interface ProjectDetail {
   fields: Omit<CustomFieldRow, "projectId">[];
 }
 
+/** Inserts a project owned by `actor` and logs it; the caller adds the boards. `deadline` is only set by event requests. */
+export async function insertProject(tx: Tx, actor: Actor, input: z.output<typeof createProjectInput>, deadline: Date | null = null): Promise<ProjectRow> {
+  const [row] = await tx.insert(project).values({ id: newId(), ...input, deadline }).returning();
+  await tx.insert(projectMember).values({ projectId: row.id, userId: actor.userId, role: "owner" });
+  await logChange(tx, actor, { projectId: row.id, entity: "project", entityId: row.id, field: "created", newValue: row.name });
+  return row;
+}
+
 /**
  * Creates a project owned by the actor, with a Development board.
  *
@@ -52,10 +60,8 @@ export async function createProject(db: Db, actor: Actor, raw: z.input<typeof cr
   const input = createProjectInput.parse(raw);
   try {
     return await db.transaction(async (tx) => {
-      const [row] = await tx.insert(project).values({ id: newId(), ...input }).returning();
-      await tx.insert(projectMember).values({ projectId: row.id, userId: actor.userId, role: "owner" });
+      const row = await insertProject(tx, actor, input);
       await insertBoard(tx, row.id, { slug: "development", name: "Development" }, 0);
-      await logChange(tx, actor, { projectId: row.id, entity: "project", entityId: row.id, field: "created", newValue: row.name });
       return row;
     });
   } catch (error) {

@@ -143,7 +143,7 @@ export async function compareDocuments(
 }
 
 /** Appends the next version of a document; the caller holds the lock on the system row. */
-async function appendVersion(tx: Tx, actor: Actor, parent: SystemRow, kind: DocumentKind, body: string): Promise<number> {
+export async function appendVersion(tx: Tx, actor: Actor, parent: SystemRow, kind: DocumentKind, body: string): Promise<number> {
   const [{ last }] = await tx
     .select({ last: max(systemDocument.version) })
     .from(systemDocument)
@@ -162,19 +162,25 @@ async function appendVersion(tx: Tx, actor: Actor, parent: SystemRow, kind: Docu
   return version;
 }
 
-/** Writes a new version of a system's spec. Editor or higher. */
+/**
+ * Writes a new version of a system's spec. Editor or higher. `onWritten` (internal, for event requests) runs in the same
+ * transaction after the version is written, so a failure there leaves no spec version behind.
+ */
 export async function writeSpec(
   db: Db,
   actor: Actor,
   projectSlug: string,
   systemSlug: string,
   raw: z.input<typeof writeSpecInput>,
+  onWritten?: (tx: Tx, system: SystemRow, version: number) => Promise<void>,
 ): Promise<{ version: number }> {
   const input = writeSpecInput.parse(raw);
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     const parent = await findSystem(tx, project.id, systemSlug, true);
-    return { version: await appendVersion(tx, actor, parent, "spec", input.body) };
+    const version = await appendVersion(tx, actor, parent, "spec", input.body);
+    await onWritten?.(tx, parent, version);
+    return { version };
   });
 }
 

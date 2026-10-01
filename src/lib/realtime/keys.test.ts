@@ -16,13 +16,13 @@ function event(entity: string, projectId: string): ChangeEvent {
 
 describe("invalidationKeys", () => {
   it("maps a task event to its sorted routers", () => {
-    expect(invalidationKeys([event("task", "p1")])).toEqual(new Map([["p1", ["gates", "history", "insight", "projects", "systems"]]]));
+    expect(invalidationKeys([event("task", "p1")])).toEqual(new Map([["p1", ["gates", "history", "insight", "projects", "requests", "systems"]]]));
   });
 
   it("unions keys per project", () => {
     const result = invalidationKeys([event("task", "p1"), event("adr", "p1"), event("member", "p2")]);
     expect(result.size).toBe(2);
-    expect(result.get("p1")).toEqual(["adrs", "gates", "history", "insight", "projects", "systems"]);
+    expect(result.get("p1")).toEqual(["adrs", "gates", "history", "insight", "projects", "requests", "systems"]);
     expect(result.get("p2")).toEqual(["members", "projects"]);
   });
 

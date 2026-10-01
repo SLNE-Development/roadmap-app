@@ -232,6 +232,13 @@
       "when": 1790864634072,
       "tag": "0032_event-questions",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790865713432,
+      "tag": "0033_event-accept",
+      "breakpoints": true
     }
   ]
 }

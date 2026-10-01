@@ -1,9 +1,9 @@
 "use client";
 
 import { useSuspenseQueries } from "@tanstack/react-query";
-import { CircleCheck, GitBranch, Milestone, Newspaper, SlidersHorizontal } from "lucide-react";
+import { CalendarClock, CircleCheck, GitBranch, Milestone, Newspaper, SlidersHorizontal, Ticket } from "lucide-react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Fragment, useState } from "react";
 import { AgentTag, CATEGORY_CLASS } from "@/components/chips";
 import { NewSystemDialog } from "@/components/new-system-dialog";
@@ -40,6 +40,7 @@ export function OverviewView({ slug }: { slug: string }) {
   const t = useTranslations("overview");
   const tCategory = useTranslations("enums.category");
   const relative = useRelativeTime();
+  const format = useFormatter();
   const trpc = useTRPC();
   const [customizing, setCustomizing] = useState(false);
   const [
@@ -50,6 +51,7 @@ export function OverviewView({ slug }: { slug: string }) {
     { data: activity },
     { data: attention },
     { data: panelPref },
+    { data: fromRequest },
   ] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
@@ -59,6 +61,7 @@ export function OverviewView({ slug }: { slug: string }) {
       trpc.history.activity.queryOptions({ project: slug, filter: { limit: 1 } }),
       trpc.projects.attention.queryOptions({ project: slug }),
       trpc.prefs.get.queryOptions({ key: "overview.panels" }),
+      trpc.requests.forProject.queryOptions({ project: slug }),
     ],
   });
   const data = { detail, systems, phases, updates, activity };
@@ -74,6 +77,33 @@ export function OverviewView({ slug }: { slug: string }) {
 
   const newSystem = canEdit && data.detail.boards.length > 0 && (
     <NewSystemDialog projectSlug={slug} boards={data.detail.boards.map((b) => ({ slug: b.slug, name: b.name }))} />
+  );
+
+  const chipClass = "flex items-center gap-1.5 border bg-secondary px-2 py-0.5 text-[12.5px] text-fg-2";
+  const chips = (project.deadline || fromRequest) && (
+    <ul className="flex flex-wrap items-center gap-2">
+      {project.deadline && (
+        <li className={chipClass}>
+          <CalendarClock aria-hidden className="size-3.5" />
+          {t("deadline", { date: format.dateTime(project.deadline, { dateStyle: "medium", timeStyle: "short" }) })}
+        </li>
+      )}
+      {fromRequest && (
+        <li>
+          {fromRequest.canView ? (
+            <Link href={`/requests/${fromRequest.id}`} className={`${chipClass} hover:text-foreground`}>
+              <Ticket aria-hidden className="size-3.5" />
+              {t("fromRequest")}
+            </Link>
+          ) : (
+            <span className={chipClass}>
+              <Ticket aria-hidden className="size-3.5" />
+              {t("fromRequest")}
+            </span>
+          )}
+        </li>
+      )}
+    </ul>
   );
 
   const panels = resolvePanels(panelPref);
@@ -251,7 +281,9 @@ export function OverviewView({ slug }: { slug: string }) {
             {newSystem}
           </>
         }
-      />
+      >
+        {chips}
+      </PageHeader>
 
       {wide && <Fragment key="status">{panelNodes.status}</Fragment>}
 

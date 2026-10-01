@@ -1,14 +1,15 @@
 import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { eventBriefVersion, eventQuestion, eventRequest, project, requestLog, user, type EventRequestRow } from "@/db/schema";
+import { eventBriefVersion, eventQuestion, eventRequest, project, projectMember, requestLog, user, type EventRequestRow } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { diffDocuments, type DiffHunk } from "@/lib/diff";
 import { canTransition, isOpen, REQUEST_STATUSES, type RequestStatus } from "@/lib/event-status";
 import { newId } from "@/lib/id";
+import { logChange } from "./log";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
 import { briefAudienceIds, developerIds, notifyRequest } from "./request-notify";
-import { eventFlags, requestAccess, type RequestAccess, type RequestRole } from "./request-access";
+import { canAcceptRequests, eventFlags, requestAccess, type RequestAccess, type RequestRole } from "./request-access";
 
 /** One change to a request's history: which field changed, from what to what. Never holds secrets. */
 export interface RequestLogEntry {
@@ -76,15 +77,28 @@ function normalizeBrief(body: string): string {
   return body.replace(/\r\n/g, "\n").trim();
 }
 
+/** The end of an event: its start plus its duration, or the start alone without a duration; null without a start. */
+export function eventEnd(request: Pick<EventRequestRow, "startsAt" | "durationMinutes">): Date | null {
+  if (!request.startsAt) return null;
+  return new Date(request.startsAt.getTime() + (request.durationMinutes ?? 0) * 60_000);
+}
+
 /**
- * Hook for side effects of a changed event date or duration (the project deadline, the Discord event);
- * later features fill it in. `before` holds the values from before the change.
+ * Side effects of a changed event date or duration: the linked project's deadline follows the event end (the Discord event
+ * joins later). `before` holds the values from before the change.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function onDateChanged(tx: Tx, actor: Actor, request: EventRequestRow, before: { startsAt: Date | null; durationMinutes: number | null }): Promise<void> {}
+export async function onDateChanged(tx: Tx, actor: Actor, request: EventRequestRow, before: { startsAt: Date | null; durationMinutes: number | null }): Promise<void> {
+  const end = eventEnd(request);
+  if (!request.projectId || !end) return;
+  const [current] = await tx.select({ deadline: project.deadline }).from(project).where(eq(project.id, request.projectId));
+  if (!current || current.deadline?.getTime() === end.getTime()) return;
+  await tx.update(project).set({ deadline: end }).where(eq(project.id, request.projectId));
+  await logChange(tx, actor, { projectId: request.projectId, entity: "project", entityId: request.projectId, field: "deadline", oldValue: stamp(current.deadline), newValue: stamp(end) });
+}
 
 /** Locks the request row for the rest of the transaction so concurrent writes queue up. */
-async function lockRequest(tx: Tx, requestId: string): Promise<EventRequestRow> {
+export async function lockRequest(tx: Tx, requestId: string): Promise<EventRequestRow> {
   const [row] = await tx.select().from(eventRequest).where(eq(eventRequest.id, requestId)).for("update").limit(1);
   if (!row) throw new NotFoundError(`Unknown request ${requestId}.`);
   return row;
@@ -288,7 +302,7 @@ export async function compareBriefs(db: Db, actor: Actor, requestId: string, fro
 }
 
 /** Moves a locked request to `to` after checking the lifecycle, and logs the status change. */
-async function moveTo(tx: Tx, actor: Actor, request: EventRequestRow, to: RequestStatus, extra: Partial<typeof eventRequest.$inferInsert> = {}, logged: string = to): Promise<EventRequestRow> {
+export async function moveTo(tx: Tx, actor: Actor, request: EventRequestRow, to: RequestStatus, extra: Partial<typeof eventRequest.$inferInsert> = {}, logged: string = to): Promise<EventRequestRow> {
   if (!canTransition(request.status, to)) throw new ConflictError(`A ${request.status} request cannot become ${to}.`);
   const [row] = await tx
     .update(eventRequest)
@@ -450,6 +464,10 @@ export interface RequestDetail {
   canManage: boolean;
   /** Whether the actor may cancel the request (managers, admins, developers). */
   canCancel: boolean;
+  /** Whether the actor may accept the request (admins and event developers). */
+  canAccept: boolean;
+  /** Whether the actor may open the linked project (a member or an admin). */
+  projectOpen: boolean;
   role: RequestRole;
 }
 
@@ -460,13 +478,14 @@ export interface RequestDetail {
  */
 export async function getRequest(db: Db, actor: Actor, requestId: string): Promise<RequestDetail> {
   const { request, role, canEdit, flags } = await requestAccess(db, actor, requestId, "view");
-  const [[brief], [owner], [linked]] = await Promise.all([
+  const [[brief], [owner], [linked], [membership]] = await Promise.all([
     db
       .select({ body: eventBriefVersion.body })
       .from(eventBriefVersion)
       .where(and(eq(eventBriefVersion.requestId, requestId), eq(eventBriefVersion.version, request.briefVersion))),
     request.requesterId ? db.select({ name: user.name }).from(user).where(eq(user.id, request.requesterId)) : Promise.resolve([]),
     request.projectId ? db.select({ slug: project.slug }).from(project).where(eq(project.id, request.projectId)) : Promise.resolve([]),
+    request.projectId ? db.select({ role: projectMember.role }).from(projectMember).where(and(eq(projectMember.projectId, request.projectId), eq(projectMember.userId, actor.userId))) : Promise.resolve([]),
   ]);
   const canManage = flags.isAdmin || flags.isEventManager;
   return {
@@ -477,6 +496,8 @@ export async function getRequest(db: Db, actor: Actor, requestId: string): Promi
     canEdit,
     canManage,
     canCancel: canManage || flags.isEventDeveloper,
+    canAccept: canAcceptRequests(flags),
+    projectOpen: linked !== undefined && (membership !== undefined || flags.isAdmin),
     role,
   };
 }

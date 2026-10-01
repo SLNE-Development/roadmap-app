@@ -167,3 +167,17 @@ export const eventQuestion = pgTable(
 
 /** A row of {@link eventQuestion}. */
 export type EventQuestionRow = typeof eventQuestion.$inferSelect;
+
+/** Which brief version a system's spec version was written against, so the project can tell when the brief moved on. */
+export const eventSpecBasis = pgTable(
+  "event_spec_basis",
+  {
+    systemId: text("system_id")
+      .notNull()
+      .references(() => system.id, { onDelete: "cascade" }),
+    specVersion: integer("spec_version").notNull(),
+    briefVersion: integer("brief_version").notNull(),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.systemId, t.specVersion] })],
+);

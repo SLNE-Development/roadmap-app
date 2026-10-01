@@ -40,17 +40,33 @@ export async function listDomains(db: Executor, actor: Actor, slug: string): Pro
   return db.select().from(domain).where(eq(domain.projectId, project.id)).orderBy(asc(domain.sortOrder), asc(domain.id));
 }
 
+/** Inserts a domain after the existing ones; the caller holds the project lock and has checked access. */
+export async function insertDomain(tx: Executor, projectId: string, input: { name: string; description?: string }): Promise<DomainRow> {
+  const [{ last }] = await tx.select({ last: max(domain.sortOrder) }).from(domain).where(eq(domain.projectId, projectId));
+  const [row] = await tx
+    .insert(domain)
+    .values({ id: newId(), projectId, name: input.name, description: input.description ?? "", sortOrder: (last ?? -1) + 1 })
+    .returning();
+  return row;
+}
+
+/** Inserts a phase without dependencies after the existing ones; the caller holds the project lock and has checked access. */
+export async function insertPhase(tx: Executor, projectId: string, input: { name: string; goal?: string }): Promise<PhaseRow> {
+  const [{ last }] = await tx.select({ last: max(phase.sortOrder) }).from(phase).where(eq(phase.projectId, projectId));
+  const [row] = await tx
+    .insert(phase)
+    .values({ id: newId(), projectId, name: input.name, goal: input.goal ?? "", sortOrder: (last ?? -1) + 1 })
+    .returning();
+  return row;
+}
+
 /** Adds a domain after the existing ones. Editor or higher. */
 export async function createDomain(db: Db, actor: Actor, slug: string, raw: z.input<typeof domainInput>): Promise<DomainRow> {
   const input = domainInput.parse(raw);
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, slug, "editor");
     await lockProject(tx, project.id);
-    const [{ last }] = await tx.select({ last: max(domain.sortOrder) }).from(domain).where(eq(domain.projectId, project.id));
-    const [row] = await tx
-      .insert(domain)
-      .values({ id: newId(), projectId: project.id, ...input, sortOrder: (last ?? -1) + 1 })
-      .returning();
+    const row = await insertDomain(tx, project.id, input);
     await logChange(tx, actor, { projectId: project.id, entity: "domain", entityId: row.id, field: "created", newValue: row.name });
     return row;
   });
@@ -100,11 +116,7 @@ export async function createPhase(db: Db, actor: Actor, slug: string, raw: z.inp
       if (missing) throw new InvalidError(`Unknown phase ${missing}.`);
     }
     await lockProject(tx, project.id);
-    const [{ last }] = await tx.select({ last: max(phase.sortOrder) }).from(phase).where(eq(phase.projectId, project.id));
-    const [row] = await tx
-      .insert(phase)
-      .values({ id: newId(), projectId: project.id, name: input.name, goal: input.goal, sortOrder: (last ?? -1) + 1 })
-      .returning();
+    const row = await insertPhase(tx, project.id, input);
     if (input.dependsOn.length > 0) {
       await tx.insert(phaseDependency).values(input.dependsOn.map((d) => ({ phaseId: row.id, dependsOnId: d })));
     }
