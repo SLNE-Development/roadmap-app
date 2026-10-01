@@ -4,7 +4,7 @@ import { DEFAULT_JOB_OPTIONS, QUEUE, type QueueName } from "@/lib/queue";
 import type { WorkerDeps } from "./deps";
 
 export type JobHandler = (data: unknown, deps: WorkerDeps) => Promise<void>;
-type Schedule = { everyMs: number } | { cron: string };
+type Schedule = { everyMs: number } | { cron: string; tz?: string };
 type Repeatable = { queue: QueueName; jobName: string; schedule: Schedule; data?: unknown };
 
 const handlers = new Map<string, JobHandler>();
@@ -79,7 +79,7 @@ export async function startWorkers(deps: WorkerDeps, connection: Redis): Promise
     try {
       await queue.upsertJobScheduler(
         `${r.queue}-${r.jobName}`,
-        "everyMs" in r.schedule ? { every: r.schedule.everyMs } : { pattern: r.schedule.cron },
+        "everyMs" in r.schedule ? { every: r.schedule.everyMs } : { pattern: r.schedule.cron, ...(r.schedule.tz ? { tz: r.schedule.tz } : {}) },
         { name: r.jobName, data: r.data },
       );
     } finally {
