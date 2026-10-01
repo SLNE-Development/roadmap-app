@@ -98,6 +98,15 @@ you belong to.
   a retry with the same `clientRef`s returns the existing tasks with `created: false`.
   The OpenAPI 3.1 document is at `/api/v1/openapi.json` and a readable reference at `/api/docs`, both without a key.
 
+Batch tools (`add_tasks`, `update_tasks`, `answer_questions`) take up to 50 items and apply all or none.
+`get_system`, `list_adrs` and `list_activity` answer briefly by default to save agents tokens; pass
+`brief: false` (REST `?brief=false`) for full bodies, or read one with `get_document` / `get_adr`.
+
+**Agents page:** each project has an **Agents** page with the runs that touched it: a
+timeline of tool calls, failures and cost per system. The plugin's hooks name a run at
+session start and report usage when it stops. They send the repository, branch, Claude
+Code session id and token totals, never code or prompts.
+
 **Tools added in v2:**
 
 - `add_tasks` (`POST /projects/:project/systems/:system/tasks`, replaces `add_task`): Add up to 50 tasks to a system in one call. Pass a clientRef per task so a retried call returns the same tasks instead of adding them twice.
