@@ -7,3 +7,5 @@ import "../jobs/dispatch";
 import "../jobs/push";
 import "./notifications";
 import "./discord";
+import "../github/events";
+import "../github/prune";
