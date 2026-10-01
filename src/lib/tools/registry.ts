@@ -29,7 +29,7 @@ export function defineTool<S extends z.ZodRawShape>(def: TypedToolDef<S>): ToolD
 
 /** Optional agent name accepted by every write tool. */
 const AGENT = {
-  agent: z.string().trim().max(40).optional().describe('Name of the agent making the change, e.g. "Claude Code".'),
+  agent: z.string().trim().max(40).optional(),
 };
 
 /** Returns the full input schema of a tool: its shape, plus `agent` for write tools. */

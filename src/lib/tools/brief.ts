@@ -5,7 +5,7 @@ import type { DocumentView } from "@/lib/ops/documents";
 import type { SystemOverview } from "@/lib/ops/overview";
 
 /** The `brief` input shared by tools that can leave out long bodies. */
-export const BRIEF = { brief: z.boolean().optional().describe("Leave out long bodies (default true). Pass false for full text.") };
+export const BRIEF = { brief: z.boolean().optional() };
 
 /** A document without its body. */
 export interface DocumentMeta {

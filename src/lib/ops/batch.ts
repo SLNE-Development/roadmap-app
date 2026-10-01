@@ -13,14 +13,14 @@ import { addTaskInput, addTaskInTx, updateTaskInput, updateTaskInTx, type TaskRo
 /** Input of {@link addTasks}: 1 to 50 tasks, each with an optional client ref that makes retries safe. */
 export const addTasksInput = z.object({
   tasks: z
-    .array(addTaskInput.extend({ clientRef: z.string().trim().min(1).max(64).optional().describe("Your stable key for the task, e.g. step-3.") }))
+    .array(addTaskInput.extend({ clientRef: z.string().trim().min(1).max(64).optional().describe("Your stable key, e.g. step-3.") }))
     .min(1)
     .max(50),
 });
 
 /** Input of {@link updateTasks}: 1 to 50 task patches, each naming its task. */
 export const updateTasksInput = z.object({
-  updates: z.array(z.object({ id: dbInt.describe("Task id from get_system."), ...updateTaskInput.shape })).min(1).max(50),
+  updates: z.array(z.object({ id: dbInt, ...updateTaskInput.shape })).min(1).max(50),
 });
 
 /** Input of {@link answerQuestions}: 1 to 50 answers. */

@@ -87,13 +87,13 @@ import { BRIEF, briefActivity, briefAdrs, briefOverview } from "./brief";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
 
 /** The project a tool acts in. */
-const P = { project: slugSchema.describe("Project slug, e.g. surf-roleplay.") };
+const P = { project: slugSchema };
 
 /** The project and system a tool acts on. */
-const S = { ...P, system: slugSchema.describe("System slug within the project.") };
+const S = { ...P, system: slugSchema };
 
 /** The project and board a tool acts on. */
-const B = { ...P, board: slugSchema.describe("Board slug within the project, e.g. development.") };
+const B = { ...P, board: slugSchema };
 
 /**
  * Turns a numeric string (REST path and query values) into a number and leaves
@@ -110,12 +110,12 @@ const positiveInt = (max: number) => z.preprocess(fromNumericString, z.number().
 const intParam = (what: string) => positiveInt(MAX_INT).describe(what);
 
 /** An optional result limit accepted as a number or a numeric string. */
-const limit = positiveInt(500).optional().describe("Maximum number of entries.");
+const limit = positiveInt(500).optional();
 
 register(
   defineTool({
     name: "whoami",
-    description: "Who the API key belongs to, and the projects they can access with their role.",
+    description: "Your user and the projects you can access, with roles.",
     input: {},
     write: false,
     method: "GET",
@@ -125,7 +125,7 @@ register(
 
   defineTool({
     name: "my_work",
-    description: "What is waiting on you across your projects: your blocked and in-progress tasks, open planning items and questions on your systems, and proposed ADRs.",
+    description: "Your waiting work: blocked and doing tasks, open planning items and questions, proposed ADRs.",
     input: {},
     write: false,
     method: "GET",
@@ -137,7 +137,7 @@ register(
   }),
   defineTool({
     name: "list_projects",
-    description: "List the projects you can access, with your role in each.",
+    description: "List accessible projects with your role.",
     input: {},
     write: false,
     method: "GET",
@@ -146,7 +146,7 @@ register(
   }),
   defineTool({
     name: "get_project",
-    description: "Get a project with your role, its boards (with columns and their categories) and its custom fields.",
+    description: "Get a project with your role, boards (columns) and custom fields.",
     input: P,
     write: false,
     method: "GET",
@@ -155,7 +155,7 @@ register(
   }),
   defineTool({
     name: "create_project",
-    description: "Create a project. You become its owner; it starts with a Development board.",
+    description: "Create a project; you become owner. It starts with a Development board.",
     input: createProjectInput.shape,
     write: true,
     method: "POST",
@@ -173,7 +173,7 @@ register(
   }),
   defineTool({
     name: "list_members",
-    description: "List project members with user ids (usable as ownerUserId), roles and when they joined (joinedAt).",
+    description: "List members with user ids (ownerUserId), roles and joinedAt.",
     input: P,
     write: false,
     method: "GET",
@@ -183,7 +183,7 @@ register(
 
   defineTool({
     name: "list_boards",
-    description: "List a project's boards with their columns (id, name, category, entry rules).",
+    description: "List boards with columns (id, name, category, entry rules).",
     input: P,
     write: false,
     method: "GET",
@@ -196,7 +196,7 @@ register(
   }),
   defineTool({
     name: "create_board",
-    description: "Add a board (a workstream such as Building) with the default columns (owner only).",
+    description: "Add a board (workstream) with default columns (owner only).",
     input: { ...P, ...createBoardInput.shape },
     write: true,
     method: "POST",
@@ -205,7 +205,7 @@ register(
   }),
   defineTool({
     name: "update_board",
-    description: "Rename a board or change its position (owner only).",
+    description: "Rename or reposition a board (owner only).",
     input: { ...B, ...updateBoardInput.shape },
     write: true,
     method: "PATCH",
@@ -215,7 +215,7 @@ register(
   defineTool({
     name: "set_board_columns",
     description:
-      "Replace a board's columns, in order. Keep existing columns by passing their id. Exactly one column must have category planning and at least one done (owner only).",
+      "Replace a board's columns in order, passing existing ids to keep them; needs one planning and one done column (owner only).",
     input: { ...B, ...setColumnsInput.shape },
     write: true,
     method: "PUT",
@@ -224,7 +224,7 @@ register(
   }),
   defineTool({
     name: "set_column_rules",
-    description: "Set a column's entry rules (owner only); an empty list removes them.",
+    description: "Set a column's entry rules (owner only); [] removes them.",
     input: { ...B, ...setColumnRulesInput.shape },
     write: true,
     method: "PUT",
@@ -234,7 +234,7 @@ register(
 
   defineTool({
     name: "list_domains",
-    description: "List a project's domains (areas that group systems).",
+    description: "List domains (areas that group systems).",
     input: P,
     write: false,
     method: "GET",
@@ -243,7 +243,7 @@ register(
   }),
   defineTool({
     name: "create_domain",
-    description: "Add a domain to a project.",
+    description: "Add a domain.",
     input: { ...P, ...domainInput.shape },
     write: true,
     method: "POST",
@@ -252,8 +252,8 @@ register(
   }),
   defineTool({
     name: "update_domain",
-    description: "Rename a domain or change its description (id from list_domains).",
-    input: { ...P, id: z.string().min(1).describe("Domain id from list_domains."), ...updateDomainInput.shape },
+    description: "Rename a domain or change its description.",
+    input: { ...P, id: z.string().min(1), ...updateDomainInput.shape },
     write: true,
     method: "PATCH",
     path: "/projects/:project/domains/:id",
@@ -261,7 +261,7 @@ register(
   }),
   defineTool({
     name: "reorder_domains",
-    description: "Reorder a project's domains. orderedIds lists every domain id exactly once, in the new order.",
+    description: "Reorder domains; orderedIds lists every id once.",
     input: { ...P, ...reorderInput.shape },
     write: true,
     method: "PUT",
@@ -270,7 +270,7 @@ register(
   }),
   defineTool({
     name: "list_phases",
-    description: "List a project's delivery phases in order with their dependencies.",
+    description: "List delivery phases in order with dependencies.",
     input: P,
     write: false,
     method: "GET",
@@ -279,7 +279,7 @@ register(
   }),
   defineTool({
     name: "create_phase",
-    description: "Add a delivery phase, optionally building on other phases (ids).",
+    description: "Add a delivery phase, optionally depending on other phases.",
     input: { ...P, ...phaseInput.shape },
     write: true,
     method: "POST",
@@ -289,8 +289,8 @@ register(
   defineTool({
     name: "update_phase",
     description:
-      "Rename a phase, change its goal or replace its dependencies (phase ids; [] clears them). A phase cannot depend on itself or form a cycle.",
-    input: { ...P, id: z.string().min(1).describe("Phase id from list_phases."), ...updatePhaseInput.shape },
+      "Rename a phase, change its goal or replace its dependencies ([] clears); no cycles.",
+    input: { ...P, id: z.string().min(1), ...updatePhaseInput.shape },
     write: true,
     method: "PATCH",
     path: "/projects/:project/phases/:id",
@@ -298,7 +298,7 @@ register(
   }),
   defineTool({
     name: "reorder_phases",
-    description: "Reorder a project's delivery phases. orderedIds lists every phase id exactly once, in the new delivery order.",
+    description: "Reorder delivery phases; orderedIds lists every id once.",
     input: { ...P, ...reorderInput.shape },
     write: true,
     method: "PUT",
@@ -308,7 +308,7 @@ register(
 
   defineTool({
     name: "list_systems",
-    description: "List systems with board, column, owner, planning state and task progress. Filter by board, domain, phase, column category, priority, owner (user id or none), startable (no unfinished dependencies), or archived (exclude by default, include or only).",
+    description: "List systems with column, owner, planning state and task progress, optionally filtered.",
     input: { ...P, ...systemFilter.shape },
     write: false,
     method: "GET",
@@ -317,7 +317,7 @@ register(
   }),
   defineTool({
     name: "get_system",
-    description: "Get one system: column, tasks (with ids), planning state, questions, ADRs, updates; brief by default, use get_document for spec and plan text.",
+    description: "Get a system: column, tasks (with ids), planning, questions, ADRs, updates. get_document gives spec and plan text.",
     input: { ...S, ...BRIEF },
     write: false,
     method: "GET",
@@ -330,7 +330,7 @@ register(
   defineTool({
     name: "create_system",
     description:
-      "Create a system on a board (default: the first); it starts in the planning column, so run the surf-roadmap:plan-system interview next. The result also lists `similar` existing systems.",
+      "Create a system in the planning column, then run the surf-roadmap:plan-system interview. Lists `similar` systems.",
     input: { ...P, ...createSystemInput.shape },
     write: true,
     method: "POST",
@@ -343,7 +343,7 @@ register(
   }),
   defineTool({
     name: "update_system",
-    description: "Change a system's title, summary, priority, owner (user id or null), notes, domain or phase.",
+    description: "Change a system's title, summary, priority, owner, notes, domain or phase.",
     input: { ...S, ...updateSystemInput.shape },
     write: true,
     method: "PATCH",
@@ -352,7 +352,7 @@ register(
   }),
   defineTool({
     name: "set_dependencies",
-    description: "Set which systems this system depends on (replaces the list); cycles are rejected.",
+    description: "Replace the systems this one depends on; cycles are rejected.",
     input: { ...S, ...setDependenciesInput.shape },
     write: true,
     method: "PUT",
@@ -361,7 +361,7 @@ register(
   }),
   defineTool({
     name: "set_system_fields",
-    description: "Set custom field values of a system by key (see get_project fields); null clears one.",
+    description: "Set custom field values by key (see get_project); null clears.",
     input: { ...S, values: z.record(z.string(), z.union([z.string(), z.number(), z.null()])) },
     write: true,
     method: "PATCH",
@@ -370,7 +370,7 @@ register(
   }),
   defineTool({
     name: "get_glossary",
-    description: "List the project's glossary terms and definitions; use these words in specs and plans.",
+    description: "List glossary terms; use these words in specs and plans.",
     input: P,
     write: false,
     method: "GET",
@@ -395,7 +395,7 @@ register(
   }),
   defineTool({
     name: "list_pages",
-    description: "List the project's pages (onboarding, conventions, architecture) with their latest version.",
+    description: "List project pages with their latest version.",
     input: P,
     write: false,
     method: "GET",
@@ -404,12 +404,12 @@ register(
   }),
   defineTool({
     name: "get_page",
-    description: "Get a project page, a given version, or only its diff since a version.",
+    description: "Get a page, a given version, or only its diff since a version.",
     input: {
       ...P,
-      page: slugSchema.describe("Page slug within the project."),
+      page: slugSchema,
       version: positiveInt(MAX_INT).optional(),
-      since: positiveInt(MAX_INT).optional().describe("Return only the changes since this version, as a unified diff, instead of the body."),
+      since: positiveInt(MAX_INT).optional(),
     },
     write: false,
     method: "GET",
@@ -418,7 +418,7 @@ register(
   }),
   defineTool({
     name: "write_page",
-    description: "Create a project page or write its next version (markdown); title is required for a new page.",
+    description: "Write a page's next version (markdown); title required for a new page.",
     input: { ...P, ...writePageInput.omit({ create: true }).shape },
     write: true,
     method: "PUT",
@@ -427,13 +427,13 @@ register(
   }),
   defineTool({
     name: "search",
-    description: "Full-text search in a project's systems, latest specs and plans, ADRs, questions and pages; returns titles, refs and short snippets.",
+    description: "Full-text search across systems, documents, ADRs, questions and pages; returns refs and snippets.",
     input: {
       ...P,
       ...searchProjectInput.shape,
       // REST passes query values as strings: kinds may come comma-separated, limit as a numeric string.
       kinds: z.preprocess((v) => (typeof v === "string" ? v.split(",") : v), searchProjectInput.shape.kinds),
-      limit: positiveInt(50).optional().describe("Maximum number of hits, 20 by default."),
+      limit: positiveInt(50).optional(),
     },
     write: false,
     method: "GET",
@@ -449,7 +449,7 @@ register(
   defineTool({
     name: "move_system",
     description:
-      "Move a system to a column (id or name) of any board. Leaving planning requires complete_planning and column entry rules may refuse it; an active column makes you owner of an unowned system.",
+      "Move a system to a column (id or name). Leaving planning needs complete_planning; column rules may refuse; an active column makes you owner of an unowned system.",
     input: {
       ...S,
       ...moveSystemInput.shape,
@@ -472,7 +472,7 @@ register(
 
   defineTool({
     name: "get_planning",
-    description: "Get a system's planning interview: rounds, answers, gaps that block completion, and per-area coverage with thin-area warnings.",
+    description: "Get a system's planning rounds, answers, completion gaps and per-area coverage.",
     input: S,
     write: false,
     method: "GET",
@@ -481,7 +481,7 @@ register(
   }),
   defineTool({
     name: "add_planning_round",
-    description: "Record the next round of planning questions BEFORE asking them. Each item has an area (failure-modes, dependencies, scope, ops-testing) and isRisk for failure modes.",
+    description: "Record the next round of planning questions BEFORE asking them; items have an area, and isRisk for failure modes.",
     input: { ...S, ...addRoundInput.shape },
     write: true,
     method: "POST",
@@ -490,7 +490,7 @@ register(
   }),
   defineTool({
     name: "answer_planning_items",
-    description: "Store the user's answers right after they give them. Use status accepted-risk only when the user explicitly accepts a flagged risk, with their reason as the answer.",
+    description: "Store the user's answers right after they give them. Use accepted-risk only when the user explicitly accepts a flagged risk, with their reason.",
     input: { ...S, ...answerItemsInput.shape },
     write: true,
     method: "POST",
@@ -499,7 +499,7 @@ register(
   }),
   defineTool({
     name: "complete_planning",
-    description: "Complete planning once every area is covered, nothing is open and the spec is written. userConfirmation must quote the user's own words confirming the spec.",
+    description: "Complete planning once every area is covered, nothing is open and the spec is written. userConfirmation quotes the user's confirming words.",
     input: { ...S, ...completePlanningInput.shape },
     write: true,
     method: "POST",
@@ -508,7 +508,7 @@ register(
   }),
   defineTool({
     name: "reopen_planning",
-    description: "Reopen the whole planning interview and move the system back to the planning column; prefer reopen_planning_area for a single area.",
+    description: "Reopen the whole interview, moving the system back to planning; prefer reopen_planning_area.",
     input: S,
     write: true,
     method: "POST",
@@ -517,7 +517,7 @@ register(
   }),
   defineTool({
     name: "reopen_planning_area",
-    description: "Reopen one planning area of a completed system, with the reason, without moving the system. Only that area then accepts new rounds and answers.",
+    description: "Reopen one planning area of a completed system, with a reason, without moving it; only that area accepts new rounds.",
     input: { ...S, ...reopenAreaInput.shape },
     write: true,
     method: "POST",
@@ -526,7 +526,7 @@ register(
   }),
   defineTool({
     name: "complete_planning_area",
-    description: "Close a reopened planning area once its new questions are answered; userConfirmation quotes the user's words.",
+    description: "Close a reopened planning area once answered; userConfirmation quotes the user's words.",
     input: { ...S, ...completeAreaInput.shape },
     write: true,
     method: "POST",
@@ -536,12 +536,12 @@ register(
 
   defineTool({
     name: "get_document",
-    description: "Get a system's spec or plan (latest or a given version) with all version numbers; pass since to get only the diff from an older version.",
+    description: "Get a spec or plan (latest or a version) and its versions; since returns only the diff.",
     input: {
       ...S,
       kind: z.enum(DOCUMENT_KINDS),
       version: positiveInt(MAX_INT).optional(),
-      since: positiveInt(MAX_INT).optional().describe("Return only the changes since this version, as a unified diff, instead of the body."),
+      since: positiveInt(MAX_INT).optional(),
     },
     write: false,
     method: "GET",
@@ -553,7 +553,7 @@ register(
   }),
   defineTool({
     name: "write_spec",
-    description: "Write a new version of a system's spec (markdown). Specs live here, never as repository files.",
+    description: "Write a new version of a system's spec (markdown).",
     input: { ...S, ...writeSpecInput.shape },
     write: true,
     method: "POST",
@@ -563,7 +563,7 @@ register(
   defineTool({
     name: "write_plan",
     description:
-      "Write a new version of a system's implementation plan (markdown) with its numbered steps. Each new step becomes a task; renamed steps rename their task; dropped steps are reported, never deleted.",
+      "Write a new plan version (markdown) with numbered steps: new steps become tasks, renamed steps rename theirs, dropped steps are only reported.",
     input: { ...S, ...writePlanInput.shape },
     write: true,
     method: "POST",
@@ -573,7 +573,7 @@ register(
 
   defineTool({
     name: "add_tasks",
-    description: "Add up to 50 tasks to a system in one call. Pass a clientRef per task so a retried call returns the same tasks instead of adding them twice.",
+    description: "Add up to 50 tasks in one call; a clientRef per task makes a retry return the same tasks.",
     input: { ...S, ...addTasksInput.shape },
     write: true,
     method: "POST",
@@ -583,8 +583,8 @@ register(
   defineTool({
     name: "update_task",
     description:
-      "Change a task's title, state, priority, owner, notes, blockedReason or estimate (S, M, L, or null to clear). Blocked needs a blockedReason; doing and done need completed planning.",
-    input: { id: intParam("Task id from get_system."), ...updateTaskInput.shape },
+      "Change a task's title, state, priority, owner, notes, blockedReason or estimate. Blocked needs blockedReason; doing and done need completed planning.",
+    input: { id: positiveInt(MAX_INT), ...updateTaskInput.shape },
     write: true,
     method: "PATCH",
     path: "/tasks/:id",
@@ -592,7 +592,7 @@ register(
   }),
   defineTool({
     name: "update_tasks",
-    description: "Change up to 50 tasks in one call, same fields as update_task. All changes apply or none do.",
+    description: "Change several tasks in one call, same fields as update_task.",
     input: updateTasksInput.shape,
     write: true,
     method: "PATCH",
@@ -601,8 +601,8 @@ register(
   }),
   defineTool({
     name: "move_task",
-    description: "Move a task to another system of the same project; it keeps its state, owner and checklist.",
-    input: { id: intParam("Task id."), ...moveTaskInput.shape },
+    description: "Move a task to another system of the project; state, owner and checklist stay.",
+    input: { id: positiveInt(MAX_INT), ...moveTaskInput.shape },
     write: true,
     method: "POST",
     path: "/tasks/:id/move",
@@ -610,8 +610,8 @@ register(
   }),
   defineTool({
     name: "set_task_checks",
-    description: "Replace a task's checklist; items matched by title keep their state unless done is given.",
-    input: { id: intParam("Task id."), ...setTaskChecksInput.shape },
+    description: "Replace a task's checklist; items matched by title keep their state.",
+    input: { id: positiveInt(MAX_INT), ...setTaskChecksInput.shape },
     write: true,
     method: "PUT",
     path: "/tasks/:id/checks",
@@ -620,7 +620,7 @@ register(
 
   defineTool({
     name: "post_update",
-    description: "Post a progress update on a system after each commit: summary, optional next step, task id and commit hash (may be unpushed).",
+    description: "Post a progress update after each commit: summary, next step, task id, commit hash.",
     input: { ...S, ...postUpdateInput.shape },
     write: true,
     method: "POST",
@@ -629,7 +629,7 @@ register(
   }),
   defineTool({
     name: "list_updates",
-    description: "List progress updates, newest first, optionally for one system; each names the person (authorName) and the agent, if any.",
+    description: "List progress updates, newest first, optionally for one system.",
     input: { ...P, system: z.string().optional(), limit },
     write: false,
     method: "GET",
@@ -639,7 +639,7 @@ register(
 
   defineTool({
     name: "list_adrs",
-    description: "List a project's ADRs by number, optionally by status or linked system; brief by default, use get_adr for full text.",
+    description: "List ADRs by number, optionally by status or system; use get_adr for full text.",
     input: { ...P, ...adrFilter.shape, ...BRIEF },
     write: false,
     method: "GET",
@@ -651,8 +651,8 @@ register(
   }),
   defineTool({
     name: "get_adr",
-    description: "Get one ADR with context, decision, alternatives, consequences, linked tasks and status history.",
-    input: { ...P, number: intParam("ADR number.") },
+    description: "Get an ADR with context, decision, alternatives, consequences, tasks, history.",
+    input: { ...P, number: positiveInt(MAX_INT) },
     write: false,
     method: "GET",
     path: "/projects/:project/adrs/:number",
@@ -661,7 +661,7 @@ register(
   defineTool({
     name: "create_adr",
     description:
-      "Record a decision the user has made as a proposed ADR. Every section is required; alternatives state their real advantage first; consequences name gains, costs, follow-on work and what is foreclosed. `tasks` are the ids of tasks that carry it out.",
+      "Record a user decision as a proposed ADR. Alternatives state their real advantage first; consequences name gains, costs, follow-on work and what is foreclosed.",
     input: { ...P, ...createAdrInput.shape },
     write: true,
     method: "POST",
@@ -670,8 +670,8 @@ register(
   }),
   defineTool({
     name: "update_adr",
-    description: "Edit a proposed ADR; accepted ADRs are immutable, so supersede them instead. `systems` and `tasks` (task ids) may change after acceptance.",
-    input: { ...P, number: intParam("ADR number."), ...updateAdrInput.shape },
+    description: "Edit a proposed ADR; accepted ADRs are immutable, supersede them. systems and tasks may still change.",
+    input: { ...P, number: positiveInt(MAX_INT), ...updateAdrInput.shape },
     write: true,
     method: "PATCH",
     path: "/projects/:project/adrs/:number",
@@ -680,7 +680,7 @@ register(
   defineTool({
     name: "accept_adr",
     description: "Accept a proposed ADR once the user confirms it. It becomes immutable.",
-    input: { ...P, number: intParam("ADR number.") },
+    input: { ...P, number: positiveInt(MAX_INT) },
     write: true,
     method: "POST",
     path: "/projects/:project/adrs/:number/accept",
@@ -698,7 +698,7 @@ register(
 
   defineTool({
     name: "list_questions",
-    description: "List open questions, unresolved first, optionally for one system or by resolved state; answered ones say who answered (answeredBy) and when (answeredAt).",
+    description: "List questions, unresolved first, optionally for one system or by resolved state.",
     input: { ...P, system: z.string().optional(), resolved: z.boolean().optional() },
     write: false,
     method: "GET",
@@ -707,7 +707,7 @@ register(
   }),
   defineTool({
     name: "add_question",
-    description: "Add an open question, optionally tied to a system (for example when blocked). Priority blocking holds the system's planning gate until resolved.",
+    description: "Add an open question, optionally for a system (e.g. when blocked). Priority blocking holds the planning gate.",
     input: { ...P, ...addQuestionInput.shape },
     write: true,
     method: "POST",
@@ -725,7 +725,7 @@ register(
   }),
   defineTool({
     name: "answer_questions",
-    description: "Answer up to 50 questions in one call; each resolves unless resolved is false. All apply or none do.",
+    description: "Answer questions in one call; each resolves unless resolved is false.",
     input: { ...P, ...answerQuestionsInput.shape },
     write: true,
     method: "POST",
@@ -744,7 +744,7 @@ register(
 
   defineTool({
     name: "list_activity",
-    description: "List the project's change log, newest first, optionally one system's history; brief by default, long values are cut.",
+    description: "List the change log, newest first, optionally one system's; long values are cut.",
     input: { ...P, system: z.string().optional(), limit, ...BRIEF },
     write: false,
     method: "GET",

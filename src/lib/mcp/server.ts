@@ -9,12 +9,13 @@ import { inputSchema, runTool } from "@/lib/tools/registry";
 
 /** Rules the server gives every connecting agent. */
 export const MCP_INSTRUCTIONS = [
-  "Roadmap with projects, boards (workstreams with custom columns) and systems. Every tool takes the project slug.",
+  "Roadmap of projects, boards and systems. project and system arguments are slugs.",
   "1. Every new system goes through the surf-roadmap:plan-system interview: create_system, then for each round add_planning_round BEFORE asking and answer_planning_items right after the user answers, then write_spec, show it, and complete_planning with the user's verbatim confirmation. The server refuses to move a system out of planning, or to start its tasks, before that.",
   "2. Specs, plans, ADRs and open questions live here, never as repository files: write_spec, write_plan, create_adr/accept_adr/supersede_adr, add_question.",
   "3. When you start a task, update_task with state doing (this makes the key's user owner of the task and of an unowned system). After every commit, post_update with the commit hash. When finished, set tasks done and move the system to a review or done column. When stuck, set the task blocked and add_question.",
-  "4. Pass agent with your name on writes; it defaults to Claude Code.",
-  "5. get_system, list_adrs and list_activity are brief by default; use get_document or get_adr for full text.",
+  "4. Accepted ADRs are immutable: supersede_adr instead of editing. Column entry rules (list_boards) may refuse a move_system.",
+  "5. Pass agent with your name on writes; it defaults to Claude Code. Batch tools (up to 50 items) apply all or nothing.",
+  "6. get_system, list_adrs and list_activity are brief by default; use get_document or get_adr for full text.",
 ].join("\n");
 
 /** Wraps a tool result, or an error message, as MCP text content. */
