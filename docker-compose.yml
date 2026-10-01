@@ -17,6 +17,9 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
       VALKEY_URL: redis://valkey:6379
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,6 +35,9 @@ services:
       DATABASE_URL: postgres://roadmap:${POSTGRES_PASSWORD:-roadmap}@postgres:5432/roadmap
       VALKEY_URL: redis://valkey:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     depends_on:
       app:
         condition: service_healthy

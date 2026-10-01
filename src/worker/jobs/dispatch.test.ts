@@ -76,7 +76,7 @@ describe("dispatchPushes", () => {
     await dispatchPushes(deps);
 
     expect(deps.queues.deliver.jobs).toEqual([
-      { jobName: "push.send", data: { notificationId: id, subscriptionId }, opts: { jobId: `push-${id}-${subscriptionId}` } },
+      { jobName: "push.send", data: { notificationId: id, subscriptionId }, opts: { jobId: `push-${id}-${subscriptionId}`, attempts: 3, backoffMs: 10_000 } },
     ]);
     expect(await statusOf(id)).toBe("sent");
   });
@@ -162,7 +162,7 @@ describe("dispatchPushes", () => {
     await dispatchPushes(deps);
 
     expect(deps.queues.deliver.jobs).toEqual([
-      { jobName: "push.send", data: { notificationId: id, subscriptionId }, opts: { jobId: `push-${id}-${subscriptionId}` } },
+      { jobName: "push.send", data: { notificationId: id, subscriptionId }, opts: { jobId: `push-${id}-${subscriptionId}`, attempts: 3, backoffMs: 10_000 } },
     ]);
     expect(await statusOf(id)).toBe("sent");
   });

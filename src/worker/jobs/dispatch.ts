@@ -4,6 +4,7 @@ import type { Executor } from "@/db/types";
 import { activeKey, pushDecision, type NotifyRules } from "@/lib/notify-rules-schema";
 import { canReceive } from "@/lib/ops/notifications";
 import { readNotifyRules } from "@/lib/ops/notify-rules";
+import { PUSH_RETRIES } from "@/lib/ops/push";
 import { pushConfig } from "@/lib/push-config";
 import { QUEUE } from "@/lib/queue";
 import type { WorkerDeps } from "../deps";
@@ -110,7 +111,7 @@ export async function dispatchPushes(deps: WorkerDeps): Promise<DispatchResult> 
         } else {
           // Queued before the commit: a failed commit re-queues under the same job ids (at least once).
           for (const subscriptionId of recipient.subscriptionIds) {
-            await queue.add("push.send", { notificationId: row.id, subscriptionId }, { jobId: `push-${row.id}-${subscriptionId}` });
+            await queue.add("push.send", { notificationId: row.id, subscriptionId }, { jobId: `push-${row.id}-${subscriptionId}`, ...PUSH_RETRIES });
           }
           pageSent.push(row.id);
         }

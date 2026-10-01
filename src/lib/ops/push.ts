@@ -1,11 +1,15 @@
+import { createHash } from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { pushSubscription } from "@/db/schema";
-import type { Executor } from "@/db/types";
+import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { addWithTimeout, type JobQueue } from "@/lib/queue";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
+
+/** Retries of `push.send` and `push.test`: three tries in all, the first retry after 10 s, then doubling. */
+export const PUSH_RETRIES = { attempts: 3, backoffMs: 10_000 } as const;
 
 /** Input of {@link subscribePush}: the browser's subscription JSON and what to call the device. */
 export const subscribePushInput = z.object({
@@ -23,6 +27,8 @@ export interface PushDevice {
   label: string;
   createdAt: Date;
   lastSuccessAt: Date | null;
+  /** Whether it is the browser asking, matched by its endpoint. */
+  current: boolean;
 }
 
 /**
@@ -54,6 +60,32 @@ export async function subscribePush(db: Executor, actor: Actor, raw: z.input<typ
   return row;
 }
 
+/** Input of {@link resubscribePush}: what the service worker posts when the browser replaced its subscription. */
+export const resubscribePushInput = z.object({
+  oldEndpoint: z.string().max(1000).nullish(),
+  subscription: subscribePushInput.pick({ endpoint: true, keys: true }),
+  label: z.string().trim().max(64).nullish(),
+});
+
+/**
+ * Saves the subscription a browser replaced on its own for the actor and deletes the old one when it is the
+ * actor's. Without a label the old device's label is kept, else `fallbackLabel` is used.
+ *
+ * @throws InvalidError if the input is malformed
+ */
+export async function resubscribePush(db: Db, actor: Actor, raw: unknown, fallbackLabel: string): Promise<{ id: string }> {
+  const result = resubscribePushInput.safeParse(raw);
+  if (!result.success) throw new InvalidError(result.error.issues.map((i) => i.message).join(" "));
+  const { oldEndpoint, subscription, label } = result.data;
+  return db.transaction(async (tx) => {
+    const own = (endpoint: string) => and(eq(pushSubscription.endpoint, endpoint), eq(pushSubscription.userId, actor.userId));
+    const [old] = oldEndpoint ? await tx.select({ label: pushSubscription.label }).from(pushSubscription).where(own(oldEndpoint)) : [];
+    const saved = await subscribePush(tx, actor, { ...subscription, label: label || old?.label || fallbackLabel });
+    if (oldEndpoint && old && oldEndpoint !== subscription.endpoint) await tx.delete(pushSubscription).where(own(oldEndpoint));
+    return saved;
+  });
+}
+
 /**
  * Removes one of the actor's devices.
  *
@@ -67,13 +99,29 @@ export async function unsubscribePush(db: Executor, actor: Actor, id: string): P
   if (deleted.length === 0) throw new NotFoundError(`Unknown device ${id}.`);
 }
 
-/** Lists the actor's devices, oldest first. */
-export function listDevices(db: Executor, actor: Actor): Promise<PushDevice[]> {
-  return db
-    .select({ id: pushSubscription.id, label: pushSubscription.label, createdAt: pushSubscription.createdAt, lastSuccessAt: pushSubscription.lastSuccessAt })
+/** The hex SHA-256 of a push endpoint; browsers send it to find their own device without sending the endpoint. */
+export function endpointHash(endpoint: string): string {
+  return createHash("sha256").update(endpoint).digest("hex");
+}
+
+/**
+ * Lists the actor's devices, oldest first.
+ *
+ * @param currentHash the {@link endpointHash} of the asking browser's endpoint, if it has one, to mark its device as current
+ */
+export async function listDevices(db: Executor, actor: Actor, currentHash?: string | null): Promise<PushDevice[]> {
+  const rows = await db
+    .select({
+      id: pushSubscription.id,
+      label: pushSubscription.label,
+      createdAt: pushSubscription.createdAt,
+      lastSuccessAt: pushSubscription.lastSuccessAt,
+      endpoint: pushSubscription.endpoint,
+    })
     .from(pushSubscription)
     .where(eq(pushSubscription.userId, actor.userId))
     .orderBy(asc(pushSubscription.createdAt), asc(pushSubscription.id));
+  return rows.map(({ endpoint, ...device }) => ({ ...device, current: !!currentHash && endpointHash(endpoint) === currentHash }));
 }
 
 /**
@@ -93,7 +141,7 @@ export async function sendTestPush(db: Executor, actor: Actor, id: string, queue
   if (!device) throw new NotFoundError(`Unknown device ${id}.`);
   const minute = Math.floor(Date.now() / 60_000);
   try {
-    await addWithTimeout(queue, "push.test", { subscriptionId: id }, { jobId: `push-test-${id}-${minute}` });
+    await addWithTimeout(queue, "push.test", { subscriptionId: id }, { jobId: `push-test-${id}-${minute}`, ...PUSH_RETRIES });
   } catch (error) {
     console.error(error);
     throw new ConflictError("Background jobs are unavailable right now, so the test push was not sent. Try again in a minute.");

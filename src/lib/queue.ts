@@ -9,6 +9,10 @@ export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
 export interface JobOptions {
   jobId?: string;
   delayMs?: number;
+  /** Tries in all, overriding the default of 5. */
+  attempts?: number;
+  /** First retry delay of the exponential backoff, overriding the default of 5 s. */
+  backoffMs?: number;
 }
 
 /** Minimal job queue; BullMQ in production, in memory in unit tests. */
@@ -77,7 +81,13 @@ export function bullQueue(name: QueueName, opts?: { connection?: Redis }): JobQu
   return {
     async add(jobName, data, jobOpts = {}) {
       if (jobOpts.jobId !== undefined) validateJobId(jobOpts.jobId);
-      await bullQueueRaw(name, opts).add(jobName, data, { jobId: jobOpts.jobId, delay: jobOpts.delayMs });
+      // BullMQ spreads these over its defaults, so retry settings are only set when given.
+      await bullQueueRaw(name, opts).add(jobName, data, {
+        jobId: jobOpts.jobId,
+        delay: jobOpts.delayMs,
+        ...(jobOpts.attempts === undefined ? {} : { attempts: jobOpts.attempts }),
+        ...(jobOpts.backoffMs === undefined ? {} : { backoff: { type: "exponential", delay: jobOpts.backoffMs } }),
+      });
     },
   };
 }

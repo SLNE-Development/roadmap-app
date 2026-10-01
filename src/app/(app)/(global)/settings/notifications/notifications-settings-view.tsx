@@ -60,7 +60,7 @@ export function NotificationsSettingsView({ pushEnabled }: { pushEnabled: boolea
             Save
           </Button>
         </div>
-        <DevicesSection />
+        <DevicesSection pushEnabled={pushEnabled} />
       </div>
     </Page>
   );

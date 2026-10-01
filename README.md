@@ -21,9 +21,19 @@ Better Auth (Discord), MCP TypeScript SDK.
 | `ENCRYPTION_KEY` | yes | 32-byte base64 key encrypting stored secrets such as Discord webhook URLs (`openssl rand -base64 32`). |
 | `VALKEY_URL` | yes | Valkey (Redis-compatible) URL for background jobs, caching and live updates. |
 | `METRICS_TOKEN` | no | Bearer token for `/api/metrics` (Prometheus). Empty disables the endpoint. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | no | Web Push keys (`npx web-push generate-vapid-keys`) and a `mailto:` or `https:` contact. Push is off unless all three are set. |
 | `POSTGRES_PASSWORD` | compose only | Password of the bundled Postgres. |
 
 Copy `.env.example` to `.env` and fill it in.
+
+### Push notifications
+
+Web Push sends notifications to browsers and phones. Generate a key pair once with
+`npx web-push generate-vapid-keys`, set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and
+`VAPID_SUBJECT` (e.g. `mailto:admin@example.com`) for both the app and the worker, and keep
+the keys: new keys invalidate every saved device. Each person then turns push on under
+**Notification settings → Devices**. Push needs HTTPS (or `localhost`); on iPhone and iPad
+it works only from the app added to the home screen.
 
 ## Accounts
 

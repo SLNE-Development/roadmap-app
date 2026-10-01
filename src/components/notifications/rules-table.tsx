@@ -21,7 +21,8 @@ const KIND_LABELS: Record<NotificationKind, string> = {
   "update.posted": "A progress update on my system",
 };
 
-const PUSH_OFF = "Push notifications are not set up on this server. An admin sets VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT.";
+/** Shown where push settings would be while the server has no VAPID keys. */
+export const PUSH_OFF = "Push notifications are not set up on this server. An admin sets VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT.";
 
 /** One row per notification kind with an Inbox and a Push switch; Push is disabled while the server has no push keys. */
 export function RulesTable({

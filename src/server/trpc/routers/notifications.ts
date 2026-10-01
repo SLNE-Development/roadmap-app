@@ -60,8 +60,10 @@ export const notificationsRouter = router({
   /** Removes one of the user's devices. */
   unsubscribe: protectedProcedure.input(deviceId).mutation(({ ctx, input }) => unsubscribePush(ctx.db, ctx.actor, input.id)),
 
-  /** The user's devices, without endpoints or keys. */
-  devices: protectedProcedure.query(({ ctx }) => listDevices(ctx.db, ctx.actor)),
+  /** The user's devices, without endpoints or keys; `endpointHash` (SHA-256 hex of this browser's endpoint) marks its device. */
+  devices: protectedProcedure
+    .input(z.object({ endpointHash: z.string().regex(/^[0-9a-f]{64}$/).nullish() }).optional())
+    .query(({ ctx, input }) => listDevices(ctx.db, ctx.actor, input?.endpointHash)),
 
   /** Queues a test push to one of the user's devices. */
   testPush: protectedProcedure.input(deviceId).mutation(({ ctx, input }) => sendTestPush(ctx.db, ctx.actor, input.id, bullQueue(QUEUE.deliver))),

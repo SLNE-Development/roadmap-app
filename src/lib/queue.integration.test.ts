@@ -7,10 +7,12 @@ import { bullQueue, bullQueueRaw, QUEUE } from "./queue";
 const connection = new Redis(testValkeyUrl(), { maxRetriesPerRequest: null });
 const queue = bullQueue(QUEUE.maintenance, { connection });
 const id = "probe-" + newId();
+const retryId = "probe-" + newId();
 
 afterAll(async () => {
   const raw = bullQueueRaw(QUEUE.maintenance);
   await (await raw.getJob(id))?.remove();
+  await (await raw.getJob(retryId))?.remove();
   await raw.close();
   await connection.quit();
 });
@@ -28,5 +30,11 @@ describe("bullQueue", () => {
     const jobs = await bullQueueRaw(QUEUE.maintenance).getJobs(["waiting", "delayed", "active"]);
     expect(jobs.filter((job) => job.id === id)).toHaveLength(1);
     expect((await bullQueueRaw(QUEUE.maintenance).getJob(id))?.data).toEqual({ n: 1 });
+  });
+
+  it("keeps the default retries unless attempts and backoffMs are given", async () => {
+    expect((await bullQueueRaw(QUEUE.maintenance).getJob(id))?.opts).toMatchObject({ attempts: 5, backoff: { type: "exponential", delay: 5_000 } });
+    await queue.add("probe", {}, { jobId: retryId, attempts: 3, backoffMs: 10_000 });
+    expect((await bullQueueRaw(QUEUE.maintenance).getJob(retryId))?.opts).toMatchObject({ attempts: 3, backoff: { type: "exponential", delay: 10_000 } });
   });
 });

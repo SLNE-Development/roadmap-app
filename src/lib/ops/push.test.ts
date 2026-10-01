@@ -6,7 +6,7 @@ import { memoryQueue } from "@/lib/queue";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture, insertUser } from "@/test/fixtures";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
-import { listDevices, sendTestPush, subscribePush, unsubscribePush } from "./push";
+import { endpointHash, listDevices, sendTestPush, subscribePush, unsubscribePush } from "./push";
 
 let db: Db;
 let owner: Actor;
@@ -78,8 +78,18 @@ describe("listDevices", () => {
   it("lists the actor's devices without their keys", async () => {
     await subscribePush(db, owner, input());
     const [device] = await listDevices(db, owner);
-    expect(Object.keys(device).sort()).toEqual(["createdAt", "id", "label", "lastSuccessAt"]);
-    expect(device).toMatchObject({ label: "Chrome on Windows", lastSuccessAt: null });
+    expect(Object.keys(device).sort()).toEqual(["createdAt", "current", "id", "label", "lastSuccessAt"]);
+    expect(device).toMatchObject({ label: "Chrome on Windows", lastSuccessAt: null, current: false });
+  });
+
+  it("marks the device of the asking browser as current", async () => {
+    await subscribePush(db, owner, input());
+    await subscribePush(db, owner, input({ endpoint: "https://push.example.com/send/other", label: "Safari on iPhone" }));
+    const devices = await listDevices(db, owner, endpointHash("https://push.example.com/send/other"));
+    expect(devices.map((d) => [d.label, d.current])).toEqual([
+      ["Chrome on Windows", false],
+      ["Safari on iPhone", true],
+    ]);
   });
 });
 
@@ -98,7 +108,7 @@ describe("sendTestPush", () => {
     vi.setSystemTime(new Date("2026-10-01T10:00:40Z"));
     await sendTestPush(db, owner, id, queue);
     const minute = Math.floor(Date.parse("2026-10-01T10:00:05Z") / 60_000);
-    expect(queue.jobs).toEqual([{ jobName: "push.test", data: { subscriptionId: id }, opts: { jobId: `push-test-${id}-${minute}` } }]);
+    expect(queue.jobs).toEqual([{ jobName: "push.test", data: { subscriptionId: id }, opts: { jobId: `push-test-${id}-${minute}`, attempts: 3, backoffMs: 10_000 } }]);
   });
 
   it("refuses another user's device", async () => {

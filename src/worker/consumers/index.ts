@@ -4,5 +4,6 @@ import "../feed-prune";
 import "../jobs/retention";
 import "../jobs/discord";
 import "../jobs/dispatch";
+import "../jobs/push";
 import "./notifications";
 import "./discord";
