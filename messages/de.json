@@ -1,0 +1,15 @@
+{
+  "common": {
+    "appName": "Roadmap",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "close": "Schließen",
+    "create": "Erstellen",
+    "edit": "Bearbeiten",
+    "loading": "Wird geladen …",
+    "retry": "Erneut versuchen",
+    "search": "Suchen",
+    "somethingWentWrong": "Etwas ist schiefgelaufen."
+  }
+}

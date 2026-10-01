@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { notifyRulesSchema } from "./notify-rules-schema";
+import { LOCALES } from "@/i18n/locale";
+import { notifyRulesSchema, timeZoneSchema } from "./notify-rules-schema";
 
 /** The collapsed columns and lanes of one board; lane entries read `<laneKind>:<laneKey>`. */
 export const BOARD_COLLAPSED_SCHEMA = z.object({ columns: z.array(z.string()).max(50), lanes: z.array(z.string()).max(100) });
@@ -13,6 +14,8 @@ export const PREF_SCHEMAS: Record<string, z.ZodType> = {
   "board.collapsed": BOARD_COLLAPSED_SCHEMA,
   "mywork.seenAt": z.string().datetime(),
   "notify.rules": notifyRulesSchema,
+  locale: z.enum(LOCALES),
+  timeZone: timeZoneSchema,
 };
 
 /**

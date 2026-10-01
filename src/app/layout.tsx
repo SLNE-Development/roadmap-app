@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getNow, getTimeZone } from "next-intl/server";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -45,22 +47,25 @@ export const viewport: Viewport = {
 };
 
 /**
- * Root layout: fonts, theme (system light/dark), tRPC with React Query, tooltips and toasts around every page.
+ * Root layout: fonts, language and time zone (next-intl), theme (system light/dark), tRPC with React Query, tooltips and toasts around every page.
  *
  * @param props.children the page content
  */
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [locale, timeZone, now] = await Promise.all([getLocale(), getTimeZone(), getNow()]);
   return (
-    <html lang="en" suppressHydrationWarning className={cn("antialiased font-sans", sans.variable, display.variable, mono.variable)}>
+    <html lang={locale} suppressHydrationWarning className={cn("antialiased font-sans", sans.variable, display.variable, mono.variable)}>
       <body className="min-h-dvh bg-background text-foreground">
-        <ThemeProvider>
-          <TRPCReactProvider>
-            <TooltipProvider>
-              {children}
-              <Toaster richColors mobileOffset={{ bottom: 88 }} />
-            </TooltipProvider>
-          </TRPCReactProvider>
-        </ThemeProvider>
+        <NextIntlClientProvider locale={locale} timeZone={timeZone} now={now}>
+          <ThemeProvider>
+            <TRPCReactProvider>
+              <TooltipProvider>
+                {children}
+                <Toaster richColors mobileOffset={{ bottom: 88 }} />
+              </TooltipProvider>
+            </TRPCReactProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );
