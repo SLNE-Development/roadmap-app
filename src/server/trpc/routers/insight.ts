@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { getProgress, progressInput } from "@/lib/ops/insight";
+import { columnTimesInput, getColumnTimes, getProgress, progressInput } from "@/lib/ops/insight";
 import { protectedProcedure, router } from "../init";
 import { P } from "./shared";
 
@@ -10,4 +10,8 @@ export const insightRouter = router({
   progress: protectedProcedure
     .input(z.object({ ...P, filter: progressInput.optional() }))
     .query(({ ctx, input: { project, filter } }) => getProgress(ctx.db, ctx.actor, project, filter ?? {})),
+  /** Time each system spent in each column category, and the median per category. */
+  columnTimes: protectedProcedure
+    .input(z.object({ ...P, filter: columnTimesInput.optional() }))
+    .query(({ ctx, input: { project, filter } }) => getColumnTimes(ctx.db, ctx.actor, project, filter ?? {})),
 });

@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { board, changeLog, system, task } from "@/db/schema";
+import { board, boardColumn, changeLog, COLUMN_CATEGORIES, system, task, type ColumnCategory } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { dayKeys } from "@/lib/chart/scale";
+import { timeInCategory, type TimeCategory } from "@/lib/insight/column-time";
 import { projectFinish, replayTasks, sampleBurnup, type BurnupPoint, type Projection, type TaskLogEntry } from "@/lib/insight/burnup";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
@@ -87,4 +88,87 @@ export async function getProgress(db: Executor, actor: Actor, slug: string, raw:
     scopeAdded: last ? last.scope - points[0].scope : 0,
     totals: { scope: last?.scope ?? 0, done: last?.done ?? 0 },
   };
+}
+
+/** Filter of {@link getColumnTimes}: `board` is a slug. */
+export const columnTimesInput = z.object({ board: z.string().optional() });
+
+/** How long each system has spent in each column category, and the typical time per category. */
+export interface ColumnTimes {
+  /** Longest in its current column first. */
+  systems: { slug: string; title: string; current: ColumnCategory; currentSinceMs: number; byCategory: Record<TimeCategory, number> }[];
+  /** Median milliseconds over the systems that spent any time in the category; `null` when none did. */
+  medians: Record<ColumnCategory, number | null>;
+}
+
+/**
+ * Measures the time every system spent in each column category, from its
+ * column moves in the change log (`system` / `column`, new value
+ * `"<Board name> / <Column name>"`).
+ *
+ * A move resolves to a category by exact match against the project's current
+ * boards and columns. Renaming or deleting a column or board afterwards makes
+ * the older moves count as `unknown`. Archived systems are left out.
+ *
+ * @param now the end of the measured time, injectable for tests
+ * @throws NotFoundError if the project is unknown or the actor is not a member
+ */
+export async function getColumnTimes(db: Executor, actor: Actor, slug: string, raw: z.input<typeof columnTimesInput>, now: Date = new Date()): Promise<ColumnTimes> {
+  const { project } = await projectAccess(db, actor, slug, "viewer");
+  const filter = columnTimesInput.parse(raw);
+
+  const columns = await db
+    .select({ board: board.name, column: boardColumn.name, category: boardColumn.category })
+    .from(boardColumn)
+    .innerJoin(board, eq(board.id, boardColumn.boardId))
+    .where(eq(board.projectId, project.id));
+  const categoryOf = new Map(columns.map((c) => [`${c.board} / ${c.column}`, c.category]));
+
+  const rows = await db
+    .select({ id: system.id, slug: system.slug, title: system.title, createdAt: system.createdAt, boardSlug: board.slug, current: boardColumn.category })
+    .from(system)
+    .innerJoin(board, eq(board.id, system.boardId))
+    .innerJoin(boardColumn, eq(boardColumn.id, system.columnId))
+    .where(and(eq(system.projectId, project.id), isNull(system.archivedAt)));
+  const wanted = rows.filter((r) => !filter.board || r.boardSlug === filter.board);
+
+  const log = wanted.length
+    ? await db
+        .select({ systemId: changeLog.entityId, newValue: changeLog.newValue, createdAt: changeLog.createdAt })
+        .from(changeLog)
+        .where(and(eq(changeLog.projectId, project.id), eq(changeLog.entity, "system"), eq(changeLog.field, "column")))
+        .orderBy(asc(changeLog.id))
+    : [];
+  const movesOf = new Map<string, { at: Date; to: TimeCategory }[]>();
+  for (const r of log) {
+    const list = movesOf.get(r.systemId) ?? [];
+    list.push({ at: r.createdAt, to: categoryOf.get(r.newValue ?? "") ?? "unknown" });
+    movesOf.set(r.systemId, list);
+  }
+
+  const systems = wanted.map((r) => {
+    const moves = movesOf.get(r.id) ?? [];
+    const since = moves.at(-1)?.at ?? r.createdAt;
+    return {
+      slug: r.slug,
+      title: r.title,
+      current: r.current,
+      currentSinceMs: Math.max(0, now.getTime() - since.getTime()),
+      byCategory: timeInCategory({ createdAt: r.createdAt, moves, now }),
+    };
+  });
+  systems.sort((a, b) => b.currentSinceMs - a.currentSinceMs);
+
+  const medians = Object.fromEntries(
+    COLUMN_CATEGORIES.map((c) => [c, median(systems.map((s) => s.byCategory[c]).filter((ms) => ms > 0))]),
+  ) as ColumnTimes["medians"];
+  return { systems, medians };
+}
+
+/** The median of the values, or `null` for none. */
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
