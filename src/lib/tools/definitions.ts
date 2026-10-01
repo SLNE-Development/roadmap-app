@@ -30,6 +30,7 @@ import {
 } from "@/lib/ops/planning";
 import { createProject, createProjectInput, getProject, listProjects, updateProject, updateProjectInput } from "@/lib/ops/projects";
 import { addQuestion, addQuestionInput, answerQuestion, answerQuestionInput, listQuestions } from "@/lib/ops/questions";
+import { similarSystems } from "@/lib/ops/similar";
 import {
   createDomain,
   createPhase,
@@ -278,12 +279,17 @@ register(
   }),
   defineTool({
     name: "create_system",
-    description: "Create a system on a board (default: the first). It starts in the planning column; run the surf-roadmap:plan-system interview next.",
+    description:
+      "Create a system on a board (default: the first); it starts in the planning column, so run the surf-roadmap:plan-system interview next. The result also lists `similar` existing systems.",
     input: { ...P, ...createSystemInput.shape },
     write: true,
     method: "POST",
     path: "/projects/:project/systems",
-    run: (db, actor, { project, ...input }) => createSystem(db, actor, project, input),
+    run: async (db, actor, { project, ...input }) => {
+      // Looked up before the insert, so the new system never lists itself.
+      const similar = input.title.trim().length >= 3 ? await similarSystems(db, actor, project, { title: input.title }) : [];
+      return { ...(await createSystem(db, actor, project, input)), similar };
+    },
   }),
   defineTool({
     name: "update_system",

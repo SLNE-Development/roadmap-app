@@ -1,9 +1,9 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,6 +13,16 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/slug";
 import { useTRPC } from "@/trpc/client";
+
+/** `value`, delayed by `ms` after the last change. */
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return debounced;
+}
 
 /**
  * Button and dialog creating a system in a board's planning column, then
@@ -60,6 +70,13 @@ export function NewSystemDialog({
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [summary, setSummary] = useState("");
+  const debouncedTitle = useDebouncedValue(title.trim(), 300);
+  const similar = useQuery({
+    ...trpc.systems.similar.queryOptions({ project: projectSlug, title: debouncedTitle }),
+    enabled: open && debouncedTitle.length >= 3,
+  });
+  // Hidden while the title is too short, and while it is ahead of the debounced query.
+  const similarSystems = title.trim() === debouncedTitle && debouncedTitle.length >= 3 ? (similar.data ?? []) : [];
   const initialBoard = defaultBoard ?? boards[0]?.slug ?? "";
   const [board, setBoard] = useState(initialBoard);
   // Preselect the default board each time the dialog opens (state adjusted during render).
@@ -108,6 +125,20 @@ export function NewSystemDialog({
                   if (!slugEdited) setSlug(slugify(e.target.value));
                 }}
               />
+              {similarSystems.length > 0 && (
+                <FieldDescription>
+                  Similar:{" "}
+                  {similarSystems.map((s, i) => (
+                    <span key={s.slug}>
+                      {i > 0 && ", "}
+                      <a href={`/p/${projectSlug}/systems/${s.slug}`} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                        {s.title}
+                      </a>
+                      {s.archived && " (archived)"}
+                    </span>
+                  ))}
+                </FieldDescription>
+              )}
             </Field>
             <Field>
               <FieldLabel htmlFor="system-slug">Slug</FieldLabel>

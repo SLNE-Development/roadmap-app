@@ -4,6 +4,7 @@ import { setSystemArchived } from "@/lib/ops/archive";
 import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { getProject } from "@/lib/ops/projects";
+import { similarSystems, similarSystemsInput } from "@/lib/ops/similar";
 import { createSystem, createSystemInput, listSystems, moveSystem, moveSystemInput, systemFilter, updateSystem, updateSystemInput } from "@/lib/ops/systems";
 import { latestUpdates } from "@/lib/ops/updates";
 import { protectedProcedure, router } from "../init";
@@ -26,6 +27,11 @@ export const systemsRouter = router({
     const { project } = await getProject(ctx.db, ctx.actor, input.project);
     return latestUpdates(ctx.db, project.id);
   }),
+
+  /** Existing systems whose title resembles the given one, best match first; archived ones are flagged. */
+  similar: protectedProcedure
+    .input(z.object({ ...P, ...similarSystemsInput.shape }))
+    .query(({ ctx, input }) => similarSystems(ctx.db, ctx.actor, input.project, { title: input.title, limit: input.limit })),
 
   /** Creates a system in planning and returns its slug. */
   create: protectedProcedure
