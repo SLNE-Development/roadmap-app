@@ -2,15 +2,17 @@
 
 import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AppSidebar, type SidebarActor, type SidebarProject, type SidebarProjectLink } from "./app-sidebar";
 import { CommandMenu, openCommandMenu } from "./command-menu";
+import { ShortcutsDialog } from "./shortcuts-dialog";
 import type { SidebarView } from "./sidebar-views";
+import { useShortcuts } from "./use-shortcuts";
 
 /**
  * The signed-in frame: a sticky sidebar from 1024px up, and below that a top
- * bar whose menu button opens the same sidebar in a sheet. Also mounts ⌘K.
+ * bar whose menu button opens the same sidebar in a sheet. Also mounts ⌘K and the keyboard shortcuts.
  */
 export function AppShell({
   actor,
@@ -28,6 +30,9 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const showHelp = useCallback(() => setHelpOpen(true), []);
+  useShortcuts({ projectSlug: project?.slug, firstBoardSlug: project?.boards[0]?.slug, canEdit: project?.role !== "viewer", onHelp: showHelp });
   const pathname = usePathname();
   const [menuPath, setMenuPath] = useState(pathname);
   // Close the mobile menu after navigating (adjusting state while rendering, not in an effect).
@@ -65,7 +70,9 @@ export function AppShell({
           project: project && { slug: project.slug, name: project.name, boards: project.boards },
           systems,
         }}
+        onShowShortcuts={showHelp}
       />
+      <ShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
   );
 }

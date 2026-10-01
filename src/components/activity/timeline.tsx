@@ -131,7 +131,7 @@ function SystemLink({ projectSlug, slug, title }: { projectSlug: string; slug: s
 function TimelineRow({ item, projectSlug, hideSystem }: { item: TimelineItem; projectSlug: string; hideSystem: boolean }) {
   const { authorName: name, agent } = item;
   return (
-    <li className="flex gap-3 border-b px-4 py-3 last:border-b-0">
+    <li tabIndex={0} data-nav-item className="flex gap-3 border-b px-4 py-3 outline-none last:border-b-0 focus-visible:bg-muted/50">
       <PersonAvatar name={name} size="md" />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[13.5px] leading-[1.45]">

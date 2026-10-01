@@ -115,6 +115,7 @@ export function SystemsTable({
                   {s.archivedAt && <span className="w-fit bg-muted px-1.5 py-0.5 text-[11.5px] font-semibold text-muted-foreground">Archived</span>}
                   <Link
                     href={`/p/${projectSlug}/systems/${s.slug}`}
+                    data-nav-item
                     className="truncate font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
                   >
                     {s.title}

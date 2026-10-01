@@ -57,6 +57,7 @@ export function AdrList({ projectSlug, tabs, rows }: { projectSlug: string; tabs
             <li key={a.number} className="border-b last:border-b-0">
               <Link
                 href={`/p/${projectSlug}/adrs/${a.number}`}
+                data-nav-item
                 className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted sm:grid-cols-[52px_minmax(0,1fr)_110px_80px] sm:px-[18px]"
               >
                 <span className="font-mono text-[12.5px] text-muted-foreground">{a.label}</span>

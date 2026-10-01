@@ -79,6 +79,12 @@ export function NewSystemDialog({
   const similarSystems = title.trim() === debouncedTitle && debouncedTitle.length >= 3 ? (similar.data ?? []) : [];
   const initialBoard = defaultBoard ?? boards[0]?.slug ?? "";
   const [board, setBoard] = useState(initialBoard);
+  // The "c" shortcut asks the dialog on the page to open.
+  useEffect(() => {
+    const onNew = () => setOpen(true);
+    window.addEventListener("roadmap:new-system", onNew);
+    return () => window.removeEventListener("roadmap:new-system", onNew);
+  });
   // Preselect the default board each time the dialog opens (state adjusted during render).
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {

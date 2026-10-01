@@ -80,6 +80,8 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
 
   return (
     <article
+      tabIndex={0}
+      data-nav-item
       aria-busy={pending}
       className={cn("flex flex-col border bg-card px-4 sm:px-5", needsAnswer ? "gap-3 py-[18px] focus-within:border-primary" : "gap-2.5 py-4")}
     >

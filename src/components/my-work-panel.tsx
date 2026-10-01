@@ -40,6 +40,7 @@ function Rows({ items }: { items: MyWorkItem[] }) {
           <li key={item.key}>
             <Link
               href={item.href}
+              data-nav-item
               className="flex items-start gap-3.5 border-t px-4 py-3.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none sm:px-5"
             >
               <span aria-hidden className={cn("flex size-[30px] shrink-0 items-center justify-center", kind.className)}>

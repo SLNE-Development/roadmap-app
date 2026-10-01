@@ -1,10 +1,11 @@
 "use client";
 
-import { Activity, CircleHelp, FolderKanban, KanbanSquare, KeyRound, LayoutGrid, List, Map as MapIcon, Moon, Scale, SlidersHorizontal, Users } from "lucide-react";
+import { Activity, CircleHelp, FolderKanban, KanbanSquare, KeyRound, LayoutGrid, List, Map as MapIcon, Keyboard, Moon, Scale, SlidersHorizontal, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
+import { Kbd } from "@/components/ui/kbd";
 
 /** Browser event that opens the command menu from anywhere, e.g. the sidebar search button. */
 const OPEN_EVENT = "roadmap:open-command-menu";
@@ -26,7 +27,7 @@ export interface CommandMenuData {
  * The ⌘K / Ctrl+K palette: jump to a section, board or system of the current
  * project, another project, or an account page, and switch the theme.
  */
-export function CommandMenu({ data }: { data: CommandMenuData }) {
+export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; onShowShortcuts: () => void }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
@@ -53,12 +54,12 @@ export function CommandMenu({ data }: { data: CommandMenuData }) {
   };
   const base = data.project ? `/p/${data.project.slug}` : "";
   const sections = [
-    { href: base, label: "Overview", icon: LayoutGrid },
-    { href: `${base}/systems`, label: "Systems", icon: List },
-    { href: `${base}/roadmap`, label: "Roadmap", icon: MapIcon },
-    { href: `${base}/adrs`, label: "Decisions", icon: Scale },
-    { href: `${base}/questions`, label: "Questions", icon: CircleHelp },
-    { href: `${base}/activity`, label: "Activity", icon: Activity },
+    { href: base, label: "Overview", icon: LayoutGrid, key: "o" },
+    { href: `${base}/systems`, label: "Systems", icon: List, key: "s" },
+    { href: `${base}/roadmap`, label: "Roadmap", icon: MapIcon, key: "r" },
+    { href: `${base}/adrs`, label: "Decisions", icon: Scale, key: "d" },
+    { href: `${base}/questions`, label: "Questions", icon: CircleHelp, key: "q" },
+    { href: `${base}/activity`, label: "Activity", icon: Activity, key: "a" },
     { href: `${base}/settings`, label: "Project settings", icon: SlidersHorizontal },
   ];
 
@@ -73,6 +74,12 @@ export function CommandMenu({ data }: { data: CommandMenuData }) {
             {sections.map((s) => (
               <CommandItem key={s.href} value={`${data.project?.name} ${s.label}`} onSelect={() => go(s.href)}>
                 <s.icon /> {s.label}
+                {s.key && (
+                  <CommandShortcut className="flex gap-1">
+                    <Kbd>g</Kbd>
+                    <Kbd>{s.key}</Kbd>
+                  </CommandShortcut>
+                )}
               </CommandItem>
             ))}
             {data.project.boards.map((b) => (
@@ -115,6 +122,20 @@ export function CommandMenu({ data }: { data: CommandMenuData }) {
             }}
           >
             <Moon /> Toggle light and dark theme
+          </CommandItem>
+        </CommandGroup>
+        <CommandGroup heading="Keyboard shortcuts">
+          <CommandItem
+            value="keyboard shortcuts help"
+            onSelect={() => {
+              setOpen(false);
+              onShowShortcuts();
+            }}
+          >
+            <Keyboard /> Keyboard shortcuts
+            <CommandShortcut>
+              <Kbd>?</Kbd>
+            </CommandShortcut>
           </CommandItem>
         </CommandGroup>
       </CommandList>
