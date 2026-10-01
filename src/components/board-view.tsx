@@ -802,6 +802,11 @@ function SystemCard({
           const part = cardField(field);
           return part ? <Fragment key={field}>{part}</Fragment> : null;
         })}
+        {card.failingChecks && (
+          <span className="bg-cat-blocked-soft px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-cat-blocked" title="An open pull request has failing checks">
+            checks
+          </span>
+        )}
       </div>
     </article>
   );

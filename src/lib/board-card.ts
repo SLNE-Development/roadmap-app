@@ -28,4 +28,6 @@ export interface BoardCardView {
   fields: Record<string, string>;
   /** Summary of the system's newest update; shown as the reason while it is blocked. */
   latestSummary: string | null;
+  /** An open pull request of the system has failing checks. */
+  failingChecks?: boolean;
 }

@@ -73,7 +73,7 @@ function RulesForm({
   onDone: () => void;
 }) {
   const trpc = useTRPC();
-  const { data: rules } = useQuery(trpc.gates.rules.queryOptions());
+  const { data: rules } = useQuery(trpc.gates.rules.queryOptions({ project: projectSlug, include: column.rules.map((r) => r.rule) }));
   const save = useMutation(trpc.boards.setColumnRules.mutationOptions({ onSuccess: () => (toast.success("Rules saved"), onDone()) }));
   // Chosen rules by id; the value is the parameter, null for rules without one.
   const [chosen, setChosen] = useState(() => new Map<string, number | null>(column.rules.map((r) => [r.rule, r.param])));
@@ -107,6 +107,7 @@ function RulesForm({
               />
               <label htmlFor={`rule-${rule.id}`} className="flex-1 text-[13.5px]">
                 {rule.label}
+                {rule.note && <span className="ml-2 text-xs text-muted-foreground">{rule.note}</span>}
               </label>
               {rule.param && on && (
                 <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -136,7 +137,11 @@ function RulesForm({
                 project: projectSlug,
                 board: boardSlug,
                 column: column.id,
-                rules: (rules ?? []).filter((r) => chosen.has(r.id)).map((r) => ({ rule: r.id, param: chosen.get(r.id) ?? null })),
+                rules: [
+                  ...(rules ?? []).filter((r) => chosen.has(r.id)).map((r) => r.id),
+                  // A chosen rule missing from the list (stale or hidden) is kept, not dropped.
+                  ...[...chosen.keys()].filter((id) => !(rules ?? []).some((r) => r.id === id)),
+                ].map((id) => ({ rule: id, param: chosen.get(id) ?? null })),
               })
             }
           >

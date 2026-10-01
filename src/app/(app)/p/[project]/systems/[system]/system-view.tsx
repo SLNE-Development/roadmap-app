@@ -10,6 +10,7 @@ import { ArchivedBanner } from "@/components/archive-banner";
 import { PriorityTag } from "@/components/chips";
 import { DocumentDiff } from "@/components/document-diff";
 import { DocumentSection, SpecPreview } from "@/components/document-section";
+import { CodeLinks } from "@/components/github/code-links";
 import { type StepStates } from "@/components/markdown";
 import { Page, PageHeader } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
@@ -257,7 +258,9 @@ export function SystemView({
               canEdit={canEdit}
               planningComplete={o.planning.complete}
               category={o.column.category}
+              code={o.code}
             />
+            <CodeLinks links={o.code} settingsHref={o.role === "owner" ? `/p/${slug}/settings/github` : undefined} />
             <SpecPreview doc={o.spec} href={tabHref(base, "spec")} />
           </div>
           <aside aria-label="About this system" className="flex min-w-0 flex-col gap-4">

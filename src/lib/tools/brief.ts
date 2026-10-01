@@ -26,7 +26,7 @@ export interface BriefUpdate {
 }
 
 /** {@link SystemOverview} with document metadata instead of bodies and only the newest updates. */
-export type BriefSystemOverview = Omit<SystemOverview, "spec" | "plan" | "updates"> & {
+export type BriefSystemOverview = Omit<SystemOverview, "spec" | "plan" | "updates" | "code"> & {
   spec: DocumentMeta | null;
   plan: DocumentMeta | null;
   updates: BriefUpdate[];
@@ -42,8 +42,9 @@ function documentMeta(d: DocumentView | null): DocumentMeta | null {
   return d && { version: d.version, createdAt: d.createdAt, authorName: d.authorName, agent: d.agent, chars: d.body.length };
 }
 
-/** Replaces spec and plan bodies by their metadata and keeps the newest 3 updates. */
-export function briefOverview(o: SystemOverview): BriefSystemOverview {
+/** Replaces spec and plan bodies by their metadata, keeps the newest 3 updates and leaves out the code links. */
+export function briefOverview({ code, ...o }: SystemOverview): BriefSystemOverview {
+  void code;
   return {
     ...o,
     spec: documentMeta(o.spec),

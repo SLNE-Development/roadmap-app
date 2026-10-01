@@ -229,7 +229,7 @@ describe("setColumnRules", () => {
       setColumnRules(db, actor, slug, "development", { column, rules });
     await expect(set([{ rule: "nope" }])).rejects.toMatchObject({
       status: 400,
-      message: "Unknown rule nope. Known rules: all-tasks-done, no-open-questions, spec-exists, plan-covers-tasks, update-within-days, adr-linked.",
+      message: "Unknown rule nope. Known rules: all-tasks-done, no-open-questions, spec-exists, plan-covers-tasks, update-within-days, adr-linked, pr-open, pr-merged.",
     });
     await expect(set([{ rule: "update-within-days", param: 61 }])).rejects.toBeInstanceOf(InvalidError);
     await expect(set([{ rule: "update-within-days", param: 0 }])).rejects.toBeInstanceOf(InvalidError);

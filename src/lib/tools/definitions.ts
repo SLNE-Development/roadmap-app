@@ -335,7 +335,8 @@ register(
     path: "/projects/:project/systems/:system",
     run: async (db, actor, i) => {
       const overview = await getSystemOverview(db, actor, i.project, i.system);
-      return i.brief === false ? overview : briefOverview(overview);
+      if (i.brief !== false) return briefOverview(overview);
+      return { ...overview, code: overview.code.map((c) => ({ kind: c.kind, number: c.number, title: c.title, state: c.state, checks: c.checks, taskId: c.taskId, url: c.url })) };
     },
   }),
   defineTool({

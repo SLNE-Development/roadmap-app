@@ -21,6 +21,8 @@ export interface GateRule {
   label: (param: number | null) => string;
   /** The rule's numeric parameter, when it takes one. */
   param?: { min: number; max: number; default: number; unit: string };
+  /** Set for rules that only make sense with a linked GitHub repository: the editor hides them without one and adds a note. */
+  needsGithub?: boolean;
   /** Returns, per subject id, why the rule is unmet, or null when met. One query for all subjects. */
   check: (tx: Executor, subjects: GateSubject[], param: number | null, now: Date) => Promise<Map<string, string | null>>;
 }
@@ -223,9 +225,17 @@ export function rulesSummary(rules: ColumnRuleRow[]): string {
   return rules.map((r) => (r.param === null ? r.rule : `${r.rule}(${r.param})`)).join(", ");
 }
 
+/** The note the rules editor shows beside rules that need GitHub. */
+export const GITHUB_RULE_NOTE = "needs a linked GitHub repository";
+
 /** The registered rules as the column rules editor lists them. */
-export function listGateRules(): { id: string; label: string; param?: GateRule["param"] }[] {
-  return [...GATE_RULES.values()].map((r) => ({ id: r.id, label: r.label(null), ...(r.param ? { param: r.param } : {}) }));
+export function listGateRules(): { id: string; label: string; param?: GateRule["param"]; needsGithub?: boolean; note?: string }[] {
+  return [...GATE_RULES.values()].map((r) => ({
+    id: r.id,
+    label: r.label(null),
+    ...(r.param ? { param: r.param } : {}),
+    ...(r.needsGithub ? { needsGithub: true, note: GITHUB_RULE_NOTE } : {}),
+  }));
 }
 
 /**

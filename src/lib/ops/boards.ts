@@ -8,6 +8,7 @@ import { projectAccess, slugSchema } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, isUniqueViolation } from "./errors";
 import { fieldsOf } from "./fields";
+import "./github-links";
 import { columnRulesOf, GATE_RULES, rulesSummary, type ColumnRuleRow } from "./gates";
 import { logChange } from "./log";
 import { findBoard, loadBoards, lockProject, type BoardColumnRow, type BoardRow, type BoardWithColumns } from "./lookup";

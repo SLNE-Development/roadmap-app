@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { changeLog, notification } from "@/db/schema";
+import { changeLog, githubRepo, notification } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { createBoard, setColumnRules } from "./boards";
 import { ConflictError, ForbiddenError, messageOf, statusOf } from "./errors";
 import { gateMessage } from "./gates";
+import { upsertCodeLink } from "./github-links";
 import { addPlanningRound, answerPlanningItems, reopenPlanningArea } from "./planning";
 import { addQuestion, setQuestionResolved } from "./questions";
 import { addTask, updateTask } from "./tasks";
@@ -58,6 +59,22 @@ describe("createSystem", () => {
 });
 
 describe("listSystems", () => {
+  it("flags systems with an open pull request whose checks fail", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const a = await createSystem(db, owner, slug, { slug: "a", title: "A" });
+    const b = await createSystem(db, owner, slug, { slug: "b", title: "B" });
+    const c = await createSystem(db, owner, slug, { slug: "c", title: "C" });
+    await db.insert(githubRepo).values({ id: "r1", projectId, fullName: "Org/App", fullNameKey: "org/app", mode: "app" });
+    const link = (systemId: string, number: number, state: "open" | "closed", checks: "failure" | "success") =>
+      upsertCodeLink(db, { projectId, systemId, taskId: null, repoId: "r1", kind: "pr", number, sha: "abc", title: "PR", url: "https://github.com/Org/App/pull/1", state, checks, closes: false, authorLogin: null });
+    await link(a.id, 1, "open", "failure");
+    await link(b.id, 2, "closed", "failure");
+    await link(c.id, 3, "open", "success");
+    const flags = Object.fromEntries((await listSystems(db, owner, slug)).map((s) => [s.slug, s.failingChecks]));
+    expect(flags).toEqual({ a: true, b: false, c: false });
+  });
+
   it("filters by board, column category and owner", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);

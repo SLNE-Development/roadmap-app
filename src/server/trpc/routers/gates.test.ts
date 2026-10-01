@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { boardColumn, system } from "@/db/schema";
+import { boardColumn, githubRepo, system } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { memoryKv } from "@/lib/kv";
 import type { Actor } from "@/lib/ops/actor";
@@ -56,13 +56,32 @@ describe("gates router", () => {
 
   it("lists the rules with their parameters", async () => {
     const db = await createTestDb();
-    const owner = await insertUser(db);
-    const rules = await caller(db, owner).gates.rules();
+    const { owner, slug } = await createProjectFixture(db);
+    const rules = await caller(db, owner).gates.rules({ project: slug });
     expect(rules).toContainEqual({ id: "all-tasks-done", label: "All tasks done" });
     expect(rules).toContainEqual({
       id: "update-within-days",
       label: "Progress update in the last 3 days",
       param: { min: 1, max: 60, default: 3, unit: "days" },
     });
+  });
+
+  it("hides the pull request rules until a repository is linked, then notes what they need", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const ids = async () => (await caller(db, owner).gates.rules({ project: slug })).map((r) => r.id);
+    expect(await ids()).not.toContain("pr-open");
+    await db.insert(githubRepo).values({ id: "r1", projectId, fullName: "Org/App", fullNameKey: "org/app", mode: "webhook" });
+    const rules = await caller(db, owner).gates.rules({ project: slug });
+    expect(rules).toContainEqual({ id: "pr-open", label: "An open or merged pull request", needsGithub: true, note: "needs a linked GitHub repository" });
+    expect(rules.map((r) => r.id)).toContain("pr-merged");
+  });
+
+  it("keeps a rule the column already has in the list even without GitHub", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const rules = await caller(db, owner).gates.rules({ project: slug, include: ["pr-open"] });
+    expect(rules.map((r) => r.id)).toContain("pr-open");
+    expect(rules.map((r) => r.id)).not.toContain("pr-merged");
   });
 });

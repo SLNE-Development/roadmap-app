@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MentionTextarea } from "@/components/mentions/mention-textarea";
 import { TASK_ESTIMATES, TASK_STATES, type ColumnCategory, type TaskEstimate, type TaskState } from "@/db/schema";
 import { formatAdrNumber } from "@/lib/adr-number";
+import type { CodeLinkView } from "@/lib/ops/github-links";
 import type { TaskItem } from "@/lib/ops/systems";
 import { rollup } from "@/lib/rollup";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,13 @@ const BOX_OPEN: Record<Exclude<TaskState, "done">, string> = {
   todo: "border-cat-todo text-cat-todo",
   doing: "border-cat-active text-cat-active",
   blocked: "border-cat-blocked text-cat-blocked",
+};
+
+/** Chip colours of a linked pull request by state (literal strings for Tailwind). */
+const CODE_CHIP: Record<CodeLinkView["state"], string> = {
+  open: "bg-cat-active-soft text-cat-active",
+  merged: "bg-cat-done-soft text-cat-done",
+  closed: "bg-cat-todo-soft text-cat-todo",
 };
 
 /** The glyph inside a state box: a check, clock hands, a dash or nothing. */
@@ -260,6 +268,7 @@ function TaskRow({
   canEdit,
   planningComplete,
   order,
+  code,
 }: {
   task: TaskItem;
   projectSlug: string;
@@ -268,6 +277,8 @@ function TaskRow({
   canEdit: boolean;
   planningComplete: boolean;
   order: RowOrder;
+  /** The pull requests linked to this task. */
+  code: CodeLinkView[];
 }) {
   const trpc = useTRPC();
   const update = useMutation(trpc.tasks.update.mutationOptions());
@@ -445,6 +456,22 @@ function TaskRow({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={cn("text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
           {task.state === "blocked" && task.blockedReason && <span className="text-xs text-cat-blocked">{task.blockedReason}</span>}
+          {code.length > 0 && (
+            <span className="mt-0.5 flex flex-wrap gap-1.5">
+              {code.map((l) => (
+                <a
+                  key={l.url}
+                  href={l.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn("inline-flex items-center gap-1 px-1.5 font-mono text-[11px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", CODE_CHIP[l.state])}
+                >
+                  PR #{l.number}
+                  {l.checks === "failure" && <span role="img" aria-label="Checks failing" title="Checks failing" className="size-1.5 rounded-full bg-cat-blocked" />}
+                </a>
+              ))}
+            </span>
+          )}
           {task.adrs.length > 0 && (
             <span className="mt-0.5 flex flex-wrap gap-1.5">
               {task.adrs.map((n) => (
@@ -561,6 +588,7 @@ export function TaskList({
   canEdit,
   planningComplete,
   category,
+  code = [],
 }: {
   projectSlug: string;
   systemSlug: string;
@@ -569,6 +597,8 @@ export function TaskList({
   canEdit: boolean;
   planningComplete: boolean;
   category: ColumnCategory;
+  /** The system's code links; pull requests of a task get a chip on its row. */
+  code?: CodeLinkView[];
 }) {
   const trpc = useTRPC();
   const add = useMutation(trpc.tasks.add.mutationOptions());
@@ -644,6 +674,7 @@ export function TaskList({
             members={members}
             canEdit={canEdit}
             planningComplete={planningComplete}
+            code={code.filter((l) => l.kind === "pr" && l.taskId === t.id)}
             order={{
               canUp: i > 0 && !ordering,
               canDown: i < visible.length - 1 && !ordering,

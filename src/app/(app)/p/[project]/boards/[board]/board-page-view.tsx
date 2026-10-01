@@ -69,6 +69,7 @@ export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardS
           blockedBy: s.blockedBy,
           fields: s.fields,
           latestSummary: latest.get(s.id)?.summary ?? null,
+          failingChecks: s.failingChecks,
         }))}
         cardFields={normalizeCardFields(board.cardFields, customFields.map((f) => f.key))}
         customFields={customFields.map((f) => ({ key: f.key, name: f.name }))}

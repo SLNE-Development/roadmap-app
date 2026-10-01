@@ -4,6 +4,7 @@ import type { Db, Executor } from "@/db/types";
 import type { Refs } from "@/lib/github/refs";
 import { newId } from "@/lib/id";
 import type { Actor } from "./actor";
+import { registerGateRule, type GateSubject } from "./gates";
 import { systemAccess } from "./lookup";
 
 /** A pull request or commit to link to one task or system; `checks` left undefined keeps the stored value. */
@@ -125,14 +126,12 @@ export async function resolveRefs(
   };
 }
 
-/**
- * Lists the code links of a system, newest first.
- *
- * @throws NotFoundError if the actor cannot see the project or the system does not exist
- */
-export async function linksForSystem(db: Db, actor: Actor, projectSlug: string, systemSlug: string): Promise<CodeLinkView[]> {
-  const { system: row } = await systemAccess(db, actor, projectSlug, systemSlug, "viewer");
-  return db
+/** Most code links a system overview carries. */
+export const OVERVIEW_CODE_LIMIT = 20;
+
+/** The code links of a system, newest first, without an access check. */
+export async function codeLinksOf(db: Executor, systemId: string, limit?: number): Promise<CodeLinkView[]> {
+  const query = db
     .select({
       kind: codeLink.kind,
       number: codeLink.number,
@@ -152,6 +151,52 @@ export async function linksForSystem(db: Db, actor: Actor, projectSlug: string, 
     // GitHub logins are case-insensitive.
     .leftJoin(githubAccount, sql`lower(${githubAccount.login}) = lower(${codeLink.authorLogin})`)
     .leftJoin(user, eq(user.id, githubAccount.userId))
-    .where(eq(codeLink.systemId, row.id))
+    .where(eq(codeLink.systemId, systemId))
     .orderBy(desc(codeLink.updatedAt), desc(codeLink.id));
+  return limit === undefined ? query : query.limit(limit);
 }
+
+/**
+ * Lists the code links of a system, newest first.
+ *
+ * @throws NotFoundError if the actor cannot see the project or the system does not exist
+ */
+export async function linksForSystem(db: Db, actor: Actor, projectSlug: string, systemSlug: string): Promise<CodeLinkView[]> {
+  const { system: row } = await systemAccess(db, actor, projectSlug, systemSlug, "viewer");
+  return codeLinksOf(db, row.id);
+}
+
+/** The ids of the project's systems with an open pull request whose checks fail. */
+export async function systemsWithFailingChecks(db: Executor, projectId: string): Promise<Set<string>> {
+  const rows = await db
+    .selectDistinct({ systemId: codeLink.systemId })
+    .from(codeLink)
+    .where(and(eq(codeLink.projectId, projectId), eq(codeLink.kind, "pr"), eq(codeLink.state, "open"), eq(codeLink.checks, "failure")));
+  return new Set(rows.map((r) => r.systemId));
+}
+
+/** Builds the check of a pull request rule: met when a `pr` link of the system is in one of `states`. */
+function pullRequestCheck(states: ("open" | "merged")[], missing: string) {
+  return async (tx: Executor, subjects: GateSubject[]) => {
+    const rows = await tx
+      .selectDistinct({ systemId: codeLink.systemId })
+      .from(codeLink)
+      .where(and(inArray(codeLink.systemId, subjects.map((s) => s.id)), eq(codeLink.kind, "pr"), inArray(codeLink.state, states)));
+    const met = new Set(rows.map((r) => r.systemId));
+    return new Map(subjects.map((s): [string, string | null] => [s.id, met.has(s.id) ? null : missing]));
+  };
+}
+
+registerGateRule({
+  id: "pr-open",
+  label: () => "An open or merged pull request",
+  needsGithub: true,
+  check: pullRequestCheck(["open", "merged"], "no open or merged pull request"),
+});
+
+registerGateRule({
+  id: "pr-merged",
+  label: () => "A merged pull request",
+  needsGithub: true,
+  check: pullRequestCheck(["merged"], "no merged pull request"),
+});

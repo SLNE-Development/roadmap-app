@@ -29,6 +29,7 @@ import { dependencyMapsOf } from "./dependencies";
 import { ConflictError, ForbiddenError, InvalidError, isUniqueViolation, NotFoundError, OpError } from "./errors";
 import { fieldValuesByKey } from "./fields";
 import { columnRulesOf, evaluateGates, gateMessage } from "./gates";
+import { systemsWithFailingChecks } from "./github-links";
 import { logChange } from "./log";
 import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, systemColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
@@ -118,6 +119,8 @@ export interface SystemListItem {
   blockedBy: string[];
   /** Custom field values by field key. */
   fields: Record<string, string>;
+  /** An open pull request linked to the system has failing checks. */
+  failingChecks: boolean;
   /** When the system was archived; null while active. */
   archivedAt: Date | null;
 }
@@ -329,6 +332,7 @@ export async function listSystems(
 
   const dependencies = await dependencyMapsOf(db, project.id);
   const fieldValues = await fieldValuesByKey(db, project.id);
+  const failing = await systemsWithFailingChecks(db, project.id);
 
   const items = rows.map(({ planningCompletedAt, ...r }) => ({
     ...r,
@@ -345,6 +349,7 @@ export async function listSystems(
     dependsOn: dependencies.dependsOn.get(r.id) ?? [],
     blockedBy: dependencies.blockedBy.get(r.id) ?? [],
     fields: fieldValues.get(r.id) ?? {},
+    failingChecks: failing.has(r.id),
   }));
   if (filter.startable === undefined) return items;
   return items.filter((s) => (filter.startable ? s.blockedBy.length === 0 && s.columnCategory !== "done" : s.blockedBy.length > 0));

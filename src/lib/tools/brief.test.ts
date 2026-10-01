@@ -3,7 +3,10 @@ import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
 import type { HistoryEntry } from "@/lib/ops/activity";
 import type { AdrSummary } from "@/lib/ops/adrs";
+import { githubRepo } from "@/db/schema";
 import { writeSpec } from "@/lib/ops/documents";
+import { upsertCodeLink } from "@/lib/ops/github-links";
+import { getSystem } from "@/lib/ops/systems";
 import type { SystemOverview } from "@/lib/ops/overview";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
@@ -90,6 +93,24 @@ describe("get_system brief", () => {
     expect(brief.spec.chars).toBe(11);
     const full = (await runTool(db, owner, def, { project: slug, system: "x", brief: false })) as { spec: { body: string } };
     expect(full.spec.body).toBe("# Spec body");
+  });
+
+  it("includes the code links with brief false and omits them by default", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    await createX(db, owner, slug);
+    const { system } = await getSystem(db, owner, slug, "x");
+    await db.insert(githubRepo).values({ id: "r1", projectId, fullName: "Org/App", fullNameKey: "org/app", mode: "app" });
+    await upsertCodeLink(db, {
+      projectId, systemId: system.id, taskId: null, repoId: "r1", kind: "pr", number: 7, sha: "abc", title: "PR", url: "https://github.com/Org/App/pull/7",
+      state: "open", checks: "failure", closes: false, authorLogin: "octo",
+    });
+    const brief = (await runTool(db, owner, def, { project: slug, system: "x" })) as Record<string, unknown>;
+    expect(brief).not.toHaveProperty("code");
+    const full = (await runTool(db, owner, def, { project: slug, system: "x", brief: false })) as { code: unknown[] };
+    expect(full.code).toEqual([
+      { kind: "pr", number: 7, title: "PR", state: "open", checks: "failure", taskId: null, url: "https://github.com/Org/App/pull/7" },
+    ]);
   });
 
   it("coerces ?brief=false over REST", async () => {
