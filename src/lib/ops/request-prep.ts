@@ -1,4 +1,4 @@
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { allowedAccount, eventChecklistItem, eventFallback, eventTodo, projectMember, user, type EventTodoRow } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
@@ -21,6 +21,9 @@ export const updateTodoInput = z.object({ title: titleSchema.optional(), ownerUs
 
 /** Input of {@link addChecklistItem}. */
 export const addChecklistItemInput = z.object({ label: titleSchema });
+
+/** Input of {@link setEventChecklist}. */
+export const setEventChecklistInput = z.object({ items: z.array(z.object({ label: titleSchema })).max(30) });
 
 /** Edit access, or develop access for the developers who build the event. */
 async function editOrDevelop(tx: Executor, actor: Actor, requestId: string): Promise<RequestAccess> {
@@ -205,6 +208,28 @@ export async function addChecklistItem(db: Db, actor: Actor, requestId: string, 
     const [row] = await tx.insert(eventChecklistItem).values({ id: newId(), requestId, key: null, label, sortOrder: next }).returning();
     await logRequest(tx, actor, { requestId, field: "checklist", newValue: label });
     return row;
+  });
+}
+
+/**
+ * Replaces the open items of the checklist with the given labels; ticked items stay in front.
+ *
+ * @throws ConflictError for a done, withdrawn or cancelled request
+ */
+export async function setEventChecklist(db: Db, actor: Actor, requestId: string, raw: unknown): Promise<ChecklistItemRow[]> {
+  const { items } = setEventChecklistInput.parse(raw);
+  return db.transaction(async (tx) => {
+    await editOrDevelop(tx, actor, requestId);
+    const request = await lockRequest(tx, requestId);
+    if (request.status === "done" || request.status === "withdrawn" || request.status === "cancelled") throw new ConflictError(`A ${request.status} request has no checklist to change.`);
+    await tx.delete(eventChecklistItem).where(and(eq(eventChecklistItem.requestId, requestId), isNull(eventChecklistItem.doneAt)));
+    const [{ max }] = await tx
+      .select({ max: sql<number>`coalesce(max(${eventChecklistItem.sortOrder}), -1)` })
+      .from(eventChecklistItem)
+      .where(eq(eventChecklistItem.requestId, requestId));
+    if (items.length > 0) await tx.insert(eventChecklistItem).values(items.map((item, i) => ({ id: newId(), requestId, key: null, label: item.label, sortOrder: max + 1 + i })));
+    await logRequest(tx, actor, { requestId, field: "checklist", newValue: `${items.length} items` });
+    return checklistOf(tx, requestId);
   });
 }
 

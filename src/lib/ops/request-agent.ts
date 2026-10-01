@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import type { z } from "zod";
-import { eventFallback, project, system, user } from "@/db/schema";
+import { eventChecklistItem, eventFallback, project, system, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { DiffHunk } from "@/lib/diff";
 import type { askRoundInput, QuestionType } from "@/lib/event-questions";
@@ -25,6 +25,8 @@ export interface RequestForAgent {
   endsAt: Date | null;
   where: string;
   summary: string;
+  /** The event-day checklist in order. */
+  checklist: { label: string; done: boolean }[];
   eventDocsUrl: string | null;
   requester: { name: string };
   project: { slug: string } | null;
@@ -84,7 +86,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     sinceBrief === undefined
       ? { version: request.briefVersion, body: (await getBrief(db, actor, requestId)).body }
       : { version: request.briefVersion, since: sinceBrief, diff: await compareBriefs(db, actor, requestId, sinceBrief, request.briefVersion) };
-  const [[requester], [proj], [sys], rounds, openQuestions, specBasis, progress, fallbacks] = await Promise.all([
+  const [[requester], [proj], [sys], rounds, openQuestions, specBasis, progress, fallbacks, checklist] = await Promise.all([
     db.select({ name: user.name }).from(user).where(eq(user.id, request.requesterId ?? "")).limit(1),
     request.projectId ? db.select({ slug: project.slug }).from(project).where(eq(project.id, request.projectId)).limit(1) : [],
     request.systemId ? db.select({ slug: system.slug }).from(system).where(eq(system.id, request.systemId)).limit(1) : [],
@@ -93,6 +95,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     getSpecBasis(db, requestId),
     requestProgress(db, actor, requestId),
     db.select().from(eventFallback).where(eq(eventFallback.requestId, requestId)).orderBy(asc(eventFallback.sortOrder)),
+    db.select().from(eventChecklistItem).where(eq(eventChecklistItem.requestId, requestId)).orderBy(asc(eventChecklistItem.sortOrder)),
   ]);
   const cuts = { n: 0 };
   const views = rounds.map((r) => ({
@@ -108,6 +111,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     endsAt: endsAtOf(request),
     where: request.where,
     summary: request.summary,
+    checklist: checklist.map((c) => ({ label: c.label, done: c.doneAt !== null })),
     eventDocsUrl: request.eventDocsUrl,
     requester: { name: requester?.name?.trim() || "unknown" },
     project: proj ?? null,

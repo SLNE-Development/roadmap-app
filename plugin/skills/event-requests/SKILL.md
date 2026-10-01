@@ -44,5 +44,15 @@ app turns an accepted request into a project and system; you build it with the d
    - `update_tasks` and `add_tasks` to change or add tasks for changed or new steps.
    Tasks of steps the brief dropped stay as they are and are reported in step 4.
    Questions the change opens go to the requester with `ask_requester`.
-4. **Report** what changed (spec sections, plan steps, tasks added, changed and left
+4. **Event-day checklist** (`event-day <request-id>`, or after the plan is written): write 5-12
+   concrete checks for the day of the event from the spec, the plan and the fallback scenarios.
+   Each check names an owner and a time relative to the start (for example "Developer: join
+   the server 30 minutes before start and check the player list"), one action per check, no
+   generic wishes. Send them with `set_event_checklist` (`request` plus `items`, each with a
+   `label`); it replaces the open items, ticked items stay.
+
+   ```json
+   { "request": "<request-id>", "items": [{ "label": "Developer: restart the server 60 minutes before start" }] }
+   ```
+5. **Report** what changed (spec sections, plan steps, tasks added, changed and left
    because their step was removed) in one `post_update`.

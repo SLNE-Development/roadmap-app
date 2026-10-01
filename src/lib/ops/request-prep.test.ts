@@ -15,6 +15,7 @@ import {
   removeChecklistItem,
   removeTodo,
   setChecklistItem,
+  setEventChecklist,
   setTodoDone,
   updateTodo,
 } from "./request-prep";
@@ -159,6 +160,43 @@ describe("checklist", () => {
     const custom = await addChecklistItem(w.db, w.R, w.request.id, { label: "Cake" });
     await removeChecklistItem(w.db, w.R, custom.id);
     expect(await listChecklist(w.db, w.R, w.request.id)).toHaveLength(2);
+  });
+});
+
+describe("setEventChecklist", () => {
+  const labels = (rows: { label: string }[]) => rows.map((r) => r.label);
+
+  it("keeps ticked items first, drops open ones and appends the new ones", async () => {
+    const w = await accepted();
+    await w.db.insert(eventChecklistItem).values([
+      { id: "item-c", requestId: w.request.id, key: null, label: "Cake", sortOrder: 2 },
+      { id: "item-d", requestId: w.request.id, key: null, label: "Music", sortOrder: 3 },
+      { id: "item-e", requestId: w.request.id, key: null, label: "Chairs", sortOrder: 4 },
+    ]);
+    await w.db.update(eventChecklistItem).set({ doneAt: new Date(), doneBy: w.D.userId }).where(eq(eventChecklistItem.id, "item-a"));
+    await w.db.update(eventChecklistItem).set({ doneAt: new Date(), doneBy: w.D.userId }).where(eq(eventChecklistItem.id, "item-c"));
+    const rows = await setEventChecklist(w.db, w.D, w.request.id, { items: [{ label: "First" }, { label: "Second" }] });
+    expect(labels(rows)).toEqual(["Server checked", "Cake", "First", "Second"]);
+    expect(rows.map((r) => r.sortOrder)).toEqual([0, 2, 3, 4]);
+    expect(rows[2].key).toBeNull();
+  });
+
+  it("rejects more than 30 items", async () => {
+    const w = await accepted();
+    const items = Array.from({ length: 31 }, (_, i) => ({ label: `Check ${i}` }));
+    await expect(setEventChecklist(w.db, w.D, w.request.id, { items })).rejects.toMatchObject({ name: "ZodError" });
+  });
+
+  it("lets a developer of a submitted request write it and hides it from a stranger", async () => {
+    const w = await world();
+    expect(labels(await setEventChecklist(w.db, w.D, w.request.id, { items: [{ label: "Doors open" }] }))).toEqual(["Doors open"]);
+    await expect(setEventChecklist(w.db, w.S, w.request.id, { items: [] })).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("refuses a cancelled request", async () => {
+    const w = await accepted();
+    await w.db.update(eventRequest).set({ status: "cancelled" }).where(eq(eventRequest.id, w.request.id));
+    await expect(setEventChecklist(w.db, w.D, w.request.id, { items: [{ label: "x" }] })).rejects.toBeInstanceOf(ConflictError);
   });
 });
 

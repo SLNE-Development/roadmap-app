@@ -29,6 +29,7 @@ import {
 } from "@/lib/ops/boards";
 import { InvalidError } from "@/lib/ops/errors";
 import { askRequester, requestForAgent } from "@/lib/ops/request-agent";
+import { setEventChecklist, setEventChecklistInput } from "@/lib/ops/request-prep";
 import { recordSpecBasis } from "@/lib/ops/request-link";
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
 import { GATE_RULES } from "@/lib/ops/gates";
@@ -830,6 +831,15 @@ register(
     method: "GET",
     path: "/requests/:request",
     run: (db, actor, { request, sinceBrief }) => requestForAgent(db, actor, request, sinceBrief),
+  }),
+  defineTool({
+    name: "set_event_checklist",
+    description: "Replace the open items of an event's event-day checklist with these checks (ticked items stay).",
+    input: { request: z.string().min(1).max(64), ...setEventChecklistInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/requests/:request/checklist",
+    run: (db, actor, { request, ...input }) => setEventChecklist(db, actor, request, input),
   }),
   defineTool({
     name: "start_agent_run",

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventBriefVersion, eventRequest, eventSpecBasis, system, task } from "@/db/schema";
+import { eventBriefVersion, eventChecklistItem, eventRequest, eventSpecBasis, system, task } from "@/db/schema";
 import { TOOLS } from "@/lib/tools/definitions";
 import { runTool } from "@/lib/tools/registry";
 import { createTestDb } from "@/test/db";
@@ -69,6 +69,23 @@ describe("get_request", () => {
     const done = await w.get();
     expect(done.openQuestions).toBe(0);
     expect(done.notSure).toEqual([{ questionId: round.questionIds[1], text: "Voice chat?" }]);
+  });
+
+  it("returns the summary, the end of the event and the checklist", async () => {
+    const w = await world();
+    const startsAt = new Date("2027-01-10T18:00:00Z");
+    await w.db.update(eventRequest).set({ startsAt, durationMinutes: 90, summary: "A cosy party" }).where(eq(eventRequest.id, w.request.id));
+    await w.db.insert(eventChecklistItem).values([
+      { id: "c1", requestId: w.request.id, key: null, label: "Open doors", sortOrder: 1, doneAt: new Date() },
+      { id: "c2", requestId: w.request.id, key: null, label: "Start music", sortOrder: 0 },
+    ]);
+    const got = await w.get();
+    expect(got.summary).toBe("A cosy party");
+    expect(JSON.parse(JSON.stringify(got)).endsAt).toBe("2027-01-10T19:30:00.000Z");
+    expect(got.checklist).toEqual([
+      { label: "Start music", done: false },
+      { label: "Open doors", done: true },
+    ]);
   });
 
   it("returns a brief diff and no body with sinceBrief", async () => {
