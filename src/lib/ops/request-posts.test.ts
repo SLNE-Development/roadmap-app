@@ -95,6 +95,12 @@ describe("previewPost", () => {
     expect((await previewPost(w.db, w.requester, w.request.id, "team", { text: "  " })).parts).toEqual([]);
   });
 
+  it("previews a 30,000 character draft", async () => {
+    const w = await postWorld();
+    const preview = await previewPost(w.db, w.requester, w.request.id, "announcement", { text: longText(30_000) });
+    expect(preview.parts.length).toBeGreaterThan(2);
+  });
+
   it("previews the given text instead of the saved one", async () => {
     const w = await postWorld();
     await savePostDraft(w.db, w.manager, w.request.id, "reminder", { text: "Gespeichert" });

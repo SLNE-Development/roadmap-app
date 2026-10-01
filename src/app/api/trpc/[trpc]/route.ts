@@ -5,9 +5,9 @@ import { appRouter } from "@/server/trpc/router";
 /** Every tRPC call reads live data. */
 export const dynamic = "force-dynamic";
 
-/** Serves the web UI's tRPC router; procedures check the session themselves. */
+/** Serves the web UI's tRPC router; procedures check the session themselves. The method override lets the client send a large query input (the post preview) as POST. */
 function handler(request: Request): Promise<Response> {
-  return fetchRequestHandler({ endpoint: "/api/trpc", req: request, router: appRouter, createContext });
+  return fetchRequestHandler({ endpoint: "/api/trpc", req: request, router: appRouter, createContext, allowMethodOverride: true });
 }
 
 /** tRPC queries. */

@@ -1,13 +1,13 @@
 "use client";
 
 import { isServer, MutationCache, QueryClientProvider, type QueryClient } from "@tanstack/react-query";
-import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { createTRPCClient } from "@trpc/client";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import superjson from "superjson";
 import type { AppRouter } from "@/server/trpc/router";
 import { shouldInvalidate } from "./invalidation";
+import { makeLinks } from "./links";
 import { makeQueryClient, queryProject } from "./query-client";
 
 /** The typed tRPC hooks: `useTRPC()` returns query and mutation options for every procedure. */
@@ -67,7 +67,7 @@ export function TRPCReactProvider({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
   const [trpcClient] = useState(() =>
     createTRPCClient<AppRouter>({
-      links: [httpBatchLink({ url: isServer ? `http://localhost:${process.env.PORT ?? 3000}/api/trpc` : "/api/trpc", transformer: superjson })],
+      links: makeLinks(isServer ? `http://localhost:${process.env.PORT ?? 3000}/api/trpc` : "/api/trpc"),
     }),
   );
   return (
