@@ -38,6 +38,24 @@ describe("planning gaps", () => {
   });
 });
 
+describe("planning coverage", () => {
+  it("reports coverage and thin-area warnings", async () => {
+    const { db, owner, slug } = await setup();
+    const { itemIds } = await addPlanningRound(db, owner, slug, "s", {
+      items: [
+        { area: "scope", question: "Is resale in scope?" },
+        { area: "scope", question: "Is trading in scope?" },
+        { area: "dependencies", question: "Which service issues cars?" },
+      ],
+    });
+    await answerPlanningItems(db, owner, slug, "s", { answers: itemIds.map((itemId) => ({ itemId, answer: "Yes" })) });
+    const { coverage, warnings } = await getPlanning(db, owner, slug, "s");
+    expect(coverage[2]).toMatchObject({ area: "scope", thin: false });
+    expect(coverage[1]).toMatchObject({ area: "dependencies", thin: true });
+    expect(warnings).toContain("Area dependencies is thin: Only 1 settled question; ask at least 2.");
+  });
+});
+
 describe("blocking questions", () => {
   /** Answers every area of system `s` and writes its spec, leaving no gaps. */
   async function ready() {

@@ -96,7 +96,9 @@ user confirms). Link the system with `systems: [slug]`.
 ## Step 2 — The gate
 
 Call `get_planning`. Continue asking while `gaps` lists anything except the missing
-spec. When only the spec is missing:
+spec. Also keep asking while `warnings` names a thin area, unless the user explicitly
+says that area needs no more questions; record that answer in the next round. When
+only the spec is missing:
 
 1. Give a short, still-savage summary of the risks the user accepted.
 2. Write the spec and save it with `write_spec`:

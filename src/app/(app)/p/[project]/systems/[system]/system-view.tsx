@@ -8,6 +8,7 @@ import { PriorityTag } from "@/components/chips";
 import { DocumentSection, SpecPreview } from "@/components/document-section";
 import { Page, PageHeader } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
+import { CoverageMap } from "@/components/planning/coverage-map";
 import { PlanningRounds } from "@/components/planning-rounds";
 import { SystemNotes } from "@/components/system-editor";
 import { ActivityFeed } from "@/components/system/activity-feed";
@@ -16,6 +17,7 @@ import { ReopenPlanningButton, SystemActionBar, SystemHeaderActions } from "@/co
 import { PropertiesPanel, SystemFacts } from "@/components/system/properties";
 import { DecisionsPanel, PlanningPanel } from "@/components/system/rail";
 import { SystemTabs, tabHref, type SystemTab } from "@/components/system/tabs";
+import { AREA_LABEL } from "@/components/system/text";
 import { describeGaps } from "@/components/system/text";
 import { TaskList } from "@/components/task-list";
 import type { DocumentKind } from "@/db/schema";
@@ -236,6 +238,12 @@ export function SystemView({
               Still in planning: {describeGaps(o.planning.gaps)}.
             </p>
           )}
+          {!o.planning.complete && o.planning.gaps.length === 0 && (
+            <p className="bg-cat-done-soft px-3 py-2.5 text-[13px] leading-[1.45] text-cat-done">
+              Ready to complete{planning.warnings.length > 0 && <> · Thin areas: {planning.coverage.filter((c) => c.thin).map((c) => AREA_LABEL[c.area].toLowerCase()).join(", ")}</>}
+            </p>
+          )}
+          {planning.rounds.length > 0 && <CoverageMap coverage={planning.coverage} />}
           {canEdit && o.planning.complete && (
             <div className="flex flex-wrap items-center gap-3">
               <p className="flex flex-1 items-center gap-1.5 text-[13px] font-medium text-cat-done">

@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
+import { planningCoverage, type AreaCoverage } from "@/lib/planning-coverage";
 import { projectAccess } from "./access";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
@@ -70,6 +71,8 @@ export interface PlanningView {
   confirmation: string | null;
   rounds: PlanningRoundView[];
   gaps: string[];
+  coverage: AreaCoverage[];
+  warnings: string[];
 }
 
 /** Returns a question shortened to 80 characters for messages. */
@@ -172,7 +175,7 @@ async function lockForPlanning(tx: Tx, actor: Actor, projectSlug: string, system
   return findSystem(tx, project.id, systemSlug, true);
 }
 
-/** Returns a system's planning interview, completion state and remaining gaps. */
+/** Returns a system's planning interview, completion state, remaining gaps and per-area coverage. */
 export async function getPlanning(db: Executor, actor: Actor, projectSlug: string, systemSlug: string): Promise<PlanningView> {
   const { system: parent } = await systemAccess(db, actor, projectSlug, systemSlug, "viewer");
   return planningOf(db, parent);
@@ -180,11 +183,15 @@ export async function getPlanning(db: Executor, actor: Actor, projectSlug: strin
 
 /** {@link getPlanning} for a system the caller already resolved; performs no access check. */
 export async function planningOf(db: Executor, parent: SystemRow): Promise<PlanningView> {
+  const rounds = await loadRounds(db, parent.id);
+  const coverage = planningCoverage(rounds.flatMap((r) => r.items));
   return {
     completedAt: parent.planningCompletedAt,
     confirmation: parent.planningConfirmation,
-    rounds: await loadRounds(db, parent.id),
+    rounds,
     gaps: parent.planningCompletedAt ? [] : await planningGaps(db, parent.id),
+    coverage,
+    warnings: parent.planningCompletedAt ? [] : coverage.filter((c) => c.thin).map((c) => `Area ${c.area} is thin: ${c.reason}`),
   };
 }
 

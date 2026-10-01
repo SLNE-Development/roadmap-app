@@ -353,7 +353,7 @@ register(
 
   defineTool({
     name: "get_planning",
-    description: "Get a system's planning interview: every round with questions, areas, risk flags, answers and states, plus the gaps that still block completion.",
+    description: "Get a system's planning interview: rounds, answers, gaps that block completion, and per-area coverage with thin-area warnings.",
     input: S,
     write: false,
     method: "GET",
