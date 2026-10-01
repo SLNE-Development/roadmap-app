@@ -1,13 +1,14 @@
 "use client";
 
-import { useSuspenseQueries } from "@tanstack/react-query";
+import { useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import { Page, PageHeader } from "@/components/page";
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { useTRPC } from "@/trpc/client";
 
 /**
  * The settings header and sub-navigation around the page content. The member,
- * board and field counts follow every change, since mutations refetch these queries.
+ * board, repository and field counts follow every change, since mutations refetch these queries;
+ * the repository count loads after the page.
  *
  * @param props.slug the project slug
  * @param props.children the settings page
@@ -21,6 +22,7 @@ export function SettingsFrame({ slug, children }: { slug: string; children: Reac
       trpc.fields.list.queryOptions({ project: slug }),
     ],
   });
+  const { data: repos } = useQuery(trpc.github.repos.queryOptions({ project: slug }));
   return (
     <Page width="wide">
       <PageHeader crumbs={[{ label: detail.project.name, href: `/p/${slug}` }]} title="Project settings" />
@@ -29,6 +31,7 @@ export function SettingsFrame({ slug, children }: { slug: string; children: Reac
           projectSlug={slug}
           memberCount={members.length}
           boardCount={detail.boards.length}
+          repoCount={repos ? repos.length : null}
           fieldCount={fields.length}
           canOwn={detail.role === "owner" || detail.role === "admin"}
         />

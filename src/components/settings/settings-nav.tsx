@@ -13,12 +13,15 @@ export function SettingsNav({
   projectSlug,
   memberCount,
   boardCount,
+  repoCount,
   fieldCount,
   canOwn,
 }: {
   projectSlug: string;
   memberCount: number;
   boardCount: number;
+  /** Linked repositories, or null while loading. */
+  repoCount: number | null;
   fieldCount: number;
   canOwn: boolean;
 }) {
@@ -30,6 +33,7 @@ export function SettingsNav({
     { href: `${base}/structure`, label: "Structure", count: null },
     { href: `${base}/glossary`, label: "Glossary", count: null },
     { href: `${base}/boards`, label: "Boards", count: boardCount },
+    { href: `${base}/github`, label: "GitHub", count: repoCount },
     { href: `${base}/fields`, label: "Fields", count: fieldCount },
     ...(canOwn ? [{ href: `${base}/notifications`, label: "Notifications", count: null }] : []),
   ];

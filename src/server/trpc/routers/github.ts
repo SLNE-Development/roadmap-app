@@ -17,9 +17,29 @@ import {
   startManifest,
   startManifestInput,
 } from "@/lib/ops/github-app";
+import {
+  availableRepos,
+  installMoreUrl,
+  linkAppRepo,
+  linkManualRepo,
+  linkRepoInput,
+  listLinkedRepos,
+  repoLinkStatus,
+  repoRulesInput,
+  revealRepoSecret,
+  setRepoRules,
+  unlinkRepo,
+} from "@/lib/ops/github-repos";
+import { entityId } from "@/lib/ops/params";
 import { protectedProcedure, router } from "../init";
+import { P } from "./shared";
 
-/** The GitHub App of this instance: setup, installations, health and settings. Admin only. */
+const R = { id: entityId };
+
+/**
+ * The GitHub App of this instance: setup, installations, health and settings, admin only; and the repositories
+ * linked to a project.
+ */
 export const githubRouter = router({
   /** The App without its secrets, or null before it is set up. */
   app: protectedProcedure.query(({ ctx }) => getAppSummary(ctx.db, ctx.actor)),
@@ -65,4 +85,39 @@ export const githubRouter = router({
   setLinkPolicy: protectedProcedure
     .input(z.object({ policy: linkPolicyInput }))
     .mutation(({ ctx, input }) => setLinkPolicy(ctx.db, ctx.actor, input.policy)),
+
+  /** The project's linked repositories. Viewer or higher. */
+  repos: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => listLinkedRepos(ctx.db, ctx.actor, input.project)),
+
+  /** Whether an App is set up and whether the actor may link repositories in the project. */
+  linkStatus: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => repoLinkStatus(ctx.db, ctx.actor, input.project)),
+
+  /** The repositories the App can see, with where each is linked. */
+  availableRepos: protectedProcedure
+    .input(z.object(P))
+    .query(async ({ ctx, input }) => availableRepos(ctx.db, ctx.kv, await getGitHubApi(ctx.db), ctx.actor, input.project)),
+
+  /** Links a repository the App can see. */
+  linkAppRepo: protectedProcedure
+    .input(z.object({ ...P, repo: linkRepoInput }))
+    .mutation(async ({ ctx, input }) => linkAppRepo(ctx.db, ctx.kv, await getGitHubApi(ctx.db), ctx.actor, input.project, input.repo)),
+
+  /** Links a repository by hand; the answer carries its webhook URL and secret. */
+  linkManualRepo: protectedProcedure
+    .input(z.object({ ...P, repo: linkRepoInput }))
+    .mutation(({ ctx, input }) => linkManualRepo(ctx.db, ctx.actor, input.project, input.repo, ctx.kv)),
+
+  /** The webhook URL and secret of a repository linked by hand. */
+  revealSecret: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => revealRepoSecret(ctx.db, ctx.actor, input.id)),
+
+  /** Unlinks a repository. */
+  unlink: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => unlinkRepo(ctx.db, ctx.actor, input.id)),
+
+  /** Changes a repository's automation rules. */
+  setRules: protectedProcedure
+    .input(z.object({ ...R, rules: repoRulesInput }))
+    .mutation(({ ctx, input }) => setRepoRules(ctx.db, ctx.actor, input.id, input.rules)),
+
+  /** Starts installing the App on more repositories, returning to the project's GitHub settings. */
+  installMoreUrl: protectedProcedure.input(z.object(P)).mutation(({ ctx, input }) => installMoreUrl(ctx.db, ctx.kv, ctx.actor, input.project)),
 });

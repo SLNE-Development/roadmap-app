@@ -67,7 +67,7 @@ const ROTATION_GRACE_MS = 10 * 60_000;
 const STATE_TTL = 3600;
 
 /** How long an installation's repository list stays in Kv, in seconds. */
-const REPO_CACHE_TTL = 300;
+export const REPO_CACHE_TTL = 300;
 
 /** Where installs return to when no safe path was given. */
 const ADMIN_PATH = "/admin/github";

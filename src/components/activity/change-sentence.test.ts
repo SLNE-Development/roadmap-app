@@ -82,6 +82,12 @@ describe("describeChange", () => {
     expect(text(entry("webhook", "enabled", "false", "true"), null)).toBe("turned on a Discord webhook");
   });
 
+  it("describes repository changes", () => {
+    expect(text(entry("repo", "created", null, "Org/roadmap"), null)).toBe("linked repository Org/roadmap");
+    expect(text(entry("repo", "deleted", "Org/roadmap", null), null)).toBe("unlinked repository Org/roadmap");
+    expect(text(entry("repo", "rules", "{}", "{}"), null)).toBe("changed the automation rules of a repository");
+  });
+
   it("describes glossary changes", () => {
     expect(text(entry("glossary", "created", null, "Outbox"), null)).toBe("added glossary term “Outbox”");
     expect(text(entry("glossary", "definition", "Queue", "Pending events"), null)).toBe("changed a glossary definition");

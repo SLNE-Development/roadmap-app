@@ -64,6 +64,7 @@ const ENTITY_LABEL: Record<string, string> = {
   page: "a page",
   update: "an update",
   webhook: "a Discord webhook",
+  repo: "a repository",
 };
 
 /** Quotes a user-written value, shortened for one line. */
@@ -227,6 +228,13 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return plain("changed the boards of a Discord webhook", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
     case "webhook:enabled":
       return plain(e.newValue === "true" ? "turned on a Discord webhook" : "turned off a Discord webhook");
+
+    case "repo:created":
+      return plain("linked repository", e.newValue);
+    case "repo:deleted":
+      return plain("unlinked repository", e.oldValue);
+    case "repo:rules":
+      return plain("changed the automation rules of a repository");
 
     case "update:posted":
       return onSystem("posted an update on", "", "posted an update");
