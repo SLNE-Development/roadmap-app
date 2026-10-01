@@ -15,6 +15,8 @@ export interface AllowedAccountRow {
   userId: string | null;
   userName: string | null;
   isAdmin: boolean;
+  isEventManager: boolean;
+  isEventDeveloper: boolean;
 }
 
 /** Input of {@link addAllowedAccount}. */
@@ -96,11 +98,18 @@ export async function listAllowedAccounts(db: Db, actor: Actor): Promise<Allowed
       userId: user.id,
       userName: user.name,
       isAdmin: user.isAdmin,
+      isEventManager: user.isEventManager,
+      isEventDeveloper: user.isEventDeveloper,
     })
     .from(allowedAccount)
     .leftJoin(user, eq(user.discordId, allowedAccount.discordId))
     .orderBy(asc(allowedAccount.createdAt), asc(allowedAccount.displayName));
-  return rows.map((r) => ({ ...r, isAdmin: r.isAdmin ?? false }));
+  return rows.map((r) => ({
+    ...r,
+    isAdmin: r.isAdmin ?? false,
+    isEventManager: r.isEventManager ?? false,
+    isEventDeveloper: r.isEventDeveloper ?? false,
+  }));
 }
 
 /**
@@ -165,6 +174,23 @@ export async function setAdmin(db: Db, actor: Actor, userId: string, isAdmin: bo
     if (!isAdmin && (await adminCount(tx)) === 1) throw new ConflictError("The last admin cannot drop the admin flag.");
     await tx.update(user).set({ isAdmin }).where(and(eq(user.id, userId)));
   });
+}
+
+/**
+ * Grants or revokes the event manager or event developer flag. Admin only; idempotent.
+ *
+ * @throws NotFoundError if the user does not exist or is no longer provisioned
+ */
+export async function setEventRole(db: Db, actor: Actor, userId: string, role: "manager" | "developer", value: boolean): Promise<void> {
+  requireAdmin(actor);
+  const [target] = await db
+    .select({ id: user.id })
+    .from(user)
+    .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
+    .where(eq(user.id, userId))
+    .limit(1);
+  if (!target) throw new NotFoundError(`Unknown user ${userId}.`);
+  await db.update(user).set(role === "manager" ? { isEventManager: value } : { isEventDeveloper: value }).where(eq(user.id, userId));
 }
 
 /** A provisioned user as offered in member pickers. */

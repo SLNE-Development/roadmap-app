@@ -7,3 +7,4 @@ export * from "./agents";
 export * from "./audit";
 export * from "./notifications";
 export * from "./github";
+export * from "./events";

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { apikey, allowedAccount, session, user } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { insertUser } from "@/test/fixtures";
+import { ForbiddenError, NotFoundError } from "./errors";
 import { createProject } from "./projects";
 import {
   addAllowedAccount,
@@ -13,6 +14,7 @@ import {
   loadActor,
   removeAllowedAccount,
   setAdmin,
+  setEventRole,
 } from "./users";
 
 /** Inserts a user the way Better Auth creates one: without a Discord id. */
@@ -196,5 +198,42 @@ describe("listUsers", () => {
     await insertUser(db, { name: "Bob" });
     await createProject(db, admin, { slug: "demo", name: "Demo" });
     expect((await listUsers(db, admin, "demo")).map((u) => u.name)).toEqual(["Bob", "Zed"]);
+  });
+});
+
+describe("setEventRole", () => {
+  it("lets an admin flip each flag, idempotently, and shows them in the account list", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const sam = await insertUser(db, { name: "Sam" });
+    await setEventRole(db, admin, sam.userId, "manager", true);
+    await setEventRole(db, admin, sam.userId, "manager", true);
+    await setEventRole(db, admin, sam.userId, "developer", true);
+    const find = async () => (await listAllowedAccounts(db, admin)).find((a) => a.userId === sam.userId);
+    expect(await find()).toMatchObject({ isEventManager: true, isEventDeveloper: true, isAdmin: false });
+    await setEventRole(db, admin, sam.userId, "manager", false);
+    await setEventRole(db, admin, sam.userId, "manager", false);
+    expect(await find()).toMatchObject({ isEventManager: false, isEventDeveloper: true });
+    await setEventRole(db, admin, sam.userId, "developer", false);
+    expect(await find()).toMatchObject({ isEventManager: false, isEventDeveloper: false });
+  });
+
+  it("lists false flags for an account that never signed in", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    await addAllowedAccount(db, admin, { discordId: "323456789012345678", displayName: "Later" });
+    const rows = await listAllowedAccounts(db, admin);
+    expect(rows.find((a) => a.discordId === "323456789012345678")).toMatchObject({ userId: null, isEventManager: false, isEventDeveloper: false });
+  });
+
+  it("refuses non-admins and rejects unknown or removed users", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const sam = await insertUser(db, { name: "Sam" });
+    await expect(setEventRole(db, sam, sam.userId, "manager", true)).rejects.toThrow(ForbiddenError);
+    await expect(setEventRole(db, admin, "missing", "manager", true)).rejects.toThrow(NotFoundError);
+    const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, sam.userId));
+    await removeAllowedAccount(db, admin, row.discordId as string);
+    await expect(setEventRole(db, admin, sam.userId, "developer", true)).rejects.toThrow(NotFoundError);
   });
 });

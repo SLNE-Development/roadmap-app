@@ -1,7 +1,8 @@
 import { randomInt } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { allowedAccount, system as systemTable, user, type ProjectRole } from "@/db/schema";
+import { allowedAccount, eventBriefVersion, eventRequest, system as systemTable, user, type EventRequestRow, type ProjectRole } from "@/db/schema";
 import type { Db } from "@/db/types";
+import { newId } from "@/lib/id";
 import type { Actor } from "@/lib/ops/actor";
 import { setMember } from "@/lib/ops/members";
 import { createProject } from "@/lib/ops/projects";
@@ -20,17 +21,25 @@ function authUserId(): string {
  * Inserts a provisioned user (a `user` row plus its `allowedAccount`) and returns them as an actor.
  *
  * @param db the test database
- * @param opts optional name, admin flag and Discord id
+ * @param opts optional name, admin and event role flags, and Discord id
  */
 export async function insertUser(
   db: Db,
-  opts: { name?: string; isAdmin?: boolean; discordId?: string } = {},
+  opts: { name?: string; isAdmin?: boolean; isEventManager?: boolean; isEventDeveloper?: boolean; discordId?: string } = {},
 ): Promise<Actor> {
   seq += 1;
   const id = authUserId();
   const name = opts.name ?? `User ${seq}`;
   const discordId = opts.discordId ?? String(100000000000000000n + BigInt(seq));
-  await db.insert(user).values({ id, name, email: `u${seq}-${id}@example.test`, discordId, isAdmin: opts.isAdmin ?? false });
+  await db.insert(user).values({
+    id,
+    name,
+    email: `u${seq}-${id}@example.test`,
+    discordId,
+    isAdmin: opts.isAdmin ?? false,
+    isEventManager: opts.isEventManager ?? false,
+    isEventDeveloper: opts.isEventDeveloper ?? false,
+  });
   await db.insert(allowedAccount).values({ discordId, displayName: name });
   return { userId: id, name, isAdmin: opts.isAdmin ?? false };
 }
@@ -60,4 +69,12 @@ export async function completePlanningFixture(db: Db, systemId: string): Promise
     .update(systemTable)
     .set({ planningCompletedAt: new Date(), planningConfirmation: "fixture" })
     .where(eq(systemTable.id, systemId));
+}
+
+/** Inserts a `draft` event request of `requester` with a version-1 brief, overridden field by field with `over`. */
+export async function requestFixture(db: Db, requester: Actor, over: Partial<typeof eventRequest.$inferInsert> = {}): Promise<EventRequestRow> {
+  const id = over.id ?? newId();
+  const [row] = await db.insert(eventRequest).values({ id, requesterId: requester.userId, title: "Fixture event", ...over }).returning();
+  await db.insert(eventBriefVersion).values({ requestId: id, version: row.briefVersion, body: "Brief", authorUserId: requester.userId });
+  return row;
 }

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -34,6 +35,8 @@ export interface AccountItem {
   userId: string | null;
   userName: string | null;
   isAdmin: boolean;
+  isEventManager: boolean;
+  isEventDeveloper: boolean;
 }
 
 /** Header cell style of the accounts table. */
@@ -53,7 +56,8 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
     }),
   );
   const setAdmin = useMutation(trpc.account.setAdmin.mutationOptions());
-  const pending = add.isPending || remove.isPending || setAdmin.isPending;
+  const setEventRole = useMutation(trpc.admin.setEventRole.mutationOptions());
+  const pending = add.isPending || remove.isPending || setAdmin.isPending || setEventRole.isPending;
   const [discordId, setDiscordId] = useState("");
   const [displayName, setDisplayName] = useState("");
 
@@ -117,6 +121,7 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                 <TableHead className={HEAD}>{t("discordIdShort")}</TableHead>
                 <TableHead className={HEAD}>{t("status")}</TableHead>
                 <TableHead className={HEAD}>{t("admin")}</TableHead>
+                <TableHead className={HEAD}>{t("eventRoles")}</TableHead>
                 <TableHead className="pr-4 sm:pr-5">
                   <span className="sr-only">{tc("remove")}</span>
                 </TableHead>
@@ -162,6 +167,32 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                           <Label htmlFor={adminId} className={cn("text-[13px] font-normal", self && "text-muted-foreground")}>
                             {self ? t("adminYou") : t("admin")}
                           </Label>
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {a.userId && (
+                        <span className="flex flex-col gap-1.5">
+                          {(["manager", "developer"] as const).map((role) => {
+                            const id = `event-${role}-${a.discordId}`;
+                            const on = role === "manager" ? a.isEventManager : a.isEventDeveloper;
+                            return (
+                              <span key={role} className="flex items-center gap-2">
+                                <Switch
+                                  id={id}
+                                  size="sm"
+                                  checked={on}
+                                  disabled={pending}
+                                  onCheckedChange={(checked) =>
+                                    setEventRole.mutate({ userId: a.userId as string, role, value: checked })
+                                  }
+                                />
+                                <Label htmlFor={id} className="text-[13px] font-normal">
+                                  {t(role === "manager" ? "eventManager" : "eventDeveloper")}
+                                </Label>
+                              </span>
+                            );
+                          })}
                         </span>
                       )}
                     </TableCell>

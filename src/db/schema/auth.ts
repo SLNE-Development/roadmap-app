@@ -3,7 +3,7 @@ import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/p
 /** Options for every timestamp column: with time zone, read as `Date`. */
 export const tz = { withTimezone: true, mode: "date" } as const;
 
-/** Signed-in accounts, managed by Better Auth; `discordId` and `isAdmin` are app fields. */
+/** Signed-in accounts, managed by Better Auth; `discordId`, `isAdmin` and the event roles are app fields. */
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -14,6 +14,9 @@ export const user = pgTable("user", {
   updatedAt: timestamp("updated_at", tz).notNull().defaultNow(),
   discordId: text("discord_id").unique(),
   isAdmin: boolean("is_admin").notNull().default(false),
+  /** Event roles, independent of `isAdmin` and of project membership: managers see every event request, developers accept them. */
+  isEventManager: boolean("is_event_manager").notNull().default(false),
+  isEventDeveloper: boolean("is_event_developer").notNull().default(false),
 });
 
 /** Browser sessions, managed by Better Auth. */

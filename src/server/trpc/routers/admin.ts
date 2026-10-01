@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { AUTH_EVENT_KINDS } from "@/db/schema";
+import { setEventRole } from "@/lib/ops/users";
 import { failedToolCalls, keyUsageOverview, listAuditEvents } from "@/lib/ops/audit";
 import { protectedProcedure, router } from "../init";
 
@@ -25,4 +26,9 @@ export const adminRouter = router({
 
   /** Every API key with its owner and use over the last 30 days. */
   keyUsage: protectedProcedure.query(({ ctx }) => keyUsageOverview(ctx.db, ctx.actor)),
+
+  /** Grants or revokes the event manager or event developer flag of a user. */
+  setEventRole: protectedProcedure
+    .input(z.object({ userId: z.string().min(1), role: z.enum(["manager", "developer"]), value: z.boolean() }))
+    .mutation(({ ctx, input }) => setEventRole(ctx.db, ctx.actor, input.userId, input.role, input.value)),
 });
