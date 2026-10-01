@@ -92,6 +92,21 @@ export const task = pgTable(
   ],
 );
 
+/** Edges between systems of one project: `systemId` cannot start before `dependsOnId` is done. */
+export const systemDependency = pgTable(
+  "system_dependency",
+  {
+    systemId: text("system_id")
+      .notNull()
+      .references(() => system.id, { onDelete: "cascade" }),
+    dependsOnId: text("depends_on_id")
+      .notNull()
+      .references(() => system.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.systemId, t.dependsOnId] }), index("system_dependency_depends_on_id_idx").on(t.dependsOnId)],
+);
+
 /** Checklist items inside a task. */
 export const taskCheck = pgTable(
   "task_check",

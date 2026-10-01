@@ -22,6 +22,7 @@ import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./access";
 import type { Actor } from "./actor";
+import { dependencyMapsOf } from "./dependencies";
 import { ConflictError, InvalidError, isUniqueViolation, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, type SystemRow } from "./lookup";
@@ -50,6 +51,7 @@ export const systemFilter = z.object({
   category: z.enum(COLUMN_CATEGORIES).optional(),
   priority: z.enum(PRIORITIES).optional(),
   owner: z.string().optional(),
+  startable: z.boolean().optional(),
 });
 
 /** Input of {@link updateSystem}; omitted fields stay unchanged. */
@@ -93,6 +95,10 @@ export interface SystemListItem {
   points: number;
   pointsDone: number;
   unestimated: number;
+  /** Slugs of the systems this one depends on. */
+  dependsOn: string[];
+  /** Slugs of the dependencies that are not in a done column yet. */
+  blockedBy: string[];
 }
 
 /** A task as shown on its system. */
@@ -213,7 +219,10 @@ export async function createSystem(db: Db, actor: Actor, projectSlug: string, ra
   }
 }
 
-/** Lists the project's systems matching `filter`, by board order then system order, with task counts and planning progress. */
+/**
+ * Lists the project's systems matching `filter`, by board order then system order, with task counts and planning progress.
+ * `startable: true` keeps unfinished systems without unfinished dependencies, `false` those with some.
+ */
 export async function listSystems(
   db: Executor,
   actor: Actor,
@@ -284,7 +293,9 @@ export async function listSystems(
     .groupBy(planningRound.systemId);
   const planningBySystem = new Map(planning.map((p) => [p.systemId, p]));
 
-  return rows.map(({ planningCompletedAt, ...r }) => ({
+  const dependencies = await dependencyMapsOf(db, project.id);
+
+  const items = rows.map(({ planningCompletedAt, ...r }) => ({
     ...r,
     planningComplete: planningCompletedAt !== null,
     planningAreasCovered: planningBySystem.get(r.id)?.areas ?? 0,
@@ -295,7 +306,11 @@ export async function listSystems(
     points: rollups.get(r.id)?.points ?? 0,
     pointsDone: rollups.get(r.id)?.pointsDone ?? 0,
     unestimated: rollups.get(r.id)?.unestimated ?? 0,
+    dependsOn: dependencies.dependsOn.get(r.id) ?? [],
+    blockedBy: dependencies.blockedBy.get(r.id) ?? [],
   }));
+  if (filter.startable === undefined) return items;
+  return items.filter((s) => (filter.startable ? s.blockedBy.length === 0 && s.columnCategory !== "done" : s.blockedBy.length > 0));
 }
 
 /** Returns one system with its board, column, domain, phase, owner and tasks. */

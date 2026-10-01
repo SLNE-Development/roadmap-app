@@ -72,7 +72,7 @@ export function SystemView({
 }) {
   const trpc = useTRPC();
   const ref = { project: slug, system: systemSlug };
-  const [{ data: o }, { data: planning }, { data: history }, { data: members }, { data: domains }, { data: phases }] = useSuspenseQueries({
+  const [{ data: o }, { data: planning }, { data: history }, { data: members }, { data: domains }, { data: phases }, { data: systems }] = useSuspenseQueries({
     queries: [
       trpc.systems.overview.queryOptions(ref),
       trpc.planning.get.queryOptions(ref),
@@ -80,6 +80,7 @@ export function SystemView({
       trpc.members.list.queryOptions({ project: slug }),
       trpc.structure.domains.queryOptions({ project: slug }),
       trpc.structure.phases.queryOptions({ project: slug }),
+      trpc.systems.list.queryOptions({ project: slug }),
     ],
   });
   const canEdit = o.role !== "viewer";
@@ -187,6 +188,8 @@ export function SystemView({
               boardHref={boardHref}
               domainName={o.domain?.name ?? null}
               phaseName={o.phase?.name ?? null}
+              dependencies={o.dependencies}
+              systems={systems}
             />
             <PlanningPanel planning={planning} href={tabHref(base, "planning")} />
             <DecisionsPanel projectSlug={slug} systemSlug={systemSlug} adrs={o.adrs} questions={openQuestions} />

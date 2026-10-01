@@ -57,6 +57,13 @@
       "when": 1790814991141,
       "tag": "0007_task-checks",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790815809856,
+      "tag": "0008_system-dependencies",
+      "breakpoints": true
     }
   ]
 }

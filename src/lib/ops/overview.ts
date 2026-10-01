@@ -1,6 +1,7 @@
 import type { Executor } from "@/db/types";
 import type { Actor } from "./actor";
 import { adrsOf, type AdrSummary } from "./adrs";
+import { dependenciesOf, type SystemDependencies } from "./dependencies";
 import { latestDocument, type DocumentView } from "./documents";
 import { planningOf } from "./planning";
 import { questionsOf, type QuestionItem } from "./questions";
@@ -15,11 +16,12 @@ export interface SystemOverview extends SystemDetail {
   questions: QuestionItem[];
   adrs: AdrSummary[];
   updates: UpdateItem[];
+  dependencies: SystemDependencies;
 }
 
 /**
  * Returns a system with its latest spec and plan, planning state, questions,
- * linked ADRs and its newest progress updates.
+ * linked ADRs, its newest progress updates and its dependencies.
  *
  * @param updatesLimit how many updates to include, newest first
  */
@@ -31,13 +33,14 @@ export async function getSystemOverview(
   updatesLimit = 10,
 ): Promise<SystemOverview> {
   const detail = await getSystem(db, actor, projectSlug, systemSlug);
-  const [spec, plan, planning, questions, adrs, updates] = await Promise.all([
+  const [spec, plan, planning, questions, adrs, updates, dependencies] = await Promise.all([
     latestDocument(db, detail.system.id, "spec"),
     latestDocument(db, detail.system.id, "plan"),
     planningOf(db, detail.system),
     questionsOf(db, detail.project.id, { systemId: detail.system.id }),
     adrsOf(db, detail.project.id, { systemId: detail.system.id }),
     updatesOf(db, detail.system.id, detail.project.id, updatesLimit),
+    dependenciesOf(db, detail.system.id),
   ]);
   return {
     ...detail,
@@ -47,5 +50,6 @@ export async function getSystemOverview(
     questions,
     adrs,
     updates,
+    dependencies,
   };
 }

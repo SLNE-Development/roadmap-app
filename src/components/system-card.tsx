@@ -1,3 +1,4 @@
+import { Link2 } from "lucide-react";
 import Link from "next/link";
 import { useNow } from "@/components/clock";
 import type { SystemListItem } from "@/lib/ops/systems";
@@ -43,6 +44,12 @@ export function SystemCard({
             <span className="sr-only">
               {system.tasksBlocked} blocked {system.tasksBlocked === 1 ? "task" : "tasks"}
             </span>
+          </span>
+        )}
+        {system.blockedBy.length > 0 && (
+          <span className="flex items-center gap-1 bg-cat-blocked-soft px-1.5 py-0.5 text-[11.5px] font-semibold text-cat-blocked" title={`Blocked by ${system.blockedBy.join(", ")}`}>
+            <Link2 aria-hidden className="size-3" />
+            Blocked by {system.blockedBy.length}
           </span>
         )}
         {latest && <span className="text-[11.5px] text-muted-foreground">Updated {relativeAge(latest.createdAt, now)}</span>}

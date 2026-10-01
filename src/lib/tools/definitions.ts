@@ -56,6 +56,7 @@ import {
   updateSystemInput,
 } from "@/lib/ops/systems";
 import { setTaskChecks, setTaskChecksInput } from "@/lib/ops/checks";
+import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
 import { addTask, addTaskInput, moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
@@ -257,7 +258,7 @@ register(
 
   defineTool({
     name: "list_systems",
-    description: "List systems with board, column, owner, planning state and task progress. Filter by board, domain, phase, column category, priority or owner (user id or none).",
+    description: "List systems with board, column, owner, planning state and task progress. Filter by board, domain, phase, column category, priority, owner (user id or none), or startable (no unfinished dependencies).",
     input: { ...P, ...systemFilter.shape },
     write: false,
     method: "GET",
@@ -290,6 +291,15 @@ register(
     method: "PATCH",
     path: "/projects/:project/systems/:system",
     run: (db, actor, { project, system, ...patch }) => updateSystem(db, actor, project, system, patch),
+  }),
+  defineTool({
+    name: "set_dependencies",
+    description: "Set which systems this system depends on (replaces the list); cycles are rejected.",
+    input: { ...S, ...setDependenciesInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/projects/:project/systems/:system/dependencies",
+    run: (db, actor, { project, system, ...input }) => setDependencies(db, actor, project, system, input),
   }),
   defineTool({
     name: "move_system",

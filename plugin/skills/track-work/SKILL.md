@@ -7,7 +7,8 @@ description: Keep the roadmap current while working so the team sees what is hap
 
 ## Start
 
-1. `list_systems` (filter by board or category) or `get_system` to find the system.
+1. `list_systems` with `startable: true` (also filter by board or category; systems with
+   `blockedBy` are skipped) or `get_system` to find the system.
    Planning incomplete? Stop and run `surf-roadmap:plan-system`.
 2. Pick the task (`get_system` shows ids). `update_task` with the numeric `id` and `state: "doing"`. This
    makes the key's user the owner of the task and of the system if they had none.

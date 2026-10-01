@@ -1,10 +1,15 @@
 "use client";
 
-import { Check, ChevronDown, Lock } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Check, ChevronDown, Lock, Plus } from "lucide-react";
 import Link from "next/link";
 import { CATEGORY_TEXT, CategoryDot, PriorityTag } from "@/components/chips";
 import { PersonName } from "@/components/person-avatar";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { SystemDependencies } from "@/lib/ops/dependencies";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import { currentColumn, DomainMenu, OwnerMenu, PhaseMenu, PriorityMenu, StatusMenu, type SystemControlsData } from "./controls";
 
 /** Classes of a property value that opens a menu: a borderless full-width button. */
@@ -26,10 +31,84 @@ function Row({ label, className, children }: { label: string; className?: string
   );
 }
 
+/** Dependency chips: category dot and title, each linking to its system. */
+function SystemChips({ projectSlug, systems }: { projectSlug: string; systems: SystemDependencies["dependsOn"] }) {
+  if (systems.length === 0) return <span className="text-muted-foreground">None</span>;
+  return (
+    <ul className="flex min-w-0 flex-wrap gap-1">
+      {systems.map((s) => (
+        <li key={s.slug} className="min-w-0">
+          <Link
+            href={`/p/${projectSlug}/systems/${s.slug}`}
+            className="flex max-w-full items-center gap-1.5 border bg-background px-1.5 py-0.5 text-[12.5px] outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <CategoryDot category={s.columnCategory} />
+            <span className="truncate">{s.title}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * A multi-select of the project's other systems that saves the system's
+ * dependencies on every toggle; a cycle is refused with a toast naming it.
+ */
+function DependencyPicker({
+  data,
+  systems,
+  selected,
+}: {
+  data: SystemControlsData;
+  systems: { slug: string; title: string }[];
+  selected: string[];
+}) {
+  const trpc = useTRPC();
+  const save = useMutation(trpc.systems.setDependencies.mutationOptions());
+  const toggle = (slug: string) =>
+    save.mutate({
+      project: data.projectSlug,
+      system: data.systemSlug,
+      dependsOn: selected.includes(slug) ? selected.filter((s) => s !== slug) : [...selected, slug],
+    });
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Change dependencies"
+          className="ml-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <Plus aria-hidden className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-0">
+        <Command>
+          <CommandInput placeholder="Search systems…" />
+          <CommandList>
+            <CommandEmpty>No other systems.</CommandEmpty>
+            <CommandGroup heading="Depends on">
+              {systems.map((s) => (
+                <CommandItem key={s.slug} value={`${s.title} ${s.slug}`} data-checked={selected.includes(s.slug)} disabled={save.isPending} onSelect={() => toggle(s.slug)}>
+                  {s.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /**
  * The properties panel of the right rail: status, priority, owner, board,
- * domain and phase. Editors change them through menus; viewers read them.
- * On phones the first three are shown in {@link SystemFacts} instead.
+ * domain, phase and dependencies. Editors change them through menus; viewers
+ * read them. On phones the first three are shown in {@link SystemFacts} instead.
+ *
+ * @param props.dependencies the systems this one depends on and those depending on it
+ * @param props.systems the project's systems, from which editors pick dependencies
  */
 export function PropertiesPanel({
   data,
@@ -37,12 +116,16 @@ export function PropertiesPanel({
   boardHref,
   domainName,
   phaseName,
+  dependencies,
+  systems,
 }: {
   data: SystemControlsData;
   boardName: string;
   boardHref: string;
   domainName: string | null;
   phaseName: string | null;
+  dependencies: SystemDependencies;
+  systems: { slug: string; title: string }[];
 }) {
   const column = currentColumn(data);
   const status = (
@@ -121,6 +204,19 @@ export function PropertiesPanel({
         ) : (
           phase
         )}
+      </Row>
+      <Row label="Depends on" className="items-start">
+        <SystemChips projectSlug={data.projectSlug} systems={dependencies.dependsOn} />
+        {data.canEdit && (
+          <DependencyPicker
+            data={data}
+            systems={systems.filter((s) => s.slug !== data.systemSlug)}
+            selected={dependencies.dependsOn.map((d) => d.slug)}
+          />
+        )}
+      </Row>
+      <Row label="Needed by" className="items-start">
+        <SystemChips projectSlug={data.projectSlug} systems={dependencies.dependents} />
       </Row>
     </section>
   );

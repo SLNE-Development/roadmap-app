@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { getProject } from "@/lib/ops/projects";
 import { createSystem, createSystemInput, listSystems, moveSystem, moveSystemInput, systemFilter, updateSystem, updateSystemInput } from "@/lib/ops/systems";
@@ -39,4 +40,9 @@ export const systemsRouter = router({
   move: protectedProcedure
     .input(z.object({ ...S, to: moveSystemInput }))
     .mutation(async ({ ctx, input }) => void (await moveSystem(ctx.db, ctx.actor, input.project, input.system, input.to))),
+
+  /** Replaces the systems this system depends on; a cycle is a conflict. */
+  setDependencies: protectedProcedure
+    .input(z.object({ ...S, ...setDependenciesInput.shape }))
+    .mutation(({ ctx, input }) => setDependencies(ctx.db, ctx.actor, input.project, input.system, { dependsOn: input.dependsOn })),
 });
