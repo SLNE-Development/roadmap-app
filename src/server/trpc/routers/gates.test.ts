@@ -15,7 +15,7 @@ import { appRouter } from "../router";
 vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: {} }) }));
 
 /** Calls the router in-process as `actor`. */
-const caller = (db: Db, actor: Actor) => createCallerFactory(appRouter)({ db, actor });
+const caller = (db: Db, actor: Actor) => createCallerFactory(appRouter)({ db, actor, sessionId: null });
 
 /** Puts a system straight into the named column of its board. */
 async function place(db: Db, systemId: string, name: string) {

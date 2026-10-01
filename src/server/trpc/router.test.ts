@@ -11,7 +11,7 @@ vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: {} }) }));
 
 /** Calls the router in-process as `actor` (or without a session). */
 function caller(db: Db, actor: Actor | null) {
-  return createCallerFactory(appRouter)({ db, actor });
+  return createCallerFactory(appRouter)({ db, actor, sessionId: null });
 }
 
 describe("appRouter", () => {

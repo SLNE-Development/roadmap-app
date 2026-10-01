@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { getAuth } from "@/lib/auth/server";
 import { slugSchema } from "@/lib/ops/access";
+import { endOtherSessions, endSession, listSessions } from "@/lib/ops/sessions";
 import { myWork, myWorkSeenAt, markMyWorkSeen } from "@/lib/ops/my-work";
 import { createApiKeyInput, listApiKeys, revokeApiKey, rotateApiKey } from "@/lib/ops/api-keys";
 import { addAllowedAccount, addAllowedAccountInput, listAllowedAccounts, listUsers, removeAllowedAccount, setAdmin } from "@/lib/ops/users";
@@ -56,6 +57,15 @@ export const accountRouter = router({
         return { key: created.key, id: created.id };
       }),
     ),
+
+  /** The actor's signed-in sessions, the current one first. */
+  sessions: protectedProcedure.query(({ ctx }) => listSessions(ctx.db, ctx.actor, ctx.sessionId)),
+
+  /** Signs one of the actor's sessions out. */
+  endSession: protectedProcedure.input(z.object({ id: z.string().min(1) })).mutation(({ ctx, input }) => endSession(ctx.db, ctx.actor, input.id)),
+
+  /** Signs the actor out of every session except the current one. */
+  endOtherSessions: protectedProcedure.mutation(({ ctx }) => endOtherSessions(ctx.db, ctx.actor, ctx.sessionId)),
 
   /** The provisioned Discord accounts. Admin only. */
   accounts: protectedProcedure.query(({ ctx }) => listAllowedAccounts(ctx.db, ctx.actor)),

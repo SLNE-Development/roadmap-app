@@ -86,6 +86,7 @@ function createAuth() {
         isAdmin: { type: "boolean", required: false, defaultValue: false, input: false },
       },
     },
+    // No `session.cookieCache`: deleting a session row must sign that device out at once; a cache would delay sign-outs.
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (isBlockedAuthRequest(ctx.path, !!ctx.request)) throw new APIError("NOT_FOUND");

@@ -6,21 +6,25 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { getDb } from "@/db/client";
 import type { Db } from "@/db/types";
-import { sessionActor } from "@/lib/auth/actor";
+import { sessionAuth } from "@/lib/auth/actor";
 import type { Actor } from "@/lib/ops/actor";
 import { messageOf, OpError, statusOf } from "@/lib/ops/errors";
 
-/** What every procedure sees: the database and the signed-in actor, or `null` without a session. */
+/** What every procedure sees: the database, the signed-in actor and its session id, or `null` without a session. */
 export interface Context {
   db: Db;
   actor: Actor | null;
+  sessionId: string | null;
 }
 
 /**
  * Builds the context of the current request. Wrapped in `cache` so a server
  * render that prefetches several queries looks up the session once.
  */
-export const createContext = cache(async (): Promise<Context> => ({ db: getDb(), actor: await sessionActor() }));
+export const createContext = cache(async (): Promise<Context> => {
+  const auth = await sessionAuth();
+  return { db: getDb(), actor: auth?.actor ?? null, sessionId: auth?.sessionId ?? null };
+});
 
 /** The tRPC error code of each op status. */
 const CODE_OF: Record<number, TRPC_ERROR_CODE_KEY> = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { KeyRound, LogOut, Monitor, Moon, Sun, Users } from "lucide-react";
+import { KeyRound, Laptop, LogOut, Monitor, Moon, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -19,7 +19,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { authClient } from "@/lib/auth/client";
 
 /**
- * The account row at the bottom of the sidebar: a menu with API keys, accounts
+ * The account row at the bottom of the sidebar: a menu with API keys, sessions, accounts
  * (admins), theme and sign-out, plus a one-click light/dark switch.
  */
 export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) {
@@ -41,6 +41,11 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
           <DropdownMenuItem asChild>
             <Link href="/settings/api-keys">
               <KeyRound /> API keys
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/settings/sessions">
+              <Laptop /> Sessions
             </Link>
           </DropdownMenuItem>
           {isAdmin && (

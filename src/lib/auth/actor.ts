@@ -8,10 +8,17 @@ import { bearerToken } from "./bearer";
 import { rateLimitOf } from "./rate-limit";
 import { getAuth } from "./server";
 
+/** Returns the signed-in actor of the current request and the id of its session, or `null` without a valid, provisioned session. */
+export async function sessionAuth(): Promise<{ actor: Actor; sessionId: string } | null> {
+  const found = await getAuth().api.getSession({ headers: await headers() });
+  if (!found) return null;
+  const actor = await loadActor(getDb(), found.user.id);
+  return actor ? { actor, sessionId: found.session.id } : null;
+}
+
 /** Returns the signed-in actor of the current request, or `null` without a valid, provisioned session. */
 export async function sessionActor(): Promise<Actor | null> {
-  const found = await getAuth().api.getSession({ headers: await headers() });
-  return found ? loadActor(getDb(), found.user.id) : null;
+  return (await sessionAuth())?.actor ?? null;
 }
 
 /** Returns the signed-in actor, redirecting to `/login` when there is none. */

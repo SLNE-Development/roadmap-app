@@ -9,6 +9,7 @@ import {
   FolderKanban,
   KanbanSquare,
   KeyRound,
+  Laptop,
   LayoutGrid,
   List,
   ListChecks,
@@ -193,6 +194,9 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
         <CommandGroup heading="Account">
           <CommandItem value="api keys" onSelect={() => go("/settings/api-keys")}>
             <KeyRound /> API keys
+          </CommandItem>
+          <CommandItem value="sessions devices sign out" onSelect={() => go("/settings/sessions")}>
+            <Laptop /> Sessions
           </CommandItem>
           {data.isAdmin && (
             <CommandItem value="accounts admin allowlist" onSelect={() => go("/admin/users")}>
