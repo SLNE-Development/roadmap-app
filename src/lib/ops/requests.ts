@@ -9,7 +9,8 @@ import { logChange } from "./log";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
 import { briefAudienceIds, developerIds, notifyRequest } from "./request-notify";
-import { canAcceptRequests, eventFlags, requestAccess, type RequestAccess, type RequestRole } from "./request-access";
+import { canAcceptRequests, canDevelop, eventFlags, requestAccess, type RequestAccess, type RequestRole } from "./request-access";
+import { ensurePrepTodos, fallbackReady, redateTodos, seedRequestDefaults } from "./request-setup";
 
 /** One change to a request's history: which field changed, from what to what. Never holds secrets. */
 export interface RequestLogEntry {
@@ -85,10 +86,12 @@ export function eventEnd(request: Pick<EventRequestRow, "startsAt" | "durationMi
 
 /**
  * Side effects of a changed event date or duration: the linked project's deadline follows the event end (the Discord event
- * joins later). `before` holds the values from before the change.
+ * joins later) and the template to-dos that were not done or dated by hand follow the new start. `before` holds the values from before the change.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function onDateChanged(tx: Tx, actor: Actor, request: EventRequestRow, before: { startsAt: Date | null; durationMinutes: number | null }): Promise<void> {
+  await redateTodos(tx, request);
+  if (request.status === "accepted" || request.status === "event_week") await ensurePrepTodos(tx, request, request.acceptedBy ?? actor.userId);
   const end = eventEnd(request);
   if (!request.projectId || !end) return;
   const [current] = await tx.select({ deadline: project.deadline }).from(project).where(eq(project.id, request.projectId));
@@ -159,6 +162,7 @@ export async function createRequest(db: Db, actor: Actor, raw: unknown): Promise
       })
       .returning();
     await tx.insert(eventBriefVersion).values({ requestId: row.id, version: 1, body: normalizeBrief(input.brief), authorUserId: actor.userId });
+    await seedRequestDefaults(tx, row.id);
     await logRequest(tx, actor, { requestId: row.id, field: "created", newValue: row.title });
     return row;
   });
@@ -187,6 +191,7 @@ export async function updateRequest(db: Db, actor: Actor, requestId: string, raw
     };
     if (input.title !== undefined) note("title", { title: input.title }, request.title, input.title);
     if (input.startsAt !== undefined) {
+      if (input.startsAt === null && request.status !== "draft") throw new InvalidError("An event date is required once a request is submitted.");
       if (input.startsAt && stamp(input.startsAt) !== stamp(request.startsAt) && input.startsAt.getTime() < Date.now() && (request.status === "submitted" || request.status === "accepted" || request.status === "event_week")) {
         throw new InvalidError("The event date must be in the future.");
       }
@@ -381,6 +386,33 @@ export async function cancelRequest(db: Db, actor: Actor, requestId: string, raw
   return transition(db, actor, requestId, (tx) => manageOrDevelop(tx, actor, requestId), (tx, request) => moveTo(tx, actor, request, "cancelled", {}, reason));
 }
 
+/**
+ * Starts the event week of an accepted request. Edit or develop access; the three required fallback scenarios must be
+ * filled in. Nothing starts it on a date.
+ *
+ * @throws ConflictError unless the request is accepted, or while a required scenario is incomplete (the message names them)
+ * @throws ForbiddenError without edit or develop access
+ */
+export function startEventWeek(db: Db, actor: Actor, requestId: string): Promise<EventRequestRow> {
+  const access = async (tx: Tx) => {
+    try {
+      return await requestAccess(tx, actor, requestId, "edit");
+    } catch (e) {
+      if (!(e instanceof ForbiddenError)) throw e;
+      return requestAccess(tx, actor, requestId, "develop");
+    }
+  };
+  return transition(db, actor, requestId, access, async (tx, request) => {
+    if (!canTransition(request.status, "event_week")) throw new ConflictError(`A ${request.status} request cannot become event_week.`);
+    const ready = await fallbackReady(tx, requestId);
+    if (!ready.ready) {
+      const list = ready.missing.map((m) => `${m.title} (${m.missing.join(", ")})`).join("; ");
+      throw new ConflictError(`The fallback plan is not complete yet. Missing: ${list}.`);
+    }
+    return moveTo(tx, actor, request, "event_week");
+  });
+}
+
 /** Marks an event-week request as done. */
 export function markDone(db: Db, actor: Actor, requestId: string): Promise<EventRequestRow> {
   return transition(db, actor, requestId, (tx) => editAccess(tx, actor, requestId), (tx, request) => moveTo(tx, actor, request, "done"));
@@ -466,6 +498,8 @@ export interface RequestDetail {
   canCancel: boolean;
   /** Whether the actor may accept the request (admins and event developers). */
   canAccept: boolean;
+  /** Whether the actor has develop access (see {@link canDevelop}). */
+  canDevelop: boolean;
   /** Whether the actor may open the linked project (a member or an admin). */
   projectOpen: boolean;
   role: RequestRole;
@@ -497,6 +531,7 @@ export async function getRequest(db: Db, actor: Actor, requestId: string): Promi
     canManage,
     canCancel: canManage || flags.isEventDeveloper,
     canAccept: canAcceptRequests(flags),
+    canDevelop: await canDevelop(db, actor, requestId),
     projectOpen: linked !== undefined && (membership !== undefined || flags.isAdmin),
     role,
   };

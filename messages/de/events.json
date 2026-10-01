@@ -38,7 +38,10 @@
     "tabQuestionsOpen": "Fragen ({count})",
     "tabOverview": "Übersicht",
     "requestedBy": "Angefragt von {name}",
-    "readOnly": "Du kannst diese Anfrage ansehen, aber nicht ändern."
+    "readOnly": "Du kannst diese Anfrage ansehen, aber nicht ändern.",
+    "tabFallback": "Notfallplan",
+    "tabPrep": "Vorbereitung",
+    "tabEventDay": "Eventtag"
   },
   "statusBar": {
     "label": "Status der Anfrage",
@@ -59,7 +62,11 @@
     "cancelDescription": "Die Anfrage wird endgültig geschlossen. Nenne den Grund, damit alle, die sie verfolgen, Bescheid wissen.",
     "reason": "Grund",
     "cancelConfirm": "Event absagen",
-    "keep": "Event behalten"
+    "keep": "Event behalten",
+    "startEventWeek": "Eventwoche starten",
+    "eventWeekStarted": "Eventwoche gestartet",
+    "fallbackGate": "Die Eventwoche kann starten, sobald der Notfallplan vollständig ist. Noch offen: {scenarios}.",
+    "openFallback": "Notfallplan öffnen"
   },
   "details": {
     "title": "Details",
@@ -211,5 +218,70 @@
     "copied": "Befehl kopiert",
     "copyFailed": "Kopieren fehlgeschlagen. Markiere den Befehl und kopiere ihn von Hand.",
     "close": "Schließen"
+  },
+  "fallback": {
+    "help": "Was tun wir, wenn etwas schiefgeht? Für die drei Pflichtszenarien müssen „Was wir tun“ und „Wer entscheidet“ ausgefüllt sein, bevor die Eventwoche starten kann.",
+    "required": "Pflicht",
+    "complete": "Vollständig",
+    "incomplete": "Unvollständig",
+    "titleLabel": "Titel des Szenarios",
+    "whatWeDo": "Was wir tun",
+    "whoDecides": "Wer entscheidet",
+    "playerMessage": "Nachricht an die Spieler (optional)",
+    "playerMessageHelp": "Auf Deutsch vorbereitet. Sie darf Platzhalter wie {event} und {time} enthalten.",
+    "save": "Szenario speichern",
+    "saved": "Szenario gespeichert",
+    "remove": "Szenario entfernen",
+    "removed": "Szenario entfernt",
+    "newTitle": "Neues Szenario",
+    "add": "Szenario hinzufügen"
+  },
+  "prep": {
+    "help": "Bereite das Event Schritt für Schritt vor. Die Termine folgen dem Eventdatum, bis du einen von Hand setzt.",
+    "empty": "Noch keine Aufgaben. Sie entstehen, sobald die Anfrage angenommen wird.",
+    "late": "Überfällig",
+    "owner": "Zuständig",
+    "noOwner": "Niemand",
+    "due": "Fällig",
+    "remove": "Entfernen",
+    "newTitle": "Neue Aufgabe",
+    "add": "Aufgabe hinzufügen",
+    "template": {
+      "team-message": "Teamnachricht posten",
+      "announcement": "Ankündigung posten",
+      "build-ready": "Build ist fertig",
+      "rehearsal": "Probe",
+      "reminder": "Erinnerung posten",
+      "recap": "Rückblick und Dank"
+    }
+  },
+  "eventDay": {
+    "title": "Eventtag",
+    "description": "Alles, was das Team braucht, solange das Event läuft.",
+    "where": "Wo: {where}",
+    "notLive": "Die Eventwoche hat noch nicht begonnen, daher sind Checkliste und Einchecken gesperrt.",
+    "checklist": "Checkliste",
+    "readOnly": "Du kannst die Checkliste lesen, aber nicht abhaken.",
+    "removeItem": "Entfernen",
+    "newItem": "Neuer Checklistenpunkt",
+    "addItem": "Punkt hinzufügen",
+    "checkins": "Eingecheckt",
+    "nobody": "Noch niemand ist eingecheckt.",
+    "checkedInAt": "{name} seit {time}",
+    "checkIn": "Einchecken",
+    "checkOut": "Auschecken",
+    "wrong": "Etwas stimmt nicht",
+    "showScenarios": "Notfallszenarien anzeigen",
+    "hideScenarios": "Notfallszenarien ausblenden",
+    "disaster": "Störfall melden",
+    "disasterSoon": "Kommt bald.",
+    "blank": "Nicht ausgefüllt",
+    "decides": "Entscheidet: {who}",
+    "items": {
+      "server-checked": "Server vom Host geprüft",
+      "staff-online": "Team ist online",
+      "rewards-ready": "Belohnungen bereit",
+      "fallback-read": "Notfallplan vom Host gelesen"
+    }
   }
 }

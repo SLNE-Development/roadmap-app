@@ -9,6 +9,9 @@ import { UnderlineTabs } from "@/components/activity/url-tabs";
 import { AcceptDialog } from "@/components/events/accept-dialog";
 import { BriefHistory } from "@/components/events/brief-history";
 import { ImageUpload } from "@/components/events/image-upload";
+import { EventDayPanel } from "@/components/events/event-day-panel";
+import { FallbackTab } from "@/components/events/fallback-tab";
+import { PrepTab } from "@/components/events/prep-tab";
 import { EventProgressBar } from "@/components/events/progress-bar";
 import { openCount, QuestionForm } from "@/components/events/question-form";
 import { StatusBar } from "@/components/events/status-bar";
@@ -313,19 +316,23 @@ function CancelDialog({ requestId, open, onOpenChange }: { requestId: string; op
  * @param props.id the request id
  * @param props.tab the tab shown
  */
-export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions" | "overview" }) {
+export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions" | "overview" | "fallback" | "prep" | "eventday" }) {
   const t = useTranslations("events");
   const trpc = useTRPC();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [acceptOpen, setAcceptOpen] = useState(false);
-  const [{ data: detail }, { data: rounds }] = useSuspenseQueries({ queries: [trpc.requests.get.queryOptions({ id }), trpc.requests.rounds.queryOptions({ id })] });
-  const { request, canEdit, canCancel, canAccept } = detail;
-  const done = (key: "submitted" | "recalled" | "withdrawn" | "done") => ({ onSuccess: () => toast.success(t(`actions.${key}`)) });
+  const [{ data: detail }, { data: rounds }, { data: fallbacks }] = useSuspenseQueries({
+    queries: [trpc.requests.get.queryOptions({ id }), trpc.requests.rounds.queryOptions({ id }), trpc.requests.fallbacks.queryOptions({ id })],
+  });
+  const { request, canEdit, canCancel, canAccept, canDevelop } = detail;
+  const done = (key: "submitted" | "recalled" | "withdrawn" | "done" | "eventWeekStarted") => ({ onSuccess: () => toast.success(t(`actions.${key}`)) });
   const submit = useMutation(trpc.requests.submit.mutationOptions(done("submitted")));
   const recall = useMutation(trpc.requests.recall.mutationOptions(done("recalled")));
   const withdraw = useMutation(trpc.requests.withdraw.mutationOptions(done("withdrawn")));
   const markDone = useMutation(trpc.requests.markDone.mutationOptions(done("done")));
-  const busy = submit.isPending || recall.isPending || withdraw.isPending || markDone.isPending;
+  const startWeek = useMutation(trpc.requests.startEventWeek.mutationOptions(done("eventWeekStarted")));
+  const busy = submit.isPending || recall.isPending || withdraw.isPending || markDone.isPending || startWeek.isPending;
+  const incomplete = fallbacks.filter((f) => f.required && (!f.whatWeDo.trim() || !f.whoDecides.trim()));
   const { status } = request;
   const open = openCount(rounds);
   const base = `/requests/${id}`;
@@ -358,6 +365,11 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
                 {t("accept.button")}
               </Button>
             )}
+            {(canEdit || canDevelop) && status === "accepted" && (
+              <Button disabled={busy} onClick={() => startWeek.mutate({ id })}>
+                {t("actions.startEventWeek")}
+              </Button>
+            )}
             {canEdit && status === "event_week" && (
               <Button disabled={busy} onClick={() => markDone.mutate({ id })}>
                 {t("actions.markDone")}
@@ -373,6 +385,16 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
       >
         <StatusBar status={status} />
       </PageHeader>
+      {(canEdit || canDevelop) && status === "accepted" && incomplete.length > 0 && (
+        <p role="status" className="border border-primary/40 bg-secondary px-3 py-2 text-[13px]">
+          {t("actions.fallbackGate", { scenarios: incomplete.map((f) => f.title).join(", ") })}{" "}
+          {tab !== "fallback" && (
+            <Link href={`${base}?tab=fallback`} className="text-brand-strong hover:underline">
+              {t("actions.openFallback")}
+            </Link>
+          )}
+        </p>
+      )}
       {!canEdit && <p className="border bg-secondary px-3 py-2 text-[13px] text-fg-2">{t("page.readOnly")}</p>}
       <LinkCard detail={detail} />
       <ProgressPanel requestId={id} />
@@ -391,6 +413,9 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
         tabs={[
           { label: t("page.tabBrief"), href: base, active: tab === "brief" },
           { label: open > 0 ? t("page.tabQuestionsOpen", { count: open }) : t("page.tabQuestions"), href: `${base}?tab=questions`, active: tab === "questions" },
+          { label: t("page.tabFallback"), href: `${base}?tab=fallback`, active: tab === "fallback" },
+          { label: t("page.tabPrep"), href: `${base}?tab=prep`, active: tab === "prep" },
+          { label: t("page.tabEventDay"), href: `${base}?tab=eventday`, active: tab === "eventday" },
           { label: t("page.tabOverview"), href: `${base}?tab=overview`, active: tab === "overview" },
         ]}
       />
@@ -410,6 +435,12 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
         </div>
       ) : tab === "questions" ? (
         <QuestionForm requestId={id} canAnswer={canEdit} />
+      ) : tab === "fallback" ? (
+        <FallbackTab requestId={id} canEdit={canEdit} />
+      ) : tab === "prep" ? (
+        <PrepTab requestId={id} canEdit={canEdit || canDevelop} />
+      ) : tab === "eventday" ? (
+        <EventDayPanel requestId={id} canManageList={canEdit || canDevelop} />
       ) : (
         <div className="flex flex-col gap-6">
           <BannerPanel detail={detail} />

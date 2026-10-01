@@ -6,6 +6,7 @@ import { newId } from "@/lib/id";
 import type { Actor } from "@/lib/ops/actor";
 import { setMember } from "@/lib/ops/members";
 import { createProject } from "@/lib/ops/projects";
+import { seedRequestDefaults } from "@/lib/ops/request-setup";
 
 /** Counter making fixture names, emails and Discord ids unique within a test. */
 let seq = 0;
@@ -76,5 +77,6 @@ export async function requestFixture(db: Db, requester: Actor, over: Partial<typ
   const id = over.id ?? newId();
   const [row] = await db.insert(eventRequest).values({ id, requesterId: requester.userId, title: "Fixture event", ...over }).returning();
   await db.insert(eventBriefVersion).values({ requestId: id, version: row.briefVersion, body: "Brief", authorUserId: requester.userId });
+  await seedRequestDefaults(db, id);
   return row;
 }

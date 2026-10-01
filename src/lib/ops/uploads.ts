@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { eventRequest, eventUpload, UPLOAD_PURPOSES, type EventUploadRow, type UploadPurpose } from "@/db/schema";
+import { eventFallback, eventRequest, eventUpload, UPLOAD_PURPOSES, type EventUploadRow, type UploadPurpose } from "@/db/schema";
 import type { Db, Tx } from "@/db/types";
 import { newId } from "@/lib/id";
 import { displayName, IMAGE_EXTENSIONS, safePath, sniffImage, uploadsDir, UPLOAD_LIMITS } from "@/lib/uploads";
@@ -41,9 +41,12 @@ export const storeUploadInput = z.object({
 
 /**
  * Places that hold an upload id and so block its deletion; each returns whether it still uses `uploadId`.
- * Later tasks append their check (fallback scenarios, settings templates).
+ * Later tasks add their check here (settings templates).
  */
-export const UPLOAD_REFERENCES: ((tx: Tx, uploadId: string) => Promise<boolean>)[] = [];
+export const UPLOAD_REFERENCES: ((tx: Tx, uploadId: string) => Promise<boolean>)[] = [
+  // A fallback scenario that shows the image. Listed here, not registered by its module, so the guard never depends on import order.
+  async (tx, uploadId) => (await tx.select({ id: eventFallback.id }).from(eventFallback).where(eq(eventFallback.imageUploadId, uploadId)).limit(1)).length > 0,
+];
 
 /** Whether the error says the file does not exist. */
 const isMissing = (error: unknown): boolean => (error as NodeJS.ErrnoException)?.code === "ENOENT";

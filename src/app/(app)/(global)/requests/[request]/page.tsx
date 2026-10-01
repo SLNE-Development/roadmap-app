@@ -1,7 +1,9 @@
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import { RequestView } from "./request-view";
 
-/** One event request: status, details, brief with its versions and the history; `?tab=questions` or `?tab=overview` switches the tab. */
+const TABS = ["overview", "questions", "fallback", "prep", "eventday"] as const;
+
+/** One event request: status, details, brief with its versions and the history; `?tab=` switches to questions, fallback, prep, eventday or overview. */
 export default async function RequestPage({
   params,
   searchParams,
@@ -10,10 +12,10 @@ export default async function RequestPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ request }, sp] = await Promise.all([params, searchParams]);
-  await prefetch(trpc.requests.get.queryOptions({ id: request }), trpc.requests.briefVersions.queryOptions({ id: request }), trpc.requests.rounds.queryOptions({ id: request }), trpc.requests.progress.queryOptions({ id: request }));
+  await prefetch(trpc.requests.get.queryOptions({ id: request }), trpc.requests.briefVersions.queryOptions({ id: request }), trpc.requests.rounds.queryOptions({ id: request }), trpc.requests.progress.queryOptions({ id: request }), trpc.requests.fallbacks.queryOptions({ id: request }));
   return (
     <HydrateClient>
-      <RequestView id={request} tab={sp.tab === "overview" || sp.tab === "questions" ? sp.tab : "brief"} />
+      <RequestView id={request} tab={TABS.find((t) => t === sp.tab) ?? "brief"} />
     </HydrateClient>
   );
 }

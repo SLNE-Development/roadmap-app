@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { eventRequest, eventUpload, requestLog } from "@/db/schema";
+import { eventFallback, eventRequest, eventUpload, requestLog } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { newId } from "@/lib/id";
 import { UPLOAD_LIMITS } from "@/lib/uploads";
@@ -32,8 +32,10 @@ beforeEach(async () => {
   requestId = (await requestFixture(db, requester)).id;
 });
 
+const BUILT_IN_REFERENCES = [...UPLOAD_REFERENCES];
+
 afterEach(async () => {
-  UPLOAD_REFERENCES.length = 0;
+  UPLOAD_REFERENCES.splice(0, UPLOAD_REFERENCES.length, ...BUILT_IN_REFERENCES);
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -153,6 +155,12 @@ describe("deleteUpload", () => {
     UPLOAD_REFERENCES.push(async () => true);
     await expect(deleteUpload(db, requester, view.id, dir)).rejects.toBeInstanceOf(ConflictError);
     expect(await readdir(dir)).toHaveLength(1);
+  });
+
+  it("refuses while a fallback scenario shows the image, without importing the fallback ops", async () => {
+    const view = await store({ purpose: "fallback" });
+    await db.update(eventFallback).set({ imageUploadId: view.id }).where(eq(eventFallback.key, "server-down"));
+    await expect(deleteUpload(db, requester, view.id, dir)).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("needs edit access", async () => {

@@ -58,7 +58,12 @@ describe("get_request", () => {
     const round = (await w.ask()) as { questionIds: string[] };
     await answerQuestions(w.db, w.R, w.request.id, { answers: [{ questionId: round.questionIds[0], value: "Winter" }] });
     const open = await w.get();
-    expect(open).toMatchObject({ id: w.request.id, title: "Winter party", status: "submitted", requester: { name: "Requester" }, project: null, system: null, openQuestions: 1, notSure: [], fallback: [], progress: null, specBasis: null });
+    expect(open).toMatchObject({ id: w.request.id, title: "Winter party", status: "submitted", requester: { name: "Requester" }, project: null, system: null, openQuestions: 1, notSure: [], progress: null, specBasis: null });
+    expect(open.fallback).toEqual([
+      { key: "server-down", title: "Server dies mid-event", filled: false },
+      { key: "staff-missing", title: "Key staff missing", filled: false },
+      { key: "too-few-players", title: "Too few players", filled: false },
+    ]);
     expect(open.brief).toMatchObject({ version: 2, body: "Line one\nLine two changed" });
     expect(open.rounds[0].questions[0]).toMatchObject({ type: "text", answer: "Winter", notSure: false, answered: true });
     expect(open.rounds[0].questions[1]).toMatchObject({ answer: null, answered: false });

@@ -181,3 +181,86 @@ export const eventSpecBasis = pgTable(
   },
   (t) => [primaryKey({ columns: [t.systemId, t.specVersion] })],
 );
+
+/** One fallback scenario of a request: what we do if it happens, who decides, and an optional prepared player message. The three required ones exist from the start. */
+export const eventFallback = pgTable(
+  "event_fallback",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => eventRequest.id, { onDelete: "cascade" }),
+    /** One of the required keys, or `custom-<id>`. */
+    key: text("key").notNull(),
+    title: text("title").notNull(),
+    whatWeDo: text("what_we_do").notNull().default(""),
+    whoDecides: text("who_decides").notNull().default(""),
+    /** A prepared message for players (German, may hold placeholders). */
+    playerMessage: text("player_message"),
+    imageUploadId: text("image_upload_id").references(() => eventUpload.id, { onDelete: "set null" }),
+    required: boolean("required").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [unique("event_fallback_key").on(t.requestId, t.key)],
+);
+
+/** A row of {@link eventFallback}. */
+export type EventFallbackRow = typeof eventFallback.$inferSelect;
+
+/** A prep to-do of a request. Template to-dos have a `templateKey` and follow the event date until done or dated by hand. */
+export const eventTodo = pgTable(
+  "event_todo",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => eventRequest.id, { onDelete: "cascade" }),
+    templateKey: text("template_key"),
+    title: text("title").notNull(),
+    ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "set null" }),
+    dueAt: timestamp("due_at", tz).notNull(),
+    /** The owner changed the date by hand, so the event date no longer moves it. */
+    dueManual: boolean("due_manual").notNull().default(false),
+    doneAt: timestamp("done_at", tz),
+    doneBy: text("done_by").references(() => user.id, { onDelete: "set null" }),
+    lastRemindedAt: timestamp("last_reminded_at", tz),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [index("event_todo_request").on(t.requestId)],
+);
+
+/** A row of {@link eventTodo}. */
+export type EventTodoRow = typeof eventTodo.$inferSelect;
+
+/** One item of the event-day checklist; ticking is possible only in the event week. */
+export const eventChecklistItem = pgTable(
+  "event_checklist_item",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => eventRequest.id, { onDelete: "cascade" }),
+    /** The template key; null for a custom item. */
+    key: text("key"),
+    label: text("label").notNull(),
+    doneAt: timestamp("done_at", tz),
+    doneBy: text("done_by").references(() => user.id, { onDelete: "set null" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("event_checklist_request").on(t.requestId)],
+);
+
+/** Who is on duty at the event: a user checks themselves in during the event week. */
+export const eventCheckin = pgTable(
+  "event_checkin",
+  {
+    requestId: text("request_id")
+      .notNull()
+      .references(() => eventRequest.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    at: timestamp("at", tz).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.requestId, t.userId] })],
+);

@@ -239,6 +239,13 @@
       "when": 1790865713432,
       "tag": "0033_event-accept",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790867244195,
+      "tag": "0034_event-fallback-prep",
+      "breakpoints": true
     }
   ]
 }

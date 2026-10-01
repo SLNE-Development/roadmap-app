@@ -13,7 +13,7 @@ export interface EventFlags {
   isEventDeveloper: boolean;
 }
 
-/** How an actor relates to a request, strongest first: event manager, admin who is not the requester (both `manager`), requester, event developer, linked-project member; `staff` is reserved for the event-day view. */
+/** How an actor relates to a request, strongest first: event manager, admin who is not the requester (both `manager`), requester, event developer, linked-project member; `staff` is any other provisioned user and exists only for the event-day view of an event-week request. */
 export type RequestRole = "requester" | "manager" | "developer" | "project" | "staff";
 
 /** A request the actor may view, with their relation to it and whether they may edit it. */
@@ -144,4 +144,39 @@ export async function requestAccess(db: Executor, actor: Actor, requestId: strin
     throw new ForbiddenError("This needs the event developer role or an editor role in the linked project.");
   }
   return { request, role, flags, canEdit };
+}
+
+/**
+ * Access for the event-day page. Anyone who may view the request gets their normal role; while the request is in the event
+ * week, any other provisioned user gets the `staff` role (view only, never edit). The role is for the event-day view and
+ * nothing else: every other op keeps using {@link requestAccess}.
+ *
+ * @throws NotFoundError for an unknown request, or when the actor may not view it and it is not in the event week
+ */
+export async function eventDayAccess(db: Executor, actor: Actor, requestId: string): Promise<RequestAccess> {
+  try {
+    return await requestAccess(db, actor, requestId, "view");
+  } catch (error) {
+    if (!(error instanceof NotFoundError)) throw error;
+    const [request] = await db.select().from(eventRequest).where(eq(eventRequest.id, requestId)).limit(1);
+    const [account] = await db
+      .select({ id: user.id })
+      .from(user)
+      .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
+      .where(eq(user.id, actor.userId))
+      .limit(1);
+    if (!request || request.status !== "event_week" || !account) throw error;
+    return { request, role: "staff", flags: await eventFlags(db, actor), canEdit: false };
+  }
+}
+
+/** Whether the actor has develop access on the request (event developers, admins, editors of the linked project); false when they cannot view it. */
+export async function canDevelop(db: Executor, actor: Actor, requestId: string): Promise<boolean> {
+  try {
+    await requestAccess(db, actor, requestId, "develop");
+    return true;
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ForbiddenError) return false;
+    throw error;
+  }
 }

@@ -13,6 +13,7 @@ import { findSystem, lockProject, type SystemRow } from "./lookup";
 import { insertProject, listProjects } from "./projects";
 import { canAcceptRequests, canViewRequest, eventFlags, requestAccess, requestViewableBy } from "./request-access";
 import { notifyRequest } from "./request-notify";
+import { ensurePrepTodos } from "./request-setup";
 import { eventEnd, lockRequest, logRequest, moveTo } from "./requests";
 import { insertDomain, insertPhase } from "./structure";
 import { insertSystem } from "./systems";
@@ -145,7 +146,8 @@ export async function acceptRequest(db: Db, actor: Actor, requestId: string, raw
         }
       }
 
-      await moveTo(tx, actor, request, "accepted", { projectId, systemId: systemRow.id, acceptedAt: new Date(), acceptedBy: actor.userId });
+      const accepted = await moveTo(tx, actor, request, "accepted", { projectId, systemId: systemRow.id, acceptedAt: new Date(), acceptedBy: actor.userId });
+      await ensurePrepTodos(tx, accepted, actor.userId);
       await logRequest(tx, actor, { requestId, field: "project", newValue: projectSlug });
       if (request.requesterId) {
         await notifyRequest(tx, {

@@ -38,7 +38,10 @@
     "tabQuestionsOpen": "Questions ({count})",
     "tabOverview": "Overview",
     "requestedBy": "Requested by {name}",
-    "readOnly": "You can view this request but not change it."
+    "readOnly": "You can view this request but not change it.",
+    "tabFallback": "Fallback",
+    "tabPrep": "Prep",
+    "tabEventDay": "Event day"
   },
   "statusBar": {
     "label": "Request status",
@@ -59,7 +62,11 @@
     "cancelDescription": "The request is closed for good. Say why, so everyone who follows it knows.",
     "reason": "Reason",
     "cancelConfirm": "Cancel event",
-    "keep": "Keep event"
+    "keep": "Keep event",
+    "startEventWeek": "Start event week",
+    "eventWeekStarted": "Event week started",
+    "fallbackGate": "The event week can start once the fallback plan is complete. Still open: {scenarios}.",
+    "openFallback": "Open fallback plan"
   },
   "details": {
     "title": "Details",
@@ -211,5 +218,70 @@
     "copied": "Command copied",
     "copyFailed": "Copying failed. Select the command and copy it by hand.",
     "close": "Close"
+  },
+  "fallback": {
+    "help": "What do we do when something goes wrong? The three required scenarios need an answer to \"what we do\" and \"who decides\" before the event week can start.",
+    "required": "Required",
+    "complete": "Complete",
+    "incomplete": "Incomplete",
+    "titleLabel": "Scenario title",
+    "whatWeDo": "What we do",
+    "whoDecides": "Who decides",
+    "playerMessage": "Message for players (optional)",
+    "playerMessageHelp": "Prepared in German. It may contain placeholders such as {event} and {time}.",
+    "save": "Save scenario",
+    "saved": "Scenario saved",
+    "remove": "Remove scenario",
+    "removed": "Scenario removed",
+    "newTitle": "New scenario",
+    "add": "Add scenario"
+  },
+  "prep": {
+    "help": "Prepare the event step by step. Dates follow the event date until you set one by hand.",
+    "empty": "No to-dos yet. They are created when the request is accepted.",
+    "late": "Late",
+    "owner": "Owner",
+    "noOwner": "No owner",
+    "due": "Due",
+    "remove": "Remove",
+    "newTitle": "New to-do",
+    "add": "Add to-do",
+    "template": {
+      "team-message": "Post the team message",
+      "announcement": "Post the announcement",
+      "build-ready": "Build is ready",
+      "rehearsal": "Rehearsal",
+      "reminder": "Post the reminder",
+      "recap": "Recap and thank-you"
+    }
+  },
+  "eventDay": {
+    "title": "Event day",
+    "description": "Everything the team needs while the event runs.",
+    "where": "Where: {where}",
+    "notLive": "The event week has not started, so the checklist and check-in are closed.",
+    "checklist": "Checklist",
+    "readOnly": "You can read the checklist but not tick it.",
+    "removeItem": "Remove",
+    "newItem": "New checklist item",
+    "addItem": "Add item",
+    "checkins": "Checked in",
+    "nobody": "Nobody is checked in yet.",
+    "checkedInAt": "{name} since {time}",
+    "checkIn": "Check me in",
+    "checkOut": "Check me out",
+    "wrong": "Something is wrong",
+    "showScenarios": "Show fallback scenarios",
+    "hideScenarios": "Hide fallback scenarios",
+    "disaster": "Report a disaster",
+    "disasterSoon": "Coming soon.",
+    "blank": "Not filled in",
+    "decides": "Decides: {who}",
+    "items": {
+      "server-checked": "Server checked by the host",
+      "staff-online": "Staff online",
+      "rewards-ready": "Rewards ready",
+      "fallback-read": "Fallback plan read by the host"
+    }
   }
 }

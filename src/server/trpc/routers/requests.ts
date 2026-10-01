@@ -4,6 +4,25 @@ import { askRoundInput } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { dbInt } from "@/lib/ops/params";
 import { acceptInput, acceptRequest, briefStatus, linkableProjects, requestOfProject, requestProgress } from "@/lib/ops/request-link";
+import { addFallbackInput, addFallback, listFallbacks, removeFallback, saveFallback, saveFallbackInput } from "@/lib/ops/request-fallback";
+import {
+  addChecklistItem,
+  addChecklistItemInput,
+  addTodo,
+  addTodoInput,
+  checkIn,
+  checkOut,
+  eventDayView,
+  listChecklist,
+  listOwnerChoices,
+  listTodos,
+  removeChecklistItem,
+  removeTodo,
+  setChecklistItem,
+  setTodoDone,
+  updateTodo,
+  updateTodoInput,
+} from "@/lib/ops/request-prep";
 import { answerQuestions, answerQuestionsInput, askRound, listRounds } from "@/lib/ops/request-questions";
 import {
   cancelRequest,
@@ -19,6 +38,7 @@ import {
   requestHistory,
   saveBrief,
   saveBriefInput,
+  startEventWeek,
   submitRequest,
   updateRequest,
   updateRequestInput,
@@ -123,4 +143,70 @@ export const requestsRouter = router({
 
   /** Deletes an uploaded image, clearing it as the banner first. */
   deleteUpload: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => deleteUpload(ctx.db, ctx.actor, input.id)),
+
+  /** Starts the event week once the fallback plan is complete. */
+  startEventWeek: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => startEventWeek(ctx.db, ctx.actor, input.id)),
+
+  /** The fallback scenarios of a request. */
+  fallbacks: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listFallbacks(ctx.db, ctx.actor, input.id)),
+
+  /** Changes a fallback scenario. */
+  saveFallback: protectedProcedure
+    .input(z.object({ ...R, fallbackId: z.string().min(1).max(64), ...saveFallbackInput.shape }))
+    .mutation(({ ctx, input: { id, fallbackId, ...patch } }) => saveFallback(ctx.db, ctx.actor, id, fallbackId, patch)),
+
+  /** Adds a custom fallback scenario. */
+  addFallback: protectedProcedure.input(z.object({ ...R, ...addFallbackInput.shape })).mutation(({ ctx, input: { id, ...rest } }) => addFallback(ctx.db, ctx.actor, id, rest)),
+
+  /** Removes a custom fallback scenario. */
+  removeFallback: protectedProcedure
+    .input(z.object({ ...R, fallbackId: z.string().min(1).max(64) }))
+    .mutation(({ ctx, input }) => removeFallback(ctx.db, ctx.actor, input.id, input.fallbackId)),
+
+  /** The prep to-dos of a request with their late flag. */
+  todos: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listTodos(ctx.db, ctx.actor, input.id)),
+
+  /** The people a to-do can be given to. */
+  owners: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listOwnerChoices(ctx.db, ctx.actor, input.id)),
+
+  /** Adds a custom to-do. */
+  addTodo: protectedProcedure.input(z.object({ ...R, ...addTodoInput.shape })).mutation(({ ctx, input: { id, ...rest } }) => addTodo(ctx.db, ctx.actor, id, rest)),
+
+  /** Changes the title, owner or due date of a to-do. */
+  updateTodo: protectedProcedure
+    .input(z.object({ todoId: z.string().min(1).max(64), ...updateTodoInput.shape }))
+    .mutation(({ ctx, input: { todoId, ...patch } }) => updateTodo(ctx.db, ctx.actor, todoId, patch)),
+
+  /** Ticks or unticks a to-do. */
+  setTodoDone: protectedProcedure
+    .input(z.object({ todoId: z.string().min(1).max(64), done: z.boolean() }))
+    .mutation(({ ctx, input }) => setTodoDone(ctx.db, ctx.actor, input.todoId, input.done)),
+
+  /** Removes a custom to-do. */
+  removeTodo: protectedProcedure.input(z.object({ todoId: z.string().min(1).max(64) })).mutation(({ ctx, input }) => removeTodo(ctx.db, ctx.actor, input.todoId)),
+
+  /** The event-day checklist. */
+  checklist: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listChecklist(ctx.db, ctx.actor, input.id)),
+
+  /** Ticks or unticks a checklist item (event week only). */
+  setChecklistItem: protectedProcedure
+    .input(z.object({ itemId: z.string().min(1).max(64), done: z.boolean() }))
+    .mutation(({ ctx, input }) => setChecklistItem(ctx.db, ctx.actor, input.itemId, input.done)),
+
+  /** Adds a custom checklist item. */
+  addChecklistItem: protectedProcedure
+    .input(z.object({ ...R, ...addChecklistItemInput.shape }))
+    .mutation(({ ctx, input: { id, ...rest } }) => addChecklistItem(ctx.db, ctx.actor, id, rest)),
+
+  /** Removes a custom checklist item. */
+  removeChecklistItem: protectedProcedure.input(z.object({ itemId: z.string().min(1).max(64) })).mutation(({ ctx, input }) => removeChecklistItem(ctx.db, ctx.actor, input.itemId)),
+
+  /** Checks the signed-in user in at the event. */
+  checkIn: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => checkIn(ctx.db, ctx.actor, input.id)),
+
+  /** Checks the signed-in user out. */
+  checkOut: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => checkOut(ctx.db, ctx.actor, input.id)),
+
+  /** The event-day page: event, checklist, fallback scenarios and check-ins; open to every signed-in user in the event week. */
+  eventDay: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => eventDayView(ctx.db, ctx.actor, input.id)),
 });

@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { z } from "zod";
-import { project, system, user } from "@/db/schema";
+import { eventFallback, project, system, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { DiffHunk } from "@/lib/diff";
 import type { askRoundInput, QuestionType } from "@/lib/event-questions";
@@ -68,7 +68,7 @@ function cutAnswer(value: unknown, cuts: { n: number }): unknown {
 
 /**
  * Returns a request for an agent: brief (or its diff since `sinceBrief`), event data, typed answers and open questions.
- * The fallback stays empty until its task lands.
+ * The fallback lists every scenario with whether it is filled in.
  *
  * @throws InvalidError unless `sinceBrief` is lower than the current brief version
  * @throws NotFoundError when the request is unknown, invisible or a draft
@@ -81,7 +81,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     sinceBrief === undefined
       ? { version: request.briefVersion, body: (await getBrief(db, actor, requestId)).body }
       : { version: request.briefVersion, since: sinceBrief, diff: await compareBriefs(db, actor, requestId, sinceBrief, request.briefVersion) };
-  const [[requester], [proj], [sys], rounds, openQuestions, specBasis, progress] = await Promise.all([
+  const [[requester], [proj], [sys], rounds, openQuestions, specBasis, progress, fallbacks] = await Promise.all([
     db.select({ name: user.name }).from(user).where(eq(user.id, request.requesterId ?? "")).limit(1),
     request.projectId ? db.select({ slug: project.slug }).from(project).where(eq(project.id, request.projectId)).limit(1) : [],
     request.systemId ? db.select({ slug: system.slug }).from(system).where(eq(system.id, request.systemId)).limit(1) : [],
@@ -89,6 +89,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     openQuestionCount(db, requestId),
     getSpecBasis(db, requestId),
     requestProgress(db, actor, requestId),
+    db.select().from(eventFallback).where(eq(eventFallback.requestId, requestId)).orderBy(asc(eventFallback.sortOrder)),
   ]);
   const cuts = { n: 0 };
   const views = rounds.map((r) => ({
@@ -111,7 +112,7 @@ export async function requestForAgent(db: Db, actor: Actor, requestId: string, s
     rounds: views,
     openQuestions,
     notSure: views.flatMap((r) => r.questions.filter((q) => q.notSure).map((q) => ({ questionId: q.id, text: q.text }))),
-    fallback: [],
+    fallback: fallbacks.map((f) => ({ key: f.key, title: f.title, filled: f.whatWeDo.trim() !== "" && f.whoDecides.trim() !== "" })),
     progress,
     ...(cuts.n > 0 ? { truncated: true as const } : {}),
   };
