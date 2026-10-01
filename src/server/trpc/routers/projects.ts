@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { archiveProject, restoreProject } from "@/lib/ops/archive";
+import { projectAttention } from "@/lib/ops/attention";
 import { archivedFilter, createProject, createProjectInput, deleteProject, getProject, listProjects, updateProject, updateProjectInput } from "@/lib/ops/projects";
 import { projectNav, projectSummaries } from "@/lib/ops/summaries";
 import { protectedProcedure, router } from "../init";
@@ -26,6 +27,9 @@ export const projectsRouter = router({
 
   /** What the project sidebar and command menu show. */
   nav: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => projectNav(ctx.db, ctx.actor, input.project)),
+
+  /** What needs attention in the project: blocked and stale work, planning, proposed decisions and old or blocking questions. */
+  attention: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => projectAttention(ctx.db, ctx.actor, input.project, new Date())),
 
   /** Creates a project owned by the actor and returns its slug. */
   create: protectedProcedure

@@ -11,13 +11,9 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
     trpc.projects.get.queryOptions({ project: slug }),
     trpc.systems.list.queryOptions({ project: slug }),
     trpc.structure.phases.queryOptions({ project: slug }),
-    trpc.adrs.list.queryOptions({ project: slug, filter: { status: "proposed" } }),
-    trpc.questions.list.queryOptions({ project: slug, filter: { resolved: false } }),
     trpc.history.updates.queryOptions({ project: slug, filter: { limit: 8 } }),
-    trpc.systems.latestUpdates.queryOptions({ project: slug }),
     trpc.history.activity.queryOptions({ project: slug, filter: { limit: 1 } }),
-    trpc.planning.gaps.queryOptions({ project: slug }),
-    trpc.tasks.blocked.queryOptions({ project: slug }),
+    trpc.projects.attention.queryOptions({ project: slug }),
   );
   return (
     <HydrateClient>

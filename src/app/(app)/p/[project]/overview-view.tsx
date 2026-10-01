@@ -6,43 +6,16 @@ import Link from "next/link";
 import { AgentTag, CATEGORY_CLASS, CATEGORY_LABEL } from "@/components/chips";
 import { useNow } from "@/components/clock";
 import { NewSystemDialog } from "@/components/new-system-dialog";
-import { AttentionList, type AttentionItem } from "@/components/overview/attention-list";
+import { AttentionList } from "@/components/overview/attention-list";
 import { EmptyState, Page, PageHeader, Panel, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
 import type { ColumnCategory } from "@/db/schema";
-import { formatAdrNumber } from "@/lib/adr-number";
 import { relativeAge } from "@/lib/time";
 import { useTRPC } from "@/trpc/client";
 
 /** Order of the status bar's segments and legend. */
 const SEGMENTS: ColumnCategory[] = ["done", "review", "active", "todo", "blocked", "planning"];
-
-/** Open questions older than this need attention. */
-const QUESTION_AGE_MS = 3 * 86_400_000;
-
-/** Whether an open question was asked more than {@link QUESTION_AGE_MS} ago. */
-function isStale(createdAt: Date, now: Date): boolean {
-  return now.getTime() - createdAt.getTime() > QUESTION_AGE_MS;
-}
-
-/** Joins words as "a", "a and b" or "a, b and c". */
-function joinAnd(words: string[]): string {
-  return words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
-}
-
-/** Turns planning gaps into one human sentence ("Scope and risks have no answer yet; 2 items are still open."). */
-function planningDetail(gaps: string[]): string {
-  const areas = gaps.flatMap((g) => /^Area (.+) has no answered item\.$/.exec(g)?.[1] ?? []);
-  const open = gaps.filter((g) => g.startsWith("Item ")).length;
-  const parts: string[] = [];
-  if (areas.length) parts.push(`${joinAnd(areas)} ${areas.length === 1 ? "has" : "have"} no answer yet`);
-  if (open) parts.push(`${open} ${open === 1 ? "item is" : "items are"} still open`);
-  if (gaps.some((g) => g.startsWith("No spec"))) parts.push("no spec is written");
-  if (parts.length === 0) return "Everything is answered; planning can be completed.";
-  const text = parts.join("; ");
-  return `${text[0].toUpperCase()}${text.slice(1)}.`;
-}
 
 /** Returns a repository URL without its scheme and host, for display ("org/repo"). */
 function repoLabel(url: string): string {
@@ -67,34 +40,20 @@ export function OverviewView({ slug }: { slug: string }) {
     { data: detail },
     { data: systems },
     { data: phases },
-    { data: adrs },
-    { data: questions },
     { data: updates },
-    { data: latest },
     { data: activity },
-    { data: gaps },
-    { data: blockedTasks },
+    { data: attention },
   ] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.systems.list.queryOptions({ project: slug }),
       trpc.structure.phases.queryOptions({ project: slug }),
-      trpc.adrs.list.queryOptions({ project: slug, filter: { status: "proposed" } }),
-      trpc.questions.list.queryOptions({ project: slug, filter: { resolved: false } }),
       trpc.history.updates.queryOptions({ project: slug, filter: { limit: 8 } }),
-      trpc.systems.latestUpdates.queryOptions({ project: slug }),
       trpc.history.activity.queryOptions({ project: slug, filter: { limit: 1 } }),
-      trpc.planning.gaps.queryOptions({ project: slug }),
-      trpc.tasks.blocked.queryOptions({ project: slug }),
+      trpc.projects.attention.queryOptions({ project: slug }),
     ],
   });
-  const planning = systems.filter((s) => s.columnCategory === "planning");
-  // The list puts blocking questions first; they need attention at any age.
-  // `systems` leaves archived systems out, so their questions drop out too.
-  const attentionQuestions = questions.filter(
-    (q) => (q.priority === "blocking" || isStale(q.createdAt, now)) && (q.systemSlug === null || systems.some((s) => s.slug === q.systemSlug)),
-  );
-  const data = { detail, systems, phases, adrs, attentionQuestions, updates, latest, activity, planning, gaps, blockedTasks };
+  const data = { detail, systems, phases, updates, activity };
   const { project } = data.detail;
   const canEdit = data.detail.role !== "viewer" && !project.archivedAt;
   const tasksDone = data.systems.reduce((n, s) => n + s.tasksDone, 0);
@@ -104,57 +63,6 @@ export function OverviewView({ slug }: { slug: string }) {
     .filter((d): d is Date => d instanceof Date)
     .sort((a, b) => b.getTime() - a.getTime())[0];
   const base = `/p/${slug}`;
-
-  const attention: AttentionItem[] = [
-    ...data.systems
-      .filter((s) => s.columnCategory === "blocked")
-      .map((s): AttentionItem => {
-        const latest = data.latest.get(s.id);
-        return {
-          key: `blocked-${s.id}`,
-          kind: "blocked",
-          title: `${s.title} is blocked`,
-          detail: latest ? `${latest.summary} · ${relativeAge(latest.createdAt.toISOString(), now)}` : "No update explains why yet.",
-          href: `${base}/systems/${s.slug}`,
-        };
-      }),
-    ...data.blockedTasks.map(
-      (t): AttentionItem => ({
-        key: `blocked-task-${t.id}`,
-        kind: "blocked",
-        title: `Task #${t.id} is blocked`,
-        detail: [t.reason ?? "No reason given", t.systemTitle, t.since && relativeAge(t.since.toISOString(), now)].filter(Boolean).join(" · "),
-        href: `${base}/systems/${t.systemSlug}`,
-      }),
-    ),
-    ...data.planning.map(
-      (s): AttentionItem => ({
-        key: `planning-${s.id}`,
-        kind: "planning",
-        title: `${s.title} is still in planning`,
-        detail: planningDetail(data.gaps[s.id] ?? []),
-        href: `${base}/systems/${s.slug}?tab=planning`,
-      }),
-    ),
-    ...data.adrs.map(
-      (a): AttentionItem => ({
-        key: `adr-${a.number}`,
-        kind: "decision",
-        title: `ADR-${formatAdrNumber(a.number)} is waiting for acceptance`,
-        detail: a.title,
-        href: `${base}/adrs/${a.number}`,
-      }),
-    ),
-    ...data.attentionQuestions.map(
-      (q): AttentionItem => ({
-        key: `question-${q.id}`,
-        kind: "question",
-        title: q.priority === "blocking" ? `Blocking: ${q.title}` : q.title,
-        detail: `Asked by ${q.author} ${relativeAge(q.createdAt.toISOString(), now)}${q.answer ? ", answered but not resolved." : ", no answer yet."}`,
-        href: `${base}/questions`,
-      }),
-    ),
-  ];
 
   const newSystem = canEdit && data.detail.boards.length > 0 && (
     <NewSystemDialog projectSlug={slug} boards={data.detail.boards.map((b) => ({ slug: b.slug, name: b.name }))} />

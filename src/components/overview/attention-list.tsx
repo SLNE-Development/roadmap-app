@@ -1,22 +1,17 @@
-import { Ban, CircleHelp, Lock, Scale } from "lucide-react";
+"use client";
+
+import { Ban, CircleHelp, Hourglass, ListX, Lock, Scale } from "lucide-react";
 import Link from "next/link";
+import { useNow } from "@/components/clock";
+import type { AttentionItem, AttentionKind } from "@/lib/ops/attention";
+import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
-
-/** What kind of thing needs attention; sets the icon, its colours and the kind label. */
-export type AttentionKind = "blocked" | "planning" | "decision" | "question";
-
-/** One row of the "Needs attention" panel. */
-export interface AttentionItem {
-  key: string;
-  kind: AttentionKind;
-  title: string;
-  detail: string;
-  href: string;
-}
 
 /** Icon, soft square colours and label of each attention kind. */
 const KINDS: Record<AttentionKind, { icon: typeof Ban; className: string; label: string }> = {
   blocked: { icon: Ban, className: "bg-cat-blocked-soft text-cat-blocked", label: "Blocked" },
+  "blocked-task": { icon: ListX, className: "bg-cat-blocked-soft text-cat-blocked", label: "Blocked task" },
+  stale: { icon: Hourglass, className: "bg-cat-review-soft text-cat-review", label: "Stale" },
   planning: { icon: Lock, className: "bg-cat-planning-soft text-cat-planning", label: "Planning" },
   decision: { icon: Scale, className: "bg-cat-review-soft text-cat-review", label: "Decision" },
   question: { icon: CircleHelp, className: "bg-cat-todo-soft text-cat-todo", label: "Question" },
@@ -24,6 +19,7 @@ const KINDS: Record<AttentionKind, { icon: typeof Ban; className: string; label:
 
 /** Rows of things that need someone: a soft-coloured square icon, a title, a detail line and the kind. */
 export function AttentionList({ items }: { items: AttentionItem[] }) {
+  const now = useNow();
   return (
     <ul className="flex flex-col">
       {items.map((a) => {
@@ -40,7 +36,7 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
                 <span className="font-semibold">{a.title}</span>
-                <span className="line-clamp-2 text-[13px] leading-[1.45] text-fg-2">{a.detail}</span>
+                <span className="line-clamp-2 text-[13px] leading-[1.45] text-fg-2">{a.at ? `${a.detail} · ${relativeAge(a.at.toISOString(), now)}` : a.detail}</span>
               </span>
               <span className="text-xs whitespace-nowrap text-muted-foreground">{kind.label}</span>
             </Link>
