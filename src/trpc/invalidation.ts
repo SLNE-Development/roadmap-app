@@ -5,7 +5,7 @@ import { queryProject } from "./query-client";
  * these; a router missing here refetches everything.
  */
 export const INVALIDATES: Record<string, readonly string[]> = {
-  tasks: ["tasks", "systems", "planning", "history", "projects", "structure"],
+  tasks: ["tasks", "systems", "planning", "history", "projects", "structure", "adrs"],
   systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks"],
   planning: ["planning", "systems", "history", "projects"],
   adrs: ["adrs", "systems", "history", "projects"],

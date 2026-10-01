@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { ArrowDown, ArrowRightLeft, ArrowUp, Check, Gauge, GripVertical, ListChecks, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound, X } from "lucide-react";
+import Link from "next/link";
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { MoveTaskDialog } from "@/components/move-task-dialog";
@@ -35,6 +36,7 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { TASK_ESTIMATES, TASK_STATES, type ColumnCategory, type TaskEstimate, type TaskState } from "@/db/schema";
+import { formatAdrNumber } from "@/lib/adr-number";
 import type { TaskItem } from "@/lib/ops/systems";
 import { rollup } from "@/lib/rollup";
 import { cn } from "@/lib/utils";
@@ -71,6 +73,15 @@ function boxClass(state: TaskState): string {
   return cn(
     "flex size-6 shrink-0 items-center justify-center lg:size-[18px]",
     state === "done" ? "bg-cat-done text-background" : cn("border-[1.5px]", BOX_OPEN[state]),
+  );
+}
+
+/** The read-only square state box of a task, for lists outside the task list. */
+export function TaskStateBox({ state }: { state: TaskState }) {
+  return (
+    <span role="img" aria-label={`Task state: ${STATE_LABEL[state]}`} className={boxClass(state)}>
+      <StateGlyph state={state} />
+    </span>
   );
 }
 
@@ -416,6 +427,19 @@ function TaskRow({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={cn("text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
           {task.state === "blocked" && task.blockedReason && <span className="text-xs text-cat-blocked">{task.blockedReason}</span>}
+          {task.adrs.length > 0 && (
+            <span className="mt-0.5 flex flex-wrap gap-1.5">
+              {task.adrs.map((n) => (
+                <Link
+                  key={n}
+                  href={`/p/${projectSlug}/adrs/${n}`}
+                  className="border px-1.5 font-mono text-[11px] text-fg-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  ADR-{formatAdrNumber(n)}
+                </Link>
+              ))}
+            </span>
+          )}
         </span>
         {task.checks.length > 0 && (
           <button

@@ -1,6 +1,8 @@
 import { and, asc, count, eq, inArray, isNotNull, isNull, max, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import {
+  adr,
+  adrTask,
   board,
   boardColumn,
   COLUMN_CATEGORIES,
@@ -120,6 +122,8 @@ export interface TaskItem {
   estimate: TaskEstimate | null;
   planStep: number | null;
   checks: { id: string; title: string; done: boolean }[];
+  /** Numbers of the ADRs linked to the task. */
+  adrs: number[];
 }
 
 /** One system with its board, column, structure, owner and tasks. */
@@ -358,9 +362,18 @@ export async function getSystem(db: Executor, actor: Actor, projectSlug: string,
         .where(inArray(taskCheck.taskId, taskRows.map((t) => t.id)))
         .orderBy(asc(taskCheck.sortOrder))
     : [];
+  const adrRows = taskRows.length
+    ? await db
+        .select({ taskId: adrTask.taskId, number: adr.number })
+        .from(adrTask)
+        .innerJoin(adr, eq(adr.id, adrTask.adrId))
+        .where(inArray(adrTask.taskId, taskRows.map((t) => t.id)))
+        .orderBy(asc(adr.number))
+    : [];
   const tasks = taskRows.map((t) => ({
     ...t,
     checks: checkRows.filter((c) => c.taskId === t.id).map(({ id, title, done }) => ({ id, title, done })),
+    adrs: adrRows.filter((a) => a.taskId === t.id).map((a) => a.number),
   }));
   return {
     ...found,

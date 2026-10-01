@@ -3,8 +3,10 @@ import { eq } from "drizzle-orm";
 import { changeLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
-import { acceptAdr, createAdr, formatAdrNumber, getAdr, listAdrs, supersedeAdr, updateAdr } from "./adrs";
-import { createSystem } from "./systems";
+import { acceptAdr, createAdr, formatAdrNumber, getAdr, linkableTasks, listAdrs, supersedeAdr, updateAdr } from "./adrs";
+import { setSystemArchived } from "./archive";
+import { addTask, deleteTask } from "./tasks";
+import { createSystem, getSystem } from "./systems";
 
 /** A complete ADR body with the given title. */
 const body = (title: string) => ({
@@ -106,6 +108,68 @@ describe("ADRs", () => {
     expect(await edits()).toEqual(["decision"]);
     await updateAdr(db, owner, slug, number, { ...body("A"), decision: "Something else", systems: [] });
     expect(await edits()).toEqual(["decision"]);
+  });
+
+  it("links tasks, also after acceptance, and keeps a history", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const t1 = (await addTask(db, owner, slug, "s", { title: "One" })).id;
+    const t2 = (await addTask(db, owner, slug, "s", { title: "Two" })).id;
+    const { number } = await createAdr(db, owner, slug, { ...body("Use Postgres"), tasks: [t1] });
+    expect((await getAdr(db, owner, slug, number)).tasks).toEqual([{ id: t1, title: "One", state: "todo", systemSlug: "s" }]);
+    expect((await getSystem(db, owner, slug, "s")).tasks.map((t) => t.adrs)).toEqual([[number], []]);
+    await acceptAdr(db, owner, slug, number);
+    await updateAdr(db, owner, slug, number, { tasks: [t1, t2] });
+    await expect(updateAdr(db, owner, slug, number, { title: "x" })).rejects.toMatchObject({ status: 409 });
+    const history = (await getAdr(db, owner, slug, number)).history;
+    expect(history.map((h) => [h.field, h.oldValue, h.newValue])).toEqual([
+      ["created", null, "ADR 0001: Use Postgres"],
+      ["task", null, `#${t1}`],
+      ["status", "proposed", "accepted"],
+      ["task", null, `#${t2}`],
+    ]);
+    expect(history.every((h) => h.authorName !== null)).toBe(true);
+    await updateAdr(db, owner, slug, number, { tasks: [t2] });
+    expect((await getAdr(db, owner, slug, number)).history.at(-1)).toMatchObject({ field: "task", oldValue: `#${t1}`, newValue: null });
+    await deleteTask(db, owner, t2);
+    expect((await getAdr(db, owner, slug, number)).tasks).toEqual([]);
+  });
+
+  it("rejects a task of another project", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const other = await createProjectFixture(db, "other");
+    await createSystem(db, other.owner, "other", { slug: "o", title: "O" });
+    const foreign = (await addTask(db, other.owner, "other", "o", { title: "Foreign" })).id;
+    await expect(createAdr(db, owner, slug, { ...body("A"), tasks: [foreign] })).rejects.toMatchObject({
+      status: 404,
+      message: `Unknown task ${foreign}.`,
+    });
+  });
+
+  it("refuses a new link to a task of an archived system but keeps an existing one", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const kept = (await addTask(db, owner, slug, "s", { title: "Kept" })).id;
+    const fresh = (await addTask(db, owner, slug, "s", { title: "Fresh" })).id;
+    const { number } = await createAdr(db, owner, slug, { ...body("A"), tasks: [kept] });
+    await setSystemArchived(db, owner, slug, "s", true);
+    await expect(updateAdr(db, owner, slug, number, { tasks: [kept, fresh] })).rejects.toMatchObject({
+      status: 409,
+      message: "System s is archived; restore it first.",
+    });
+    await updateAdr(db, owner, slug, number, { tasks: [kept] });
+    expect((await getAdr(db, owner, slug, number)).tasks.map((t) => t.id)).toEqual([kept]);
+  });
+
+  it("lists the project's linkable tasks", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    const id = (await addTask(db, owner, slug, "s", { title: "One" })).id;
+    expect(await linkableTasks(db, owner, slug)).toEqual([{ id, title: "One", systemSlug: "s" }]);
   });
 
   it("reports unknown numbers", async () => {

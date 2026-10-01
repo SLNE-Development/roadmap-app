@@ -481,7 +481,7 @@ register(
   }),
   defineTool({
     name: "get_adr",
-    description: "Get one ADR with context, decision, alternatives and consequences.",
+    description: "Get one ADR with context, decision, alternatives, consequences, linked tasks and status history.",
     input: { ...P, number: intParam("ADR number.") },
     write: false,
     method: "GET",
@@ -491,7 +491,7 @@ register(
   defineTool({
     name: "create_adr",
     description:
-      "Record a decision the user has made as a proposed ADR. Every section is required; alternatives state their real advantage first; consequences name gains, costs, follow-on work and what is foreclosed.",
+      "Record a decision the user has made as a proposed ADR. Every section is required; alternatives state their real advantage first; consequences name gains, costs, follow-on work and what is foreclosed. `tasks` are the ids of tasks that carry it out.",
     input: { ...P, ...createAdrInput.shape },
     write: true,
     method: "POST",
@@ -500,7 +500,7 @@ register(
   }),
   defineTool({
     name: "update_adr",
-    description: "Edit a proposed ADR. Accepted ADRs are immutable; supersede them instead.",
+    description: "Edit a proposed ADR; accepted ADRs are immutable, so supersede them instead. `systems` and `tasks` (task ids) may change after acceptance.",
     input: { ...P, number: intParam("ADR number."), ...updateAdrInput.shape },
     write: true,
     method: "PATCH",

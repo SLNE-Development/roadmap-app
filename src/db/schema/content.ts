@@ -202,6 +202,20 @@ export const adrSystem = pgTable(
   (t) => [primaryKey({ columns: [t.adrId, t.systemId] }), index("adr_system_system_id_idx").on(t.systemId)],
 );
 
+/** Links between ADRs and the tasks that carry them out. */
+export const adrTask = pgTable(
+  "adr_task",
+  {
+    adrId: text("adr_id")
+      .notNull()
+      .references(() => adr.id, { onDelete: "cascade" }),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => task.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.adrId, t.taskId] }), index("adr_task_task_id_idx").on(t.taskId)],
+);
+
 /** Open questions of a project, optionally tied to a system, with their answer and who gave it. */
 export const question = pgTable(
   "question",
