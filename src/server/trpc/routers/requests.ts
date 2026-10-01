@@ -47,6 +47,7 @@ import {
 } from "@/lib/ops/requests";
 import { getEventSettings, previewTemplate, setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
 import { deletePost, disasterView, editPost, editPostInput, listPosts, postDisaster, previewPost, resolveDisaster, resolveDisasterInput, resumePost, savePostDraft, savePostDraftInput, startPost, testResult, testSend } from "@/lib/ops/request-posts";
+import { getPrompts, savePasteBack, savePasteBackInput } from "@/lib/ops/request-prompts";
 import { deleteUpload, setBanner, setBannerInput } from "@/lib/ops/uploads";
 import { bullQueue, QUEUE } from "@/lib/queue";
 import { protectedProcedure, router } from "../init";
@@ -217,10 +218,18 @@ export const requestsRouter = router({
   /** The event-day page: event, checklist, fallback scenarios and check-ins; open to every signed-in user in the event week. */
   eventDay: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => eventDayView(ctx.db, ctx.actor, input.id)),
 
+  /** The three copy prompts (announcement, reminder, team) built from the request; calls nothing. */
+  prompts: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => getPrompts(ctx.db, ctx.actor, input.id)),
+
   /** The Discord posts of a request: drafts, the plan, and the buttons that start or resume a send. A click only queues a job. */
   posts: router({
     /** The live posts with progress, due dates, late flags and which webhooks are set. */
     list: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listPosts(ctx.db, ctx.actor, input.id)),
+
+    /** Stores text pasted back from a chat assistant as the draft of the matching post; sends nothing. */
+    savePasteBack: protectedProcedure
+      .input(z.object({ ...R, ...savePasteBackInput.shape }))
+      .mutation(({ ctx, input }) => savePasteBack(ctx.db, ctx.actor, input.id, input.kind, input.text)),
 
     /** Saves the draft of one post. */
     saveDraft: protectedProcedure

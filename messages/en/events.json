@@ -465,5 +465,28 @@
     "deleteTitle": "Delete the disaster message?",
     "deleteBody": "This removes the disaster message from the public channel. Use it when a post is stuck.",
     "deleting": "Deleting the disaster message"
+  },
+  "prompts": {
+    "title": "Copy prompts",
+    "description": "Texts for the event messages, ready to paste into a chat assistant.",
+    "tabs": "Prompt kind",
+    "kind": {
+      "announcement": "Announcement",
+      "reminder": "Reminder",
+      "team": "Team message"
+    },
+    "instruction": "Paste this into any chat assistant, then paste the text it writes back below.",
+    "promptLabel": "Prompt",
+    "copy": "Copy",
+    "selectAll": "Select all",
+    "copied": "Copied",
+    "copyFailed": "Copying failed. The text is selected, copy it by hand.",
+    "pasteLabel": "Text written by the assistant",
+    "saveDraft": "Save as draft",
+    "saved": "Saved as draft",
+    "openMessages": "Open in Messages",
+    "loading": "Loading prompts…",
+    "close": "Close",
+    "button": "Copy prompts"
   }
 }

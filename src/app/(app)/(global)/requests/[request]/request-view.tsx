@@ -9,6 +9,7 @@ import { UnderlineTabs } from "@/components/activity/url-tabs";
 import { AcceptDialog } from "@/components/events/accept-dialog";
 import { BriefHistory } from "@/components/events/brief-history";
 import { ImageUpload } from "@/components/events/image-upload";
+import { CopyPromptsDialog } from "@/components/events/copy-prompts-dialog";
 import { EventDayPanel } from "@/components/events/event-day-panel";
 import { FallbackTab } from "@/components/events/fallback-tab";
 import { MessagesTab } from "@/components/events/post-composer";
@@ -348,6 +349,7 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
   const trpc = useTRPC();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [acceptOpen, setAcceptOpen] = useState(false);
+  const [promptsOpen, setPromptsOpen] = useState(false);
   const [{ data: detail }, { data: rounds }, { data: fallbacks }] = useSuspenseQueries({
     queries: [trpc.requests.get.queryOptions({ id }), trpc.requests.rounds.queryOptions({ id }), trpc.requests.fallbacks.queryOptions({ id })],
   });
@@ -372,6 +374,11 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
         description={t("page.requestedBy", { name: detail.requesterName })}
         actions={
           <>
+            {canEdit && (
+              <Button variant="outline" onClick={() => setPromptsOpen(true)}>
+                {t("prompts.button")}
+              </Button>
+            )}
             {canEdit && status === "draft" && (
               <Button disabled={busy} onClick={() => submit.mutate({ id })}>
                 {t("actions.submit")}
@@ -412,6 +419,7 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
       >
         <StatusBar status={status} />
       </PageHeader>
+      {canEdit && <CopyPromptsDialog requestId={id} open={promptsOpen} onOpenChange={setPromptsOpen} />}
       {(canEdit || canDevelop) && status === "accepted" && incomplete.length > 0 && (
         <p role="status" className="border border-primary/40 bg-secondary px-3 py-2 text-[13px]">
           {t("actions.fallbackGate", { scenarios: incomplete.map((f) => f.title).join(", ") })}{" "}

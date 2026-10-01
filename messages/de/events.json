@@ -465,5 +465,28 @@
     "deleteTitle": "Störfallnachricht löschen?",
     "deleteBody": "Die Störfallnachricht wird aus dem öffentlichen Kanal entfernt. Nutze das, wenn ein Beitrag hängt.",
     "deleting": "Die Störfallnachricht wird gelöscht"
+  },
+  "prompts": {
+    "title": "Prompts kopieren",
+    "description": "Texte für die Event-Nachrichten, bereit zum Einfügen in einen Chat-Assistenten.",
+    "tabs": "Art des Prompts",
+    "kind": {
+      "announcement": "Ankündigung",
+      "reminder": "Erinnerung",
+      "team": "Team-Nachricht"
+    },
+    "instruction": "Füge das in einen beliebigen Chat-Assistenten ein und füge den Text, den er schreibt, unten wieder ein.",
+    "promptLabel": "Prompt",
+    "copy": "Kopieren",
+    "selectAll": "Alles auswählen",
+    "copied": "Kopiert",
+    "copyFailed": "Kopieren hat nicht geklappt. Der Text ist markiert, kopiere ihn von Hand.",
+    "pasteLabel": "Vom Assistenten geschriebener Text",
+    "saveDraft": "Als Entwurf speichern",
+    "saved": "Als Entwurf gespeichert",
+    "openMessages": "In Nachrichten öffnen",
+    "loading": "Prompts werden geladen…",
+    "close": "Schließen",
+    "button": "Prompts kopieren"
   }
 }
