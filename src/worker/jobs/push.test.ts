@@ -1,14 +1,14 @@
 import { eq } from "drizzle-orm";
 import webpush from "web-push";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { notification, pushSubscription } from "@/db/schema";
+import { allowedAccount, notification, pushSubscription, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
 import { removeMember } from "@/lib/ops/members";
 import { notify } from "@/lib/ops/notifications";
 import { subscribePush } from "@/lib/ops/push";
 import { createTestDb } from "@/test/db";
-import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture, requestFixture } from "@/test/fixtures";
 import { setPref } from "@/lib/ops/prefs";
 import { testDeps } from "../deps";
 import { registeredJobs } from "../jobs";
@@ -288,5 +288,48 @@ describe("push.test", () => {
         { queue: "deliver", jobName: "push.test" },
       ]),
     );
+  });
+});
+
+describe("push.send for request notices", () => {
+  /** A request notice of `kind` for the editor, who is the requester, and its row id. */
+  async function requestNotice(kind: "request.waiting" | "request.question"): Promise<string> {
+    const request = await requestFixture(db, editor);
+    await notify(db, {
+      userId: editor.userId,
+      requestId: request.id,
+      kind,
+      entity: "request",
+      entityId: request.id,
+      title: "A request",
+      href: `/requests/${request.id}`,
+      sourceKey: `req:${kind}`,
+    });
+    const [row] = await db.select({ id: notification.id }).from(notification).where(eq(notification.sourceKey, `req:${kind}`));
+    return row.id;
+  }
+
+  it("sends a waiting notice with high urgency", async () => {
+    const subscriptionId = await subscribe();
+    const notificationId = await requestNotice("request.waiting");
+    await sendPush(testDeps(db), { notificationId, subscriptionId });
+    expect(sendNotification).toHaveBeenCalledTimes(1);
+    expect(sendNotification.mock.calls[0][2]).toMatchObject({ urgency: "high" });
+  });
+
+  it("sends other request notices with normal urgency", async () => {
+    const subscriptionId = await subscribe();
+    const notificationId = await requestNotice("request.question");
+    await sendPush(testDeps(db), { notificationId, subscriptionId });
+    expect(sendNotification.mock.calls[0][2]).toMatchObject({ urgency: "normal" });
+  });
+
+  it("makes no call once the recipient's account is removed", async () => {
+    const subscriptionId = await subscribe();
+    const notificationId = await requestNotice("request.waiting");
+    const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, editor.userId));
+    await db.delete(allowedAccount).where(eq(allowedAccount.discordId, row.discordId!));
+    await sendPush(testDeps(db), { notificationId, subscriptionId });
+    expect(sendNotification).not.toHaveBeenCalled();
   });
 });

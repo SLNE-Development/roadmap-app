@@ -1,13 +1,15 @@
-import { and, count, desc, eq, exists, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, exists, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { allowedAccount, notification, project, projectMember, user, type NotificationKind } from "@/db/schema";
+import { allowedAccount, eventRequest, notification, project, projectMember, user, type NotificationKind } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { mentionsToPlain } from "@/lib/mentions";
 import { renderNotificationText, type NotificationText } from "@/lib/notification-text";
 import type { Actor } from "./actor";
+import { InvalidError } from "./errors";
 import { isMember } from "./members";
+import { canViewRequest, requestViewableBy } from "./request-access";
 export { NOTIFICATION_KINDS, type NotificationKind } from "@/lib/notification-kinds";
 import { readNotifyRules, wantsInbox, wantsPush } from "./notify-rules";
 import { getPref } from "./prefs";
@@ -17,14 +19,17 @@ export { DEFAULT_NOTIFY_RULES } from "./notify-rules";
 /** Input of {@link notify}. */
 export interface NotifyInput {
   userId: string;
-  projectId: string;
+  /** The project the notice is about; exactly one of `projectId` and `requestId` is given. */
+  projectId?: string;
+  /** The event request the notice is about. */
+  requestId?: string;
   kind: NotificationKind;
   entity: string;
   entityId: string;
   /** The title as written, or a message rendered in the recipient's language (their `locale` preference). */
   title: string | NotificationText;
   body?: string;
-  /** An app-relative path starting with `/p/`. */
+  /** An app-relative path starting with `/p/` (project notices) or `/requests/` (request notices). */
   href: string;
   actorName?: string | null;
   /** What created the notice, such as `cl:<change id>`; a user gets one notice per source. */
@@ -39,8 +44,12 @@ export interface NotificationItem {
   body: string;
   href: string;
   actorName: string | null;
-  projectSlug: string;
-  projectName: string;
+  /** Null for a request notice. */
+  projectSlug: string | null;
+  projectName: string | null;
+  requestId: string | null;
+  /** The title of the request; null for a project notice. */
+  requestTitle: string | null;
   createdAt: Date;
   readAt: Date | null;
 }
@@ -84,13 +93,23 @@ export async function canReceive(tx: Executor, userId: string, projectId: string
   return isMember(tx, projectId, userId);
 }
 
+/** Returns whether the user may get notices of the request: they may view it (the rule of `canViewRequest`). */
+export async function canReceiveRequest(tx: Executor, userId: string, requestId: string): Promise<boolean> {
+  return canViewRequest(tx, userId, requestId);
+}
+
 /**
  * Creates a notice for one user, following their rules for the inbox and push.
  * Returns whether a row was created: nothing is created for a user who cannot receive it,
  * who wants the kind neither in the inbox nor pushed, or for a source key they already got.
+ *
+ * @throws InvalidError unless exactly one of `projectId` and `requestId` is given, or when `href` does not start with `/p/` (project) or `/requests/` (request)
  */
 export async function notify(tx: Executor, input: NotifyInput): Promise<boolean> {
-  if (!(await canReceive(tx, input.userId, input.projectId))) return false;
+  if ((input.projectId === undefined) === (input.requestId === undefined)) throw new InvalidError("A notification needs exactly one of projectId and requestId.");
+  if (!input.href.startsWith(input.projectId !== undefined ? "/p/" : "/requests/")) throw new InvalidError("The href of a notification must start with /p/ or /requests/.");
+  const receives = input.projectId !== undefined ? await canReceive(tx, input.userId, input.projectId) : await canReceiveRequest(tx, input.userId, input.requestId!);
+  if (!receives) return false;
   const rules = await readNotifyRules(tx, input.userId);
   const inInbox = wantsInbox(rules, input.kind);
   const push = wantsPush(rules, input.kind);
@@ -100,7 +119,8 @@ export async function notify(tx: Executor, input: NotifyInput): Promise<boolean>
     .values({
       id: newId(),
       userId: input.userId,
-      projectId: input.projectId,
+      projectId: input.projectId ?? null,
+      requestId: input.requestId ?? null,
       kind: input.kind,
       entity: input.entity,
       entityId: input.entityId,
@@ -120,8 +140,9 @@ export async function notify(tx: Executor, input: NotifyInput): Promise<boolean>
 }
 
 /**
- * Conditions for the actor's inbox rows in projects they can still see: the project is not
- * archived and they are still an active member. Callers join `project` onto `notification`.
+ * Conditions for the actor's inbox rows they can still see: a project row needs a project that is not
+ * archived and an active membership, a request row needs the view rule of `canViewRequest`. Callers left-join
+ * `project` onto `notification`.
  */
 function visibleTo(db: Executor, actor: Actor): SQL[] {
   const membership = db
@@ -130,7 +151,11 @@ function visibleTo(db: Executor, actor: Actor): SQL[] {
     .innerJoin(user, eq(user.id, projectMember.userId))
     .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
     .where(and(eq(projectMember.projectId, notification.projectId), eq(projectMember.userId, notification.userId)));
-  return [eq(notification.userId, actor.userId), eq(notification.inInbox, true), isNull(project.archivedAt), exists(membership)];
+  const visible = or(
+    and(isNotNull(notification.projectId), isNull(project.archivedAt), exists(membership)),
+    and(isNotNull(notification.requestId), requestViewableBy(db, notification.userId, notification.requestId)),
+  ) as SQL;
+  return [eq(notification.userId, actor.userId), eq(notification.inInbox, true), visible];
 }
 
 /** Lists the actor's inbox, newest first; `before` is the id of the last row of the previous page. */
@@ -159,11 +184,14 @@ export async function listNotifications(db: Executor, actor: Actor, raw: z.input
       actorName: notification.actorName,
       projectSlug: project.slug,
       projectName: project.name,
+      requestId: notification.requestId,
+      requestTitle: eventRequest.title,
       createdAt: notification.createdAt,
       readAt: notification.readAt,
     })
     .from(notification)
-    .innerJoin(project, eq(project.id, notification.projectId))
+    .leftJoin(project, eq(project.id, notification.projectId))
+    .leftJoin(eventRequest, eq(eventRequest.id, notification.requestId))
     .where(and(...conditions))
     .orderBy(desc(notification.createdAt), desc(notification.id))
     .limit(limit);
@@ -174,7 +202,7 @@ export async function unreadCount(db: Executor, actor: Actor): Promise<number> {
   const capped = db
     .select({ id: notification.id })
     .from(notification)
-    .innerJoin(project, eq(project.id, notification.projectId))
+    .leftJoin(project, eq(project.id, notification.projectId))
     .where(and(...visibleTo(db, actor), isNull(notification.readAt)))
     .limit(MAX_UNREAD + 1)
     .as("capped");

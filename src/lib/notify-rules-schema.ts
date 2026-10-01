@@ -53,6 +53,10 @@ const PUSH_BY_DEFAULT: NotificationKind[] = [
   "task.assigned",
   "checks.failed",
   "automation.blocked",
+  "request.question",
+  "request.waiting",
+  "request.todo_due",
+  "request.accepted",
 ];
 
 /** The rules of a user who set none. */

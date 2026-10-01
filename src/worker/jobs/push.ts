@@ -3,7 +3,7 @@ import webpush from "web-push";
 import { z } from "zod";
 import { notification, pushSubscription, type PushSubscriptionRow } from "@/db/schema";
 import { renderNotificationText } from "@/lib/notification-text";
-import { canReceive } from "@/lib/ops/notifications";
+import { canReceive, canReceiveRequest } from "@/lib/ops/notifications";
 import { getPref } from "@/lib/ops/prefs";
 import { pushConfig, type PushConfig } from "@/lib/push-config";
 import { QUEUE } from "@/lib/queue";
@@ -180,10 +180,11 @@ export async function sendPush(deps: WorkerDeps, raw: unknown): Promise<void> {
   if (!row || !subscription) return;
   // A browser that signed in as someone else must never get the previous owner's pushes.
   if (subscription.userId !== row.userId) return;
-  if (!(await canReceive(deps.db, row.userId, row.projectId))) return;
+  const receives = row.projectId ? await canReceive(deps.db, row.userId, row.projectId) : row.requestId ? await canReceiveRequest(deps.db, row.userId, row.requestId) : false;
+  if (!receives) return;
   const payload = { title: row.title, body: row.body, href: row.href, tag: `${row.kind}:${row.entityId}`, id: row.id };
-  // Kinds ending in "blocked" (automation.blocked) are urgent too.
-  const urgency = row.kind === "mention" || row.kind.endsWith("blocked") ? "high" : "normal";
+  // Kinds ending in "blocked" (automation.blocked) are urgent too, and so is a request waiting for an answer.
+  const urgency = row.kind === "mention" || row.kind === "request.waiting" || row.kind.endsWith("blocked") ? "high" : "normal";
   await deliver(deps, config, subscription, payload, urgency);
 }
 

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { notification } from "@/db/schema";
+import { allowedAccount, notification, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { newId } from "@/lib/id";
 import { activeKey, NOTIFY_RULES_PREF } from "@/lib/notify-rules-schema";
@@ -11,7 +11,7 @@ import { setPref } from "@/lib/ops/prefs";
 import { subscribePush } from "@/lib/ops/push";
 import type { NotificationKind } from "@/lib/notification-kinds";
 import { createTestDb } from "@/test/db";
-import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture, requestFixture } from "@/test/fixtures";
 import { testDeps } from "../deps";
 import { registeredJobs, registeredRepeatables, runJob } from "../jobs";
 import "./dispatch";
@@ -229,5 +229,44 @@ describe("dispatchPushes", () => {
       expect.objectContaining({ queue: "deliver", jobName: "notifications.dispatch", schedule: { everyMs: 5000 } }),
     );
     await runJob("deliver", "notifications.dispatch", {}, testDeps(db, { now: () => NOW }));
+  });
+});
+
+describe("dispatchPushes for request notices", () => {
+  /** A pending request notice for the editor, who is the requester; returns its row id. */
+  async function requestNotice(): Promise<string> {
+    const request = await requestFixture(db, editor);
+    await notify(db, {
+      userId: editor.userId,
+      requestId: request.id,
+      kind: "request.waiting",
+      entity: "request",
+      entityId: request.id,
+      title: "A request",
+      href: `/requests/${request.id}`,
+      sourceKey: "req:waiting",
+    });
+    const [row] = await db.select({ id: notification.id }).from(notification).where(eq(notification.sourceKey, "req:waiting"));
+    return row.id;
+  }
+
+  it("queues a push for the requester", async () => {
+    const { id: subscriptionId } = await subscribe(editor);
+    const id = await requestNotice();
+    const deps = testDeps(db, { now: () => NOW });
+    await dispatchPushes(deps);
+    expect(deps.queues.deliver.jobs.map((j) => j.data)).toEqual([{ notificationId: id, subscriptionId }]);
+    expect(await statusOf(id)).toBe("sent");
+  });
+
+  it("skips the notice once the recipient's account is removed", async () => {
+    await subscribe(editor);
+    const id = await requestNotice();
+    const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, editor.userId));
+    await db.delete(allowedAccount).where(eq(allowedAccount.discordId, row.discordId!));
+    const deps = testDeps(db, { now: () => NOW });
+    await dispatchPushes(deps);
+    expect(deps.queues.deliver.jobs).toEqual([]);
+    expect(await statusOf(id)).toBe("skipped");
   });
 });

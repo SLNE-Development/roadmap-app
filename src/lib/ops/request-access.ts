@@ -1,5 +1,6 @@
-import { and, eq } from "drizzle-orm";
-import { eventRequest, projectMember, user, type EventRequestRow, type ProjectRole } from "@/db/schema";
+import { and, eq, exists, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { allowedAccount, eventRequest, projectMember, user, type EventRequestRow, type ProjectRole } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { isOpen } from "@/lib/event-status";
 import type { Actor } from "./actor";
@@ -55,6 +56,51 @@ export function requireEventDeveloper(flags: EventFlags): void {
 const EDITING: ProjectRole[] = ["editor", "owner"];
 
 /**
+ * The view rule as a SQL condition: whether the user `userId` (a column or an id) may view the request `requestId`.
+ * It is the one place the rule lives; {@link canViewRequest} and the inbox query both use it. The user must still
+ * be a provisioned account.
+ *
+ * View: the requester, event managers and admins; event developers and members of the linked project (any role)
+ * only once the request is no longer a draft.
+ */
+export function requestViewableBy(db: Executor, userId: SQLWrapper | string, requestId: SQLWrapper | string): SQL {
+  const viewer = alias(user, "view_user");
+  const target = alias(eventRequest, "view_request");
+  const member = db
+    .select({ one: sql`1` })
+    .from(projectMember)
+    .where(and(eq(projectMember.projectId, target.projectId), eq(projectMember.userId, viewer.id)));
+  const allowed = db.select({ one: sql`1` }).from(allowedAccount).where(eq(allowedAccount.discordId, viewer.discordId));
+  const visible = db
+    .select({ one: sql`1` })
+    .from(target)
+    .innerJoin(viewer, eq(viewer.id, sql`${userId}`))
+    .where(
+      and(
+        eq(target.id, sql`${requestId}`),
+        exists(allowed),
+        or(
+          eq(viewer.isAdmin, true),
+          eq(viewer.isEventManager, true),
+          eq(target.requesterId, viewer.id),
+          and(sql`${target.status} <> 'draft'`, or(eq(viewer.isEventDeveloper, true), exists(member))),
+        ),
+      ),
+    );
+  return exists(visible);
+}
+
+/** Returns whether the user may view the request, by the rule of {@link requestViewableBy}; false for an unknown request or user. */
+export async function canViewRequest(db: Executor, userId: string, requestId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: eventRequest.id })
+    .from(eventRequest)
+    .where(and(eq(eventRequest.id, requestId), requestViewableBy(db, userId, requestId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * Returns the request if the actor may act on it with `need`.
  *
  * View: the requester, event managers and admins; event developers and members
@@ -71,6 +117,7 @@ export async function requestAccess(db: Executor, actor: Actor, requestId: strin
   const [request] = await db.select().from(eventRequest).where(eq(eventRequest.id, requestId)).limit(1);
   if (!request) throw new NotFoundError(`Unknown request ${requestId}.`);
   const flags = await eventFlags(db, actor);
+  if (!(await canViewRequest(db, actor.userId, requestId))) throw new NotFoundError(`Unknown request ${requestId}.`);
   const staff = flags.isAdmin || flags.isEventManager;
   const requester = request.requesterId === actor.userId;
   let member: ProjectRole | null = null;
@@ -81,10 +128,6 @@ export async function requestAccess(db: Executor, actor: Actor, requestId: strin
       .where(and(eq(projectMember.projectId, request.projectId), eq(projectMember.userId, actor.userId)))
       .limit(1);
     member = row?.role ?? null;
-  }
-  const submitted = request.status !== "draft";
-  if (!staff && !requester && !(submitted && (flags.isEventDeveloper || member !== null))) {
-    throw new NotFoundError(`Unknown request ${requestId}.`);
   }
 
   const role: RequestRole = flags.isEventManager || (flags.isAdmin && !requester)

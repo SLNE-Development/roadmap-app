@@ -23,6 +23,14 @@ const KIND_KEYS = {
   "pr.merged": "prMerged",
   "checks.failed": "checksFailed",
   "automation.blocked": "automationBlocked",
+  "request.submitted": "requestSubmitted",
+  "request.question": "requestQuestion",
+  "request.answered": "requestAnswered",
+  "request.brief_changed": "requestBriefChanged",
+  "request.waiting": "requestWaiting",
+  "request.pickup": "requestPickup",
+  "request.todo_due": "requestTodoDue",
+  "request.accepted": "requestAccepted",
 } as const satisfies Record<NotificationKind, string>;
 
 /** One row per notification kind with an Inbox and a Push switch; Push is disabled while the server has no push keys. */

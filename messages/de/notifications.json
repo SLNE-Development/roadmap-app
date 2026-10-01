@@ -21,6 +21,14 @@
     "checksFailed": "Checks fehlgeschlagen bei {system}",
     "automationClose": "Aufgabe {title} konnte nicht geschlossen werden",
     "automationReview": "{title} konnte nicht in Review verschoben werden",
+    "requestSubmitted": "Anfrage eingereicht: {title}",
+    "requestQuestion": "Frage zu deiner Anfrage: {title}",
+    "requestAnswered": "{actor} hat eine Frage zu {title} beantwortet",
+    "requestBriefChanged": "Briefing geändert: {title}",
+    "requestWaiting": "Wartet auf deine Antwort: {title}",
+    "requestPickup": "Braucht noch einen Entwickler: {title}",
+    "requestTodoDue": "Vorbereitungsaufgabe fällig: {title}",
+    "requestAccepted": "Anfrage angenommen: {title}",
     "actorForAgent": "{agent} für {name}",
     "unknownActor": "Jemand",
     "pushTestTitle": "Testbenachrichtigung",
@@ -107,7 +115,15 @@
       "updatePosted": "eine Fortschrittsmeldung zu meinem System erscheint",
       "prMerged": "ein Pull Request zu meiner Aufgabe oder meinem System gemergt wird",
       "checksFailed": "Checks bei einem Pull Request meines Systems fehlschlagen",
-      "automationBlocked": "eine GitHub-Automatisierung bei meinem System blockiert ist"
+      "automationBlocked": "eine GitHub-Automatisierung bei meinem System blockiert ist",
+      "requestSubmitted": "eine Anfrage zur Prüfung eingereicht wird",
+      "requestQuestion": "das Team mir eine Frage zu meiner Anfrage stellt",
+      "requestAnswered": "meine Frage eine Antwort bekommt",
+      "requestBriefChanged": "sich das Briefing einer Anfrage ändert",
+      "requestWaiting": "eine Anfrage auf meine Antwort wartet",
+      "requestPickup": "eine Anfrage noch einen Entwickler braucht",
+      "requestTodoDue": "eine Vorbereitungsaufgabe fällig ist",
+      "requestAccepted": "meine Anfrage angenommen wurde"
     }
   },
   "settings": {

@@ -2,7 +2,7 @@ import { and, asc, eq, gte, inArray, lt, notInArray } from "drizzle-orm";
 import { notification, pushSubscription } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { activeKey, pushDecision, type NotifyRules } from "@/lib/notify-rules-schema";
-import { canReceive } from "@/lib/ops/notifications";
+import { canReceive, canReceiveRequest } from "@/lib/ops/notifications";
 import { readNotifyRules } from "@/lib/ops/notify-rules";
 import { PUSH_RETRIES } from "@/lib/ops/push";
 import { pushConfig } from "@/lib/push-config";
@@ -65,7 +65,7 @@ export async function dispatchPushes(deps: WorkerDeps): Promise<DispatchResult> 
       const conditions = [eq(notification.pushStatus, "pending"), gte(notification.createdAt, since)];
       if (laterUsers.size > 0) conditions.push(notInArray(notification.userId, [...laterUsers]));
       const rows = await tx
-        .select({ id: notification.id, userId: notification.userId, projectId: notification.projectId, kind: notification.kind })
+        .select({ id: notification.id, userId: notification.userId, projectId: notification.projectId, requestId: notification.requestId, kind: notification.kind })
         .from(notification)
         .where(and(...conditions))
         .orderBy(asc(notification.createdAt), asc(notification.id))
@@ -83,10 +83,10 @@ export async function dispatchPushes(deps: WorkerDeps): Promise<DispatchResult> 
           pageSkipped.push(row.id);
           continue;
         }
-        const memberKey = `${row.userId}/${row.projectId}`;
+        const memberKey = `${row.userId}/${row.projectId ?? `request:${row.requestId}`}`;
         let receive = receives.get(memberKey);
         if (receive === undefined) {
-          receive = await canReceive(tx, row.userId, row.projectId);
+          receive = row.projectId ? await canReceive(tx, row.userId, row.projectId) : row.requestId ? await canReceiveRequest(tx, row.userId, row.requestId) : false;
           receives.set(memberKey, receive);
         }
         if (!receive) {

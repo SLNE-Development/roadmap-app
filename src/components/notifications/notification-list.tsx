@@ -49,7 +49,7 @@ export function NotificationList({
                 </span>
                 {!compact && n.body && <span className="line-clamp-2 text-[13px] leading-[1.45] text-fg-2">{n.body}</span>}
                 <span className="text-xs text-muted-foreground">
-                  {n.projectName} · {format.relativeTime(n.createdAt, now)}
+                  {n.requestTitle ?? n.projectName} · {format.relativeTime(n.createdAt, now)}
                 </span>
               </span>
             </Link>

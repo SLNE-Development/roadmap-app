@@ -381,18 +381,21 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
     );
   }
 
-  const mentions = mentionRows.map((m) =>
-    item(m.projectId, {
-      key: `mention-${m.id}`,
-      kind: "mention",
-      section: "waiting",
-      systemSlug: null,
-      title: m.title,
-      detail: m.body,
-      href: m.href,
-      at: m.createdAt,
-    }),
-  );
+  // Mentions are project notices, so the project id is always set.
+  const mentions = mentionRows
+    .flatMap((m) => (m.projectId === null ? [] : [{ ...m, projectId: m.projectId }]))
+    .map((m) =>
+      item(m.projectId, {
+        key: `mention-${m.id}`,
+        kind: "mention",
+        section: "waiting",
+        systemSlug: null,
+        title: m.title,
+        detail: m.body,
+        href: m.href,
+        at: m.createdAt,
+      }),
+    );
 
   const changes = changeRows.map((c) => {
     const s = c.systemId ? ownedById.get(c.systemId) : undefined;

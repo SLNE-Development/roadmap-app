@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
-import { bigint, bigserial, boolean, index, integer, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, check, index, integer, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { NOTIFICATION_KINDS } from "@/lib/notification-kinds";
 import { project } from "./projects";
+import { eventRequest } from "./events";
 
 export { NOTIFICATION_KINDS, type NotificationKind } from "@/lib/notification-kinds";
 export { DISCORD_EVENTS, type DiscordEvent } from "@/lib/discord-events";
@@ -15,7 +16,7 @@ export { DISCORD_EVENTS, type DiscordEvent } from "@/lib/discord-events";
 export const PUSH_STATUSES = ["pending", "sent", "skipped", "failed"] as const;
 
 /**
- * One notice for one user about something in a project: their inbox entry and its push state.
+ * One notice for one user about something in a project or an event request: their inbox entry and its push state.
  * Never logged in `change_log`.
  */
 export const notification = pgTable(
@@ -26,9 +27,10 @@ export const notification = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+    /** The project it is about; null for a request notice. */
+    projectId: text("project_id").references(() => project.id, { onDelete: "cascade" }),
+    /** The event request it is about; null for a project notice. */
+    requestId: text("request_id").references(() => eventRequest.id, { onDelete: "cascade" }),
     kind: text("kind", { enum: NOTIFICATION_KINDS }).notNull(),
     /** What it points at, such as `question` and its id. */
     entity: text("entity").notNull(),
@@ -36,7 +38,7 @@ export const notification = pgTable(
     /** Plain text: the title at most 80 characters, the body at most 140. */
     title: text("title").notNull(),
     body: text("body").notNull().default(""),
-    /** An app-relative path starting with `/p/`. */
+    /** An app-relative path starting with `/p/` or `/requests/`. */
     href: text("href").notNull(),
     /** Who caused it, such as "Claude Code for Ammo"; null when no one did. */
     actorName: text("actor_name"),
@@ -53,6 +55,7 @@ export const notification = pgTable(
     unique("notification_source_unique").on(t.userId, t.sourceKey),
     index("notification_user_created").on(t.userId, t.createdAt.desc()),
     index("notification_push_created").on(t.pushStatus, t.createdAt),
+    check("notification_target", sql`${t.projectId} is not null or ${t.requestId} is not null`),
   ],
 );
 

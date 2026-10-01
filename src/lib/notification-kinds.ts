@@ -23,6 +23,14 @@ export const NOTIFICATION_KINDS = [
   "pr.merged",
   "checks.failed",
   "automation.blocked",
+  "request.submitted",
+  "request.question",
+  "request.answered",
+  "request.brief_changed",
+  "request.waiting",
+  "request.pickup",
+  "request.todo_due",
+  "request.accepted",
 ] as const;
 
 /** A kind of notification. */

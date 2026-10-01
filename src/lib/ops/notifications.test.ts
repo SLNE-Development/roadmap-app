@@ -5,7 +5,8 @@ import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
 import { DEFAULT_NOTIFY_RULES, NOTIFY_RULES_PREF } from "@/lib/notify-rules-schema";
 import { createTestDb } from "@/test/db";
-import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture, insertUser, requestFixture } from "@/test/fixtures";
+import { InvalidError } from "./errors";
 import { listNotifications, markAllRead, markRead, notify, unreadCount, type NotifyInput } from "./notifications";
 import { actorValues } from "@/lib/notification-text";
 import { setPref } from "./prefs";
@@ -172,5 +173,60 @@ describe("notify with an agent as the actor", () => {
     const [row] = await db.select().from(notification);
     expect(row.title).toBe("Claude für Jules hat dich in einer Frage erwähnt");
     expect(row.title).not.toContain(" for ");
+  });
+});
+
+describe("request notices", () => {
+  /** A request notice for `userId` about `requestId`. */
+  const requestInput = (requestId: string, userId: string, sourceKey: string, extra: Partial<NotifyInput> = {}): NotifyInput => ({
+    userId,
+    requestId,
+    kind: "request.question",
+    entity: "request",
+    entityId: requestId,
+    title: "A question",
+    href: `/requests/${requestId}`,
+    sourceKey,
+    ...extra,
+  });
+
+  it("creates a row without a project for the requester and nothing for a stranger", async () => {
+    const request = await requestFixture(db, editor);
+    expect(await notify(db, requestInput(request.id, editor.userId, "req:1"))).toBe(true);
+    expect(await notify(db, requestInput(request.id, stranger.userId, "req:1"))).toBe(false);
+    const [row] = await db.select().from(notification);
+    expect(row).toMatchObject({ projectId: null, requestId: request.id, kind: "request.question", userId: editor.userId });
+  });
+
+  it("refuses both ids, neither id and a wrong href", async () => {
+    const request = await requestFixture(db, editor);
+    await expect(notify(db, { ...requestInput(request.id, editor.userId, "req:1"), projectId })).rejects.toBeInstanceOf(InvalidError);
+    await expect(notify(db, { ...requestInput(request.id, editor.userId, "req:1"), requestId: undefined })).rejects.toBeInstanceOf(InvalidError);
+    await expect(notify(db, requestInput(request.id, editor.userId, "req:1", { href: "/p/demo" }))).rejects.toBeInstanceOf(InvalidError);
+  });
+
+  it("creates one row for the same source key twice", async () => {
+    const request = await requestFixture(db, editor);
+    await notify(db, requestInput(request.id, editor.userId, "req:1"));
+    expect(await notify(db, requestInput(request.id, editor.userId, "req:1"))).toBe(false);
+    expect(await db.select().from(notification)).toHaveLength(1);
+  });
+
+  it("lists a request row with its title and null project fields, and hides it from a removed account", async () => {
+    const request = await requestFixture(db, editor, { title: "Summer party" });
+    await notify(db, requestInput(request.id, editor.userId, "req:1"));
+    expect(await listNotifications(db, editor, {})).toMatchObject([{ projectSlug: null, projectName: null, requestId: request.id, requestTitle: "Summer party" }]);
+    expect(await unreadCount(db, editor)).toBe(1);
+    const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, editor.userId));
+    await db.delete(allowedAccount).where(eq(allowedAccount.discordId, row.discordId!));
+    expect(await listNotifications(db, editor, {})).toEqual([]);
+    expect(await unreadCount(db, editor)).toBe(0);
+  });
+
+  it("renders a request title in the recipient's language", async () => {
+    const request = await requestFixture(db, editor);
+    await setPref(db, editor, "locale", "de");
+    await notify(db, requestInput(request.id, editor.userId, "req:1", { title: { key: "requestAccepted", values: { title: "Fest" } } }));
+    expect((await listNotifications(db, editor, {}))[0].title).toBe("Anfrage angenommen: Fest");
   });
 });

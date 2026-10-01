@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { eventBriefVersion, eventRequest, project, requestLog, user, type EventRequestRow } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
@@ -7,6 +7,7 @@ import { canTransition, isOpen, REQUEST_STATUSES, type RequestStatus } from "@/l
 import { newId } from "@/lib/id";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
+import { briefAudienceIds, developerIds, notifyRequest } from "./request-notify";
 import { eventFlags, requestAccess, type RequestAccess, type RequestRole } from "./request-access";
 
 /** One change to a request's history: which field changed, from what to what. Never holds secrets. */
@@ -222,6 +223,17 @@ export async function saveBrief(db: Db, actor: Actor, requestId: string, raw: un
     await tx.insert(eventBriefVersion).values({ requestId, version, body, authorUserId: actor.userId });
     await tx.update(eventRequest).set({ briefVersion: version, updatedAt: new Date() }).where(eq(eventRequest.id, requestId));
     await logRequest(tx, actor, { requestId, field: "brief", oldValue: `v${request.briefVersion}`, newValue: `v${version}` });
+    if (request.status === "accepted" || request.status === "event_week") {
+      await notifyRequest(tx, {
+        requestId,
+        kind: "request.brief_changed",
+        userIds: await briefAudienceIds(tx, request),
+        title: { key: "requestBriefChanged", values: { title: request.title } },
+        sourceKey: `req:${requestId}:brief:${version}`,
+        tab: "brief",
+        actor,
+      });
+    }
     return { version, changed: true };
   });
 }
@@ -321,7 +333,21 @@ export function submitRequest(db: Db, actor: Actor, requestId: string): Promise<
     else if (request.startsAt.getTime() <= Date.now()) missing.push("event date in the future");
     if (!brief || !brief.body.trim()) missing.push("brief");
     if (missing.length > 0) throw new InvalidError(`The request cannot be submitted yet. It needs: ${missing.join(", ")}.`);
-    return moveTo(tx, actor, request, "submitted", { submittedAt: new Date() });
+    const submitted = await moveTo(tx, actor, request, "submitted", { submittedAt: new Date() });
+    // A recall and a new submission count as a new notice: the number of submissions is part of the source.
+    const [{ n }] = await tx
+      .select({ n: count() })
+      .from(requestLog)
+      .where(and(eq(requestLog.requestId, requestId), eq(requestLog.field, "status"), eq(requestLog.newValue, "submitted")));
+    await notifyRequest(tx, {
+      requestId,
+      kind: "request.submitted",
+      userIds: await developerIds(tx),
+      title: { key: "requestSubmitted", values: { title: submitted.title } },
+      sourceKey: `req:${requestId}:submitted:${n}`,
+      actor,
+    });
+    return submitted;
   });
 }
 

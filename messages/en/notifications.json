@@ -21,6 +21,14 @@
     "checksFailed": "Checks failed on {system}",
     "automationClose": "Could not close task {title}",
     "automationReview": "Could not move {title} to review",
+    "requestSubmitted": "Request submitted: {title}",
+    "requestQuestion": "Question on your request: {title}",
+    "requestAnswered": "{actor} answered a question on {title}",
+    "requestBriefChanged": "Brief changed: {title}",
+    "requestWaiting": "Waiting for your answer: {title}",
+    "requestPickup": "Still needs a developer: {title}",
+    "requestTodoDue": "Prep to-do due: {title}",
+    "requestAccepted": "Request accepted: {title}",
     "actorForAgent": "{agent} for {name}",
     "unknownActor": "Someone",
     "pushTestTitle": "Test notification",
@@ -107,7 +115,15 @@
       "updatePosted": "A progress update on my system",
       "prMerged": "A pull request on my task or system is merged",
       "checksFailed": "Checks fail on a pull request of my system",
-      "automationBlocked": "A GitHub automation is blocked on my system"
+      "automationBlocked": "A GitHub automation is blocked on my system",
+      "requestSubmitted": "A request is submitted for review",
+      "requestQuestion": "The team asks me a question on my request",
+      "requestAnswered": "My question got an answer",
+      "requestBriefChanged": "A request's brief changed",
+      "requestWaiting": "A request waits for my answer",
+      "requestPickup": "A request still needs a developer",
+      "requestTodoDue": "A prep to-do is due",
+      "requestAccepted": "My request was accepted"
     }
   },
   "settings": {
