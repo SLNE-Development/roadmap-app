@@ -1,4 +1,4 @@
-import { createTwoFilesPatch, diffLines, diffWordsWithSpace } from "diff";
+import { createTwoFilesPatch, diffLines, diffWordsWithSpace, formatPatch } from "diff";
 
 /** One row of a diff; `parts` splits the text so changed words can be highlighted. */
 export type DiffLine = { kind: "same" | "add" | "del"; oldNo: number | null; newNo: number | null; parts: { text: string; changed: boolean }[] };
@@ -8,6 +8,9 @@ export type DiffHunk = { header: string; lines: DiffLine[] };
 
 const HEADING = /^#{1,6}\s+\S/;
 
+/** Milliseconds jsdiff may spend before giving up and the whole document counts as rewritten. */
+const DIFF_TIMEOUT_MS = 1000;
+
 /** Splits a diff chunk into lines without their line breaks. */
 function linesOf(value: string): string[] {
   const lines = value.split("\n");
@@ -15,8 +18,17 @@ function linesOf(value: string): string[] {
   return lines;
 }
 
-/** Word-level parts of a removed line and the added line that replaces it. */
+/** Lines longer than this are not compared word by word; the whole line counts as changed. */
+const MAX_WORD_DIFF_LINE = 2000;
+
+/**
+ * Word-level parts of a removed line and the added line that replaces it. A line over
+ * {@link MAX_WORD_DIFF_LINE} characters is one changed part on each side.
+ */
 function wordParts(oldText: string, newText: string): { del: DiffLine["parts"]; add: DiffLine["parts"] } {
+  if (oldText.length > MAX_WORD_DIFF_LINE || newText.length > MAX_WORD_DIFF_LINE) {
+    return { del: [{ text: oldText, changed: true }], add: [{ text: newText, changed: true }] };
+  }
   const del: DiffLine["parts"] = [];
   const add: DiffLine["parts"] = [];
   for (const part of diffWordsWithSpace(oldText, newText)) {
@@ -33,7 +45,8 @@ function wordParts(oldText: string, newText: string): { del: DiffLine["parts"]; 
 /**
  * Compares two markdown bodies line by line. Each run of removed lines followed
  * by added lines is paired one to one and marked by word; `context` unchanged
- * lines are kept around every change.
+ * lines are kept around every change. When the line diff takes too long, every
+ * old line counts as removed and every new line as added, without word marks.
  */
 export function diffDocuments(oldBody: string, newBody: string, context = 3): { hunks: DiffHunk[]; added: number; removed: number } {
   const lines: DiffLine[] = [];
@@ -41,7 +54,12 @@ export function diffDocuments(oldBody: string, newBody: string, context = 3): { 
   let newNo = 1;
   let added = 0;
   let removed = 0;
-  const changes = diffLines(oldBody, newBody);
+  const bounded = diffLines(oldBody, newBody, { timeout: DIFF_TIMEOUT_MS });
+  const rewrite = bounded === undefined;
+  const changes = bounded ?? [
+    { value: oldBody, added: false, removed: true, count: 0 },
+    { value: newBody, added: true, removed: false, count: 0 },
+  ];
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i];
     if (!change.added && !change.removed) {
@@ -54,11 +72,11 @@ export function diffDocuments(oldBody: string, newBody: string, context = 3): { 
     const fresh = paired ? linesOf(paired.value) : change.added ? linesOf(change.value) : [];
     const delLines: DiffLine[] = gone.map((text, n) => {
       const partner = fresh[n];
-      return { kind: "del", oldNo: oldNo++, newNo: null, parts: partner === undefined ? [{ text, changed: true }] : wordParts(text, partner).del };
+      return { kind: "del", oldNo: oldNo++, newNo: null, parts: partner === undefined || rewrite ? [{ text, changed: true }] : wordParts(text, partner).del };
     });
     const addLines: DiffLine[] = fresh.map((text, n) => {
       const partner = gone[n];
-      return { kind: "add", oldNo: null, newNo: newNo++, parts: partner === undefined ? [{ text, changed: true }] : wordParts(partner, text).add };
+      return { kind: "add", oldNo: null, newNo: newNo++, parts: partner === undefined || rewrite ? [{ text, changed: true }] : wordParts(partner, text).add };
     });
     removed += delLines.length;
     added += addLines.length;
@@ -108,7 +126,29 @@ function buildHunk(lines: DiffLine[], start: number, end: number): DiffHunk {
   return { header: `@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`, lines: slice };
 }
 
-/** A unified diff (as `git diff` prints it) of two bodies with three lines of context. */
+/** Patch lines for a whole body, each prefixed with `sign`, plus the number of body lines. */
+function patchLines(body: string, sign: "-" | "+"): { lines: string[]; count: number } {
+  if (body === "") return { lines: [], count: 0 };
+  const lines = linesOf(body).map((line) => sign + line);
+  const count = lines.length;
+  if (!body.endsWith("\n")) lines.push("\\ No newline at end of file");
+  return { lines, count };
+}
+
+/**
+ * A unified diff (as `git diff` prints it) of two bodies with three lines of context.
+ * When the diff takes too long, the patch removes every old line and adds every new one.
+ */
 export function unifiedDiff(oldBody: string, newBody: string, oldLabel: string, newLabel: string): string {
-  return createTwoFilesPatch(oldLabel, newLabel, oldBody, newBody, undefined, undefined, { context: 3 });
+  const patch = createTwoFilesPatch(oldLabel, newLabel, oldBody, newBody, undefined, undefined, { context: 3, timeout: DIFF_TIMEOUT_MS });
+  if (patch !== undefined) return patch;
+  const gone = patchLines(oldBody, "-");
+  const fresh = patchLines(newBody, "+");
+  return formatPatch({
+    oldFileName: oldLabel,
+    newFileName: newLabel,
+    oldHeader: undefined,
+    newHeader: undefined,
+    hunks: [{ oldStart: 1, oldLines: gone.count, newStart: 1, newLines: fresh.count, lines: [...gone.lines, ...fresh.lines] }],
+  });
 }

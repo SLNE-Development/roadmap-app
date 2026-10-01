@@ -59,7 +59,8 @@ export function DocumentSection({
 }) {
   const body = doc?.body;
   const headings = useMemo(() => extractHeadings(body ?? ""), [body]);
-  const outlined = headings.length >= MIN_OUTLINE_HEADINGS;
+  // A diff has no heading anchors, so compare mode shows no outline.
+  const outlined = !compare && headings.length >= MIN_OUTLINE_HEADINGS;
   const sidebar = outlined || aside !== undefined;
   // Scroll to a section link (`#scope`) once after hydration.
   useEffect(() => {
@@ -99,7 +100,7 @@ export function DocumentSection({
         {sidebar && (
           <div className="flex flex-col gap-5 lg:order-2">
             {aside}
-            <DocumentOutline headings={headings} />
+            {outlined && <DocumentOutline headings={headings} />}
           </div>
         )}
         {compare ? (

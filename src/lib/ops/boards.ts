@@ -220,6 +220,9 @@ export async function setBoardColumns(
       }
     }
     if (removed.length > 0) await tx.delete(boardColumn).where(inArray(boardColumn.id, removed.map((c) => c.id)));
+    // The planning column has no entry rules: drop those of a column that becomes it.
+    const nowPlanning = columns.flatMap((c) => (c.id && c.category === "planning" && byId.get(c.id)?.category !== "planning" ? [c.id] : []));
+    if (nowPlanning.length > 0) await tx.delete(columnRule).where(inArray(columnRule.columnId, nowPlanning));
     for (const [i, c] of columns.entries()) {
       if (c.id) await tx.update(boardColumn).set({ name: c.name, category: c.category, sortOrder: i }).where(eq(boardColumn.id, c.id));
       else await tx.insert(boardColumn).values({ id: newId(), boardId: current.id, name: c.name, category: c.category, sortOrder: i });

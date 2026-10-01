@@ -167,10 +167,10 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
         {searching && <div className="px-4 py-1.5 text-sm text-muted-foreground">Searching…</div>}
         {hits.length > 0 && (
           <CommandGroup heading="In documents">
-            {hits.map((hit) => {
+            {hits.map((hit, i) => {
               const Icon = HIT_ICON[hit.kind];
               return (
-                <CommandItem key={`${hit.kind} ${hit.href}`} value={`hit ${hit.kind} ${hit.href}`} keywords={[query]} onSelect={() => go(hit.href)} className="items-start">
+                <CommandItem key={`${i} ${hit.kind} ${hit.href}`} value={`hit ${i} ${hit.kind} ${hit.href}`} keywords={[query]} onSelect={() => go(hit.href)} className="items-start">
                   <Icon className="mt-0.5" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate">{hit.title}</span>

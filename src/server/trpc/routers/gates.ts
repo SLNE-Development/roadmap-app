@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 import { boardGates, listGateRules } from "@/lib/ops/gates";
 import { protectedProcedure, router } from "../init";

@@ -507,6 +507,7 @@ export async function applySystemMove(
   if (column.category !== "planning" && !current.planningCompletedAt) {
     throw new ConflictError(planningGateMessage(current.slug, await planningGaps(tx, current.id)));
   }
+  if (column.id === current.columnId) return current;
   if (column.category === "done") {
     const reopened = await openAreaReopens(tx, current.id);
     if (reopened.length > 0) {
@@ -515,7 +516,6 @@ export async function applySystemMove(
       );
     }
   }
-  if (column.id === current.columnId) return current;
   const rules = (await columnRulesOf(tx, [column.id])).get(column.id) ?? [];
   const gate = (await evaluateGates(tx, [current], column.name, rules, new Date())).get(current.id);
   if (gate && gate.unmet.length > 0) {
@@ -576,7 +576,7 @@ export async function updateSystems(db: Db, actor: Actor, projectSlug: string, r
   return db.transaction(async (tx) => {
     const { project, role } = await projectAccess(tx, actor, projectSlug, "editor");
     const rows = await tx
-      .select()
+      .select(systemColumns)
       .from(system)
       .where(and(eq(system.projectId, project.id), inArray(system.slug, slugs)))
       .orderBy(asc(system.slug))

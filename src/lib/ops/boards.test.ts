@@ -253,4 +253,22 @@ describe("setColumnRules", () => {
     await setBoardColumns(db, owner, slug, "development", { columns: board.columns.map((c) => ({ id: c.id, name: c.name, category: c.category })) });
     expect(await db.select().from(columnRule)).toHaveLength(0);
   });
+
+  it("removes the rules of a column that becomes the planning column", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const board = await findBoard(db, projectId, "development");
+    const [planning, next] = board.columns;
+    await setColumnRules(db, owner, slug, "development", { column: next.name, rules: [{ rule: "spec-exists" }] });
+    await setColumnRules(db, owner, slug, "development", { column: "Done", rules: [{ rule: "all-tasks-done" }] });
+    await setBoardColumns(db, owner, slug, "development", {
+      columns: board.columns.map((c) => ({
+        id: c.id,
+        name: c.name,
+        category: c.id === planning.id ? next.category : c.id === next.id ? ("planning" as const) : c.category,
+      })),
+    });
+    const rows = await db.select().from(columnRule);
+    expect(rows.map((r) => r.rule)).toEqual(["all-tasks-done"]);
+  });
 });

@@ -28,6 +28,17 @@ describe("glossary", () => {
     ]);
   });
 
+  it("keeps the aliases when an update leaves them out and gives a new term none", async () => {
+    const { db, owner, slug } = await setup();
+    await setGlossaryTerm(db, owner, slug, { term: "Outbox", definition: "Queue table", aliases: ["outbox table"] });
+    await setGlossaryTerm(db, owner, slug, { term: "Outbox", definition: "Pending events table" });
+    await setGlossaryTerm(db, owner, slug, { term: "Inbox", definition: "Incoming events" });
+    expect(await listGlossary(db, owner, slug)).toMatchObject([
+      { term: "Inbox", aliases: [] },
+      { term: "Outbox", definition: "Pending events table", aliases: ["outbox table"] },
+    ]);
+  });
+
   it("refuses a viewer's write", async () => {
     const { db, owner, slug } = await setup();
     const viewer = await addMemberFixture(db, owner, slug, "viewer");

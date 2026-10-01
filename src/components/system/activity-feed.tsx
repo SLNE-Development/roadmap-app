@@ -60,6 +60,14 @@ export function describeChange(e: HistoryEntry, names: ActivityNames): string {
       return e.newValue ? `set the domain to ${names.domains.get(e.newValue) ?? "a removed domain"}` : "cleared the domain";
     case "system.phaseId":
       return e.newValue ? `set the phase to ${names.phases.get(e.newValue) ?? "a removed phase"}` : "cleared the phase";
+    case "system.gateOverride": {
+      // newValue is "<column>: <reason>".
+      const text = e.newValue ?? "";
+      const i = text.indexOf(": ");
+      return i === -1 ? "moved it past unmet column rules" : `moved it to ${text.slice(0, i)} past unmet rules: ${text.slice(i + 2)}`;
+    }
+    case "column.rules":
+      return e.newValue ? `set column entry rules: ${e.newValue}` : "removed column entry rules";
     case "task.created":
       return `added the task ${q(e.newValue)}`;
     case "task.deleted":
@@ -84,6 +92,10 @@ export function describeChange(e: HistoryEntry, names: ActivityNames): string {
       return "completed planning";
     case "planning.reopened":
       return "reopened planning";
+    case "planning.area-reopened":
+      return `reopened the ${e.newValue ?? "planning"} area`;
+    case "planning.area-completed":
+      return `completed the ${e.newValue ?? "planning"} area`;
     case "document.spec":
       return `wrote spec ${e.newValue ?? ""}`.trim();
     case "document.plan":

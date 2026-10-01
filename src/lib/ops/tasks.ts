@@ -6,7 +6,7 @@ import { projectAccess, projectAccessById, slugSchema } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { assertSystemActive, findSystem, userName } from "./lookup";
+import { assertSystemActive, findSystem, systemColumns, userName } from "./lookup";
 import { isMember } from "./members";
 import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
@@ -52,7 +52,7 @@ export async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
   const [found] = await tx.select({ systemId: task.systemId }).from(task).where(eq(task.id, taskId)).limit(1);
   if (!found) throw unknown();
   // Lock the system before the task, the order writePlan uses, so the two cannot deadlock.
-  const [parent] = await tx.select().from(system).where(eq(system.id, found.systemId)).limit(1).for("no key update");
+  const [parent] = await tx.select(systemColumns).from(system).where(eq(system.id, found.systemId)).limit(1).for("no key update");
   if (!parent) throw unknown();
   const [current] = await tx.select().from(task).where(eq(task.id, taskId)).limit(1).for("no key update");
   if (!current || current.systemId !== parent.id) throw unknown();
@@ -204,7 +204,7 @@ export async function moveTask(db: Db, actor: Actor, taskId: number, raw: z.inpu
     const unknown = () => new NotFoundError(`Unknown task ${taskId}.`);
     const [found] = await tx.select({ systemId: task.systemId }).from(task).where(eq(task.id, taskId)).limit(1);
     if (!found) throw unknown();
-    const [origin] = await tx.select().from(system).where(eq(system.id, found.systemId)).limit(1);
+    const [origin] = await tx.select(systemColumns).from(system).where(eq(system.id, found.systemId)).limit(1);
     if (!origin) throw unknown();
     try {
       await projectAccessById(tx, actor, origin.projectId, "editor");
@@ -216,7 +216,7 @@ export async function moveTask(db: Db, actor: Actor, taskId: number, raw: z.inpu
     if (target.id === origin.id) throw new InvalidError(`Task ${taskId} is already in system ${target.slug}.`);
     // Lock both systems in ascending id order, before the task, so moves cannot deadlock each other or taskAccess.
     const locked = await tx
-      .select()
+      .select(systemColumns)
       .from(system)
       .where(inArray(system.id, [origin.id, target.id]))
       .orderBy(asc(system.id))

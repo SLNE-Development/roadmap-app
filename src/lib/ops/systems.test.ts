@@ -138,6 +138,17 @@ describe("moveSystem", () => {
     await expect(moveSystem(db, owner, slug, "s", { column: "Review" })).resolves.toBeDefined();
   });
 
+  it("lets a system already in Done stay there while a planning area is reopened", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const { id } = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, id);
+    await moveSystem(db, owner, slug, "s", { column: "Done" });
+    await reopenPlanningArea(db, owner, slug, "s", { area: "scope", reason: "new partner API" });
+    await expect(moveSystem(db, owner, slug, "s", { column: "Done" })).resolves.toBeDefined();
+    await expect(updateSystems(db, owner, slug, { systems: ["s"], patch: { move: { column: "Done" } } })).resolves.toEqual({ updated: ["s"] });
+  });
+
   it("keeps a system in planning until planning is complete", async () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);
@@ -269,6 +280,18 @@ describe("moveSystem column entry rules", () => {
     await updateSystems(db, owner, slug, { systems: ["s"], patch: { move: { column: "Done", overrideReason: "bulk ship" } } });
     expect(await overrides()).toHaveLength(1);
   });
+
+  it("refuses a bulk move of two systems with unmet rules and lets an owner override both", async () => {
+    const { db, owner, slug, overrides } = await gated();
+    const t = await createSystem(db, owner, slug, { slug: "t", title: "T" });
+    await completePlanningFixture(db, t.id);
+    await addTask(db, owner, slug, "t", { title: "Also open" });
+    await expect(updateSystems(db, owner, slug, { systems: ["s", "t"], patch: { move: { column: "Done" } } })).rejects.toMatchObject({ status: 409 });
+    expect((await listSystems(db, owner, slug)).map((x) => x.columnName)).not.toContain("Done");
+    await updateSystems(db, owner, slug, { systems: ["s", "t"], patch: { move: { column: "Done", overrideReason: "bulk ship" } } });
+    expect((await listSystems(db, owner, slug)).map((x) => x.columnName)).toEqual(["Done", "Done"]);
+    expect((await overrides()).map((r) => r.newValue)).toEqual(["Done: bulk ship", "Done: bulk ship"]);
+  });
 });
 
 describe("updateSystem", () => {
@@ -308,6 +331,19 @@ describe("updateSystems", () => {
     expect(result).toEqual({ updated: ["a", "b", "c"] });
     expect((await listSystems(db, owner, slug)).map((s) => s.phaseId)).toEqual([alpha.id, alpha.id, alpha.id]);
     expect((await db.select().from(changeLog)).filter((c) => c.field === "phaseId")).toHaveLength(3);
+  });
+
+  it("refuses a bulk move into Done while one system has a reopened planning area", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const [a, b] = await three(db, owner, slug);
+    await completePlanningFixture(db, a.id);
+    await completePlanningFixture(db, b.id);
+    await reopenPlanningArea(db, owner, slug, "b", { area: "scope", reason: "new partner API" });
+    const error = await updateSystems(db, owner, slug, { systems: ["a", "b"], patch: { move: { column: "Done" } } }).catch((e) => e);
+    expect(statusOf(error)).toBe(409);
+    expect(messageOf(error)).toContain("System b has reopened planning areas: scope");
+    expect((await getSystem(db, owner, slug, "a")).column.name).not.toBe("Done");
   });
 
   it("changes nothing and names the failing system when one cannot move out of planning", async () => {

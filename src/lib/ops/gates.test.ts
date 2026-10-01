@@ -6,8 +6,10 @@ import { createTestDb } from "@/test/db";
 import { completePlanningFixture, createProjectFixture } from "@/test/fixtures";
 import type { Actor } from "./actor";
 import { acceptAdr, createAdr } from "./adrs";
+import { setSystemArchived } from "./archive";
+import { setColumnRules } from "./boards";
 import { writePlan, writeSpec } from "./documents";
-import { evaluateGates, GATE_RULES, gateMessage, registerGateRule, type GateSubject } from "./gates";
+import { boardGates, evaluateGates, GATE_RULES, gateMessage, registerGateRule, type GateSubject } from "./gates";
 import { addQuestion } from "./questions";
 import { createSystem } from "./systems";
 import { addTask, updateTask } from "./tasks";
@@ -159,6 +161,17 @@ describe("evaluateGates", () => {
     const { db, subject } = await setup();
     const results = await evaluateGates(db, [subject], "Done", [{ rule: "update-within-days", param: null }], NOW);
     expect(results.get(subject.id)?.unmet).toEqual(["no progress update in the last 3 days"]);
+  });
+});
+
+describe("boardGates", () => {
+  it("leaves archived systems on the board out", async () => {
+    const { db, owner, slug, subject } = await setup();
+    const archived = await createSystem(db, owner, slug, { slug: "old-index", title: "Old index" });
+    await setColumnRules(db, owner, slug, "development", { column: "Done", rules: [{ rule: "all-tasks-done" }] });
+    expect(Object.keys(await boardGates(db, owner, slug, "development", NOW)).sort()).toEqual([subject.id, archived.id].sort());
+    await setSystemArchived(db, owner, slug, "old-index", true);
+    expect(Object.keys(await boardGates(db, owner, slug, "development", NOW))).toEqual([subject.id]);
   });
 });
 

@@ -10,12 +10,16 @@ import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { lockProject } from "./lookup";
 
-/** Input of {@link writePage}; `baseVersion` is the latest version the writer saw, to catch a concurrent edit. */
+/**
+ * Input of {@link writePage}; `baseVersion` is the latest version the writer saw, to catch a concurrent edit,
+ * and `create` refuses to write over a page that already exists.
+ */
 export const writePageInput = z.object({
   page: slugSchema,
   title: z.string().trim().min(1).max(120).optional(),
   body: z.string().trim().min(1).max(200_000),
   baseVersion: z.number().int().min(1).max(2_147_483_647).optional(),
+  create: z.boolean().optional(),
 });
 
 /** A page in {@link listPages} with its latest version. */
@@ -134,10 +138,10 @@ export async function comparePages(db: Executor, actor: Actor, projectSlug: stri
 /**
  * Creates the page when the slug is unknown (a title is then required), otherwise appends its next
  * version and renames it when `title` differs. With `baseVersion`, the write is refused when the
- * page has moved on. Editor or higher.
+ * page has moved on; with `create`, when the page already exists. Editor or higher.
  *
  * @throws InvalidError for a new page without a title
- * @throws ConflictError when `baseVersion` is not the latest version
+ * @throws ConflictError when `baseVersion` is not the latest version, or `create` meets an existing page
  */
 export async function writePage(db: Db, actor: Actor, projectSlug: string, raw: z.input<typeof writePageInput>): Promise<{ version: number; created: boolean }> {
   const input = writePageInput.parse(raw);
@@ -160,6 +164,7 @@ export async function writePage(db: Db, actor: Actor, projectSlug: string, raw: 
       await logChange(tx, actor, { ...entry, entityId: id, field: "created", newValue: input.title });
       return { version: 1, created: true };
     }
+    if (input.create) throw new ConflictError(`Page ${page.slug} already exists.`);
     const [{ last }] = await tx.select({ last: max(pageVersion.version) }).from(pageVersion).where(eq(pageVersion.pageId, page.id));
     const latest = last ?? 0;
     if (input.baseVersion !== undefined && input.baseVersion !== latest) {

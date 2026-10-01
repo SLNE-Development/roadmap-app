@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { diffDocuments, unifiedDiff } from "./diff";
 
+/** Two ~200 000-character bodies of 10-character lines that share no line. */
+function fullRewrite(): { a: string; b: string } {
+  const a = Array.from({ length: 20_000 }, (_, i) => `old${String(i).padStart(6, "0")}\n`).join("");
+  const b = Array.from({ length: 20_000 }, (_, i) => `new${String(i).padStart(6, "0")}\n`).join("");
+  return { a, b };
+}
+
 describe("diffDocuments", () => {
   it("finds no hunks for identical bodies", () => {
     expect(diffDocuments("# A\n\ntext\n", "# A\n\ntext\n")).toEqual({ hunks: [], added: 0, removed: 0 });
@@ -50,6 +57,33 @@ describe("diffDocuments", () => {
     expect(added).toBe(50);
     expect(removed).toBe(50);
   });
+
+  it("gives up on a full rewrite of two 200 000-character bodies within 2 seconds and counts every line", () => {
+    const { a, b } = fullRewrite();
+    expect(a.length).toBeGreaterThanOrEqual(200_000);
+    const start = performance.now();
+    const { hunks, added, removed } = diffDocuments(a, b);
+    expect(performance.now() - start).toBeLessThan(2000);
+    expect(added).toBe(20_000);
+    expect(removed).toBe(20_000);
+    expect(hunks).toHaveLength(1);
+    expect(hunks[0].lines).toHaveLength(40_000);
+  });
+
+  it("marks a fully rewritten 200 000-character line as one changed part within 2 seconds", () => {
+    const line = (prefix: string) => Array.from({ length: 25_000 }, (_, i) => `${prefix}${String(i).padStart(6, "0")} `).join("");
+    const a = line("o");
+    const b = line("n");
+    expect(a.length).toBe(200_000);
+    const start = performance.now();
+    const { hunks, added, removed } = diffDocuments(`${a}\n`, `${b}\n`);
+    expect(performance.now() - start).toBeLessThan(2000);
+    expect(added).toBe(1);
+    expect(removed).toBe(1);
+    const [del, add] = hunks[0].lines;
+    expect(del.parts).toEqual([{ text: a, changed: true }]);
+    expect(add.parts).toEqual([{ text: b, changed: true }]);
+  });
 });
 
 describe("unifiedDiff", () => {
@@ -59,5 +93,17 @@ describe("unifiedDiff", () => {
     expect(patch).toContain("+++ spec v2");
     expect(patch).toContain("-a");
     expect(patch).toContain("+b");
+  });
+
+  it("removes every old line and adds every new one when a full rewrite takes too long", () => {
+    const { a, b } = fullRewrite();
+    const start = performance.now();
+    const patch = unifiedDiff(a, b, "spec v1", "spec v2");
+    expect(performance.now() - start).toBeLessThan(2000);
+    expect(patch).toContain("--- spec v1");
+    expect(patch).toContain("@@ -1,20000 +1,20000 @@");
+    const lines = patch.split("\n");
+    expect(lines.filter((l) => l.startsWith("-old"))).toHaveLength(20_000);
+    expect(lines.filter((l) => l.startsWith("+new"))).toHaveLength(20_000);
   });
 });

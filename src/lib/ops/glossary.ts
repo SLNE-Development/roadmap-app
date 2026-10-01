@@ -12,11 +12,11 @@ import { lockProject } from "./lookup";
 
 export type { GlossaryTerm };
 
-/** Input of {@link setGlossaryTerm}. */
+/** Input of {@link setGlossaryTerm}; without `aliases` a new term has none and an existing one keeps its own. */
 export const setGlossaryTermInput = z.object({
   term: z.string().trim().min(1).max(60),
   definition: z.string().trim().min(1).max(1000),
-  aliases: z.array(z.string().trim().min(1).max(60)).max(10).default([]),
+  aliases: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
 });
 
 /** Lists the project's glossary, ordered by term ignoring case. Viewer or higher. */
@@ -70,11 +70,11 @@ export async function setGlossaryTerm(
     const stamp = { updatedByUserId: actor.userId, agent: actor.agent ?? null, updatedAt: new Date() };
     if (!existing) {
       const id = newId();
-      await tx.insert(glossaryTerm).values({ id, projectId: project.id, ...input, ...stamp });
+      await tx.insert(glossaryTerm).values({ id, projectId: project.id, ...input, aliases: input.aliases ?? [], ...stamp });
       await logChange(tx, actor, { ...entry, entityId: id, field: "created", newValue: input.term });
       return { id, created: true };
     }
-    await tx.update(glossaryTerm).set({ ...input, ...stamp }).where(eq(glossaryTerm.id, existing.id));
+    await tx.update(glossaryTerm).set({ ...input, aliases: input.aliases ?? existing.aliases, ...stamp }).where(eq(glossaryTerm.id, existing.id));
     if (existing.definition !== input.definition) {
       await logChange(tx, actor, { ...entry, entityId: existing.id, field: "definition", oldValue: existing.definition, newValue: input.definition });
     }

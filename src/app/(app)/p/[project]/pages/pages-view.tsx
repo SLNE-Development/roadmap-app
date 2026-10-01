@@ -51,7 +51,7 @@ function NewPageDialog({ projectSlug, trigger }: { projectSlug: string; trigger?
           className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            create.mutate({ project: projectSlug, page: slug, title, body: `# ${title.trim()}` });
+            create.mutate({ project: projectSlug, page: slug, title, body: `# ${title.trim()}`, create: true });
           }}
         >
           <DialogHeader>

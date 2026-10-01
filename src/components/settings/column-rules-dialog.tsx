@@ -34,7 +34,7 @@ export function ColumnRulesDialog({ projectSlug, boardSlug, column, canEdit }: {
       <Tooltip>
         <TooltipTrigger asChild>
           <span tabIndex={0} className="inline-flex">
-            <Button variant="outline" size="sm" disabled aria-label={`Rules of ${column.name}`}>
+            <Button variant="outline" size="sm" disabled aria-label={`${label} of ${column.name}`}>
               {label}
             </Button>
           </span>
@@ -46,7 +46,7 @@ export function ColumnRulesDialog({ projectSlug, boardSlug, column, canEdit }: {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={`Rules of ${column.name}`}>
+        <Button variant="outline" size="sm" aria-label={`${label} of ${column.name}`}>
           {label}
         </Button>
       </DialogTrigger>

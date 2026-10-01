@@ -414,7 +414,7 @@ register(
   defineTool({
     name: "write_page",
     description: "Create a project page or write its next version (markdown); title is required for a new page.",
-    input: { ...P, ...writePageInput.shape },
+    input: { ...P, ...writePageInput.omit({ create: true }).shape },
     write: true,
     method: "PUT",
     path: "/projects/:project/pages/:page",
@@ -422,7 +422,7 @@ register(
   }),
   defineTool({
     name: "search",
-    description: "Full-text search in a project's systems, latest specs and plans, ADRs, questions and pages; returns titles, links and short snippets.",
+    description: "Full-text search in a project's systems, latest specs and plans, ADRs, questions and pages; returns titles, refs and short snippets.",
     input: {
       ...P,
       ...searchProjectInput.shape,
@@ -444,7 +444,7 @@ register(
   defineTool({
     name: "move_system",
     description:
-      "Move a system to a column (id or name) of its board or of another board. Leaving planning requires complete_planning; moving into an active column makes you owner of an unowned system.",
+      "Move a system to a column (id or name) of any board. Leaving planning requires complete_planning and column entry rules may refuse it; an active column makes you owner of an unowned system.",
     input: {
       ...S,
       ...moveSystemInput.shape,

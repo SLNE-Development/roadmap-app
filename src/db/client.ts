@@ -16,7 +16,8 @@ export function getDb(): Db {
   if (!globalForDb.roadmapDb) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set; the roadmap app refuses to run without it.");
-    const client = postgres(url, { max: 5 });
+    // Search with only stop words makes Postgres send a NOTICE per query; postgres-js would print each.
+    const client = postgres(url, { max: 5, onnotice: () => {} });
     globalForDb.roadmapDb = { db: drizzle({ client, schema }), client };
   }
   return globalForDb.roadmapDb.db;

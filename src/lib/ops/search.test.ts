@@ -71,11 +71,22 @@ describe("searchProject", () => {
     expect(await searchProject(db, owner, slug, { q: "compact" })).toMatchObject([{ kind: "question", href: "/p/demo/questions?system=search-index" }]);
   });
 
-  it("returns nothing at once for a query without a usable word", async () => {
+  it("runs only the access check for a query without a usable word", async () => {
     const { db, owner, slug } = await setup();
-    const started = performance.now();
-    expect(await searchProject(db, owner, slug, { q: "a" })).toEqual([]);
-    expect(performance.now() - started).toBeLessThan(20);
+    const { owner: stranger } = await createProjectFixture(db, "other");
+    let selects = 0;
+    // Counts the access check's select and fails on any search query.
+    const stub = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "execute") return () => Promise.reject(new Error("search query issued"));
+        const value = Reflect.get(target, prop, target);
+        if (prop === "select") return (...args: unknown[]) => (selects++, value.apply(target, args));
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    expect(await searchProject(stub, owner, slug, { q: "a" })).toEqual([]);
+    expect(selects).toBe(1);
+    await expect(searchProject(stub, stranger, slug, { q: "a" })).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("never fails on tsquery syntax", async () => {

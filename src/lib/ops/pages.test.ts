@@ -57,6 +57,13 @@ describe("project pages", () => {
     expect((await writePage(db, owner, slug, { page: "p", body: "c", baseVersion: 2 })).version).toBe(3);
   });
 
+  it("refuses to create a page over an existing one", async () => {
+    const { db, owner, slug } = await setup();
+    expect(await writePage(db, owner, slug, { page: "p", title: "P", body: "a", create: true })).toEqual({ version: 1, created: true });
+    await expect(writePage(db, owner, slug, { page: "p", title: "Other", body: "b", create: true })).rejects.toMatchObject({ status: 409, message: "Page p already exists." });
+    expect(await listPages(db, owner, slug)).toMatchObject([{ slug: "p", title: "P", version: 1 }]);
+  });
+
   it("returns a given version, the latest, or only the diff since a version", async () => {
     const { db, owner, slug } = await setup();
     await writePage(db, owner, slug, { page: "p", title: "P", body: "alpha" });

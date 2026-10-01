@@ -11,8 +11,8 @@ const terms: GlossaryTerm[] = [
   { id: "3", term: "Übergabe", definition: "Handover", aliases: [] },
 ];
 
-function render(markdown: string): string {
-  return String(unified().use(remarkParse).use(remarkRehype).use(rehypeGlossary(terms)).use(rehypeStringify).processSync(markdown));
+function render(markdown: string, glossary = terms): string {
+  return String(unified().use(remarkParse).use(remarkRehype).use(rehypeGlossary(glossary)).use(rehypeStringify).processSync(markdown));
 }
 
 describe("rehypeGlossary", () => {
@@ -38,5 +38,17 @@ describe("rehypeGlossary", () => {
 
   it("matches unicode words", () => {
     expect(render("die Übergabe.")).toContain("Übergabe</abbr>");
+  });
+
+  it("matches regex metacharacters in terms literally", () => {
+    const special: GlossaryTerm[] = [
+      { id: "1", term: "C++", definition: "A language", aliases: [] },
+      { id: "2", term: "a.b", definition: "A dotted name", aliases: ["f(x", "x|y"] },
+    ];
+    expect(render("axb", special)).not.toContain("<abbr");
+    expect(render("a.b", special)).toContain("a.b</abbr>");
+    expect(render("C++ rocks", special)).toContain("C++</abbr>");
+    expect(() => render("f(x and x|y", special)).not.toThrow();
+    expect(render("call f(x now", special)).toContain("f(x</abbr>");
   });
 });

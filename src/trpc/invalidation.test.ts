@@ -44,6 +44,10 @@ describe("INVALIDATES", () => {
   it("scopes a board mutation to the planning gaps too", () => {
     expect(affectedRouters([["boards", "update"]])).toContain("planning");
   });
+
+  it("refetches gate status and boards after planning mutations, which can move systems", () => {
+    expect(affectedRouters([["planning", "reopen"]])).toEqual(expect.arrayContaining(["gates", "boards"]));
+  });
 });
 
 describe("shouldInvalidate", () => {

@@ -8,7 +8,7 @@ import { projectAccess, slugSchema } from "./access";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { assertSystemActive, findSystem, lockProject } from "./lookup";
+import { assertSystemActive, findSystem, lockProject, systemColumns } from "./lookup";
 
 /** A required ADR section. */
 const section = z.string().trim().min(1).max(20000);
@@ -124,7 +124,7 @@ async function linkTasks(tx: Tx, actor: Actor, projectId: string, adrId: string,
   const wanted = [...new Set(ids)];
   const rows = wanted.length
     ? await tx
-        .select({ id: task.id, parent: system })
+        .select({ id: task.id, parent: systemColumns })
         .from(task)
         .innerJoin(system, eq(system.id, task.systemId))
         .where(and(inArray(task.id, wanted), eq(system.projectId, projectId)))

@@ -7,7 +7,7 @@ import { queryProject } from "./query-client";
 export const INVALIDATES: Record<string, readonly string[]> = {
   tasks: ["tasks", "systems", "planning", "history", "projects", "structure", "adrs", "gates"],
   systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks", "gates", "search"],
-  planning: ["planning", "systems", "history", "projects"],
+  planning: ["planning", "systems", "history", "projects", "gates", "boards"],
   adrs: ["adrs", "systems", "history", "projects", "gates", "search"],
   questions: ["questions", "systems", "planning", "history", "projects", "gates", "search"],
   boards: ["boards", "systems", "planning", "projects", "history", "gates"],

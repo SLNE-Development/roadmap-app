@@ -122,9 +122,9 @@ function hrefOf(projectSlug: string, row: Row): string {
  */
 export async function searchProjectWithRefs(db: Executor, actor: Actor, projectSlug: string, raw: z.input<typeof searchProjectInput>): Promise<SearchHitWithRef[]> {
   const input = searchProjectInput.parse(raw);
+  const { project } = await projectAccess(db, actor, projectSlug, "viewer");
   const query = toPrefixQuery(input.q);
   if (query === null) return [];
-  const { project } = await projectAccess(db, actor, projectSlug, "viewer");
   const parts = branches(project.id, new Set(input.kinds ?? SEARCH_KINDS));
   if (parts.length === 0) return [];
   // Headlines are costly on long bodies, so they are made only for the hits within the limit.
