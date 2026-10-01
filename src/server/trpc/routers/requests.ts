@@ -46,7 +46,7 @@ import {
   withdrawRequest,
 } from "@/lib/ops/requests";
 import { getEventSettings, previewTemplate, setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
-import { listPosts, previewPost, resumePost, savePostDraft, savePostDraftInput, startPost } from "@/lib/ops/request-posts";
+import { deletePost, disasterView, editPost, editPostInput, listPosts, postDisaster, previewPost, resolveDisaster, resolveDisasterInput, resumePost, savePostDraft, savePostDraftInput, startPost, testResult, testSend } from "@/lib/ops/request-posts";
 import { deleteUpload, setBanner, setBannerInput } from "@/lib/ops/uploads";
 import { bullQueue, QUEUE } from "@/lib/queue";
 import { protectedProcedure, router } from "../init";
@@ -235,6 +235,31 @@ export const requestsRouter = router({
 
     /** Continues a partial or failed post where it stopped. */
     resume: protectedProcedure.input(z.object(POST)).mutation(({ ctx, input }) => resumePost(ctx.db, ctx.actor, input.id, input.kind, bullQueue(QUEUE.deliver))),
+
+    /** Changes a posted post's text; the worker updates the stored Discord messages in place and never pings. */
+    edit: protectedProcedure
+      .input(z.object({ ...POST, ...editPostInput.shape }))
+      .mutation(({ ctx, input: { id, kind, ...changes } }) => editPost(ctx.db, ctx.actor, id, kind, changes, bullQueue(QUEUE.deliver))),
+
+    /** Deletes the Discord messages of a post. */
+    delete: protectedProcedure.input(z.object(POST)).mutation(({ ctx, input }) => deletePost(ctx.db, ctx.actor, input.id, input.kind, bullQueue(QUEUE.deliver))),
+
+    /** Queues a test send of the draft to the staff channel. */
+    testSend: protectedProcedure.input(z.object(POST)).mutation(({ ctx, input }) => testSend(ctx.db, ctx.actor, input.id, input.kind, bullQueue(QUEUE.deliver))),
+
+    /** The outcome of the last test send, while it is kept (60 s). */
+    testResult: protectedProcedure.input(z.object(POST)).query(({ ctx, input }) => testResult(ctx.kv, ctx.db, ctx.actor, input.id, input.kind)),
+
+    /** The disaster panel: the post state and the previews of both messages. */
+    disasterState: protectedProcedure.input(z.object({ ...R, note: z.string().max(500).optional() })).query(({ ctx, input }) => disasterView(ctx.db, ctx.actor, input.id, input.note ?? "")),
+
+    /** Posts the disaster message (event week only); never pings. */
+    disaster: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => postDisaster(ctx.db, ctx.actor, input.id, bullQueue(QUEUE.deliver))),
+
+    /** Resolves the posted disaster message with an optional note. */
+    resolve: protectedProcedure
+      .input(z.object({ ...R, ...resolveDisasterInput.shape }))
+      .mutation(({ ctx, input: { id, ...rest } }) => resolveDisaster(ctx.db, ctx.actor, id, rest, bullQueue(QUEUE.deliver))),
   }),
 
   /** The event settings. Secrets are write-only for admins; no procedure here returns one. */

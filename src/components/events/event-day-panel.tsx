@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CHECKLIST_TEMPLATE } from "@/lib/event-prep-template";
 import { useTRPC } from "@/trpc/client";
+import { DisasterPanel } from "./disaster-panel";
 
 /** The template keys of the checklist, which have a translated label. */
 const TEMPLATE_KEYS: readonly string[] = CHECKLIST_TEMPLATE.map((c) => c.key);
 
 /**
  * The event-day view: the event, the checklist, who is checked in and the "Something is wrong" panel with the fallback
- * scenarios. Used by the Event day tab and by the event-day page. The disaster button is a placeholder for now.
+ * scenarios. Used by the Event day tab and by the event-day page. The disaster panel posts and resolves the disaster message.
  *
  * @param props.requestId the request
  * @param props.canManageList whether the actor may add and remove custom checklist items
@@ -115,13 +116,8 @@ export function EventDayPanel({ requestId, canManageList = false }: { requestId:
           <Button type="button" variant="outline" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
             {open ? t("hideScenarios") : t("showScenarios")}
           </Button>
-          <Button type="button" variant="destructive" disabled aria-describedby={`${id}-soon`}>
-            {t("disaster")}
-          </Button>
-          <span id={`${id}-soon`} className="text-[13px] text-muted-foreground">
-            {t("disasterSoon")}
-          </span>
         </div>
+        <DisasterPanel requestId={requestId} />
         {open && (
           <ul className="flex flex-col gap-3">
             {view.fallbacks.map((f) => (

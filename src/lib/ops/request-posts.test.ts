@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eventPost, eventRequest, requestLog } from "@/db/schema";
+import { memoryKv } from "@/lib/kv";
 import { memoryQueue } from "@/lib/queue";
+import { setEventSecrets } from "./event-settings";
 import { draftPost, longText, postWorld, PUBLIC_TOKEN, stubEncryptionKey, TEAM_TOKEN } from "@/test/post-fixtures";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
-import { listPosts, previewPost, resumePost, savePostDraft, startPost } from "./request-posts";
+import { deletePost, editPost, listPosts, postDisaster, previewPost, resolveDisaster, resumePost, savePostDraft, startPost, testResult, testSend } from "./request-posts";
 
 beforeEach(stubEncryptionKey);
 afterEach(() => vi.unstubAllEnvs());
@@ -197,7 +199,7 @@ describe("listPosts", () => {
     expect(ann).toMatchObject({ id: post.id, status: "draft", partsCount: 0, sentCount: 0, late: true });
     expect(ann.dueAt?.toISOString()).toBe("2026-09-28T07:00:00.000Z");
     expect(view.posts.find((p) => p.kind === "team")?.late).toBe(true);
-    expect(view.targets).toEqual({ team: true, public: true });
+    expect(view.targets).toEqual({ team: true, public: true, staff: false });
     expect(view.dues.reminder.late).toBe(false);
     expect(view.dues.reminder.dueAt?.toISOString()).toBe("2026-10-04T07:00:00.000Z");
     expect(view.dues.announcement.late).toBe(true);
@@ -209,5 +211,139 @@ describe("listPosts", () => {
   it("hides the request from a stranger", async () => {
     const w = await postWorld();
     await expect(listPosts(w.db, w.stranger, w.request.id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+/** Puts a post of `kind` into `status` with message ids on every part, as if the worker had sent it. */
+async function markPosted(w: Awaited<ReturnType<typeof postWorld>>, kind: "announcement" | "team" | "reminder", status: "posted" | "partial" | "failed" = "posted") {
+  await startPost(w.db, w.manager, w.request.id, kind, memoryQueue());
+  const [row] = await w.db.select().from(eventPost).where(eq(eventPost.kind, kind));
+  const parts = row.parts.map((p, i) => ({ ...p, messageId: `m${i + 1}`, sentAt: "x" }));
+  await w.db.update(eventPost).set({ status, parts }).where(eq(eventPost.id, row.id));
+  return row.id;
+}
+
+describe("editPost", () => {
+  it("stores the text, marks the post sending with a new attempt and edit version, and queues events.edit", async () => {
+    const w = await postWorld();
+    await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
+    const id = await markPosted(w, "announcement");
+    const queue = memoryQueue();
+    await editPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo Welt" }, queue);
+    const [row] = await w.db.select().from(eventPost).where(eq(eventPost.id, id));
+    expect(row).toMatchObject({ text: "Hallo Welt", status: "sending", attempt: 2, editVersion: 1 });
+    expect(row.parts.map((p) => p.messageId)).toEqual(["m1", "m2"]);
+    expect(queue.jobs).toHaveLength(1);
+    expect(queue.jobs[0]).toMatchObject({ jobName: "events.edit", data: { postId: id, editVersion: 1, attempt: 2 }, opts: { jobId: `event-edit-${id}-2`, attempts: 5 } });
+  });
+
+  it("refuses a draft, a post being sent and a disaster, and hides the request from a stranger", async () => {
+    const w = await postWorld({ status: "event_week" });
+    await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
+    await expect(editPost(w.db, w.manager, w.request.id, "announcement", { text: "Neu" }, memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    await markPosted(w, "announcement");
+    await expect(editPost(w.db, w.stranger, w.request.id, "announcement", { text: "Neu" }, memoryQueue())).rejects.toBeInstanceOf(NotFoundError);
+    await editPost(w.db, w.manager, w.request.id, "announcement", { text: "Neu" }, memoryQueue());
+    await expect(editPost(w.db, w.manager, w.request.id, "announcement", { text: "Noch neuer" }, memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    await postDisaster(w.db, w.manager, w.request.id, memoryQueue());
+    await expect(editPost(w.db, w.manager, w.request.id, "disaster", { text: "x" }, memoryQueue())).rejects.toBeInstanceOf(InvalidError);
+  });
+
+  it("puts the post back when the queue is down", async () => {
+    const w = await postWorld();
+    await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
+    const id = await markPosted(w, "announcement");
+    await expect(editPost(w.db, w.manager, w.request.id, "announcement", { text: "Neu" }, { add: async () => Promise.reject(new Error("down")) })).rejects.toThrow("down");
+    const [row] = await w.db.select().from(eventPost).where(eq(eventPost.id, id));
+    expect(row.status).toBe("posted");
+    expect(row.lastError).toContain("could not be queued");
+  });
+});
+
+describe("deletePost", () => {
+  it("queues events.delete for a posted, partial or failed post with ids and refuses the rest", async () => {
+    const w = await postWorld();
+    await draftPost(w.db, w.manager, w.request.id, "team", { text: "Hallo" });
+    await expect(deletePost(w.db, w.manager, w.request.id, "team", memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    const id = await markPosted(w, "team", "failed");
+    const queue = memoryQueue();
+    await deletePost(w.db, w.manager, w.request.id, "team", queue);
+    const [row] = await w.db.select().from(eventPost).where(eq(eventPost.id, id));
+    expect(row.status).toBe("sending");
+    expect(queue.jobs[0]).toMatchObject({ jobName: "events.delete", data: { postId: id, attempt: row.attempt }, opts: { jobId: `event-delete-${id}-${row.attempt}` } });
+    await expect(deletePost(w.db, w.manager, w.request.id, "team", memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    await expect(deletePost(w.db, w.stranger, w.request.id, "team", memoryQueue())).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("testSend", () => {
+  it("needs the staff webhook, a saved draft and a kind that is not disaster or resolved", async () => {
+    const w = await postWorld();
+    await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
+    await expect(testSend(w.db, w.manager, w.request.id, "announcement", memoryQueue())).rejects.toThrow("The staff test webhook is not set. An admin sets it in Event settings.");
+    await expect(testSend(w.db, w.manager, w.request.id, "announcement", memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    await setEventSecrets(w.db, w.admin, { staffWebhook: "https://discord.com/api/webhooks/333333333333333333/STAFF" });
+    for (const kind of ["disaster", "resolved"] as const) await expect(testSend(w.db, w.manager, w.request.id, kind, memoryQueue())).rejects.toBeInstanceOf(InvalidError);
+    await expect(testSend(w.db, w.manager, w.request.id, "reminder", memoryQueue())).rejects.toBeInstanceOf(InvalidError);
+    await expect(testSend(w.db, w.stranger, w.request.id, "announcement", memoryQueue())).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("queues one job per minute however often it is clicked, and the result key can be read", async () => {
+    const w = await postWorld();
+    await setEventSecrets(w.db, w.admin, { staffWebhook: "https://discord.com/api/webhooks/333333333333333333/STAFF" });
+    await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
+    const queue = memoryQueue();
+    await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+    await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+    expect(queue.jobs).toHaveLength(1);
+    expect(queue.jobs[0]).toMatchObject({ jobName: "events.test", data: { requestId: w.request.id, kind: "announcement", userId: w.manager.userId } });
+    expect(queue.jobs[0].opts.jobId).toMatch(/^event-test-[^:]+-announcement-\d+$/);
+    expect(queue.jobs[0].opts.attempts).toBe(1);
+    const kv = memoryKv();
+    expect(await testResult(kv, w.db, w.manager, w.request.id, "announcement")).toBeNull();
+    await kv.set(`event-test:${w.request.id}:announcement`, JSON.stringify({ ok: true, count: 2, at: "2026-10-01T10:00:00.000Z" }), 60);
+    expect(await testResult(kv, w.db, w.manager, w.request.id, "announcement")).toEqual({ ok: true, count: 2, at: "2026-10-01T10:00:00.000Z" });
+    await expect(testResult(kv, w.db, w.stranger, w.request.id, "announcement")).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("postDisaster and resolveDisaster", () => {
+  it("needs the event week and the public webhook", async () => {
+    const w = await postWorld();
+    await expect(postDisaster(w.db, w.manager, w.request.id, memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    const open = await postWorld({ webhooks: false, status: "event_week" });
+    await expect(postDisaster(open.db, open.manager, open.request.id, memoryQueue())).rejects.toThrow("The public webhook is not set. An admin sets it in Event settings.");
+    await expect(postDisaster(open.db, open.stranger, open.request.id, memoryQueue())).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("creates a sending disaster post that never pings and refuses a second one until it is resolved", async () => {
+    const w = await postWorld({ status: "event_week" });
+    const queue = memoryQueue();
+    await postDisaster(w.db, w.manager, w.request.id, queue);
+    const [row] = await w.db.select().from(eventPost);
+    expect(row).toMatchObject({ kind: "disaster", status: "sending", attempt: 1, pingRole: false });
+    expect(row.parts).toHaveLength(1);
+    expect(row.parts[0]).toMatchObject({ kind: "embed", messageId: null });
+    expect(row.parts[0].embed?.title).toBe("Wir arbeiten an einer Lösung");
+    expect(queue.jobs[0]).toMatchObject({ jobName: "events.post", data: { postId: row.id, attempt: 1 }, opts: { jobId: `event-post-${row.id}-1` } });
+    await expect(postDisaster(w.db, w.manager, w.request.id, memoryQueue())).rejects.toThrow("A disaster message is already posted. Resolve it first.");
+    await w.db.update(eventPost).set({ status: "failed" });
+    await postDisaster(w.db, w.manager, w.request.id, memoryQueue());
+    expect((await w.db.select().from(eventPost)).map((p) => p.status).sort()).toEqual(["deleted", "sending"]);
+  });
+
+  it("resolves only a posted disaster once and refuses a note over 500 characters", async () => {
+    const w = await postWorld({ status: "event_week" });
+    await expect(resolveDisaster(w.db, w.manager, w.request.id, {}, memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    await postDisaster(w.db, w.manager, w.request.id, memoryQueue());
+    await expect(resolveDisaster(w.db, w.manager, w.request.id, {}, memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    const [row] = await w.db.select().from(eventPost);
+    await w.db.update(eventPost).set({ status: "posted", parts: row.parts.map((p) => ({ ...p, messageId: "d1", sentAt: "x" })) });
+    await expect(resolveDisaster(w.db, w.manager, w.request.id, { note: "x".repeat(501) }, memoryQueue())).rejects.toBeInstanceOf(InvalidError);
+    const queue = memoryQueue();
+    await resolveDisaster(w.db, w.manager, w.request.id, { note: "Fertig" }, queue);
+    const [after] = await w.db.select().from(eventPost);
+    expect(after).toMatchObject({ status: "sending", note: "Fertig", attempt: 2 });
+    expect(queue.jobs[0]).toMatchObject({ jobName: "events.resolve", data: { postId: row.id, attempt: 2 }, opts: { jobId: `event-resolve-${row.id}-2` } });
   });
 });

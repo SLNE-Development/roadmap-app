@@ -18,6 +18,10 @@ const long = (paragraphs: number) => ["# Piratenfest", ...Array.from({ length: p
 const none = { discordEventUrl: null };
 
 describe("buildDetailsEmbed", () => {
+  it("writes the back-online reply in German", () => {
+    expect(GERMAN.backOnline("Piratenfest")).toBe("Piratenfest ist wieder online.");
+  });
+
   it("fills the template lines and links the event docs", () => {
     const e = buildDetailsEmbed(request, settings);
     expect(e.title).toBe("Piratenfest");
@@ -43,6 +47,11 @@ describe("disaster and resolved embeds", () => {
 });
 
 describe("plannedParts", () => {
+  it("fills the placeholders of the text and leaves {note} and unknown names as written", () => {
+    const parts = plannedParts(post({ text: "{event} am {date} in {where} {note} {foo}" }), request, settings, none);
+    expect(parts[0].content).toBe("Piratenfest am Samstag, 17. Oktober 2026 in Hafenwelt {note} {foo}");
+  });
+
   it("makes 2 text parts and an event card from a 3,900 character announcement with a ping", () => {
     const text = long(9);
     expect(textLength(text)).toBeGreaterThan(3500);

@@ -48,8 +48,8 @@ export interface WebhookFile {
 export type WebhookResult =
   | { kind: "ok"; id: string }
   | { kind: "retry"; delayMs: number }
-  /** 401 or 404: the webhook is gone. */
-  | { kind: "gone"; status: 401 | 404 }
+  /** 401 or 404. A 404 with `code` 10008 (Unknown Message) means the message is gone, with 10015 (Unknown Webhook) or a 401 the webhook is. */
+  | { kind: "gone"; status: 401 | 404; code?: number }
   /** Any other 4xx: Discord refuses this message, retrying never helps. */
   | { kind: "rejected"; status: number }
   /** 5xx or a network error: worth retrying. */
@@ -109,7 +109,11 @@ async function call(hook: Webhook, url: string, init: RequestInit, fallbackId: s
     return id ? { kind: "ok", id } : { kind: "failed", error: new Error(`Discord answered the ${hook.kind} webhook without a message id.`) };
   }
   if (res.status === 429) return { kind: "retry", delayMs: Math.ceil((await retryAfterSeconds(res)) * 1000) + 250 };
-  if (res.status === 401 || res.status === 404) return { kind: "gone", status: res.status };
+  if (res.status === 401 || res.status === 404) {
+    const data: unknown = await res.json().catch(() => null);
+    const code = data && typeof data === "object" && "code" in data ? Number(data.code) : NaN;
+    return Number.isFinite(code) ? { kind: "gone", status: res.status, code } : { kind: "gone", status: res.status };
+  }
   if (res.status >= 500) return { kind: "failed", error: new Error(`Discord answered ${res.status} for the ${hook.kind} webhook.`) };
   return { kind: "rejected", status: res.status };
 }

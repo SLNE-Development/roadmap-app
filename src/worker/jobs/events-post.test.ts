@@ -4,7 +4,11 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eventPost, eventRequest, eventSettings, eventTodo, eventUpload, requestLog } from "@/db/schema";
-import { savePostDraft, startPost } from "@/lib/ops/request-posts";
+import { GERMAN } from "@/lib/event-messages";
+import * as secrets from "@/lib/event-secrets";
+import * as events from "./events-post";
+import { setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
+import { deletePost, editPost, postDisaster, resolveDisaster, resumePost, savePostDraft, startPost, testSend } from "@/lib/ops/request-posts";
 import { draftPost, longText, postWorld, PUBLIC_TOKEN, PUBLIC_URL, ROLE_ID, stubEncryptionKey, TEAM_TOKEN } from "@/test/post-fixtures";
 import { testDeps } from "../deps";
 import { runJob } from "../jobs";
@@ -22,11 +26,11 @@ const status = (code: number, body: unknown = {}) => new Response(JSON.stringify
 
 /** Stubs fetch to answer from `answers` in order and records every call. */
 function stubFetch(answers: Answer[]) {
-  const calls: { url: string; body: Record<string, unknown>; multipart: boolean }[] = [];
+  const calls: { method: string; url: string; body: Record<string, unknown>; multipart: boolean }[] = [];
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
     const multipart = init.body instanceof FormData;
-    const raw = multipart ? ((init.body as FormData).get("payload_json") as string) : (init.body as string);
-    calls.push({ url, body: JSON.parse(raw), multipart });
+    const raw = multipart ? ((init.body as FormData).get("payload_json") as string) : (init.body as string | undefined);
+    calls.push({ method: init.method ?? "GET", url, body: raw ? JSON.parse(raw) : {}, multipart });
     const answer = answers[calls.length - 1] ?? ok(`auto${calls.length}`);
     if (answer instanceof Error) throw answer;
     return answer;
@@ -250,5 +254,403 @@ describe("events.post", () => {
     expect(again[1].multipart).toBe(false);
     expect((again[1].body.embeds as { image?: unknown }[])[0].image).toBeUndefined();
     expect((await w.db.select().from(eventPost))[0].status).toBe("posted");
+  });
+});
+
+const STAFF_TOKEN = "STAFFTOKENSECRET5555";
+const STAFF_URL = `https://discord.com/api/webhooks/333333333333333333/${STAFF_TOKEN}`;
+const BOT_TOKEN = "B".repeat(60);
+
+/** A posted 3-part announcement (2 text parts + card, ids m1 to m3) ready to be edited, deleted or resumed. */
+async function posted(text = longText(3900)) {
+  const s = await started({ text });
+  stubFetch([ok("m1"), ok("m2"), ok("m3")]);
+  await s.run();
+  const edit = (input: Parameters<typeof editPost>[4]) => editPost(s.db, s.manager, s.request.id, "announcement", input, s.deps.queue("deliver"));
+  const lastJob = (name: string) => s.deps.queues.deliver.jobs.filter((j) => j.jobName === name).at(-1)!;
+  const runLast = (name: string) => runJob("deliver", name, lastJob(name).data, s.deps);
+  return { ...s, text, edit, lastJob, runLast };
+}
+
+const MORE = Array.from({ length: 2 }, (_, i) => `Neu ${i} ` + "y".repeat(380)).join("\n\n");
+
+describe("events.edit", () => {
+  it("patches only the changed text part, never pings and creates nothing", async () => {
+    const s = await posted();
+    await s.edit({ text: s.text + " NEU" });
+    const calls = stubFetch([ok("m2")]);
+    await s.runLast("events.edit");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("PATCH");
+    expect(calls[0].url).toBe(`${PUBLIC_URL}/messages/m2`);
+    expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
+    expect(JSON.stringify(calls)).not.toContain("roles");
+    expect(calls[0].body.content as string).toMatch(/NEU$/);
+    const row = await s.row();
+    expect(row.status).toBe("posted");
+    expect(row.parts.map((p) => p.messageId)).toEqual(["m1", "m2", "m3"]);
+    expect(row.parts[1].content).toMatch(/NEU$/);
+  });
+
+  it("patches every changed text part, keeps the role mention text and leaves an unchanged card alone", async () => {
+    const s = await posted();
+    await s.edit({ text: s.text.replace("# Fixture event", "# Fixture event 2") + " NEU" });
+    const calls = stubFetch([]);
+    await s.runLast("events.edit");
+    expect(calls.map((c) => c.method)).toEqual(["PATCH", "PATCH"]);
+    expect(calls.map((c) => c.url)).toEqual([`${PUBLIC_URL}/messages/m1`, `${PUBLIC_URL}/messages/m2`]);
+    expect(calls[0].body.content as string).toMatch(new RegExp(`^<@&${ROLE_ID}>`));
+    for (const c of calls) expect(c.body.allowed_mentions).toEqual({ parse: [] });
+    expect((await s.row()).parts.map((p) => p.messageId)).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("grows 2 to 3 text parts: deletes the card, sends the new text, then re-sends the card last", async () => {
+    const s = await posted();
+    await s.edit({ text: `${s.text}\n\n${MORE}` });
+    const calls = stubFetch([ok("m3"), ok("n3"), ok("n4")]);
+    await s.runLast("events.edit");
+    expect(calls.map((c) => c.method)).toEqual(["DELETE", "POST", "POST"]);
+    expect(calls[0].url).toBe(`${PUBLIC_URL}/messages/m3`);
+    expect(calls[1].url).toBe(`${PUBLIC_URL}?wait=true`);
+    expect(calls[2].body.content).toBeUndefined();
+    expect(JSON.stringify(calls)).not.toContain("<@&");
+    for (const c of calls.filter((c) => c.method !== "DELETE")) expect(c.body.allowed_mentions).toEqual({ parse: [] });
+    const row = await s.row();
+    expect(row.status).toBe("posted");
+    expect(row.parts.map((p) => p.kind)).toEqual(["text", "text", "text", "embed"]);
+    expect(row.parts.map((p) => p.messageId)).toEqual(["m1", "m2", "n3", "n4"]);
+  });
+
+  it("leaves the post partial with the card id cleared when the card re-send fails, and resume sends only the card", async () => {
+    const s = await posted();
+    await s.edit({ text: `${s.text}\n\n${MORE}` });
+    let posts = 0;
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      if (init.method !== "POST") return ok("m");
+      return ++posts === 2 ? status(500) : ok("n3");
+    });
+    await expect(s.runLast("events.edit")).rejects.toThrow();
+    const row = await s.row();
+    expect(row.status).toBe("partial");
+    expect(row.parts.map((p) => p.messageId)).toEqual(["m1", "m2", "n3", null]);
+    expect(row.parts.at(-1)?.kind).toBe("embed");
+    await resumePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const calls = stubFetch([ok("n4")]);
+    await s.runLast("events.edit");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
+    const done = await s.row();
+    expect(done.status).toBe("posted");
+    expect(done.parts.map((p) => p.messageId)).toEqual(["m1", "m2", "n3", "n4"]);
+  });
+
+  it("shrinks 3 to 2 text parts: deletes only the surplus text message", async () => {
+    const s = await posted(longText(5500));
+    expect((await s.row()).parts).toHaveLength(4);
+    await s.edit({ text: longText(3900) });
+    const calls = stubFetch([]);
+    await s.runLast("events.edit");
+    const rest = calls.filter((c) => c.method !== "PATCH");
+    expect(rest.map((c) => `${c.method} ${c.url}`)).toEqual([`DELETE ${PUBLIC_URL}/messages/m3`]);
+    expect(calls.some((c) => c.url.endsWith("/auto4"))).toBe(false);
+    const row = await s.row();
+    expect(row.status).toBe("posted");
+    expect(row.parts.map((p) => p.messageId)).toEqual(["m1", "m2", "auto4"]);
+  });
+
+  it("re-sends a part that Discord answers 404 for (deleted by a human) as a new message", async () => {
+    const s = await posted();
+    await s.edit({ text: s.text + " NEU" });
+    const calls = stubFetch([status(404), ok("n2")]);
+    await s.runLast("events.edit");
+    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
+    expect(calls[1].body.allowed_mentions).toEqual({ parse: [] });
+    const row = await s.row();
+    expect(row.status).toBe("posted");
+    expect(row.parts.map((p) => p.messageId)).toEqual(["m1", "n2", "m3"]);
+  });
+
+  it("patches the card with its banner file when the card changed", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "post-uploads-"));
+    vi.stubEnv("EVENT_UPLOADS_DIR", dir);
+    const s = await posted();
+    await s.db.insert(eventUpload).values({ id: "up1", requestId: s.request.id, uploaderId: s.manager.userId, purpose: "banner", originalName: "b.png", mime: "image/png", bytes: 3, storageKey: "0123abcd-0000.png" });
+    await writeFile(path.join(dir, "0123abcd-0000.png"), new Uint8Array([137, 80, 78]));
+    await s.db.update(eventRequest).set({ bannerUploadId: "up1", title: "Neuer Titel" }).where(eq(eventRequest.id, s.request.id));
+    await s.edit({ text: s.text });
+    const calls = stubFetch([]);
+    await s.runLast("events.edit");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ method: "PATCH", url: `${PUBLIC_URL}/messages/m3`, multipart: true });
+    const embed = (calls[0].body.embeds as { title: string; image: { url: string } }[])[0];
+    expect(embed.title).toBe("Neuer Titel");
+    expect(embed.image.url).toBe("attachment://image.png");
+    expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
+  });
+
+  it("an old edit job does nothing after a newer Delete took over the post", async () => {
+    const s = await posted();
+    await s.edit({ text: s.text + " NEU" });
+    const old = s.lastJob("events.edit").data;
+    stubFetch([status(500)]);
+    await expect(runJob("deliver", "events.edit", old, s.deps)).rejects.toThrow();
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const calls = stubFetch([]);
+    await runJob("deliver", "events.edit", old, s.deps);
+    expect(calls).toHaveLength(0);
+    stubFetch([]);
+    await s.runLast("events.delete");
+    expect((await s.row()).status).toBe("deleted");
+  });
+
+  it("does nothing for a job of an older edit", async () => {
+    const s = await posted();
+    await s.edit({ text: s.text + " EINS" });
+    const first = s.lastJob("events.edit").data;
+    await s.db.update(eventPost).set({ status: "posted" }).where(eq(eventPost.id, s.post.id));
+    await s.edit({ text: s.text + " ZWEI" });
+    const calls = stubFetch([]);
+    await runJob("deliver", "events.edit", first, s.deps);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("events.delete", () => {
+  it("deletes each stored id in order, counts a 404 as gone and calls nothing else", async () => {
+    const s = await posted();
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const calls = stubFetch([ok("m1"), status(404), ok("m3")]);
+    await s.runLast("events.delete");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([1, 2, 3].map((n) => `DELETE ${PUBLIC_URL}/messages/m${n}`));
+    const row = await s.row();
+    expect(row.status).toBe("deleted");
+    expect(row.parts.every((p) => p.messageId === null)).toBe(true);
+  });
+
+  it("an old delete job does nothing after a newer Edit took over the post", async () => {
+    const s = await posted();
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const old = s.lastJob("events.delete").data;
+    stubFetch([status(500)]);
+    await expect(runJob("deliver", "events.delete", old, s.deps)).rejects.toThrow();
+    await s.edit({ text: s.text + " NEU" });
+    const calls = stubFetch([]);
+    await runJob("deliver", "events.delete", old, s.deps);
+    expect(calls).toHaveLength(0);
+    expect((await s.row()).status).toBe("sending");
+  });
+
+  it("counts 404 Unknown Message (10008) as deleted but stops on Unknown Webhook (10015) without marking parts deleted", async () => {
+    const s = await posted();
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    stubFetch([status(404, { code: 10015 })]);
+    await s.runLast("events.delete");
+    const row = await s.row();
+    expect(row.status).toBe("partial");
+    expect(row.lastError).toBe("Discord no longer accepts the public webhook (404). An admin must set a new one.");
+    expect(row.parts.map((p) => p.messageId)).toEqual(["m1", "m2", "m3"]);
+    expect(row.parts.some((p) => p.deleted)).toBe(false);
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    stubFetch([status(404, { code: 10008 }), ok("m2"), ok("m3")]);
+    await s.runLast("events.delete");
+    expect((await s.row()).status).toBe("deleted");
+  });
+
+  it("stops on a 500, keeps the ids that are still there and deletes only the rest on retry", async () => {
+    const s = await posted();
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    stubFetch([ok("m1"), status(500)]);
+    await expect(s.runLast("events.delete")).rejects.toThrow();
+    let row = await s.row();
+    expect(row.status).toBe("partial");
+    expect(row.parts.map((p) => p.messageId)).toEqual([null, "m2", "m3"]);
+    await expect(resumePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"))).rejects.toThrow(/delet/i);
+    const calls = stubFetch([]);
+    await s.runLast("events.delete");
+    expect(calls.map((c) => c.url)).toEqual([`${PUBLIC_URL}/messages/m2`, `${PUBLIC_URL}/messages/m3`]);
+    row = await s.row();
+    expect(row.status).toBe("deleted");
+  });
+});
+
+describe("events.test", () => {
+  /** A world with an announcement draft that pings, the staff webhook and a bot token set. */
+  async function testWorld() {
+    const w = await postWorld();
+    await setEventSecrets(w.db, w.admin, { staffWebhook: STAFF_URL, botToken: BOT_TOKEN });
+    const deps = testDeps(w.db);
+    const post = await draftPost(w.db, w.manager, w.request.id, "announcement", { text: longText(3900), pingRole: true });
+    return { ...w, deps, post };
+  }
+
+  it("goes only to the staff webhook, never pings, strips the role mention and stores nothing on the post", async () => {
+    const s = await testWorld();
+    await s.db.update(eventPost).set({ text: `<@&${ROLE_ID}>\n${s.post.text}` }).where(eq(eventPost.id, s.post.id));
+    const before = JSON.stringify((await s.db.select().from(eventPost))[0]);
+    const loadAll = vi.spyOn(secrets, "loadEventSecrets");
+    const ensure = vi.spyOn(events, "ensureDiscordEvent");
+    await testSend(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const calls = stubFetch([]);
+    const job = s.deps.queues.deliver.jobs.find((j) => j.jobName === "events.test")!;
+    await runJob("deliver", "events.test", job.data, s.deps);
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+    expect(calls.every((c) => c.method === "POST" && c.url === `${STAFF_URL}?wait=true`)).toBe(true);
+    for (const c of calls) expect(c.body.allowed_mentions).toEqual({ parse: [] });
+    expect(JSON.stringify(calls)).not.toContain("<@&");
+    expect((calls[0].body.content as string).split("\n")[0]).toBe(GERMAN.testMarker);
+    expect(calls.at(-1)?.body.content).toBeUndefined();
+    expect((calls.at(-1)?.body.embeds as { title: string }[])[0].title).toBe("Fixture event");
+    expect(loadAll).not.toHaveBeenCalled();
+    expect(ensure).not.toHaveBeenCalled();
+    expect(calls.every((c) => !c.url.includes("/api/v10/"))).toBe(true);
+    expect(JSON.stringify((await s.db.select().from(eventPost))[0])).toBe(before);
+    const result = JSON.parse((await s.deps.kv.get(`event-test:${s.request.id}:announcement`))!);
+    expect(result).toMatchObject({ ok: true, count: calls.length });
+    expect(JSON.stringify(result)).not.toContain(STAFF_TOKEN);
+    loadAll.mockRestore();
+    ensure.mockRestore();
+  });
+
+  it("keeps the error for the UI and does not resend on a 5xx", async () => {
+    const s = await testWorld();
+    await testSend(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const calls = stubFetch([ok("t1"), status(500)]);
+    const job = s.deps.queues.deliver.jobs.find((j) => j.jobName === "events.test")!;
+    await runJob("deliver", "events.test", job.data, s.deps);
+    expect(calls).toHaveLength(2);
+    const result = JSON.parse((await s.deps.kv.get(`event-test:${s.request.id}:announcement`))!);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("staff");
+    expect(JSON.stringify(result)).not.toContain(STAFF_TOKEN);
+  });
+});
+
+describe("disaster and resolve", () => {
+  async function disasterWorld() {
+    const w = await postWorld({ status: "event_week" });
+    const deps = testDeps(w.db);
+    const run = (name: string, data: unknown) => runJob("deliver", name, data, deps);
+    const postedDisaster = async () => {
+      await postDisaster(w.db, w.manager, w.request.id, deps.queue("deliver"));
+      const [row] = await w.db.select().from(eventPost).where(eq(eventPost.kind, "disaster"));
+      stubFetch([ok("d1")]);
+      await run("events.post", { postId: row.id, attempt: row.attempt });
+      return row.id;
+    };
+    const row = async (id: string) => (await w.db.select().from(eventPost).where(eq(eventPost.id, id)))[0];
+    const resolveJob = () => deps.queues.deliver.jobs.filter((j) => j.jobName === "events.resolve").at(-1)!;
+    return { ...w, deps, run, postedDisaster, row, resolveJob };
+  }
+
+  it("posts one embed from the template with every placeholder filled, no content and no ping", async () => {
+    const s = await disasterWorld();
+    await updateEventSettings(s.db, s.manager, { rulebookUrl: "https://example.com/regeln", disasterTemplate: { title: "{event} pausiert", text: "{date} {time} {duration} {where} {docs} {rules} [{note}]", color: "#c23636", imageUploadId: null } });
+    await s.db.update(eventRequest).set({ eventDocsUrl: "https://example.com/docs" }).where(eq(eventRequest.id, s.request.id));
+    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
+    const [row] = await s.db.select().from(eventPost);
+    expect(row).toMatchObject({ kind: "disaster", status: "sending", pingRole: false });
+    const calls = stubFetch([ok("d1")]);
+    await s.run("events.post", { postId: row.id, attempt: row.attempt });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${PUBLIC_URL}?wait=true`);
+    expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
+    expect(calls[0].body.content).toBeUndefined();
+    const embed = (calls[0].body.embeds as { title: string; description: string }[])[0];
+    expect(embed.title).toBe("Fixture event pausiert");
+    expect(embed.description).toContain("Hafenwelt");
+    expect(embed.description).toContain("https://example.com/docs");
+    expect(embed.description).toContain("https://example.com/regeln");
+    expect(embed.description).toContain("1 Stunde 30 Minuten");
+    expect(embed.description).toContain("Uhr");
+    expect(embed.description).toContain("[{note}]");
+    expect(embed.description).not.toMatch(/\{(date|time|duration|where|docs|rules|event)\}/);
+    expect((await s.row(row.id)).status).toBe("posted");
+  });
+
+  it("sends the template image as an attachment", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "post-uploads-"));
+    vi.stubEnv("EVENT_UPLOADS_DIR", dir);
+    const s = await disasterWorld();
+    await s.db.insert(eventUpload).values({ id: "upd", requestId: null, uploaderId: s.manager.userId, purpose: "template", originalName: "d.png", mime: "image/png", bytes: 3, storageKey: "0123abcd-dddd.png" });
+    await writeFile(path.join(dir, "0123abcd-dddd.png"), new Uint8Array([137, 80, 78]));
+    await updateEventSettings(s.db, s.manager, { disasterTemplate: { title: "Pause", text: "Text", color: "#c23636", imageUploadId: "upd" } });
+    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
+    const [row] = await s.db.select().from(eventPost);
+    const calls = stubFetch([ok("d1")]);
+    await s.run("events.post", { postId: row.id, attempt: row.attempt });
+    expect(calls[0].multipart).toBe(true);
+    expect((calls[0].body.embeds as { image: { url: string } }[])[0].image.url).toBe("attachment://image.png");
+  });
+
+  it("resolves: patches the disaster message with the note, then posts the German back-online message, stores its id", async () => {
+    const s = await disasterWorld();
+    const id = await s.postedDisaster();
+    await resolveDisaster(s.db, s.manager, s.request.id, { note: "Der Server ist neu gestartet." }, s.deps.queue("deliver"));
+    const calls = stubFetch([ok("d1"), ok("r1")]);
+    await s.run("events.resolve", s.resolveJob().data);
+    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
+    expect(calls[0].url).toBe(`${PUBLIC_URL}/messages/d1`);
+    const embed = (calls[0].body.embeds as { title: string; description: string }[])[0];
+    expect(embed.title).toBe("Das Event ist nun wieder online");
+    expect(embed.description).toContain("Der Server ist neu gestartet.");
+    expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
+    expect(calls[1].url).toBe(`${PUBLIC_URL}?wait=true`);
+    expect(calls[1].body).toMatchObject({ content: GERMAN.backOnline("Fixture event"), allowed_mentions: { parse: [] } });
+    expect(calls[1].body.message_reference).toBeUndefined();
+    const row = await s.row(id);
+    expect(row.status).toBe("posted");
+    expect(row.resolvedAt).not.toBeNull();
+    expect(row.parts.map((p) => p.messageId)).toEqual(["d1", "r1"]);
+    await expect(resolveDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"))).rejects.toThrow(/posted disaster/i);
+    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
+    expect(await s.db.select().from(eventPost)).toHaveLength(2);
+  });
+
+  it("does not let a deleted disaster block a new one", async () => {
+    const s = await disasterWorld();
+    const id = await s.postedDisaster();
+    await deletePost(s.db, s.manager, s.request.id, "disaster", s.deps.queue("deliver"));
+    stubFetch([ok("d1")]);
+    await s.run("events.delete", s.deps.queues.deliver.jobs.filter((j) => j.jobName === "events.delete").at(-1)!.data);
+    expect((await s.row(id)).status).toBe("deleted");
+    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
+    expect((await s.db.select().from(eventPost)).map((p) => p.status).sort()).toEqual(["deleted", "sending"]);
+  });
+
+  it("collapses an empty note cleanly", async () => {
+    const s = await disasterWorld();
+    await s.postedDisaster();
+    await resolveDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
+    const calls = stubFetch([ok("d1"), ok("r1")]);
+    await s.run("events.resolve", s.resolveJob().data);
+    expect((calls[0].body.embeds as { description: string }[])[0].description).toBe("Fixture event läuft wieder.");
+  });
+
+  it("posts the resolved embed as a new message when the disaster message is gone", async () => {
+    const s = await disasterWorld();
+    const id = await s.postedDisaster();
+    await resolveDisaster(s.db, s.manager, s.request.id, { note: "ok" }, s.deps.queue("deliver"));
+    const calls = stubFetch([status(404), ok("d2"), ok("r1")]);
+    await s.run("events.resolve", s.resolveJob().data);
+    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST", "POST"]);
+    expect((calls[1].body.embeds as { title: string }[])[0].title).toBe("Das Event ist nun wieder online");
+    expect((await s.row(id)).parts.map((p) => p.messageId)).toEqual(["d2", "r1"]);
+  });
+
+  it("retries after a failed reply without posting a second resolved message", async () => {
+    const s = await disasterWorld();
+    const id = await s.postedDisaster();
+    await resolveDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
+    stubFetch([ok("d1"), status(500)]);
+    await expect(s.run("events.resolve", s.resolveJob().data)).rejects.toThrow();
+    expect((await s.row(id)).status).toBe("partial");
+    await resumePost(s.db, s.manager, s.request.id, "disaster", s.deps.queue("deliver"));
+    const calls = stubFetch([ok("d1"), ok("r1")]);
+    await s.run("events.resolve", s.resolveJob().data);
+    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
+    const row = await s.row(id);
+    expect(row.resolvedAt).not.toBeNull();
+    expect(row.parts.map((p) => p.messageId)).toEqual(["d1", "r1"]);
   });
 });

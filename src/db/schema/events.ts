@@ -334,7 +334,11 @@ export const eventPost = pgTable(
     note: text("note"),
     parts: jsonb("parts").notNull().$type<PostPart[]>().default([]),
     attempt: integer("attempt").notNull().default(0),
+    /** Counts the edits of a posted post; the `events.edit` job works only for the latest one. */
+    editVersion: integer("edit_version").notNull().default(0),
     lastError: text("last_error"),
+    /** When a disaster message was resolved; null while it is open and for every other kind. */
+    resolvedAt: timestamp("resolved_at", tz),
     postedAt: timestamp("posted_at", tz),
     /** Who started the post; shown as the poster once it is posted. */
     postedBy: text("posted_by").references(() => user.id, { onDelete: "set null" }),

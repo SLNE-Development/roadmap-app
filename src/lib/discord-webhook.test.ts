@@ -45,6 +45,13 @@ describe("sendMessage", () => {
     expect(await sendMessage(hook, body)).toEqual({ kind: "gone", status: 401 });
   });
 
+  it("carries Discord's error code of a 404", async () => {
+    stubFetch(() => json(404, { code: 10008, message: "Unknown Message" }));
+    expect(await sendMessage(hook, body)).toEqual({ kind: "gone", status: 404, code: 10008 });
+    stubFetch(() => json(404, { code: 10015, message: "Unknown Webhook" }));
+    expect(await sendMessage(hook, body)).toEqual({ kind: "gone", status: 404, code: 10015 });
+  });
+
   it("maps another 4xx to rejected", async () => {
     stubFetch(() => json(400, { message: "bad" }));
     expect(await sendMessage(hook, body)).toEqual({ kind: "rejected", status: 400 });

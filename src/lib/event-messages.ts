@@ -26,6 +26,8 @@ export interface PostPart {
   uploadId?: string | null;
   messageId: string | null;
   sentAt: string | null;
+  /** Set while a delete is half done: Discord no longer has this message, and the post must not send it again. */
+  deleted?: true;
 }
 
 /** What {@link plannedParts} reads from a post. */
@@ -46,6 +48,8 @@ type PlanRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes
 export const GERMAN = {
   testMarker: "Testnachricht (nur für das Team)",
   resumed: "Dieser Beitrag wird fortgesetzt.",
+  /** The reply under a resolved disaster message. */
+  backOnline: (event: string): string => `${event} ist wieder online.`,
 } as const;
 
 const NO_NOTE: readonly Placeholder[] = PLACEHOLDERS.filter((p) => p !== "note");
@@ -85,6 +89,9 @@ export function buildResolvedEmbed(request: PlanRequest, settings: Pick<PlanSett
 /** Whether a post of `kind` may carry the role ping. */
 export const mayPing = (kind: PostKind, pingRole: boolean): boolean => pingRole && (kind === "announcement" || kind === "reminder");
 
+/** Whether the first message of a stored post carries the role mention text; an edit keeps it as it is. */
+export const keepsMention = (parts: PostPart[]): boolean => parts[0]?.kind === "text" && /^<@&\d+>\n/.test(parts[0].content);
+
 /** The Discord event link of the request, once the event exists and the guild is known. */
 export function discordEventUrl(request: Pick<EventRequestRow, "discordEventId">, settings: Pick<EventSettingsRow, "guildId">): string | null {
   return request.discordEventId && settings.guildId ? `https://discord.com/events/${settings.guildId}/${request.discordEventId}` : null;
@@ -101,7 +108,8 @@ const unsent = (fields: Pick<PostPart, "kind" | "content"> & Partial<PostPart>):
  */
 export function plannedParts(post: PlanPost, request: PlanRequest, settings: PlanSettings, opts: { discordEventUrl: string | null }): PostPart[] {
   const mention = mayPing(post.kind, post.pingRole) && settings.pingRoleId ? `<@&${settings.pingRoleId}>\n` : "";
-  const chunks = splitText(post.text, LIMITS.content, LIMITS.content - textLength(mention));
+  const text = fillPlaceholders(post.text, placeholderValues(request, settings), { allow: NO_NOTE });
+  const chunks = splitText(text, LIMITS.content, LIMITS.content - textLength(mention));
   const parts: PostPart[] = chunks.map((c, i) => unsent({ kind: "text", content: i === 0 ? mention + c : c }));
   if (post.kind === "disaster" || post.kind === "resolved") {
     const embed = post.embed ?? (post.kind === "disaster" ? buildDisasterEmbed(request, settings) : buildResolvedEmbed(request, settings, post.note));
