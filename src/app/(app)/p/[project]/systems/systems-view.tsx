@@ -2,10 +2,10 @@
 
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { Boxes } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
 import type { z } from "zod";
-import { CATEGORY_LABEL } from "@/components/chips";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { EmptyState, Page, PageHeader } from "@/components/page";
 import { SystemCard } from "@/components/system-card";
@@ -14,6 +14,7 @@ import { SystemsTable, type SystemGroup } from "@/components/systems/systems-tab
 import { SystemsToolbar, type FilterDef } from "@/components/systems/systems-toolbar";
 import { Button } from "@/components/ui/button";
 import { COLUMN_CATEGORIES, PRIORITIES } from "@/db/schema";
+import { priorityKey } from "@/i18n/enums";
 import type { SystemListItem, systemFilter } from "@/lib/ops/systems";
 import { useTRPC } from "@/trpc/client";
 
@@ -34,6 +35,9 @@ export function SystemsView({
   current: Record<string, string>;
   filter: z.output<typeof systemFilter>;
 }) {
+  const t = useTranslations("systems");
+  const tCategory = useTranslations("enums.category");
+  const tPriority = useTranslations("enums.priority");
   const trpc = useTRPC();
   const [{ data: detail }, { data: systems }, { data: all }, { data: domains }, { data: phases }, { data: members }, { data: latest }, { data: fields }, { data: releases }] =
     useSuspenseQueries({
@@ -65,23 +69,23 @@ export function SystemsView({
   const select = (slugs: Iterable<string>) => setSelection({ key: filterKey, slugs: new Set(slugs) });
 
   const filters: FilterDef[] = [
-    { key: "board", label: "Board", options: data.detail.boards.map((b) => ({ value: b.slug, label: b.name })) },
-    { key: "domain", label: "Domain", options: data.domains.map((d) => ({ value: d.id, label: d.name })) },
-    { key: "phase", label: "Phase", options: data.phases.map((p) => ({ value: p.id, label: p.name })) },
-    { key: "category", label: "Status", options: COLUMN_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })) },
-    { key: "priority", label: "Priority", options: PRIORITIES.map((p) => ({ value: p, label: p })) },
+    { key: "board", label: t("filter.board"), options: data.detail.boards.map((b) => ({ value: b.slug, label: b.name })) },
+    { key: "domain", label: t("filter.domain"), options: data.domains.map((d) => ({ value: d.id, label: d.name })) },
+    { key: "phase", label: t("filter.phase"), options: data.phases.map((p) => ({ value: p.id, label: p.name })) },
+    { key: "category", label: t("filter.status"), options: COLUMN_CATEGORIES.map((c) => ({ value: c, label: tCategory(c) })) },
+    { key: "priority", label: t("filter.priority"), options: PRIORITIES.map((p) => ({ value: p, label: tPriority(priorityKey(p)) })) },
     {
       key: "owner",
-      label: "Owner",
-      options: [{ value: "none", label: "Unowned" }, ...data.members.map((m) => ({ value: m.userId, label: m.name }))],
+      label: t("filter.owner"),
+      options: [{ value: "none", label: t("filter.unowned") }, ...data.members.map((m) => ({ value: m.userId, label: m.name }))],
     },
-    { key: "release", label: "Release", options: releases.map((r) => ({ value: r.slug, label: r.name })) },
+    { key: "release", label: t("filter.release"), options: releases.map((r) => ({ value: r.slug, label: r.name })) },
     {
       key: "archived",
-      label: "Archived",
+      label: t("filter.archived"),
       options: [
-        { value: "include", label: "Include archived" },
-        { value: "only", label: "Only archived" },
+        { value: "include", label: t("filter.includeArchived") },
+        { value: "only", label: t("filter.onlyArchived") },
       ],
     },
   ].filter((f) => f.options.length > 0);
@@ -96,14 +100,14 @@ export function SystemsView({
     groupBy === "none"
       ? [{ key: "all", name: "", items: shown }]
       : groupBy === "phase"
-        ? byKey(data.phases, (s) => s.phaseId, "No phase")
+        ? byKey(data.phases, (s) => s.phaseId, t("group.noPhase"))
         : groupBy === "board"
           ? byKey(
               data.detail.boards.map((b) => ({ id: b.slug, name: b.name })),
               (s) => s.boardSlug,
-              "Other boards",
+              t("group.otherBoards"),
             )
-          : byKey(data.domains, (s) => s.domainId, "No domain");
+          : byKey(data.domains, (s) => s.domainId, t("group.noDomain"));
 
   const phaseName = Object.fromEntries(data.phases.map((p) => [p.id, p.name]));
   const domainName = new Map(data.domains.map((d) => [d.id, d.name]));
@@ -114,30 +118,30 @@ export function SystemsView({
 
   return (
     <Page width="full">
-      <PageHeader crumbs={[{ label: data.detail.project.name, href: `/p/${slug}` }]} title="Systems" actions={newSystem}>
+      <PageHeader crumbs={[{ label: data.detail.project.name, href: `/p/${slug}` }]} title={t("title")} actions={newSystem}>
         {data.total > 0 && <SystemsToolbar filters={filters} current={current} shown={shown.length} total={data.total} />}
       </PageHeader>
       {data.total === 0 ? (
         <EmptyState
           icon={<Boxes />}
-          title="No systems yet"
-          description="A system is one feature or area of the project. It starts in planning."
+          title={t("empty.title")}
+          description={t("empty.description")}
           action={newSystem}
         />
       ) : shown.length === 0 ? (
         <EmptyState
-          title="No systems match"
-          description="Try another search or remove a filter."
+          title={t("empty.noMatchTitle")}
+          description={t("empty.noMatchDescription")}
           action={
             <Button variant="outline" size="sm" asChild>
-              <Link href={`/p/${slug}/systems`}>Clear filters</Link>
+              <Link href={`/p/${slug}/systems`}>{t("empty.clear")}</Link>
             </Button>
           }
         />
       ) : current.view === "cards" ? (
         <div className="flex flex-col gap-6">
           {groups.map((g) => (
-            <section key={g.key} className="flex flex-col gap-2.5" aria-label={g.name || "Systems"}>
+            <section key={g.key} className="flex flex-col gap-2.5" aria-label={g.name || t("title")}>
               {g.name && (
                 <div className="flex items-baseline gap-2.5">
                   <h2 className="text-[13px] font-semibold">{g.name}</h2>

@@ -1,18 +1,15 @@
 "use client";
 
 import { Bot } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { useNow } from "@/components/clock";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PresentAgent, PresentPerson } from "@/lib/ops/presence";
-import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 const AGENT_SIZE = { xs: "size-5", sm: "size-[22px]" };
 const ICON_SIZE = { xs: "size-3", sm: "size-3.5" };
-
-/** `Claude Code (for Ammo)`: an agent and the person it works for. */
-const agentLabel = (a: PresentAgent) => `${a.agent} (for ${a.name})`;
 
 /**
  * Overlapping avatars of the people viewing a system and the agents working on it: people round, agents square with a
@@ -30,7 +27,11 @@ export function PresenceStack({
   max?: number;
   size?: "xs" | "sm";
 }) {
+  const t = useTranslations("presence");
+  const format = useFormatter();
   const now = useNow();
+  /** `Claude Code (for Ammo)`: an agent and the person it works for. */
+  const agentLabel = (a: PresentAgent) => t("agent", { agent: a.agent, name: a.name });
   const total = people.length + agents.length;
   if (total === 0) return null;
   const shownPeople = people.slice(0, max);
@@ -41,7 +42,7 @@ export function PresenceStack({
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="flex items-center">
-          <span className="sr-only">Also here: {names.join(", ")}</span>
+          <span className="sr-only">{t("alsoHere", { names: names.join(", ") })}</span>
           <span aria-hidden className="flex items-center -space-x-1.5">
             {shownPeople.map((p) => (
               <span key={p.userId} data-presence-avatar className="flex">
@@ -59,7 +60,7 @@ export function PresenceStack({
               </span>
             ))}
             {rest > 0 && (
-              <span className="z-10 pl-2.5 text-[11px] font-semibold text-muted-foreground">+{rest}</span>
+              <span className="z-10 pl-2.5 text-[11px] font-semibold text-muted-foreground">{t("more", { count: format.number(rest) })}</span>
             )}
           </span>
         </span>
@@ -71,7 +72,7 @@ export function PresenceStack({
           ))}
           {agents.map((a) => (
             <li key={`${a.userId}-${a.agent}`}>
-              {agentLabel(a)}, active {relativeAge(a.at, now)}
+              {t("agentActive", { label: agentLabel(a), age: format.relativeTime(new Date(a.at), now) })}
             </li>
           ))}
         </ul>

@@ -2,12 +2,13 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { BUILTIN_CARD_FIELDS, CARD_FIELD_LABELS, MAX_CARD_FIELDS, type CardField } from "@/lib/card-fields";
+import { BUILTIN_CARD_FIELDS, MAX_CARD_FIELDS, type CardField } from "@/lib/card-fields";
 import { useTRPC } from "@/trpc/client";
 
 /** A custom field of the project, offered as a card field by its key. */
@@ -65,10 +66,12 @@ function CardFieldsForm({
   customFields: CardFieldCustom[];
   onDone: () => void;
 }) {
+  const t = useTranslations("board.cardFields");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
-  const save = useMutation(trpc.boards.setCardFields.mutationOptions({ onSuccess: () => (toast.success("Card fields saved"), onDone()) }));
+  const save = useMutation(trpc.boards.setCardFields.mutationOptions({ onSuccess: () => (toast.success(t("saved")), onDone()) }));
   const labels = new Map<string, string>([
-    ...BUILTIN_CARD_FIELDS.map((f): [string, string] => [f, CARD_FIELD_LABELS[f]]),
+    ...BUILTIN_CARD_FIELDS.map((f): [string, string] => [f, t(f)]),
     ...customFields.map((f): [string, string] => [`custom:${f.key}`, f.name]),
   ]);
   // Every option in display order: the chosen ones first, then the rest.
@@ -92,8 +95,8 @@ function CardFieldsForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Card fields</DialogTitle>
-        <DialogDescription>Choose what cards on this board show, up to {MAX_CARD_FIELDS} fields, in this order.</DialogDescription>
+        <DialogTitle>{t("title")}</DialogTitle>
+        <DialogDescription>{t("description", { max: MAX_CARD_FIELDS })}</DialogDescription>
       </DialogHeader>
       <ul className="flex max-h-[50vh] flex-col overflow-y-auto border">
         {order.map((key, i) => {
@@ -107,10 +110,10 @@ function CardFieldsForm({
                 onCheckedChange={(checked) => toggle(key, checked)}
               />
               <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-              <Button variant="ghost" size="icon-xs" aria-label={`Move ${label} up`} disabled={i === 0} onClick={() => shift(i, -1)}>
+              <Button variant="ghost" size="icon-xs" aria-label={t("moveUp", { label })} disabled={i === 0} onClick={() => shift(i, -1)}>
                 <ArrowUp />
               </Button>
-              <Button variant="ghost" size="icon-xs" aria-label={`Move ${label} down`} disabled={i === order.length - 1} onClick={() => shift(i, 1)}>
+              <Button variant="ghost" size="icon-xs" aria-label={t("moveDown", { label })} disabled={i === order.length - 1} onClick={() => shift(i, 1)}>
                 <ArrowDown />
               </Button>
             </li>
@@ -119,13 +122,13 @@ function CardFieldsForm({
       </ul>
       <DialogFooter>
         <Button variant="outline" onClick={onDone}>
-          Cancel
+          {tc("cancel")}
         </Button>
         <Button
           disabled={save.isPending}
           onClick={() => save.mutate({ project: projectSlug, board: boardSlug, fields: order.filter((k) => on.has(k)) })}
         >
-          Save
+          {tc("save")}
         </Button>
       </DialogFooter>
     </>

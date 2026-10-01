@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { BookmarkPlus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,8 @@ import { useTRPC } from "@/trpc/client";
  * @param props.suggestedName the name the dialog starts with
  */
 export function SaveViewButton({ path, query, suggestedName }: { path: string; query: string; suggestedName: string }) {
+  const t = useTranslations("board.saveView");
+  const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suggestedName);
   const trpc = useTRPC();
@@ -26,7 +29,7 @@ export function SaveViewButton({ path, query, suggestedName }: { path: string; q
     trpc.views.create.mutationOptions({
       onSuccess: (row) => {
         setOpen(false);
-        toast.success(`View ${row.name} saved`);
+        toast.success(t("saved", { name: row.name }));
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -43,7 +46,7 @@ export function SaveViewButton({ path, query, suggestedName }: { path: string; q
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <BookmarkPlus />
-          Save view
+          {t("button")}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -55,21 +58,21 @@ export function SaveViewButton({ path, query, suggestedName }: { path: string; q
           }}
         >
           <DialogHeader>
-            <DialogTitle>Save view</DialogTitle>
-            <DialogDescription>Pins this page with its filters to your sidebar. Only you see it.</DialogDescription>
+            <DialogTitle>{t("button")}</DialogTitle>
+            <DialogDescription>{t("description")}</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="view-name">Name</FieldLabel>
+              <FieldLabel htmlFor="view-name">{t("name")}</FieldLabel>
               <Input id="view-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
             </Field>
           </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button type="submit" disabled={create.isPending || !name.trim()}>
-              Save view
+              {t("button")}
             </Button>
           </DialogFooter>
         </form>

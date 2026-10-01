@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, LayoutGrid, Search, Table2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { FilterChip, type FilterOption } from "@/components/filter-chip";
@@ -23,13 +24,8 @@ export interface FilterDef {
   options: FilterOption[];
 }
 
-/** Grouping modes of the systems list. */
-const GROUPS = [
-  { value: "domain", label: "Domain" },
-  { value: "phase", label: "Phase" },
-  { value: "board", label: "Board" },
-  { value: "none", label: "None" },
-];
+/** Grouping modes of the systems list; each is also the key of its label in `systems.group`. */
+const GROUPS = ["domain", "phase", "board", "none"] as const;
 
 /**
  * Whether an incoming `q` is the one this toolbar just pushed, so the input,
@@ -61,6 +57,8 @@ export function SystemsToolbar({
   shown: number;
   total: number;
 }) {
+  const t = useTranslations("systems");
+  const tb = useTranslations("board.saveView");
   const router = useRouter();
   const pathname = usePathname();
   const [, startTransition] = useTransition();
@@ -110,8 +108,8 @@ export function SystemsToolbar({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search titles and summaries"
-          aria-label="Search systems"
+          placeholder={t("toolbar.searchPlaceholder")}
+          aria-label={t("toolbar.search")}
           className="w-full min-w-0 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
         />
       </label>
@@ -122,7 +120,7 @@ export function SystemsToolbar({
         <SaveViewButton
           path={pathname}
           query={new URLSearchParams(current).toString()}
-          suggestedName={suggestViewName("Systems", activeChips(filters, current))}
+          suggestedName={suggestViewName(t("title"), activeChips(filters, current, tb("search")))}
         />
       )}
       <span className="hidden flex-1 sm:block" />
@@ -132,31 +130,31 @@ export function SystemsToolbar({
             type="button"
             className="flex h-8 items-center gap-1.5 border bg-card px-2.5 text-[13px] text-fg-2 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           >
-            Group: {GROUPS.find((g) => g.value === group)?.label.toLowerCase() ?? "domain"}
+            {t("group.label", { group: t(`group.${GROUPS.find((g) => g === group) ?? "domain"}`) })}
             <ChevronDown aria-hidden className="size-3" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-auto min-w-40">
-          <DropdownMenuLabel>Group by</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("group.by")}</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={group} onValueChange={(v) => update({ group: v === "domain" ? "" : v })}>
             {GROUPS.map((g) => (
-              <DropdownMenuRadioItem key={g.value} value={g.value}>
-                {g.label}
+              <DropdownMenuRadioItem key={g} value={g}>
+                {t(`group.${g}`)}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <div role="group" aria-label="View" className="flex border bg-card p-[3px]">
-        <ViewButton label="Table view" active={view === "table"} onClick={() => update({ view: "" })}>
+      <div role="group" aria-label={t("toolbar.viewGroup")} className="flex border bg-card p-[3px]">
+        <ViewButton label={t("toolbar.table")} active={view === "table"} onClick={() => update({ view: "" })}>
           <Table2 aria-hidden className="size-[15px]" />
         </ViewButton>
-        <ViewButton label="Card view" active={view === "cards"} onClick={() => update({ view: "cards" })}>
+        <ViewButton label={t("toolbar.cards")} active={view === "cards"} onClick={() => update({ view: "cards" })}>
           <LayoutGrid aria-hidden className="size-[15px]" />
         </ViewButton>
       </div>
       <span className="text-[12.5px] whitespace-nowrap text-muted-foreground tabular-nums">
-        {shown} of {total}
+        {t("toolbar.shownOf", { shown, total })}
       </span>
     </div>
   );

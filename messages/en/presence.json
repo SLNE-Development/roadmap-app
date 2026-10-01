@@ -1,1 +1,6 @@
-{}
+{
+  "alsoHere": "Also here: {names}",
+  "agent": "{agent} (for {name})",
+  "agentActive": "{label}, active {age}",
+  "more": "+{count}"
+}

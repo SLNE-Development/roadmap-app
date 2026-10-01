@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { ArrowRightLeft, Ban, ChevronDown, ChevronRight, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Rows3, Search, SquareKanban } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
@@ -26,21 +27,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PRIORITIES, type ColumnCategory } from "@/db/schema";
+import { PRIORITIES, type ColumnCategory, type Priority } from "@/db/schema";
+import { priorityKey } from "@/i18n/enums";
 import type { BoardCardView } from "@/lib/board-card";
 import type { CardField } from "@/lib/card-fields";
 import { focusReady, moveKey, moveTargets } from "@/lib/board-moves";
 import type { GateResult } from "@/lib/ops/gates";
 import type { SystemPresence } from "@/lib/ops/presence";
-import { groupIntoLanes, LANE_KEYS, type LaneKey } from "@/lib/lanes";
+import { groupIntoLanes, LANE_KEYS, NO_LANE } from "@/lib/lanes";
 import { BOARD_COLLAPSED_SCHEMA } from "@/lib/pref-keys";
-import { plural } from "@/lib/text";
 import { hasFilters, withParam, type BoardQuery } from "@/lib/url-filters";
 import { cn } from "@/lib/utils";
 import { activeChips, suggestViewName } from "@/lib/view-name";
 import { useTRPC } from "@/trpc/client";
 import { CardFieldsDialog, type CardFieldCustom } from "./board/card-fields-dialog";
-import { BoardAnnouncer, moveMessage, refusedMessage } from "./board/board-announcer";
+import { BoardAnnouncer } from "./board/board-announcer";
 import { usePointerDrag } from "./board/use-pointer-drag";
 import { CATEGORY_CLASS, CategoryDot, PriorityTag } from "./chips";
 import { isOwnPush } from "./systems/systems-toolbar";
@@ -62,9 +63,6 @@ interface NamedOption {
 
 /** localStorage key remembering that the keyboard-move hint was shown. */
 const CARD_MOVE_HINT_KEY = "roadmap.hint.cardMove";
-
-/** The lane picker's option labels. */
-const LANE_LABEL: Record<LaneKey, string> = { none: "None", domain: "Domain", phase: "Phase", owner: "Owner", priority: "Priority" };
 
 /** Most avatars shown in the header's member stack. */
 const STACK_SIZE = 5;
@@ -109,6 +107,8 @@ export function BoardView({
   customFields: CardFieldCustom[];
   query: BoardQuery;
 }) {
+  const t = useTranslations("board");
+  const tp = useTranslations("enums.priority");
   const [newSystemOpen, setNewSystemOpen] = useState(false);
   const [cardFieldsOpen, setCardFieldsOpen] = useState(false);
   const trpc = useTRPC();
@@ -187,8 +187,8 @@ export function BoardView({
       if (byKey) focusTarget.current = { slug, columnId: failure ? card.columnId : columnId };
       if (!failure && collapsed.columns.has(columnId)) flipCollapsed("columns", columnId, false);
       const message = failure
-        ? refusedMessage(card.title, failure.message)
-        : moveMessage(card.title, columns.find((c) => c.id === columnId)?.name ?? "");
+        ? t("announce.refused", { title: card.title, reason: failure.message })
+        : t("announce.moved", { title: card.title, column: columns.find((c) => c.id === columnId)?.name ?? "" });
       // A trailing zero-width space makes an identical repeat a new text for the live region.
       setAnnounce((prev) => (prev === message ? `${message}​` : message));
     });
@@ -273,14 +273,23 @@ export function BoardView({
   const clearFilters = () =>
     startFilter(() => router.replace(pathname + withParam("", "lane", query.lane === "none" ? null : query.lane), { scroll: false }));
   const named = (list: NamedOption[]) => list.map((o) => ({ value: o.id, label: o.name }));
-  const ownerOptions = [...members.map((m) => ({ value: m.userId, label: m.name })), { value: "none", label: "Unowned" }];
+  const ownerOptions = [...members.map((m) => ({ value: m.userId, label: m.name })), { value: "none", label: t("filter.unowned") }];
 
+  const priorityOptions = PRIORITIES.map((p) => ({ value: p, label: tp(priorityKey(p)) }));
   const lanes = groupIntoLanes(visible, query.lane, {
     domains: domainName,
     phases: new Map(phases.map((p) => [p.id, p.name])),
     domainOrder: domains.map((d) => d.id),
     phaseOrder: phases.map((p) => p.id),
   });
+
+  /** The heading of a lane: its group value, translated for the lanes without one and for priorities. */
+  const laneName = (lane: { key: string; name: string }) =>
+    lane.key === NO_LANE
+      ? t(query.lane === "domain" ? "lane.noDomain" : query.lane === "phase" ? "lane.noPhase" : "lane.unassigned")
+      : query.lane === "priority"
+        ? tp(priorityKey(lane.key as Priority))
+        : lane.name;
 
   /** A card of `col`; its drag and move handlers change only the column, whichever lane it sits in. */
   const renderCard = (c: BoardCardView, col: BoardColumnView) => (
@@ -320,52 +329,52 @@ export function BoardView({
   const dropHint = (col: BoardColumnView, count: number, isOver: boolean) =>
     isOver ? (
       <div className="flex h-16 shrink-0 items-center justify-center border-[1.5px] border-dashed border-primary bg-brand-soft text-xs font-medium text-brand-strong">
-        Drop to move to {col.name}
+        {t("column.dropTo", { column: col.name })}
       </div>
     ) : (
-      count === 0 && <div className="flex h-16 shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">No systems</div>
+      count === 0 && <div className="flex h-16 shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">{t("column.empty")}</div>
     );
 
   return (
     <>
       <PageHeader
-        crumbs={[{ label: projectName, href: `/p/${projectSlug}` }, { label: "Boards" }]}
+        crumbs={[{ label: projectName, href: `/p/${projectSlug}` }, { label: t("crumb") }]}
         title={board.name}
         actions={
           <>
             <MemberStack members={members} />
-            <div role="group" aria-label="View" className="flex border bg-card p-[3px]">
-              <span aria-current="page" title="Board view" className="flex h-[26px] w-[30px] items-center justify-center bg-secondary">
+            <div role="group" aria-label={t("header.viewGroup")} className="flex border bg-card p-[3px]">
+              <span aria-current="page" title={t("header.boardView")} className="flex h-[26px] w-[30px] items-center justify-center bg-secondary">
                 <SquareKanban className="size-[15px]" aria-hidden />
-                <span className="sr-only">Board view</span>
+                <span className="sr-only">{t("header.boardView")}</span>
               </span>
               <Link
                 href={`/p/${projectSlug}/systems?board=${board.slug}`}
-                title="List view"
+                title={t("header.listView")}
                 className="flex h-[26px] w-[30px] items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <List className="size-[15px]" aria-hidden />
-                <span className="sr-only">List view</span>
+                <span className="sr-only">{t("header.listView")}</span>
               </Link>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" aria-label={`Lanes: ${LANE_LABEL[query.lane]}`}>
+                <Button variant="outline" size="sm" aria-label={t("lane.buttonLabel", { lane: t(`lane.${query.lane}`) })}>
                   <Rows3 />
-                  Lanes
+                  {t("lane.button")}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Lanes</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("lane.button")}</DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={query.lane} onValueChange={(v) => setParam("lane", v === "none" ? null : v)}>
                   {LANE_KEYS.map((k) => (
                     <DropdownMenuRadioItem key={k} value={k}>
-                      {LANE_LABEL[k]}
+                      {t(`lane.${k}`)}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
-                <p className="px-2 py-1.5 text-xs text-muted-foreground">Dragging across lanes changes only the column.</p>
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("lane.hint")}</p>
               </DropdownMenuContent>
             </DropdownMenu>
             {canEdit && (
@@ -374,18 +383,18 @@ export function BoardView({
             {canOwn && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" aria-label="Board options">
+                  <Button variant="outline" size="icon" aria-label={t("header.options")}>
                     <Ellipsis />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuItem asChild>
-                    <Link href={`/p/${projectSlug}/settings/boards?board=${board.slug}`}>Edit columns</Link>
+                    <Link href={`/p/${projectSlug}/settings/boards?board=${board.slug}`}>{t("header.editColumns")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href={`/p/${projectSlug}/settings/boards`}>New board</Link>
+                    <Link href={`/p/${projectSlug}/settings/boards`}>{t("header.newBoard")}</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setCardFieldsOpen(true)}>Card fields…</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setCardFieldsOpen(true)}>{t("header.cardFields")}</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -405,18 +414,18 @@ export function BoardView({
 
       <div className="flex flex-wrap items-center gap-2">
         <BoardSearch value={query.q} onCommit={(q) => setParam("q", q)} />
-        {domains.length > 0 && <FilterChip label="Domain" options={named(domains)} value={query.domain ?? ""} onChange={(v) => setParam("domain", v)} />}
-        {phases.length > 0 && <FilterChip label="Phase" options={named(phases)} value={query.phase ?? ""} onChange={(v) => setParam("phase", v)} />}
+        {domains.length > 0 && <FilterChip label={t("filter.domain")} options={named(domains)} value={query.domain ?? ""} onChange={(v) => setParam("domain", v)} />}
+        {phases.length > 0 && <FilterChip label={t("filter.phase")} options={named(phases)} value={query.phase ?? ""} onChange={(v) => setParam("phase", v)} />}
         <FilterChip
-          label="Priority"
-          options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+          label={t("filter.priority")}
+          options={priorityOptions}
           value={query.priority ?? ""}
           onChange={(v) => setParam("priority", v)}
         />
-        <FilterChip label="Owner" options={ownerOptions} value={query.owner ?? ""} onChange={(v) => setParam("owner", v)} />
+        <FilterChip label={t("filter.owner")} options={ownerOptions} value={query.owner ?? ""} onChange={(v) => setParam("owner", v)} />
         {hasFilters(query) && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
-            Clear filters
+            {t("filter.clear")}
           </Button>
         )}
         {hasFilters(query) && (
@@ -427,23 +436,28 @@ export function BoardView({
               board.name,
               activeChips(
                 [
-                  { key: "domain", label: "Domain", options: named(domains) },
-                  { key: "phase", label: "Phase", options: named(phases) },
-                  { key: "priority", label: "Priority", options: PRIORITIES.map((p) => ({ value: p, label: p })) },
-                  { key: "owner", label: "Owner", options: ownerOptions },
+                  { key: "domain", label: t("filter.domain"), options: named(domains) },
+                  { key: "phase", label: t("filter.phase"), options: named(phases) },
+                  { key: "priority", label: t("filter.priority"), options: priorityOptions },
+                  { key: "owner", label: t("filter.owner"), options: ownerOptions },
                 ],
                 query,
+                t("saveView.search"),
               ),
             )}
           />
         )}
         <span className="ml-auto text-[12.5px] text-muted-foreground" aria-live="polite">
-          {visible.length} {visible.length === 1 ? "system" : "systems"} ·{" "}
-          <span className={cn(blocked > 0 && "font-semibold text-cat-blocked")}>{blocked} blocked</span> · {planning} in planning
+          {t.rich("summary", {
+            count: visible.length,
+            blocked,
+            planning,
+            hot: (chunks) => <span className={cn(blocked > 0 && "font-semibold text-cat-blocked")}>{chunks}</span>,
+          })}
         </span>
       </div>
 
-      {showHint && <p className="text-[12.5px] text-muted-foreground">Alt+← / Alt+→ moves a card</p>}
+      {showHint && <p className="text-[12.5px] text-muted-foreground">{t("keyHint")}</p>}
       <BoardAnnouncer message={announce} />
       <MoveOverrideDialog
         message={overriding?.message ?? null}
@@ -470,12 +484,12 @@ export function BoardView({
 
             if (isCollapsed(col)) {
               return (
-                <section key={col.id} data-column-id={col.id} aria-label={`${col.name}, collapsed`} {...dropTarget(col.id)} className="flex w-10 shrink-0">
+                <section key={col.id} data-column-id={col.id} aria-label={t("column.collapsed", { column: col.name })} {...dropTarget(col.id)} className="flex w-10 shrink-0">
                   <button
                     type="button"
                     onClick={() => toggle(col.id)}
                     aria-expanded={false}
-                    aria-label={`Expand ${col.name}, ${items.length} systems`}
+                    aria-label={t("column.expand", { column: col.name, count: items.length })}
                     className={cn(
                       "flex w-full flex-col items-center gap-2.5 bg-column py-3 outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50",
                       isOver && "border-[1.5px] border-dashed border-primary bg-brand-soft",
@@ -497,12 +511,12 @@ export function BoardView({
                   <span className="text-xs text-muted-foreground tabular-nums">{items.length}</span>
                   <span className="flex-1" />
                   {col.category === "done" && (
-                    <Button variant="ghost" size="icon-xs" aria-label={`Collapse ${col.name}`} onClick={() => toggle(col.id)} className="text-muted-foreground">
+                    <Button variant="ghost" size="icon-xs" aria-label={t("column.collapse", { column: col.name })} onClick={() => toggle(col.id)} className="text-muted-foreground">
                       <ChevronsLeft />
                     </Button>
                   )}
                   {canEdit && col.category === "planning" && (
-                    <Button variant="ghost" size="icon-xs" aria-label="New system" onClick={openNewSystem} className="text-muted-foreground">
+                    <Button variant="ghost" size="icon-xs" aria-label={t("column.newSystem")} onClick={openNewSystem} className="text-muted-foreground">
                       <Plus className="size-3.5" />
                     </Button>
                   )}
@@ -510,7 +524,7 @@ export function BoardView({
                 {col.category === "planning" && (
                   <p className="flex items-center gap-1.5 px-1 pb-0.5 text-[11.5px] text-muted-foreground">
                     <Lock className="size-3" aria-hidden />
-                    Leaves after the planning interview
+                    {t("column.planningLock")}
                   </p>
                 )}
                 {items.map((c) => renderCard(c, col))}
@@ -531,7 +545,7 @@ export function BoardView({
                       type="button"
                       onClick={() => toggle(col.id)}
                       aria-expanded={false}
-                      aria-label={`Expand ${col.name}, ${total} systems`}
+                      aria-label={t("column.expand", { column: col.name, count: total })}
                       className="flex h-full w-10 shrink-0 items-center justify-center bg-column outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       <CategoryDot category={col.category} />
@@ -545,12 +559,12 @@ export function BoardView({
                     <span className="text-xs text-muted-foreground tabular-nums">{total}</span>
                     <span className="flex-1" />
                     {col.category === "done" && (
-                      <Button variant="ghost" size="icon-xs" aria-label={`Collapse ${col.name}`} onClick={() => toggle(col.id)} className="text-muted-foreground">
+                      <Button variant="ghost" size="icon-xs" aria-label={t("column.collapse", { column: col.name })} onClick={() => toggle(col.id)} className="text-muted-foreground">
                         <ChevronsLeft />
                       </Button>
                     )}
                     {canEdit && col.category === "planning" && (
-                      <Button variant="ghost" size="icon-xs" aria-label="New system" onClick={openNewSystem} className="text-muted-foreground">
+                      <Button variant="ghost" size="icon-xs" aria-label={t("column.newSystem")} onClick={openNewSystem} className="text-muted-foreground">
                         <Plus className="size-3.5" />
                       </Button>
                     )}
@@ -561,7 +575,7 @@ export function BoardView({
             {lanes.map((lane) => {
               const open = !collapsed.lanes.has(`${query.lane}:${lane.key}`);
               return (
-                <div key={lane.key} role="group" aria-label={lane.name} className="mt-2">
+                <div key={lane.key} role="group" aria-label={laneName(lane)} className="mt-2">
                   <div className="sticky top-9 z-10 bg-background pb-1">
                     <button
                       type="button"
@@ -571,7 +585,7 @@ export function BoardView({
                     >
                       <span className="sticky left-3 flex items-center gap-2">
                         {open ? <ChevronDown className="size-3.5" aria-hidden /> : <ChevronRight className="size-3.5" aria-hidden />}
-                        {lane.name}
+                        {laneName(lane)}
                         <span className="text-xs font-normal text-muted-foreground tabular-nums">{lane.cards.length}</span>
                       </span>
                     </button>
@@ -599,7 +613,7 @@ export function BoardView({
                             <section
                               key={col.id}
                               data-column-id={col.id}
-                              aria-label={`${col.name}, collapsed`}
+                              aria-label={t("column.collapsed", { column: col.name })}
                               {...dropTarget(col.id)}
                               className={cn("w-10 shrink-0 bg-column", isOver && "border-[1.5px] border-dashed border-primary bg-brand-soft")}
                             />
@@ -673,6 +687,7 @@ function SystemCard({
   onDragEnd: () => void;
   onMove: (columnId: string) => void;
 }) {
+  const t = useTranslations("board.card");
   const router = useRouter();
   const chip = "bg-secondary px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-fg-2";
   /** The markup of one card field, or null when the card has nothing to show for it. */
@@ -682,14 +697,14 @@ function SystemCard({
         return card.ownerName ? (
           <span title={card.ownerName} className="ml-auto flex">
             <PersonAvatar name={card.ownerName} size="sm" className="ring-2 ring-card" />
-            <span className="sr-only">Owner: {card.ownerName}</span>
+            <span className="sr-only">{t("ownerSr", { name: card.ownerName })}</span>
           </span>
         ) : null;
       case "tasks":
         return category === "planning" ? (
           <span className="flex min-w-0 flex-1 basis-32 items-center gap-1.5 text-[11.5px] text-cat-planning">
             <PieChart className="size-[13px]" aria-hidden />
-            {card.planningRounds === 0 ? "Interview not started" : `Planning: ${card.planningAreasCovered} of 4 areas`}
+            {card.planningRounds === 0 ? t("interviewNotStarted") : t("planningProgress", { covered: card.planningAreasCovered })}
           </span>
         ) : card.tasksTotal > 0 ? (
           <span className="flex min-w-0 flex-1 basis-32 items-center gap-2">
@@ -699,7 +714,7 @@ function SystemCard({
             </span>
           </span>
         ) : (
-          <span className="flex-1 basis-32 text-[11.5px] text-muted-foreground">No tasks</span>
+          <span className="flex-1 basis-32 text-[11.5px] text-muted-foreground">{t("noTasks")}</span>
         );
       case "blocked":
         return category === "blocked" && card.latestSummary ? (
@@ -717,16 +732,16 @@ function SystemCard({
         return gate ? <GateStatus gate={gate} /> : null;
       case "questions":
         return card.openQuestions > 0 ? (
-          <span className={chip} title={plural(card.openQuestions, "open question")}>
+          <span className={chip} title={t("openQuestions", { count: card.openQuestions })}>
             ? {card.openQuestions}
           </span>
         ) : null;
       case "estimate":
-        return card.points - card.pointsDone > 0 ? <span className={chip}>{card.points - card.pointsDone} pts</span> : null;
+        return card.points - card.pointsDone > 0 ? <span className={chip}>{t("points", { points: card.points - card.pointsDone })}</span> : null;
       case "dependencies":
         return card.blockedBy.length > 0 ? (
           <span className={chip} title={card.blockedBy.join(", ")}>
-            Waiting on {card.blockedBy.length}
+            {t("waitingOn", { count: card.blockedBy.length })}
           </span>
         ) : null;
       default: {
@@ -746,7 +761,7 @@ function SystemCard({
       data-nav-item
       data-card-slug={card.slug}
       aria-roledescription="card"
-      aria-label={`${card.title}, ${columnName}`}
+      aria-label={t("label", { title: card.title, column: columnName })}
       draggable={canEdit}
       onFocus={onFocus}
       onKeyDown={(e) => {
@@ -775,17 +790,17 @@ function SystemCard({
       )}
     >
       <div className="flex items-center gap-1.5">
-        <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">{fields.includes("domain") && (domain ?? "No domain")}</span>
+        <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">{fields.includes("domain") && (domain ?? t("noDomain"))}</span>
         {fields.includes("priority") && <PriorityTag priority={card.priority} />}
         {canEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-xs" aria-label={`Move ${card.title}`} disabled={pending} className="-my-1 -mr-1.5 text-muted-foreground">
+              <Button variant="ghost" size="icon-xs" aria-label={t("move", { title: card.title })} disabled={pending} className="-my-1 -mr-1.5 text-muted-foreground">
                 <ArrowRightLeft />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Move to…</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("moveTo")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {columns.map((o) => (
                 <DropdownMenuItem key={o.id} disabled={o.id === card.columnId} onSelect={() => onMove(o.id)}>
@@ -810,8 +825,8 @@ function SystemCard({
           return part ? <Fragment key={field}>{part}</Fragment> : null;
         })}
         {card.failingChecks && (
-          <span className="bg-cat-blocked-soft px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-cat-blocked" title="An open pull request has failing checks">
-            checks
+          <span className="bg-cat-blocked-soft px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-cat-blocked" title={t("failingChecksTitle")}>
+            {t("failingChecks")}
           </span>
         )}
         {present && (
@@ -826,12 +841,13 @@ function SystemCard({
 
 /** Overlapping avatars of the first project members, with the rest as a count. */
 function MemberStack({ members }: { members: { userId: string; name: string }[] }) {
+  const t = useTranslations("board.header");
   if (members.length === 0) return null;
   const shown = members.slice(0, STACK_SIZE);
   const rest = members.length - shown.length;
   return (
     <div className="flex items-center" title={members.map((m) => m.name).join(", ")}>
-      <span className="sr-only">{members.length} members</span>
+      <span className="sr-only">{t("members", { count: members.length })}</span>
       {shown.map((m, i) => (
         <PersonAvatar key={m.userId} name={m.name} size="md" className={cn("ring-2 ring-background", i > 0 && "-ml-1.5")} />
       ))}
@@ -851,6 +867,7 @@ function MemberStack({ members }: { members: { userId: string; name: string }[] 
  * resets to it.
  */
 function BoardSearch({ value, onCommit }: { value: string; onCommit: (q: string) => void }) {
+  const t = useTranslations("board.filter");
   const [draft, setDraft] = useState(value);
   // The last `q` this box pushed; its arrival must not reset a draft that may be newer.
   const [pushed, setPushed] = useState<string | undefined>(undefined);
@@ -884,8 +901,8 @@ function BoardSearch({ value, onCommit }: { value: string; onCommit: (q: string)
         type="search"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="Filter systems"
-        aria-label="Filter systems"
+        placeholder={t("search")}
+        aria-label={t("search")}
         maxLength={100}
         className="w-full min-w-0 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
       />

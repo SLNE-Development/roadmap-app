@@ -1,1 +1,95 @@
-{}
+{
+  "title": "Systeme",
+  "new": "Neues System",
+  "empty": {
+    "title": "Noch keine Systeme",
+    "description": "Ein System ist ein Feature oder Bereich des Projekts. Es startet in der Planung.",
+    "noMatchTitle": "Keine passenden Systeme",
+    "noMatchDescription": "Versuche eine andere Suche oder entferne einen Filter.",
+    "clear": "Filter zurücksetzen"
+  },
+  "filter": {
+    "board": "Board",
+    "domain": "Bereich",
+    "phase": "Phase",
+    "status": "Status",
+    "priority": "Priorität",
+    "owner": "Verantwortlich",
+    "release": "Release",
+    "archived": "Archiviert",
+    "unowned": "Ohne Verantwortlichen",
+    "includeArchived": "Archivierte einschließen",
+    "onlyArchived": "Nur archivierte"
+  },
+  "group": {
+    "noPhase": "Keine Phase",
+    "otherBoards": "Andere Boards",
+    "noDomain": "Kein Bereich",
+    "label": "Gruppiert: {group}",
+    "by": "Gruppieren nach",
+    "domain": "Bereich",
+    "phase": "Phase",
+    "board": "Board",
+    "none": "Keine"
+  },
+  "toolbar": {
+    "searchPlaceholder": "Titel und Zusammenfassungen durchsuchen",
+    "search": "Systeme durchsuchen",
+    "viewGroup": "Ansicht",
+    "table": "Tabellenansicht",
+    "cards": "Kartenansicht",
+    "shownOf": "{shown} von {total}"
+  },
+  "table": {
+    "label": "Systeme",
+    "selectAll": "Alle sichtbaren Systeme auswählen",
+    "select": "{title} auswählen",
+    "system": "System",
+    "status": "Status",
+    "priority": "Priorität",
+    "owner": "Verantwortlich",
+    "phase": "Phase",
+    "release": "Release",
+    "tasks": "Aufgaben",
+    "updated": "Aktualisiert"
+  },
+  "card": {
+    "archived": "Archiviert",
+    "blocked": "{count} blockiert",
+    "blockedSr": "{count, plural, one {# blockierte Aufgabe} other {# blockierte Aufgaben}}",
+    "blockedByTitle": "Blockiert durch {names}",
+    "blockedBy": "Blockiert durch {count}",
+    "updated": "Aktualisiert {age}",
+    "ownerSr": "Verantwortlich: {name}",
+    "unowned": "Ohne Verantwortlichen"
+  },
+  "bulk": {
+    "label": "Mehrfachbearbeitung",
+    "selected": "{count} ausgewählt",
+    "updated": "{count, plural, one {# System} other {# Systeme}} aktualisiert",
+    "owner": "Verantwortlich",
+    "unowned": "Ohne Verantwortlichen",
+    "phase": "Phase",
+    "noPhase": "Keine Phase",
+    "domain": "Bereich",
+    "noDomain": "Kein Bereich",
+    "priority": "Priorität",
+    "moveTo": "Verschieben nach",
+    "clear": "Aufheben"
+  },
+  "newSystem": {
+    "title": "Neues System",
+    "description": "Es startet in der Planung. Plane es mit <code>/surf-roadmap:plan</code>, bevor die Arbeit beginnt.",
+    "titleField": "Titel",
+    "titlePlaceholder": "Fahrzeug-Garagen",
+    "similar": "Ähnlich: <systems></systems>",
+    "archivedSuffix": "(archiviert)",
+    "slug": "Slug",
+    "slugHint": "Agents verweisen darüber auf das System.",
+    "board": "Board",
+    "summary": "Zusammenfassung",
+    "summaryPlaceholder": "Was das System tut, in ein bis zwei Sätzen.",
+    "submit": "System anlegen",
+    "created": "{title} angelegt"
+  }
+}

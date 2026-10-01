@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -25,6 +26,8 @@ export function NewBoardDialog({
   openIn?: "board" | "settings";
   trigger?: React.ReactNode;
 }) {
+  const t = useTranslations("board.newBoard");
+  const tc = useTranslations("common");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -40,14 +43,14 @@ export function NewBoardDialog({
         setName("");
         setSlug("");
         setSlugTouched(false);
-        toast.success(`Board ${board.name.trim()} created`);
+        toast.success(t("created", { name: board.name.trim() }));
         router.push(openIn === "settings" ? `/p/${projectSlug}/settings/boards?board=${created}` : `/p/${projectSlug}/boards/${created}`);
       },
     }),
   );
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger ?? <Button variant="outline">New board</Button>}</DialogTrigger>
+      <DialogTrigger asChild>{trigger ?? <Button variant="outline">{t("title")}</Button>}</DialogTrigger>
       <DialogContent>
         <form
           className="flex flex-col gap-4"
@@ -57,15 +60,15 @@ export function NewBoardDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>New board</DialogTitle>
-            <DialogDescription>A workstream such as Building. It starts with the default columns, which you can change.</DialogDescription>
+            <DialogTitle>{t("title")}</DialogTitle>
+            <DialogDescription>{t("description")}</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="board-name">Name</FieldLabel>
+              <FieldLabel htmlFor="board-name">{t("name")}</FieldLabel>
               <Input
                 id="board-name"
-                placeholder="e.g. Operations"
+                placeholder={t("namePlaceholder")}
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
@@ -74,7 +77,7 @@ export function NewBoardDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="board-slug">Slug</FieldLabel>
+              <FieldLabel htmlFor="board-slug">{t("slug")}</FieldLabel>
               <Input
                 id="board-slug"
                 className="font-mono text-[13px]"
@@ -84,15 +87,15 @@ export function NewBoardDialog({
                   setSlug(e.target.value);
                 }}
               />
-              <FieldDescription>Used in the board&apos;s address; lowercase letters, digits and dashes.</FieldDescription>
+              <FieldDescription>{t("slugHint")}</FieldDescription>
             </Field>
           </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button type="submit" disabled={create.isPending || !name.trim() || !slug.trim()}>
-              Create board
+              {t("submit")}
             </Button>
           </DialogFooter>
         </form>

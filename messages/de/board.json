@@ -1,1 +1,108 @@
-{}
+{
+  "crumb": "Boards",
+  "index": {
+    "emptyTitle": "Noch keine Boards",
+    "emptyOwner": "Lege ein Board an, um die Systeme dieses Projekts in Spalten anzuordnen.",
+    "emptyViewer": "Ein Inhaber dieses Projekts kann ein Board anlegen.",
+    "newBoard": "Neues Board"
+  },
+  "lane": {
+    "none": "Keine",
+    "domain": "Bereich",
+    "phase": "Phase",
+    "owner": "Verantwortlich",
+    "priority": "Priorität",
+    "noDomain": "Kein Bereich",
+    "noPhase": "Keine Phase",
+    "unassigned": "Nicht zugewiesen",
+    "button": "Bahnen",
+    "buttonLabel": "Bahnen: {lane}",
+    "hint": "Beim Ziehen über Bahnen hinweg ändert sich nur die Spalte."
+  },
+  "header": {
+    "viewGroup": "Ansicht",
+    "boardView": "Board-Ansicht",
+    "listView": "Listenansicht",
+    "options": "Board-Optionen",
+    "editColumns": "Spalten bearbeiten",
+    "newBoard": "Neues Board",
+    "cardFields": "Kartenfelder…",
+    "members": "{count, plural, one {# Mitglied} other {# Mitglieder}}"
+  },
+  "filter": {
+    "search": "Systeme filtern",
+    "domain": "Bereich",
+    "phase": "Phase",
+    "priority": "Priorität",
+    "owner": "Verantwortlich",
+    "unowned": "Ohne Verantwortlichen",
+    "clear": "Filter zurücksetzen",
+    "any": "Alle",
+    "nothing": "Noch nichts zum Filtern",
+    "clearOne": "Filter „{label}“ entfernen"
+  },
+  "summary": "{count, plural, one {# System} other {# Systeme}} · <hot>{blocked} blockiert</hot> · {planning} in Planung",
+  "keyHint": "Alt+← / Alt+→ verschiebt eine Karte",
+  "column": {
+    "empty": "Keine Systeme",
+    "dropTo": "Ablegen, um nach {column} zu verschieben",
+    "collapsed": "{column}, eingeklappt",
+    "expand": "{column} ausklappen, {count, plural, one {# System} other {# Systeme}}",
+    "collapse": "{column} einklappen",
+    "newSystem": "Neues System",
+    "planningLock": "Verlässt die Spalte nach dem Planungsinterview"
+  },
+  "announce": {
+    "moved": "{title} nach {column} verschoben.",
+    "refused": "{title} blieb an seinem Platz: {reason}"
+  },
+  "card": {
+    "label": "{title}, {column}",
+    "ownerSr": "Verantwortlich: {name}",
+    "interviewNotStarted": "Interview nicht gestartet",
+    "planningProgress": "Planung: {covered} von 4 Bereichen",
+    "noTasks": "Keine Aufgaben",
+    "openQuestions": "{count, plural, one {# offene Frage} other {# offene Fragen}}",
+    "points": "{points} Pkt.",
+    "waitingOn": "Wartet auf {count}",
+    "noDomain": "Kein Bereich",
+    "move": "{title} verschieben",
+    "moveTo": "Verschieben nach…",
+    "failingChecksTitle": "Ein offener Pull Request hat fehlgeschlagene Prüfungen",
+    "failingChecks": "Prüfungen"
+  },
+  "cardFields": {
+    "title": "Kartenfelder",
+    "description": "Wähle, was die Karten dieses Boards zeigen, bis zu {max} Felder, in dieser Reihenfolge.",
+    "saved": "Kartenfelder gespeichert",
+    "moveUp": "{label} nach oben",
+    "moveDown": "{label} nach unten",
+    "owner": "Verantwortlich",
+    "tasks": "Aufgabenfortschritt",
+    "blocked": "Blockiergrund",
+    "phase": "Phase",
+    "domain": "Bereich",
+    "priority": "Priorität",
+    "questions": "Offene Fragen",
+    "estimate": "Offene Punkte",
+    "dependencies": "Wartet auf",
+    "gates": "Regeln"
+  },
+  "newBoard": {
+    "title": "Neues Board",
+    "description": "Ein Arbeitsstrang wie „Bau“. Es startet mit den Standardspalten, die du ändern kannst.",
+    "name": "Name",
+    "namePlaceholder": "z. B. Betrieb",
+    "slug": "Slug",
+    "slugHint": "Wird in der Adresse des Boards verwendet; Kleinbuchstaben, Ziffern und Bindestriche.",
+    "submit": "Board anlegen",
+    "created": "Board {name} angelegt"
+  },
+  "saveView": {
+    "button": "Ansicht speichern",
+    "description": "Heftet diese Seite mit ihren Filtern an deine Seitenleiste. Nur du siehst sie.",
+    "name": "Name",
+    "saved": "Ansicht {name} gespeichert",
+    "search": "Suche"
+  }
+}

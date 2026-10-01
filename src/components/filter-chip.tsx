@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +38,7 @@ export function FilterChip({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const t = useTranslations("board.filter");
   const chosen = options.find((o) => o.value === value);
   return (
     <div className={cn("flex h-8 items-center text-[13px]", chosen ? SET : UNSET)}>
@@ -50,10 +52,10 @@ export function FilterChip({
         <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44">
           <DropdownMenuLabel>{label}</DropdownMenuLabel>
           {options.length === 0 ? (
-            <p className="px-2 py-1.5 text-[13px] text-muted-foreground">Nothing to filter by yet</p>
+            <p className="px-2 py-1.5 text-[13px] text-muted-foreground">{t("nothing")}</p>
           ) : (
             <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
-              <DropdownMenuRadioItem value="">Any</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="">{t("any")}</DropdownMenuRadioItem>
               {options.map((o) => (
                 <DropdownMenuRadioItem key={o.value} value={o.value}>
                   {o.label}
@@ -66,7 +68,7 @@ export function FilterChip({
       {chosen && (
         <button
           type="button"
-          aria-label={`Clear ${label.toLowerCase()} filter`}
+          aria-label={t("clearOne", { label })}
           onClick={() => onChange("")}
           className={cn("flex h-full items-center pr-2 pl-0.5 hover:text-foreground", FOCUS)}
         >

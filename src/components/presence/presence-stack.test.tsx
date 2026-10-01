@@ -1,6 +1,9 @@
+import { NextIntlClientProvider } from "next-intl";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { PresentAgent, PresentPerson } from "@/lib/ops/presence";
+import de from "../../../messages/de";
+import en from "../../../messages/en";
 import { TooltipProvider } from "../ui/tooltip";
 import { PresenceStack } from "./presence-stack";
 
@@ -8,11 +11,13 @@ const at = "2026-10-01T10:00:00.000Z";
 const person = (name: string): PresentPerson => ({ userId: `u-${name}`, name, at });
 const agent: PresentAgent = { userId: "u-Ammo", name: "Ammo", agent: "Claude Code", at };
 
-const render = (props: Parameters<typeof PresenceStack>[0]) =>
+const render = (props: Parameters<typeof PresenceStack>[0], locale: "en" | "de" = "en") =>
   renderToStaticMarkup(
-    <TooltipProvider>
-      <PresenceStack {...props} />
-    </TooltipProvider>,
+    <NextIntlClientProvider locale={locale} messages={locale === "de" ? de : en} timeZone="UTC">
+      <TooltipProvider>
+        <PresenceStack {...props} />
+      </TooltipProvider>
+    </NextIntlClientProvider>,
   );
 
 describe("PresenceStack", () => {
@@ -33,6 +38,11 @@ describe("PresenceStack", () => {
     expect(html.match(/data-presence-avatar/g)).toHaveLength(3);
     expect(html).toContain("+2");
     expect(html).toContain("Also here: A, B, C, D, E");
+  });
+
+  it("reads in German", () => {
+    const html = render({ people: [person("Jules")], agents: [agent] }, "de");
+    expect(html).toContain("Auch hier: Jules, Claude Code (für Ammo)");
   });
 
   it("draws agents as squares with a bot icon and people as circles", () => {

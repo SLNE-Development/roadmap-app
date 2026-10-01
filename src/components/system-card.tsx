@@ -1,11 +1,11 @@
 import { Link2 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useNow } from "@/components/clock";
 import { GateStatus } from "@/components/gate-status";
 import type { GateResult } from "@/lib/ops/gates";
 import type { SystemPresence } from "@/lib/ops/presence";
 import type { SystemListItem } from "@/lib/ops/systems";
-import { relativeAge } from "@/lib/time";
 import { CATEGORY_CLASS, PriorityTag, StatusChip } from "./chips";
 import { ProgressBar } from "./page";
 import { PersonAvatar } from "./person-avatar";
@@ -34,6 +34,8 @@ export function SystemCard({
   /** Who is on the system now, shown as a small stack in the footer. */
   present?: SystemPresence;
 }) {
+  const t = useTranslations("systems.card");
+  const format = useFormatter();
   const now = useNow();
   return (
     <Link
@@ -47,23 +49,21 @@ export function SystemCard({
       <span className="text-[13.5px] leading-[1.35] font-semibold">{system.title}</span>
       <div className="flex flex-wrap items-center gap-2">
         <StatusChip category={system.columnCategory} name={system.columnName} />
-        {system.archivedAt && <span className="bg-muted px-1.5 py-0.5 text-[11.5px] font-semibold text-muted-foreground">Archived</span>}
+        {system.archivedAt && <span className="bg-muted px-1.5 py-0.5 text-[11.5px] font-semibold text-muted-foreground">{t("archived")}</span>}
         {system.tasksBlocked > 0 && (
           <span className="bg-cat-blocked-soft px-1.5 py-0.5 text-[11.5px] font-semibold text-cat-blocked">
-            <span aria-hidden>{system.tasksBlocked} blocked</span>
-            <span className="sr-only">
-              {system.tasksBlocked} blocked {system.tasksBlocked === 1 ? "task" : "tasks"}
-            </span>
+            <span aria-hidden>{t("blocked", { count: system.tasksBlocked })}</span>
+            <span className="sr-only">{t("blockedSr", { count: system.tasksBlocked })}</span>
           </span>
         )}
         {system.blockedBy.length > 0 && (
-          <span className="flex items-center gap-1 bg-cat-blocked-soft px-1.5 py-0.5 text-[11.5px] font-semibold text-cat-blocked" title={`Blocked by ${system.blockedBy.join(", ")}`}>
+          <span className="flex items-center gap-1 bg-cat-blocked-soft px-1.5 py-0.5 text-[11.5px] font-semibold text-cat-blocked" title={t("blockedByTitle", { names: format.list(system.blockedBy) })}>
             <Link2 aria-hidden className="size-3" />
-            Blocked by {system.blockedBy.length}
+            {t("blockedBy", { count: system.blockedBy.length })}
           </span>
         )}
         {gate && <GateStatus gate={gate} />}
-        {latest && <span className="text-[11.5px] text-muted-foreground">Updated {relativeAge(latest.createdAt, now)}</span>}
+        {latest && <span className="text-[11.5px] text-muted-foreground">{t("updated", { age: format.relativeTime(new Date(latest.createdAt), now) })}</span>}
       </div>
       <div className="mt-auto flex items-center gap-2">
         <ProgressBar value={system.tasksDone} total={system.tasksTotal} colorClass={CATEGORY_CLASS[system.columnCategory]} />
@@ -74,10 +74,10 @@ export function SystemCard({
         {system.ownerName ? (
           <span title={system.ownerName} className="flex">
             <PersonAvatar name={system.ownerName} size="sm" />
-            <span className="sr-only">Owner {system.ownerName}</span>
+            <span className="sr-only">{t("ownerSr", { name: system.ownerName })}</span>
           </span>
         ) : (
-          <span className="sr-only">Unowned</span>
+          <span className="sr-only">{t("unowned")}</span>
         )}
       </div>
     </Link>

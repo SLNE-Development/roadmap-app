@@ -1,1 +1,95 @@
-{}
+{
+  "title": "Systems",
+  "new": "New system",
+  "empty": {
+    "title": "No systems yet",
+    "description": "A system is one feature or area of the project. It starts in planning.",
+    "noMatchTitle": "No systems match",
+    "noMatchDescription": "Try another search or remove a filter.",
+    "clear": "Clear filters"
+  },
+  "filter": {
+    "board": "Board",
+    "domain": "Domain",
+    "phase": "Phase",
+    "status": "Status",
+    "priority": "Priority",
+    "owner": "Owner",
+    "release": "Release",
+    "archived": "Archived",
+    "unowned": "Unowned",
+    "includeArchived": "Include archived",
+    "onlyArchived": "Only archived"
+  },
+  "group": {
+    "noPhase": "No phase",
+    "otherBoards": "Other boards",
+    "noDomain": "No domain",
+    "label": "Group: {group}",
+    "by": "Group by",
+    "domain": "Domain",
+    "phase": "Phase",
+    "board": "Board",
+    "none": "None"
+  },
+  "toolbar": {
+    "searchPlaceholder": "Search titles and summaries",
+    "search": "Search systems",
+    "viewGroup": "View",
+    "table": "Table view",
+    "cards": "Card view",
+    "shownOf": "{shown} of {total}"
+  },
+  "table": {
+    "label": "Systems",
+    "selectAll": "Select all visible systems",
+    "select": "Select {title}",
+    "system": "System",
+    "status": "Status",
+    "priority": "Priority",
+    "owner": "Owner",
+    "phase": "Phase",
+    "release": "Release",
+    "tasks": "Tasks",
+    "updated": "Updated"
+  },
+  "card": {
+    "archived": "Archived",
+    "blocked": "{count} blocked",
+    "blockedSr": "{count, plural, one {# blocked task} other {# blocked tasks}}",
+    "blockedByTitle": "Blocked by {names}",
+    "blockedBy": "Blocked by {count}",
+    "updated": "Updated {age}",
+    "ownerSr": "Owner {name}",
+    "unowned": "Unowned"
+  },
+  "bulk": {
+    "label": "Bulk edit",
+    "selected": "{count} selected",
+    "updated": "Updated {count, plural, one {# system} other {# systems}}",
+    "owner": "Owner",
+    "unowned": "Unowned",
+    "phase": "Phase",
+    "noPhase": "No phase",
+    "domain": "Domain",
+    "noDomain": "No domain",
+    "priority": "Priority",
+    "moveTo": "Move to",
+    "clear": "Clear"
+  },
+  "newSystem": {
+    "title": "New system",
+    "description": "It starts in planning. Plan it with <code>/surf-roadmap:plan</code> before any work starts.",
+    "titleField": "Title",
+    "titlePlaceholder": "Vehicle garages",
+    "similar": "Similar: <systems></systems>",
+    "archivedSuffix": "(archived)",
+    "slug": "Slug",
+    "slugHint": "Agents refer to the system by this.",
+    "board": "Board",
+    "summary": "Summary",
+    "summaryPlaceholder": "What the system does, in a sentence or two.",
+    "submit": "Create system",
+    "created": "Created {title}"
+  }
+}

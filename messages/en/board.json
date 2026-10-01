@@ -1,1 +1,108 @@
-{}
+{
+  "crumb": "Boards",
+  "index": {
+    "emptyTitle": "No boards yet",
+    "emptyOwner": "Add a board to lay out the systems of this project in columns.",
+    "emptyViewer": "An owner of this project can add a board.",
+    "newBoard": "New board"
+  },
+  "lane": {
+    "none": "None",
+    "domain": "Domain",
+    "phase": "Phase",
+    "owner": "Owner",
+    "priority": "Priority",
+    "noDomain": "No domain",
+    "noPhase": "No phase",
+    "unassigned": "Unassigned",
+    "button": "Lanes",
+    "buttonLabel": "Lanes: {lane}",
+    "hint": "Dragging across lanes changes only the column."
+  },
+  "header": {
+    "viewGroup": "View",
+    "boardView": "Board view",
+    "listView": "List view",
+    "options": "Board options",
+    "editColumns": "Edit columns",
+    "newBoard": "New board",
+    "cardFields": "Card fields…",
+    "members": "{count, plural, one {# member} other {# members}}"
+  },
+  "filter": {
+    "search": "Filter systems",
+    "domain": "Domain",
+    "phase": "Phase",
+    "priority": "Priority",
+    "owner": "Owner",
+    "unowned": "Unowned",
+    "clear": "Clear filters",
+    "any": "Any",
+    "nothing": "Nothing to filter by yet",
+    "clearOne": "Clear {label} filter"
+  },
+  "summary": "{count, plural, one {# system} other {# systems}} · <hot>{blocked} blocked</hot> · {planning} in planning",
+  "keyHint": "Alt+← / Alt+→ moves a card",
+  "column": {
+    "empty": "No systems",
+    "dropTo": "Drop to move to {column}",
+    "collapsed": "{column}, collapsed",
+    "expand": "Expand {column}, {count, plural, one {# system} other {# systems}}",
+    "collapse": "Collapse {column}",
+    "newSystem": "New system",
+    "planningLock": "Leaves after the planning interview"
+  },
+  "announce": {
+    "moved": "Moved {title} to {column}.",
+    "refused": "{title} stayed put: {reason}"
+  },
+  "card": {
+    "label": "{title}, {column}",
+    "ownerSr": "Owner: {name}",
+    "interviewNotStarted": "Interview not started",
+    "planningProgress": "Planning: {covered} of 4 areas",
+    "noTasks": "No tasks",
+    "openQuestions": "{count, plural, one {# open question} other {# open questions}}",
+    "points": "{points} pts",
+    "waitingOn": "Waiting on {count}",
+    "noDomain": "No domain",
+    "move": "Move {title}",
+    "moveTo": "Move to…",
+    "failingChecksTitle": "An open pull request has failing checks",
+    "failingChecks": "checks"
+  },
+  "cardFields": {
+    "title": "Card fields",
+    "description": "Choose what cards on this board show, up to {max} fields, in this order.",
+    "saved": "Card fields saved",
+    "moveUp": "Move {label} up",
+    "moveDown": "Move {label} down",
+    "owner": "Owner",
+    "tasks": "Task progress",
+    "blocked": "Blocked reason",
+    "phase": "Phase",
+    "domain": "Domain",
+    "priority": "Priority",
+    "questions": "Open questions",
+    "estimate": "Open points",
+    "dependencies": "Waiting on",
+    "gates": "Gates"
+  },
+  "newBoard": {
+    "title": "New board",
+    "description": "A workstream such as Building. It starts with the default columns, which you can change.",
+    "name": "Name",
+    "namePlaceholder": "e.g. Operations",
+    "slug": "Slug",
+    "slugHint": "Used in the board's address; lowercase letters, digits and dashes.",
+    "submit": "Create board",
+    "created": "Board {name} created"
+  },
+  "saveView": {
+    "button": "Save view",
+    "description": "Pins this page with its filters to your sidebar. Only you see it.",
+    "name": "Name",
+    "saved": "View {name} saved",
+    "search": "Search"
+  }
+}

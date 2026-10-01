@@ -15,12 +15,14 @@ export function suggestViewName(base: string, chips: string[]): string {
  *
  * @param defs the filters, each with its query key, label and options
  * @param current the query values
+ * @param searchLabel the word before the search text
  */
 export function activeChips(
   defs: { key: string; label: string; options: { value: string; label: string }[] }[],
   current: Record<string, string | null | undefined>,
+  searchLabel = "Search",
 ): string[] {
-  const chips = current.q ? [`Search: ${current.q}`] : [];
+  const chips = current.q ? [`${searchLabel}: ${current.q}`] : [];
   for (const d of defs) {
     const value = current[d.key];
     if (value) chips.push(`${d.label}: ${d.options.find((o) => o.value === value)?.label ?? value}`);

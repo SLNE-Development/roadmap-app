@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -38,6 +39,8 @@ export function NewSystemDialog({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
+  const t = useTranslations("systems.newSystem");
+  const tc = useTranslations("common");
   const router = useRouter();
   const trpc = useTRPC();
   // The follow-up lives in the options, not in `mutate`: the empty state holding this dialog unmounts
@@ -46,7 +49,7 @@ export function NewSystemDialog({
     trpc.systems.create.mutationOptions({
       onSuccess: ({ slug }, { system }) => {
         setOpen(false);
-        toast.success(`Created ${system.title.trim()}`);
+        toast.success(t("created", { title: system.title.trim() }));
         router.push(`/p/${projectSlug}/systems/${slug}`);
       },
     }),
@@ -90,7 +93,7 @@ export function NewSystemDialog({
           {trigger ?? (
             <Button>
               <Plus aria-hidden />
-              New system
+              {t("title")}
             </Button>
           )}
         </DialogTrigger>
@@ -104,19 +107,19 @@ export function NewSystemDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle className="font-display text-[19px] font-semibold">New system</DialogTitle>
+            <DialogTitle className="font-display text-[19px] font-semibold">{t("title")}</DialogTitle>
             <DialogDescription>
-              It starts in planning. Plan it with <code className="font-mono text-[12.5px]">/surf-roadmap:plan</code> before any work starts.
+              {t.rich("description", { code: (chunks) => <code className="font-mono text-[12.5px]">{chunks}</code> })}
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="system-title">Title</FieldLabel>
+              <FieldLabel htmlFor="system-title">{t("titleField")}</FieldLabel>
               <Input
                 id="system-title"
                 value={title}
                 autoFocus
-                placeholder="Vehicle garages"
+                placeholder={t("titlePlaceholder")}
                 onChange={(e) => {
                   setTitle(e.target.value);
                   if (!slugEdited) setSlug(slugify(e.target.value));
@@ -124,21 +127,26 @@ export function NewSystemDialog({
               />
               {similarSystems.length > 0 && (
                 <FieldDescription>
-                  Similar:{" "}
-                  {similarSystems.map((s, i) => (
-                    <span key={s.slug}>
-                      {i > 0 && ", "}
-                      <a href={`/p/${projectSlug}/systems/${s.slug}`} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                        {s.title}
-                      </a>
-                      {s.archived && " (archived)"}
-                    </span>
-                  ))}
+                  {t.rich("similar", {
+                    systems: () => (
+                      <>
+                        {similarSystems.map((s, i) => (
+                          <span key={s.slug}>
+                            {i > 0 && ", "}
+                            <a href={`/p/${projectSlug}/systems/${s.slug}`} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                              {s.title}
+                            </a>
+                            {s.archived && ` ${t("archivedSuffix")}`}
+                          </span>
+                        ))}
+                      </>
+                    ),
+                  })}
                 </FieldDescription>
               )}
             </Field>
             <Field>
-              <FieldLabel htmlFor="system-slug">Slug</FieldLabel>
+              <FieldLabel htmlFor="system-slug">{t("slug")}</FieldLabel>
               <Input
                 id="system-slug"
                 className="font-mono"
@@ -148,11 +156,11 @@ export function NewSystemDialog({
                   setSlugEdited(true);
                 }}
               />
-              <FieldDescription>Agents refer to the system by this.</FieldDescription>
+              <FieldDescription>{t("slugHint")}</FieldDescription>
             </Field>
             {boards.length > 1 && (
               <Field>
-                <FieldLabel htmlFor="system-board">Board</FieldLabel>
+                <FieldLabel htmlFor="system-board">{t("board")}</FieldLabel>
                 <NativeSelect id="system-board" value={board} onChange={(e) => setBoard(e.target.value)}>
                   {boards.map((b) => (
                     <NativeSelectOption key={b.slug} value={b.slug}>
@@ -163,11 +171,11 @@ export function NewSystemDialog({
               </Field>
             )}
             <Field>
-              <FieldLabel htmlFor="system-summary">Summary</FieldLabel>
+              <FieldLabel htmlFor="system-summary">{t("summary")}</FieldLabel>
               <Textarea
                 id="system-summary"
                 value={summary}
-                placeholder="What the system does, in a sentence or two."
+                placeholder={t("summaryPlaceholder")}
                 onChange={(e) => setSummary(e.target.value)}
               />
             </Field>
@@ -175,11 +183,11 @@ export function NewSystemDialog({
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
-                Cancel
+                {tc("cancel")}
               </Button>
             </DialogClose>
             <Button type="submit" disabled={create.isPending || !title.trim() || !slug.trim()}>
-              Create system
+              {t("submit")}
             </Button>
           </DialogFooter>
         </form>
