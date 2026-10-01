@@ -45,6 +45,14 @@ describe("Markdown", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("shows a state chip after the heading of a step with a task", () => {
+    const html = renderToStaticMarkup(
+      <Markdown stepStates={new Map([[1, { taskId: 9, state: "doing" }]])}>{"## Step 1: Build\n## Step 2: Ship"}</Markdown>,
+    );
+    expect(html.match(/Doing/g)).toHaveLength(1);
+    expect(html.indexOf("Doing")).toBeLessThan(html.indexOf("Step 2"));
+  });
+
   it("adds no ids without headingIds", () => {
     const html = renderToStaticMarkup(<Markdown>{"# Intro\n## Scope"}</Markdown>);
     expect(html).not.toContain("id=");

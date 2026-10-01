@@ -68,6 +68,11 @@ export function StatusChip({ category, name, className }: { category: ColumnCate
   );
 }
 
+/** A task's state as a status chip in its category colour. */
+export function TaskStateChip({ state, className }: { state: TaskState; className?: string }) {
+  return <StatusChip category={STATE_CATEGORY[state]} name={STATE_LABEL[state]} className={className} />;
+}
+
 /** Priority: MVP is a filled Tide tag, Later is outlined, Nice to have is plain text. */
 export function PriorityTag({ priority, className }: { priority: Priority; className?: string }) {
   const style =

@@ -2,14 +2,14 @@
 
 import { FileText } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { EmptyState } from "@/components/page";
 import { extractHeadings } from "@/lib/headings";
 import type { DocumentView } from "@/lib/ops/documents";
 import { formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { DocumentOutline, MIN_OUTLINE_HEADINGS } from "./document-outline";
-import { Markdown } from "./markdown";
+import { Markdown, type StepStates } from "./markdown";
 import { AuthorText } from "./system/author";
 import { VersionPicker } from "./version-picker";
 
@@ -31,21 +31,28 @@ function DocumentMeta({ doc }: { doc: DocumentView }) {
  *
  * @param props.param the search parameter that selects the version
  * @param props.empty the empty state's title and sentence
+ * @param props.stepStates the task state of each plan step, shown on the plan's step headings
+ * @param props.aside shown above the outline in the right column from `lg`, above the document below it
  */
 export function DocumentSection({
   title,
   doc,
   param,
   empty,
+  stepStates,
+  aside,
 }: {
   title: string;
   doc: DocumentView | null;
   param: string;
   empty: { title: string; description: string };
+  stepStates?: StepStates;
+  aside?: ReactNode;
 }) {
   const body = doc?.body;
   const headings = useMemo(() => extractHeadings(body ?? ""), [body]);
   const outlined = headings.length >= MIN_OUTLINE_HEADINGS;
+  const sidebar = outlined || aside !== undefined;
   // Scroll to a section link (`#scope`) once after hydration.
   useEffect(() => {
     if (!location.hash) return;
@@ -73,13 +80,16 @@ export function DocumentSection({
           </div>
         )}
       </header>
-      <div className={cn("grid gap-8 px-4 py-5 sm:px-6 sm:py-6", outlined && "lg:grid-cols-[minmax(0,1fr)_220px]")}>
-        {outlined && (
-          <div className="lg:order-2">
+      <div className={cn("grid gap-8 px-4 py-5 sm:px-6 sm:py-6", sidebar && "lg:grid-cols-[minmax(0,1fr)_220px]")}>
+        {sidebar && (
+          <div className="flex flex-col gap-5 lg:order-2">
+            {aside}
             <DocumentOutline headings={headings} />
           </div>
         )}
-        <Markdown headingIds>{doc.body}</Markdown>
+        <Markdown headingIds stepStates={stepStates}>
+          {doc.body}
+        </Markdown>
       </div>
     </section>
   );

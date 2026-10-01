@@ -2,12 +2,15 @@
 
 import { useMutation, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
 import { Check, Lock } from "lucide-react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { ArchivedBanner } from "@/components/archive-banner";
 import { PriorityTag } from "@/components/chips";
 import { DocumentSection, SpecPreview } from "@/components/document-section";
+import { type StepStates } from "@/components/markdown";
 import { Page, PageHeader } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
+import { PlanStepsPanel } from "@/components/plan-steps-panel";
 import { CoverageMap } from "@/components/planning/coverage-map";
 import { ReopenAreaDialog } from "@/components/planning/reopen-area-dialog";
 import { PlanningRounds } from "@/components/planning-rounds";
@@ -19,6 +22,7 @@ import { PropertiesPanel, SystemFacts } from "@/components/system/properties";
 import { DecisionsPanel, PlanningPanel } from "@/components/system/rail";
 import { SystemTabs, tabHref, type SystemTab } from "@/components/system/tabs";
 import { AREA_LABEL } from "@/components/system/text";
+import { stepStates } from "@/lib/plan-steps";
 import { formatDate } from "@/lib/time";
 import { describeGaps } from "@/components/system/text";
 import { TaskList } from "@/components/task-list";
@@ -49,6 +53,8 @@ function VersionedDocument({
   title: string;
   param: string;
   empty: { title: string; description: string };
+  stepStates?: StepStates;
+  aside?: ReactNode;
 }) {
   const trpc = useTRPC();
   const { data: doc } = useSuspenseQuery(trpc.history.document.queryOptions({ project: projectSlug, system: systemSlug, kind, version }));
@@ -136,6 +142,10 @@ export function SystemView({
     param: "plan",
     empty: { title: "No plan yet", description: "An agent writes the implementation plan once the spec is agreed; its steps become tasks." },
   };
+
+  const planPanel = (viewingVersion: number | undefined) => (
+    <PlanStepsPanel tasks={o.tasks} projectSlug={slug} systemSlug={systemSlug} viewingVersion={viewingVersion} />
+  );
 
   return (
     <Page>
@@ -227,9 +237,17 @@ export function SystemView({
 
       {tab === "plan" &&
         (planVersion ? (
-          <VersionedDocument projectSlug={slug} systemSlug={systemSlug} kind="plan" version={planVersion} {...planSection} />
+          <VersionedDocument
+            projectSlug={slug}
+            systemSlug={systemSlug}
+            kind="plan"
+            version={planVersion}
+            {...planSection}
+            stepStates={stepStates(o.tasks)}
+            aside={planPanel(planVersion !== o.plan?.version ? planVersion : undefined)}
+          />
         ) : (
-          <DocumentSection {...planSection} doc={o.plan} />
+          <DocumentSection {...planSection} doc={o.plan} stepStates={stepStates(o.tasks)} aside={planPanel(undefined)} />
         ))}
 
       {tab === "planning" && (

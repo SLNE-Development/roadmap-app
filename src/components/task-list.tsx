@@ -280,7 +280,8 @@ function TaskRow({
 
   return (
     <li
-      className={cn("flex flex-col border-t px-4 sm:px-[18px]", order.dragging && "opacity-50", order.over && "bg-muted")}
+      id={`task-${task.id}`}
+      className={cn("flex flex-col border-t px-4 sm:px-[18px] target:bg-muted", order.dragging && "opacity-50", order.over && "bg-muted")}
       aria-busy={pending}
       onDragOver={order.onDragOver}
       onDragLeave={order.onDragLeave}
