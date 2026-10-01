@@ -16,7 +16,8 @@ export interface RequestNotifyInput {
   userIds: string[];
   /** The title as written, or a message rendered in each recipient's language. */
   title: string | NotificationText;
-  body?: string;
+  /** The body as written, or a message rendered in each recipient's language. */
+  body?: string | NotificationText;
   /** What created the notice, such as `req:<id>:submitted:1`; each user gets one notice per source. */
   sourceKey: string;
   /** The request page tab the notice opens, such as `questions`. */

@@ -6,6 +6,7 @@ import type { askedQuestionInput, QuestionType } from "@/lib/event-questions";
 import { createTestDb } from "@/test/db";
 import { insertUser, requestFixture } from "@/test/fixtures";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
+import { setPref } from "./prefs";
 import { answerQuestions, askRound, listRounds, openQuestionCount } from "./request-questions";
 import { listRequests } from "./requests";
 
@@ -205,6 +206,22 @@ describe("answerQuestions", () => {
     // Re-answering after completion does not notify again.
     await answerQuestions(w.db, w.R, w.request.id, { answers: [{ questionId: questionIds[0], value: "Summer" }] });
     expect(await w.rows("request.answered")).toHaveLength(1);
+  });
+
+  it("writes the bodies in the language of each recipient", async () => {
+    const w = await world();
+    await setPref(w.db, w.R, "locale", "de");
+    await setPref(w.db, w.D, "locale", "de");
+    const { questionIds } = await w.first(2);
+    expect((await w.rows("request.question"))[0].body).toBe("2 Fragen zu beantworten.");
+    await answerQuestions(w.db, w.R, w.request.id, { answers: [{ questionId: questionIds[0], value: "Winter" }, { questionId: questionIds[1], notSure: true }] });
+    expect((await w.rows("request.answered"))[0].body).toBe("1 von 2 Antworten sind „weiß nicht“.");
+    const other = await world();
+    await setPref(other.db, other.R, "locale", "de");
+    const one = await other.first(1);
+    expect((await other.rows("request.question"))[0].body).toBe("1 Frage zu beantworten.");
+    await answerQuestions(other.db, other.R, other.request.id, { answers: [{ questionId: one.questionIds[0], value: "Winter" }] });
+    expect((await other.rows("request.answered"))[0].body).toBe("All questions answered.");
   });
 
   it("notifies per round and says so when nothing is not sure", async () => {

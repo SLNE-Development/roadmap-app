@@ -28,7 +28,8 @@ export interface NotifyInput {
   entityId: string;
   /** The title as written, or a message rendered in the recipient's language (their `locale` preference). */
   title: string | NotificationText;
-  body?: string;
+  /** The body as written, or a message rendered in the recipient's language like the title. */
+  body?: string | NotificationText;
   /** An app-relative path starting with `/p/` (project notices) or `/requests/` (request notices). */
   href: string;
   actorName?: string | null;
@@ -125,7 +126,7 @@ export async function notify(tx: Executor, input: NotifyInput): Promise<boolean>
       entity: input.entity,
       entityId: input.entityId,
       title: clip(typeof input.title === "string" ? input.title : renderNotificationText(await getPref(tx, input.userId, "locale"), input.title), TITLE_LENGTH),
-      body: clip(input.body ?? "", BODY_LENGTH),
+      body: clip(typeof input.body === "string" || input.body === undefined ? (input.body ?? "") : renderNotificationText(await getPref(tx, input.userId, "locale"), input.body), BODY_LENGTH),
       href: input.href,
       actorName: input.actorName ?? null,
       sourceKey: input.sourceKey,
