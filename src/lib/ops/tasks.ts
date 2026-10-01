@@ -6,7 +6,7 @@ import { projectAccess, projectAccessById, slugSchema } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { findSystem, userName } from "./lookup";
+import { assertSystemActive, findSystem, userName } from "./lookup";
 import { isMember } from "./members";
 import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
@@ -43,7 +43,10 @@ function logNote(note: string): string {
   return note.length > NOTES_LOG_LENGTH ? `${note.slice(0, NOTES_LOG_LENGTH)}…` : note;
 }
 
-/** Loads a task with its system, locking both rows, and checks the actor's role in its project. */
+/**
+ * Loads a task with its system, locking both rows, and checks the actor's role
+ * in its project. Refuses a task of an archived system or project.
+ */
 export async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
   const unknown = () => new NotFoundError(`Unknown task ${taskId}.`);
   const [found] = await tx.select({ systemId: task.systemId }).from(task).where(eq(task.id, taskId)).limit(1);
@@ -59,6 +62,7 @@ export async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
     if (error instanceof NotFoundError) throw unknown();
     throw error;
   }
+  assertSystemActive(parent);
   return { task: current, system: parent };
 }
 
@@ -191,7 +195,8 @@ export async function reorderTasks(
  *
  * @throws NotFoundError if the target system is not in the task's project
  * @throws InvalidError if the target is the task's own system
- * @throws ConflictError when a doing or done task would move into a system still in planning
+ * @throws ConflictError when a doing or done task would move into a system still in planning,
+ *   or when either system is archived
  */
 export async function moveTask(db: Db, actor: Actor, taskId: number, raw: z.input<typeof moveTaskInput>): Promise<void> {
   const input = moveTaskInput.parse(raw);
@@ -220,6 +225,8 @@ export async function moveTask(db: Db, actor: Actor, taskId: number, raw: z.inpu
     const destination = locked.find((s) => s.id === target.id);
     const [current] = await tx.select().from(task).where(eq(task.id, taskId)).limit(1).for("no key update");
     if (!source || !destination || !current || current.systemId !== source.id) throw unknown();
+    assertSystemActive(source);
+    assertSystemActive(destination);
     if ((current.state === "doing" || current.state === "done") && !destination.planningCompletedAt) {
       throw new ConflictError(planningGateMessage(destination.slug, await planningGaps(tx, destination.id)));
     }

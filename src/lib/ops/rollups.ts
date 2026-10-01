@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { system, task, TASK_ESTIMATES } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { ESTIMATE_POINTS, rollup, type Rollup } from "@/lib/rollup";
@@ -21,27 +21,32 @@ const AGGREGATES = {
   unestimated: sql<number>`count(*) filter (where ${task.estimate} is null)`.mapWith(Number),
 };
 
-/** Rolls up the tasks of each system of the project (only `systemIds` when given) in one grouped query. Systems without tasks are absent. */
+/**
+ * Rolls up the tasks of each system of the project in one grouped query. Systems without tasks are absent,
+ * and so are archived systems unless `systemIds` names the systems to roll up.
+ */
 export async function systemRollups(db: Executor, projectId: string, systemIds?: string[]): Promise<Map<string, Rollup>> {
   if (systemIds?.length === 0) return new Map();
   const rows = await db
     .select({ systemId: task.systemId, ...AGGREGATES })
     .from(task)
     .innerJoin(system, eq(system.id, task.systemId))
-    .where(and(eq(system.projectId, projectId), systemIds ? inArray(task.systemId, systemIds) : undefined))
+    .where(and(eq(system.projectId, projectId), systemIds ? inArray(task.systemId, systemIds) : isNull(system.archivedAt)))
     .groupBy(task.systemId);
   return new Map(rows.map(({ systemId, ...r }) => [systemId, r]));
 }
 
-/** Rolls up the project's tasks by phase, domain or board in one grouped query; the key `null` holds systems without a phase or domain. */
+/**
+ * Rolls up the project's tasks by phase, domain or board in one grouped query; the key `null` holds systems without a phase or domain.
+ * Archived systems are left out.
+ */
 export async function groupRollups(db: Executor, projectId: string, by: "phase" | "domain" | "board"): Promise<Map<string | null, Rollup>> {
   const key = by === "phase" ? system.phaseId : by === "domain" ? system.domainId : system.boardId;
-  // archived systems excluded in Task 7
   const rows = await db
     .select({ key, ...AGGREGATES })
     .from(task)
     .innerJoin(system, eq(system.id, task.systemId))
-    .where(eq(system.projectId, projectId))
+    .where(and(eq(system.projectId, projectId), isNull(system.archivedAt)))
     .groupBy(key);
   return new Map(rows.map(({ key: k, ...r }) => [k, r]));
 }

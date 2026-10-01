@@ -14,6 +14,6 @@ export function FieldsView({ slug }: { slug: string }) {
   const [{ data: detail }, { data: fields }] = useSuspenseQueries({
     queries: [trpc.projects.get.queryOptions({ project: slug }), trpc.fields.list.queryOptions({ project: slug })],
   });
-  const canEdit = detail.role === "owner" || detail.role === "admin";
+  const canEdit = (detail.role === "owner" || detail.role === "admin") && !detail.project.archivedAt;
   return <FieldsManager projectSlug={slug} fields={fields.map((f) => ({ key: f.key, name: f.name, type: f.type, options: f.options }))} canEdit={canEdit} />;
 }

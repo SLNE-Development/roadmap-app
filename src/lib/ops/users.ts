@@ -182,7 +182,8 @@ export interface UserItem {
  * @throws ForbiddenError if the actor is not an owner
  */
 export async function listUsers(db: Executor, actor: Actor, projectSlug: string): Promise<UserItem[]> {
-  await projectAccess(db, actor, projectSlug, "owner");
+  // A read that only needs the owner role, so the members page of an archived project still loads.
+  await projectAccess(db, actor, projectSlug, "owner", { allowArchived: true });
   return db
     .select({ id: user.id, name: user.name, image: user.image })
     .from(user)

@@ -27,8 +27,9 @@ export function BoardPageView({ slug, boardSlug }: { slug: string; boardSlug: st
   const board = detail.boards.find((b) => b.slug === boardSlug);
   // The page checked the slug; a board deleted meanwhile renders nothing until the route changes.
   if (!board) return null;
-  const canEdit = detail.role !== "viewer";
-  const canOwn = detail.role === "owner" || detail.role === "admin";
+  // An archived project is read-only for everyone.
+  const canEdit = detail.role !== "viewer" && !detail.project.archivedAt;
+  const canOwn = (detail.role === "owner" || detail.role === "admin") && !detail.project.archivedAt;
 
   return (
     <Page width="full" className="gap-4">

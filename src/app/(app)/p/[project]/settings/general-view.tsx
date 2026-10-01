@@ -21,6 +21,7 @@ export function SettingsGeneralView({ slug }: { slug: string }) {
       description={project.description}
       repoUrl={project.repoUrl}
       canEdit={role === "owner" || role === "admin"}
+      archived={project.archivedAt !== null}
     />
   );
 }

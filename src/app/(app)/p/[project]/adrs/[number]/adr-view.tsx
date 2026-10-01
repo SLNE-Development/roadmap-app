@@ -77,7 +77,7 @@ export function AdrView({ slug, number }: { slug: string; number: number }) {
         }
       />
 
-      {adr.status === "proposed" && role !== "viewer" && (
+      {adr.status === "proposed" && role !== "viewer" && !detail.project.archivedAt && (
         <div className="flex flex-wrap items-center gap-3 border bg-card px-4 py-3.5">
           <Clock aria-hidden className="size-4 shrink-0 text-cat-review" />
           <p className="min-w-48 flex-1 text-[13.5px] text-fg-2">Proposed decisions can still be edited. Accepting one freezes it.</p>

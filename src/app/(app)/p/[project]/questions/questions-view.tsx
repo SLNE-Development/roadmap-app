@@ -26,7 +26,7 @@ export function QuestionsView({ slug, tab, systemSlug }: { slug: string; tab: "o
       trpc.projects.get.queryOptions({ project: slug }),
     ],
   });
-  const canEdit = detail.role !== "viewer";
+  const canEdit = detail.role !== "viewer" && !detail.project.archivedAt;
   const system = systems.find((s) => s.slug === systemSlug);
   const inScope = questions.filter((q) => !system || q.systemSlug === system.slug);
   const open = inScope.filter((q) => !q.resolved);

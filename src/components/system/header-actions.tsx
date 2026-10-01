@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { ChevronDown, Link2, MoreHorizontal, RotateCcw } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronDown, Link2, MoreHorizontal, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CategoryDot, StatusChip } from "@/components/chips";
@@ -67,9 +67,13 @@ function PrimaryMove({ data, className }: { data: SystemControlsData; className?
   );
 }
 
-/** The overflow menu: copy the link, and for editors reopen planning (after a confirmation). */
-function OverflowMenu({ data }: { data: SystemControlsData }) {
+/** The overflow menu: copy the link, and for editors reopen planning (after a confirmation) and archive or restore the system. */
+function OverflowMenu({ data, canArchive }: { data: SystemControlsData; canArchive: boolean }) {
   const [confirm, setConfirm] = useState(false);
+  const trpc = useTRPC();
+  const setArchived = useMutation(
+    trpc.systems.setArchived.mutationOptions({ onSuccess: (_data, { archived }) => toast.success(archived ? "System archived" : "System restored") }),
+  );
   return (
     <>
       <DropdownMenu>
@@ -96,6 +100,15 @@ function OverflowMenu({ data }: { data: SystemControlsData }) {
               Reopen planning
             </DropdownMenuItem>
           )}
+          {canArchive && (
+            <DropdownMenuItem
+              disabled={setArchived.isPending}
+              onSelect={() => setArchived.mutate({ project: data.projectSlug, system: data.systemSlug, archived: !data.archived })}
+            >
+              {data.archived ? <ArchiveRestore /> : <Archive />}
+              {data.archived ? "Restore" : "Archive"}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <ReopenPlanningDialog open={confirm} onOpenChange={setConfirm} projectSlug={data.projectSlug} systemSlug={data.systemSlug} />
@@ -105,16 +118,17 @@ function OverflowMenu({ data }: { data: SystemControlsData }) {
 
 /**
  * The actions of the system header: the status button and the primary move
- * (from 1024px; on phones they sit in {@link SystemActionBar}) and the overflow menu.
+ * (from 1024px; on phones they sit in {@link SystemActionBar}) and the overflow
+ * menu. `canArchive` (editors of an active project) offers Archive or Restore.
  */
-export function SystemHeaderActions({ data }: { data: SystemControlsData }) {
+export function SystemHeaderActions({ data, canArchive }: { data: SystemControlsData; canArchive: boolean }) {
   return (
     <div className="flex items-center gap-2">
       <div className="hidden items-center gap-2 lg:flex">
         <StatusButton data={data} />
         <PrimaryMove data={data} />
       </div>
-      <OverflowMenu data={data} />
+      <OverflowMenu data={data} canArchive={canArchive} />
     </div>
   );
 }

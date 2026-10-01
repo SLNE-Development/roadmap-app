@@ -16,7 +16,7 @@ import { useTRPC } from "@/trpc/client";
 export function BoardsView({ slug }: { slug: string }) {
   const trpc = useTRPC();
   const { data: detail } = useSuspenseQuery(trpc.projects.get.queryOptions({ project: slug }));
-  const canOwn = detail.role === "owner" || detail.role === "admin";
+  const canOwn = (detail.role === "owner" || detail.role === "admin") && !detail.project.archivedAt;
 
   return (
     <Page>

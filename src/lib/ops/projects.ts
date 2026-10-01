@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { project, projectMember } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
@@ -64,13 +64,25 @@ export async function createProject(db: Db, actor: Actor, raw: z.input<typeof cr
   }
 }
 
-/** Lists the projects the actor belongs to (every project for admins), by name. */
-export async function listProjects(db: Executor, actor: Actor): Promise<ProjectListItem[]> {
+/** Which projects {@link listProjects} returns by archive state. */
+export const archivedFilter = z.enum(["exclude", "include", "only"]);
+
+/**
+ * Lists the projects the actor belongs to (every project for admins), by name.
+ * `archived` leaves archived projects out (`exclude`, the default), adds them or returns only them.
+ */
+export async function listProjects(
+  db: Executor,
+  actor: Actor,
+  opts: { archived?: z.infer<typeof archivedFilter> } = {},
+): Promise<ProjectListItem[]> {
+  const archived = opts.archived ?? "exclude";
+  const where = archived === "exclude" ? isNull(project.archivedAt) : archived === "only" ? isNotNull(project.archivedAt) : undefined;
   const membership = and(eq(projectMember.projectId, project.id), eq(projectMember.userId, actor.userId));
   const base = db.select({ project, role: projectMember.role }).from(project);
   const rows = actor.isAdmin
-    ? await base.leftJoin(projectMember, membership).orderBy(asc(project.name))
-    : await base.innerJoin(projectMember, membership).orderBy(asc(project.name));
+    ? await base.leftJoin(projectMember, membership).where(where).orderBy(asc(project.name))
+    : await base.innerJoin(projectMember, membership).where(where).orderBy(asc(project.name));
   return rows.map((r) => ({ ...r.project, role: actor.isAdmin ? "admin" : (r.role as AccessRole) }));
 }
 
@@ -114,10 +126,10 @@ export async function updateProject(db: Db, actor: Actor, slug: string, raw: z.i
   });
 }
 
-/** Deletes a project and everything in it. Owner only. */
+/** Deletes a project and everything in it, archived or not. Owner only. */
 export async function deleteProject(db: Db, actor: Actor, slug: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const { project: current } = await projectAccess(tx, actor, slug, "owner");
+    const { project: current } = await projectAccess(tx, actor, slug, "owner", { allowArchived: true });
     await tx.delete(project).where(eq(project.id, current.id));
   });
 }

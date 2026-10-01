@@ -45,7 +45,7 @@ export function RoadmapView({ slug }: { slug: string }) {
       trpc.structure.phaseRollups.queryOptions({ project: slug }),
     ],
   });
-  const canEdit = detail.role !== "viewer";
+  const canEdit = detail.role !== "viewer" && !detail.project.archivedAt;
   const rollupOf = new Map(phaseRollups.map((r) => [r.phaseId, r]));
   const rows = phases.map((p, i) => {
     const items = systems.filter((s) => s.phaseId === p.id);

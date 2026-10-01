@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { setSystemArchived } from "@/lib/ops/archive";
 import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { getProject } from "@/lib/ops/projects";
@@ -40,6 +41,11 @@ export const systemsRouter = router({
   move: protectedProcedure
     .input(z.object({ ...S, to: moveSystemInput }))
     .mutation(async ({ ctx, input }) => void (await moveSystem(ctx.db, ctx.actor, input.project, input.system, input.to))),
+
+  /** Archives a system (hidden, read-only) or restores it. */
+  setArchived: protectedProcedure
+    .input(z.object({ ...S, archived: z.boolean() }))
+    .mutation(({ ctx, input }) => setSystemArchived(ctx.db, ctx.actor, input.project, input.system, input.archived)),
 
   /** Replaces the systems this system depends on; a cycle is a conflict. */
   setDependencies: protectedProcedure

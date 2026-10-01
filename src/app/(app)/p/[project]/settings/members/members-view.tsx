@@ -26,7 +26,7 @@ export function SettingsMembersView({ slug }: { slug: string }) {
       members={members.map(({ joinedAt, ...m }) => ({ ...m, joinedAt: joinedAt.toISOString() }))}
       users={users}
       currentUserId={me.userId}
-      canOwn={detail.role === "owner" || detail.role === "admin"}
+      canOwn={(detail.role === "owner" || detail.role === "admin") && !detail.project.archivedAt}
     />
   );
 }

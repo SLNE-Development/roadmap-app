@@ -14,7 +14,7 @@ export function openCommandMenu() {
   window.dispatchEvent(new Event(OPEN_EVENT));
 }
 
-/** What the command menu can jump to. */
+/** What the command menu can jump to; callers pass active projects and systems only, leaving archived ones out. */
 export interface CommandMenuData {
   isAdmin: boolean;
   projects: { slug: string; name: string }[];

@@ -58,6 +58,8 @@ export const system = pgTable(
     planningCompletedAt: timestamp("planning_completed_at", tz),
     planningConfirmation: text("planning_confirmation"),
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+    /** When the system was archived (hidden, read-only); null while active. */
+    archivedAt: timestamp("archived_at", tz),
   },
   (t) => [
     unique("system_project_slug").on(t.projectId, t.slug),

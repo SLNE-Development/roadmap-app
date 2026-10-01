@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNull, max, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, max, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import {
   board,
@@ -44,7 +44,7 @@ export const createSystemInput = z.object({
   priority: z.enum(PRIORITIES).default("Later"),
 });
 
-/** Filters of {@link listSystems}; `owner` is a user id or `none`. */
+/** Filters of {@link listSystems}; `owner` is a user id or `none`; archived systems are left out unless `archived` says otherwise. */
 export const systemFilter = z.object({
   board: z.string().optional(),
   domain: z.string().optional(),
@@ -53,6 +53,7 @@ export const systemFilter = z.object({
   priority: z.enum(PRIORITIES).optional(),
   owner: z.string().optional(),
   startable: z.boolean().optional(),
+  archived: z.enum(["exclude", "include", "only"]).default("exclude"),
 });
 
 /** Input of {@link updateSystem}; omitted fields stay unchanged. */
@@ -102,6 +103,8 @@ export interface SystemListItem {
   blockedBy: string[];
   /** Custom field values by field key. */
   fields: Record<string, string>;
+  /** When the system was archived; null while active. */
+  archivedAt: Date | null;
 }
 
 /** A task as shown on its system. */
@@ -242,6 +245,8 @@ export async function listSystems(
   if (filter.priority) conditions.push(eq(system.priority, filter.priority));
   if (filter.owner === "none") conditions.push(isNull(system.ownerUserId));
   else if (filter.owner) conditions.push(eq(system.ownerUserId, filter.owner));
+  if (filter.archived === "exclude") conditions.push(isNull(system.archivedAt));
+  else if (filter.archived === "only") conditions.push(isNotNull(system.archivedAt));
 
   const rows = await db
     .select({
@@ -260,6 +265,7 @@ export async function listSystems(
       ownerUserId: system.ownerUserId,
       ownerName: user.name,
       planningCompletedAt: system.planningCompletedAt,
+      archivedAt: system.archivedAt,
     })
     .from(system)
     .innerJoin(board, eq(board.id, system.boardId))
@@ -281,7 +287,8 @@ export async function listSystems(
     .groupBy(task.systemId);
   const bySystem = new Map(counts.map((c) => [c.systemId, c]));
 
-  const rollups = await systemRollups(db, project.id);
+  // Archived systems listed on request need their rollups named explicitly.
+  const rollups = await systemRollups(db, project.id, filter.archived === "exclude" ? undefined : rows.map((r) => r.id));
 
   const planning = await db
     .select({

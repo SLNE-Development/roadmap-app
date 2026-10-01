@@ -21,6 +21,8 @@ export const project = pgTable("project", {
   description: text("description").notNull().default(""),
   repoUrl: text("repo_url"),
   createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  /** When an owner archived the project (hidden, read-only); null while active. */
+  archivedAt: timestamp("archived_at", tz),
 });
 
 /** Membership of a user in a project, with their role and when they joined. */

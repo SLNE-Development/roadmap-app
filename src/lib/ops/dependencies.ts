@@ -28,6 +28,7 @@ export interface SystemDependencies {
 /**
  * Maps each system of the project to the slugs of the systems it depends on
  * (`dependsOn`) and of those not yet in a `done` column (`blockedBy`), in one query.
+ * An archived dependency never blocks.
  */
 export async function dependencyMapsOf(
   db: Executor,
@@ -35,7 +36,7 @@ export async function dependencyMapsOf(
 ): Promise<{ dependsOn: Map<string, string[]>; blockedBy: Map<string, string[]> }> {
   const target = alias(system, "target");
   const rows = await db
-    .select({ systemId: systemDependency.systemId, slug: target.slug, category: boardColumn.category })
+    .select({ systemId: systemDependency.systemId, slug: target.slug, category: boardColumn.category, archivedAt: target.archivedAt })
     .from(systemDependency)
     .innerJoin(system, eq(system.id, systemDependency.systemId))
     .innerJoin(target, eq(target.id, systemDependency.dependsOnId))
@@ -46,12 +47,12 @@ export async function dependencyMapsOf(
   const blockedBy = new Map<string, string[]>();
   for (const row of rows) {
     dependsOn.set(row.systemId, [...(dependsOn.get(row.systemId) ?? []), row.slug]);
-    if (row.category !== "done") blockedBy.set(row.systemId, [...(blockedBy.get(row.systemId) ?? []), row.slug]);
+    if (row.category !== "done" && !row.archivedAt) blockedBy.set(row.systemId, [...(blockedBy.get(row.systemId) ?? []), row.slug]);
   }
   return { dependsOn, blockedBy };
 }
 
-/** Maps a system id to the slugs of the systems it depends on that are not in a `done` column. */
+/** Maps a system id to the slugs of the systems it depends on that are not archived and not in a `done` column. */
 export async function blockedByOf(db: Executor, projectId: string): Promise<Map<string, string[]>> {
   return (await dependencyMapsOf(db, projectId)).blockedBy;
 }
@@ -105,7 +106,7 @@ async function findCyclePath(tx: Executor, systemId: string, targets: string[]):
  *
  * @throws NotFoundError if a slug is not a system of this project
  * @throws InvalidError if the system depends on itself
- * @throws ConflictError if a new dependency would close a cycle
+ * @throws ConflictError if a new dependency would close a cycle, or if the system is archived
  */
 export async function setDependencies(
   db: Db,
@@ -120,7 +121,7 @@ export async function setDependencies(
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     // Serialises the project's dependency writes so two writers cannot close a cycle between them.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`deps:${project.id}`}))`);
-    const current = await findSystem(tx, project.id, systemSlug);
+    const current = await findSystem(tx, project.id, systemSlug, true);
     if (wanted.includes(current.slug)) throw new InvalidError("A system cannot depend on itself.");
     const targets = wanted.length
       ? await tx.select({ id: system.id, slug: system.slug }).from(system).where(and(eq(system.projectId, project.id), inArray(system.slug, wanted)))

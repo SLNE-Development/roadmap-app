@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { board, boardColumn, COLUMN_CATEGORIES, system, type ColumnCategory } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
@@ -168,14 +168,23 @@ export async function setBoardColumns(
     const removed = current.columns.filter((c) => !keptIds.has(c.id));
     if (removed.length > 0) {
       const counts = await tx
-        .select({ columnId: system.columnId, n: count() })
+        .select({
+          columnId: system.columnId,
+          n: count(),
+          archived: sql<number>`count(*) filter (where ${system.archivedAt} is not null)`.mapWith(Number),
+        })
         .from(system)
         .where(inArray(system.columnId, removed.map((c) => c.id)))
         .groupBy(system.columnId);
       const busy = counts.find((c) => c.n > 0);
       if (busy) {
         const name = byId.get(busy.columnId)?.name;
-        throw new ConflictError(`Column "${name}" still holds ${busy.n} system${busy.n === 1 ? "" : "s"}; move ${busy.n === 1 ? "it" : "them"} first.`);
+        const s = busy.n === 1 ? "" : "s";
+        // Archived systems are hidden from the board, so say why the column is not empty.
+        if (busy.archived === busy.n) {
+          throw new ConflictError(`Column "${name}" still holds ${busy.n} archived system${s}; restore and move ${busy.n === 1 ? "it" : "them"} first.`);
+        }
+        throw new ConflictError(`Column "${name}" still holds ${busy.n} system${s}; move ${busy.n === 1 ? "it" : "them"} first.`);
       }
     }
     for (const c of columns) {

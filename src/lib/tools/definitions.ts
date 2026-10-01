@@ -58,6 +58,7 @@ import {
 import { setTaskChecks, setTaskChecksInput } from "@/lib/ops/checks";
 import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
 import { setSystemFields } from "@/lib/ops/fields";
+import { setSystemArchived } from "@/lib/ops/archive";
 import { addTask, addTaskInput, moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
@@ -259,7 +260,7 @@ register(
 
   defineTool({
     name: "list_systems",
-    description: "List systems with board, column, owner, planning state and task progress. Filter by board, domain, phase, column category, priority, owner (user id or none), or startable (no unfinished dependencies).",
+    description: "List systems with board, column, owner, planning state and task progress. Filter by board, domain, phase, column category, priority, owner (user id or none), startable (no unfinished dependencies), or archived (exclude by default, include or only).",
     input: { ...P, ...systemFilter.shape },
     write: false,
     method: "GET",
@@ -320,6 +321,15 @@ register(
     method: "POST",
     path: "/projects/:project/systems/:system/move",
     run: (db, actor, { project, system, ...input }) => moveSystem(db, actor, project, system, input),
+  }),
+  defineTool({
+    name: "archive_system",
+    description: "Archive a system (hidden, read-only) or restore it with restore: true.",
+    input: { ...S, restore: z.boolean().default(false) },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/systems/:system/archive",
+    run: (db, actor, { project, system, restore }) => setSystemArchived(db, actor, project, system, !restore),
   }),
 
   defineTool({

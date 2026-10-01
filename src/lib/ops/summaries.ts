@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, max } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, max } from "drizzle-orm";
 import { adr, allowedAccount, board, boardColumn, changeLog, projectMember, question, system, user, type ColumnCategory } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectAccess } from "./access";
@@ -14,7 +14,7 @@ export interface ProjectSummary {
 
 /**
  * Returns the home-page numbers of each project in `projectIds` with three
- * grouped queries, however many projects there are. The caller passes ids it
+ * grouped queries, however many projects there are. Archived systems are not counted. The caller passes ids it
  * already resolved through {@link listProjects}, which checks access.
  */
 export async function projectSummaries(db: Executor, projectIds: string[]): Promise<Map<string, ProjectSummary>> {
@@ -26,7 +26,7 @@ export async function projectSummaries(db: Executor, projectIds: string[]): Prom
       .select({ projectId: system.projectId, category: boardColumn.category, n: count() })
       .from(system)
       .innerJoin(boardColumn, eq(boardColumn.id, system.columnId))
-      .where(inArray(system.projectId, projectIds))
+      .where(and(inArray(system.projectId, projectIds), isNull(system.archivedAt)))
       .groupBy(system.projectId, boardColumn.category),
     db
       .select({ projectId: question.projectId, n: count() })
@@ -65,7 +65,7 @@ export interface ProjectNav {
 }
 
 /**
- * Returns a project's systems (slug, title, board) in board order, and the
+ * Returns a project's systems (slug, title, board) in board order, leaving out archived ones, and the
  * sidebar's ADR, open-question and member counts, with light queries instead
  * of the full system listing.
  *
@@ -78,7 +78,7 @@ export async function projectNav(db: Executor, actor: Actor, slug: string): Prom
       .select({ slug: system.slug, title: system.title, boardSlug: board.slug })
       .from(system)
       .innerJoin(board, eq(board.id, system.boardId))
-      .where(eq(system.projectId, project.id))
+      .where(and(eq(system.projectId, project.id), isNull(system.archivedAt)))
       .orderBy(asc(board.sortOrder), asc(system.sortOrder)),
     db.select({ n: count() }).from(adr).where(eq(adr.projectId, project.id)),
     db

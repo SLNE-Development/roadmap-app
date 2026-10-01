@@ -63,12 +63,13 @@ async function findQuestion(tx: Executor, projectId: string, id: string, lock = 
   return row;
 }
 
-/** Adds an unresolved question, optionally tied to a system. Editor or higher. */
+/** Adds an unresolved question, optionally tied to a system that is not archived. Editor or higher. */
 export async function addQuestion(db: Db, actor: Actor, projectSlug: string, raw: z.input<typeof addQuestionInput>): Promise<{ id: string }> {
   const input = addQuestionInput.parse(raw);
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
-    const parent = input.system ? await findSystem(tx, project.id, input.system) : null;
+    // Locking takes the write path, which refuses an archived system.
+    const parent = input.system ? await findSystem(tx, project.id, input.system, true) : null;
     const id = newId();
     await tx.insert(question).values({
       id,

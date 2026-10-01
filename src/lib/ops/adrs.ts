@@ -8,7 +8,7 @@ import { projectAccess, slugSchema } from "./access";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { findSystem, lockProject } from "./lookup";
+import { assertSystemActive, findSystem, lockProject } from "./lookup";
 
 /** A required ADR section. */
 const section = z.string().trim().min(1).max(20000);
@@ -71,11 +71,16 @@ async function findAdr(tx: Executor, projectId: string, number: number, lock = f
   return row;
 }
 
-/** Replaces the systems linked to an ADR with the systems named by slug. */
+/**
+ * Replaces the systems linked to an ADR with the systems named by slug. A new
+ * link to an archived system is refused; an existing one is kept.
+ */
 async function linkSystems(tx: Tx, projectId: string, adrId: string, slugs: string[]): Promise<void> {
+  const existing = new Set((await tx.select({ id: adrSystem.systemId }).from(adrSystem).where(eq(adrSystem.adrId, adrId))).map((l) => l.id));
   await tx.delete(adrSystem).where(eq(adrSystem.adrId, adrId));
   for (const slug of new Set(slugs)) {
     const linked = await findSystem(tx, projectId, slug);
+    if (!existing.has(linked.id)) assertSystemActive(linked);
     await tx.insert(adrSystem).values({ adrId, systemId: linked.id });
   }
 }

@@ -3,7 +3,7 @@ import { board, boardColumn, project, system, user, type ProjectRole } from "@/d
 import type { Executor } from "@/db/types";
 import { projectAccess, type ProjectAccess } from "./access";
 import type { Actor } from "./actor";
-import { NotFoundError } from "./errors";
+import { ConflictError, NotFoundError } from "./errors";
 
 /** A system row. */
 export type SystemRow = typeof system.$inferSelect;
@@ -19,13 +19,26 @@ export interface BoardWithColumns extends BoardRow {
   columns: BoardColumnRow[];
 }
 
+/** Throws when the system is archived, so writes to it are refused until it is restored. */
+export function assertSystemActive(row: SystemRow): void {
+  if (row.archivedAt) throw new ConflictError(`System ${row.slug} is archived; restore it first.`);
+}
+
 /**
  * Returns the system with `slug` in the project, optionally locking its row
- * until the surrounding transaction ends.
+ * until the surrounding transaction ends. Locking marks the write path, which
+ * refuses an archived system unless `opts.allowArchived`.
  *
  * @throws NotFoundError if there is none
+ * @throws ConflictError if `lock` is set and the system is archived
  */
-export async function findSystem(db: Executor, projectId: string, slug: string, lock = false): Promise<SystemRow> {
+export async function findSystem(
+  db: Executor,
+  projectId: string,
+  slug: string,
+  lock = false,
+  opts?: { allowArchived?: boolean },
+): Promise<SystemRow> {
   const query = db
     .select()
     .from(system)
@@ -33,6 +46,7 @@ export async function findSystem(db: Executor, projectId: string, slug: string, 
     .limit(1);
   const [row] = lock ? await query.for("no key update") : await query;
   if (!row) throw new NotFoundError(`Unknown system ${slug}.`);
+  if (lock && !opts?.allowArchived) assertSystemActive(row);
   return row;
 }
 
@@ -76,7 +90,11 @@ export async function lockProject(tx: Executor, projectId: string): Promise<void
   await tx.select({ id: project.id }).from(project).where(eq(project.id, projectId)).for("no key update");
 }
 
-/** Checks project access with `need` and returns the access together with the system. */
+/**
+ * Checks project access with `need` and returns the access together with the
+ * system. Above viewer it is a write: the system row is locked and an archived
+ * system is refused.
+ */
 export async function systemAccess(
   db: Executor,
   actor: Actor,
@@ -85,7 +103,7 @@ export async function systemAccess(
   need: ProjectRole,
 ): Promise<ProjectAccess & { system: SystemRow }> {
   const found = await projectAccess(db, actor, projectSlug, need);
-  return { ...found, system: await findSystem(db, found.project.id, systemSlug) };
+  return { ...found, system: await findSystem(db, found.project.id, systemSlug, need !== "viewer") };
 }
 
 /** Returns a user's name, or `null` for no user or an unknown id. */

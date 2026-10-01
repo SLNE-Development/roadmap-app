@@ -92,7 +92,7 @@ export function OverviewView({ slug }: { slug: string }) {
   const staleQuestions = questions.filter((q) => isStale(q.createdAt, now));
   const data = { detail, systems, phases, adrs, staleQuestions, updates, latest, activity, planning, gaps, blockedTasks };
   const { project } = data.detail;
-  const canEdit = data.detail.role !== "viewer";
+  const canEdit = data.detail.role !== "viewer" && !project.archivedAt;
   const tasksDone = data.systems.reduce((n, s) => n + s.tasksDone, 0);
   const tasksTotal = data.systems.reduce((n, s) => n + s.tasksTotal, 0);
   const counts = SEGMENTS.map((c) => ({ category: c, n: data.systems.filter((s) => s.columnCategory === c).length }));

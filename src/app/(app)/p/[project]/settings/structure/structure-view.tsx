@@ -23,7 +23,7 @@ export function StructureView({ slug }: { slug: string }) {
   return (
     <StructureManager
       projectSlug={slug}
-      canEdit={detail.role !== "viewer"}
+      canEdit={detail.role !== "viewer" && !detail.project.archivedAt}
       domains={domains.map((d) => ({
         id: d.id,
         name: d.name,

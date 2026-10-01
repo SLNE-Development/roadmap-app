@@ -31,7 +31,10 @@ export interface ColumnOption {
 export interface SystemControlsData {
   projectSlug: string;
   systemSlug: string;
+  /** Whether the actor may change the system now; false while it or its project is archived. */
   canEdit: boolean;
+  /** Whether the system is archived (read-only until restored). */
+  archived: boolean;
   planningComplete: boolean;
   gaps: string[];
   columnId: string;

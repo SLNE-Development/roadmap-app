@@ -48,7 +48,7 @@ export function SystemsView({
     });
   const data = { detail, systems, total: all.length, domains, phases, members, latest, fields };
   const q = current.q ?? "";
-  const canEdit = data.detail.role !== "viewer";
+  const canEdit = data.detail.role !== "viewer" && !data.detail.project.archivedAt;
   const needle = q.toLowerCase();
   const shown = needle
     ? data.systems.filter((s) => s.title.toLowerCase().includes(needle) || s.summary.toLowerCase().includes(needle))
@@ -64,6 +64,14 @@ export function SystemsView({
       key: "owner",
       label: "Owner",
       options: [{ value: "none", label: "Unowned" }, ...data.members.map((m) => ({ value: m.userId, label: m.name }))],
+    },
+    {
+      key: "archived",
+      label: "Archived",
+      options: [
+        { value: "include", label: "Include archived" },
+        { value: "only", label: "Only archived" },
+      ],
     },
   ].filter((f) => f.options.length > 0);
 

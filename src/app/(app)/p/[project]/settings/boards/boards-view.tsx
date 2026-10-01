@@ -26,7 +26,7 @@ export function BoardsSettingsView({ slug, wanted }: { slug: string; wanted?: st
   const [{ data: detail }, { data: systems }] = useSuspenseQueries({
     queries: [trpc.projects.get.queryOptions({ project: slug }), trpc.systems.list.queryOptions({ project: slug })],
   });
-  const canOwn = detail.role === "owner" || detail.role === "admin";
+  const canOwn = (detail.role === "owner" || detail.role === "admin") && !detail.project.archivedAt;
   const boards = detail.boards;
 
   if (boards.length === 0) {

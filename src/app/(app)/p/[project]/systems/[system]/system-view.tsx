@@ -1,7 +1,9 @@
 "use client";
 
-import { useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
 import { Check, Lock } from "lucide-react";
+import { toast } from "sonner";
+import { ArchivedBanner } from "@/components/archive-banner";
 import { PriorityTag } from "@/components/chips";
 import { DocumentSection, SpecPreview } from "@/components/document-section";
 import { Page, PageHeader } from "@/components/page";
@@ -83,7 +85,11 @@ export function SystemView({
       trpc.systems.list.queryOptions({ project: slug }),
     ],
   });
-  const canEdit = o.role !== "viewer";
+  // Editors of an active project may archive or restore; edits also need the system itself active.
+  const canArchive = o.role !== "viewer" && !o.project.archivedAt;
+  const archived = o.system.archivedAt !== null;
+  const canEdit = canArchive && !archived;
+  const restore = useMutation(trpc.systems.setArchived.mutationOptions({ onSuccess: () => toast.success("System restored") }));
   const base = `/p/${slug}/systems/${systemSlug}`;
   const boardHref = `/p/${slug}/boards/${o.board.slug}`;
   const openQuestions = o.questions.filter((q) => !q.resolved);
@@ -94,6 +100,7 @@ export function SystemView({
     projectSlug: slug,
     systemSlug,
     canEdit,
+    archived,
     planningComplete: o.planning.complete,
     gaps: o.planning.gaps,
     columnId: o.system.columnId,
@@ -131,7 +138,7 @@ export function SystemView({
       <PageHeader
         crumbs={[{ label: o.project.name, href: `/p/${slug}` }, { label: o.board.name, href: boardHref }, { label: o.system.title }]}
         title={o.system.title}
-        actions={<SystemHeaderActions data={controls} />}
+        actions={<SystemHeaderActions data={controls} canArchive={canArchive} />}
       >
         <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-fg-2 lg:flex">
           <PriorityTag priority={o.system.priority} />
@@ -164,6 +171,14 @@ export function SystemView({
         <SystemFacts data={controls} planningHref={tabHref(base, "planning")} />
         {o.system.summary && <p className="max-w-[720px] text-[14.5px] leading-[1.55] text-fg-2 lg:text-[15px]">{o.system.summary}</p>}
       </PageHeader>
+
+      {archived && (
+        <ArchivedBanner
+          message="This system is archived and read-only."
+          onRestore={canArchive ? () => restore.mutate({ ...ref, archived: false }) : undefined}
+          pending={restore.isPending}
+        />
+      )}
 
       <SystemTabs base={base} current={tab} meta={meta} />
 

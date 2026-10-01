@@ -1,4 +1,4 @@
-import { and, eq, inArray, max } from "drizzle-orm";
+import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import { changeLog, system, task } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectAccess } from "./access";
@@ -15,14 +15,14 @@ export interface BlockedTask {
   since: Date | null;
 }
 
-/** Lists the project's blocked tasks, longest-blocked first, with their reason and since when. Viewer or higher. */
+/** Lists the project's blocked tasks outside archived systems, longest-blocked first, with their reason and since when. Viewer or higher. */
 export async function listBlockedTasks(db: Executor, actor: Actor, projectSlug: string): Promise<BlockedTask[]> {
   const { project } = await projectAccess(db, actor, projectSlug, "viewer");
   const rows = await db
     .select({ id: task.id, title: task.title, reason: task.blockedReason, systemSlug: system.slug, systemTitle: system.title })
     .from(task)
     .innerJoin(system, eq(system.id, task.systemId))
-    .where(and(eq(system.projectId, project.id), eq(task.state, "blocked")))
+    .where(and(eq(system.projectId, project.id), isNull(system.archivedAt), eq(task.state, "blocked")))
     .orderBy(task.id);
   if (rows.length === 0) return [];
   const since = await db
