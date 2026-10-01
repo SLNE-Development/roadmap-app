@@ -6,6 +6,7 @@ import { newId } from "@/lib/id";
 import { mentionsToPlain } from "@/lib/mentions";
 import type { Actor } from "./actor";
 import { isMember } from "./members";
+export { NOTIFICATION_KINDS, type NotificationKind } from "@/lib/notification-kinds";
 import { readNotifyRules, wantsInbox, wantsPush } from "./notify-rules";
 
 /** Input of {@link notify}. */

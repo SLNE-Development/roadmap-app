@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { notifyRulesSchema } from "./notify-rules-schema";
 
 /** The collapsed columns and lanes of one board; lane entries read `<laneKind>:<laneKey>`. */
 export const BOARD_COLLAPSED_SCHEMA = z.object({ columns: z.array(z.string()).max(50), lanes: z.array(z.string()).max(100) });
@@ -11,6 +12,7 @@ export const PREF_SCHEMAS: Record<string, z.ZodType> = {
   "overview.panels": z.object({ order: z.array(z.string()).max(20), hidden: z.array(z.string()).max(20) }),
   "board.collapsed": BOARD_COLLAPSED_SCHEMA,
   "mywork.seenAt": z.string().datetime(),
+  "notify.rules": notifyRulesSchema,
 };
 
 /**
