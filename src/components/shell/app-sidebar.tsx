@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BookOpen, Bot, ChevronsUpDown, CircleHelp, KanbanSquare, LayoutGrid, List, Map as MapIcon, Rocket, Scale, Search, SlidersHorizontal, Users } from "lucide-react";
+import { Activity, BookOpen, Bot, CalendarDays, ChevronsUpDown, CircleHelp, KanbanSquare, LayoutGrid, List, Map as MapIcon, Rocket, Scale, Search, SlidersHorizontal, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -24,6 +24,8 @@ import { UserArea } from "./user-area";
 export interface SidebarActor {
   name: string;
   isAdmin: boolean;
+  /** Whether the Requests link shows: admins, event managers, event developers and requesters. */
+  showRequests?: boolean;
 }
 
 /** The current project with what its navigation shows. */
@@ -71,6 +73,7 @@ export function AppSidebar({
   views?: SidebarView[];
 }) {
   const t = useTranslations("shell");
+  const te = useTranslations("events");
   const roleLabel = useRoleLabel();
   const pathname = usePathname();
   const base = project ? `/p/${project.slug}` : "";
@@ -210,6 +213,12 @@ export function AppSidebar({
 
       </div>
       <div className="flex shrink-0 flex-col gap-1.5 border-t pt-3">
+        {actor.showRequests && (
+          <Link href="/requests" aria-current={is("/requests") ? "page" : undefined} className={rowClass(is("/requests"))}>
+            <CalendarDays className="size-4" aria-hidden />
+            {te("nav")}
+          </Link>
+        )}
         {project && (
           <Link href={`${base}/settings`} aria-current={is(`${base}/settings`) ? "page" : undefined} className={rowClass(is(`${base}/settings`))}>
             <SlidersHorizontal className="size-4" aria-hidden />

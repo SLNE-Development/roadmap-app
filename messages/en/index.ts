@@ -7,6 +7,7 @@ import common from "./common.json";
 import documents from "./documents.json";
 import enums from "./enums.json";
 import errors from "./errors.json";
+import events from "./events.json";
 import glossary from "./glossary.json";
 import home from "./home.json";
 import insight from "./insight.json";
@@ -37,6 +38,7 @@ const messages = {
   documents,
   enums,
   errors,
+  events,
   glossary,
   home,
   insight,

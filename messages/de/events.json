@@ -1,0 +1,110 @@
+{
+  "nav": "Anfragen",
+  "crumb": "Anfragen",
+  "status": {
+    "draft": "Entwurf",
+    "submitted": "Eingereicht",
+    "accepted": "Angenommen",
+    "event_week": "Eventwoche",
+    "done": "Erledigt",
+    "withdrawn": "Zurückgezogen",
+    "cancelled": "Abgesagt"
+  },
+  "list": {
+    "title": "Event-Anfragen",
+    "description": "Geplante, laufende und abgeschlossene Events mit Brief und Status.",
+    "newRequest": "Neue Anfrage",
+    "filterLabel": "Nach Status filtern",
+    "closed": "Zurückgezogen oder abgesagt",
+    "emptyTitle": "Keine Anfragen",
+    "emptyText": "Zu diesem Filter gibt es nichts.",
+    "emptyNone": "Anfragen, die du stellst oder verfolgst, erscheinen hier.",
+    "colTitle": "Event",
+    "colStatus": "Status",
+    "colDate": "Datum",
+    "colRequester": "Anfragende Person",
+    "colProject": "Projekt",
+    "noDate": "Noch kein Datum",
+    "noProject": "Nicht verknüpft",
+    "dialogTitle": "Neue Anfrage",
+    "dialogDescription": "Lege einen Entwurf an. Brief, Datum und alles Weitere kannst du auf der Anfrageseite ergänzen.",
+    "titleLabel": "Titel",
+    "create": "Entwurf anlegen"
+  },
+  "page": {
+    "tabs": "Bereiche der Anfrage",
+    "tabBrief": "Brief",
+    "tabOverview": "Übersicht",
+    "requestedBy": "Angefragt von {name}",
+    "readOnly": "Du kannst diese Anfrage ansehen, aber nicht ändern."
+  },
+  "statusBar": {
+    "label": "Status der Anfrage",
+    "current": "{status}, aktueller Schritt"
+  },
+  "actions": {
+    "submit": "Einreichen",
+    "recall": "Zurückholen",
+    "withdraw": "Zurückziehen",
+    "cancel": "Event absagen",
+    "markDone": "Als erledigt markieren",
+    "submitted": "Anfrage eingereicht",
+    "recalled": "Die Anfrage ist wieder ein Entwurf",
+    "withdrawn": "Anfrage zurückgezogen",
+    "cancelled": "Anfrage abgesagt",
+    "done": "Anfrage als erledigt markiert",
+    "cancelTitle": "Dieses Event absagen",
+    "cancelDescription": "Die Anfrage wird endgültig geschlossen. Nenne den Grund, damit alle, die sie verfolgen, Bescheid wissen.",
+    "reason": "Grund",
+    "cancelConfirm": "Event absagen",
+    "keep": "Event behalten"
+  },
+  "details": {
+    "title": "Details",
+    "name": "Titel",
+    "startsAt": "Beginn",
+    "startsAtHelp": "Angezeigt in deiner Zeitzone.",
+    "duration": "Dauer in Minuten",
+    "where": "Wo",
+    "docs": "Link zu den Event-Dokumenten",
+    "docsHelp": "Ein https-Link zu den Dokumenten des Events.",
+    "save": "Details speichern",
+    "saved": "Details gespeichert"
+  },
+  "brief": {
+    "label": "Brief",
+    "help": "Beschreibe das Event in Markdown. Jede gespeicherte Änderung wird zu einer neuen Version.",
+    "save": "Als neue Version speichern",
+    "saved": "Als Version {version} gespeichert",
+    "unchanged": "Nichts geändert, deshalb wurde keine neue Version gespeichert.",
+    "conflict": "Der Brief wurde inzwischen geändert. Lade neu, um die aktuelle Version zu sehen, und übernimm dann deine Änderungen.",
+    "reload": "Neu laden",
+    "readOnly": "Der Brief kann nicht mehr bearbeitet werden."
+  },
+  "versions": {
+    "title": "Versionen",
+    "version": "Version {version}",
+    "meta": "{name}, {date}",
+    "current": "aktuell",
+    "compare": "Mit aktueller vergleichen",
+    "diffTitle": "Änderungen von Version {from} zu Version {to}",
+    "closeDiff": "Vergleich schließen"
+  },
+  "history": {
+    "title": "Verlauf",
+    "empty": "Noch keine Änderungen.",
+    "entry": "{name} hat {field} geändert",
+    "created": "{name} hat die Anfrage angelegt",
+    "status": "{name} hat den Status von {from} auf {to} geändert",
+    "cancelled": "{name} hat das Event abgesagt: {reason}",
+    "brief": "{name} hat den Brief gespeichert: {from} → {to}",
+    "field": {
+      "title": "den Titel",
+      "startsAt": "das Datum",
+      "durationMinutes": "die Dauer",
+      "where": "den Ort",
+      "eventDocsUrl": "den Dokumentenlink",
+      "requesterId": "die anfragende Person"
+    }
+  }
+}

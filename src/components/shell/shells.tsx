@@ -19,7 +19,7 @@ export function GlobalShell({ children }: { children: React.ReactNode }) {
   });
   return (
     <AppShell
-      actor={{ name: me.name, isAdmin: me.isAdmin }}
+      actor={{ name: me.name, isAdmin: me.isAdmin, showRequests: me.showRequests }}
       projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}
       views={views.filter((v) => v.projectId === null)}
     >
@@ -60,7 +60,7 @@ export function ProjectShell({ slug, children }: { slug: string; children: React
   };
   return (
     <AppShell
-      actor={{ name: me.name, isAdmin: me.isAdmin }}
+      actor={{ name: me.name, isAdmin: me.isAdmin, showRequests: me.showRequests }}
       projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}
       project={project}
       systems={systems.map((s) => ({ slug: s.slug, title: s.title }))}

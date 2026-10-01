@@ -9,6 +9,7 @@ import { recordAuthEvent, type AuthEventInput } from "@/lib/ops/audit";
 import { InvalidError } from "@/lib/ops/errors";
 import { endOtherSessions, endSession, listSessions } from "@/lib/ops/sessions";
 import { setPref } from "@/lib/ops/prefs";
+import { requestRights } from "@/lib/ops/requests";
 import { myWork, myWorkSeenAt, markMyWorkSeen } from "@/lib/ops/my-work";
 import { createApiKeyInput, listApiKeys, revokeApiKey, rotateApiKey } from "@/lib/ops/api-keys";
 import { addAllowedAccount, addAllowedAccountInput, listAllowedAccounts, listUsers, removeAllowedAccount, setAdmin } from "@/lib/ops/users";
@@ -30,7 +31,12 @@ async function audit(ctx: Context & { actor: Actor }, event: Pick<AuthEventInput
 /** The signed-in user, their API keys, and (for admins) the account allowlist. */
 export const accountRouter = router({
   /** The signed-in actor. */
-  me: protectedProcedure.query(({ ctx }) => ({ userId: ctx.actor.userId, name: ctx.actor.name, isAdmin: ctx.actor.isAdmin })),
+  me: protectedProcedure.query(async ({ ctx }) => ({
+    userId: ctx.actor.userId,
+    name: ctx.actor.name,
+    isAdmin: ctx.actor.isAdmin,
+    ...(await requestRights(ctx.db, ctx.actor)),
+  })),
 
   /** What is waiting on the actor across their projects and what changed since they last marked it seen. */
   myWork: protectedProcedure.query(async ({ ctx }) => {

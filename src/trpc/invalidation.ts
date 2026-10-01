@@ -31,6 +31,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   insight: ["insight"],
   releases: ["releases", "systems", "insight", "history", "projects", "boards"],
   presence: ["presence"],
+  requests: ["requests", "notifications", "history"],
 };
 
 /**

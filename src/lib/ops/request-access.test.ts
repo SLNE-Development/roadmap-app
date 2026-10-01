@@ -110,7 +110,7 @@ describe("roles and flags", () => {
     const w = await world();
     await w.setStatus("submitted");
     const roles = await Promise.all([w.R, w.M, w.A, w.D, w.P].map(async (a) => (await requestAccess(w.db, a, w.request.id, "view")).role));
-    expect(roles).toEqual(["requester", "manager", "staff", "developer", "project"]);
+    expect(roles).toEqual(["requester", "manager", "manager", "developer", "project"]);
   });
 
   it("reads the flags and applies the guards", async () => {

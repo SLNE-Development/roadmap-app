@@ -20,6 +20,7 @@ import { prefsRouter } from "./routers/prefs";
 import { projectsRouter } from "./routers/projects";
 import { questionsRouter } from "./routers/questions";
 import { releasesRouter } from "./routers/releases";
+import { requestsRouter } from "./routers/requests";
 import { searchRouter } from "./routers/search";
 import { structureRouter } from "./routers/structure";
 import { systemsRouter } from "./routers/systems";
@@ -58,6 +59,7 @@ export const appRouter = router({
   insight: insightRouter,
   releases: releasesRouter,
   presence: presenceRouter,
+  requests: requestsRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

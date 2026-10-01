@@ -1,0 +1,84 @@
+import "server-only";
+import { z } from "zod";
+import { REQUEST_STATUSES } from "@/lib/event-status";
+import { dbInt } from "@/lib/ops/params";
+import {
+  cancelRequest,
+  compareBriefs,
+  createRequest,
+  createRequestInput,
+  getBrief,
+  getRequest,
+  listBriefVersions,
+  listRequests,
+  markDone,
+  recallRequest,
+  requestHistory,
+  saveBrief,
+  saveBriefInput,
+  submitRequest,
+  updateRequest,
+  updateRequestInput,
+  withdrawRequest,
+} from "@/lib/ops/requests";
+import { protectedProcedure, router } from "../init";
+
+/** The request a procedure acts on. */
+const R = { id: z.string().min(1).max(64) };
+
+/** Event requests: the list and page, status changes and brief versions. */
+export const requestsRouter = router({
+  /** The requests the actor may see, open ones first. */
+  list: protectedProcedure
+    .input(z.object({ status: z.array(z.enum(REQUEST_STATUSES)).optional(), mine: z.boolean().optional(), scope: z.enum(["open", "all"]).optional() }))
+    .query(({ ctx, input }) => listRequests(ctx.db, ctx.actor, input)),
+
+  /** A request with its current brief and the actor's rights. */
+  get: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => getRequest(ctx.db, ctx.actor, input.id)),
+
+  /** Files a draft request (event managers and admins). */
+  create: protectedProcedure.input(createRequestInput).mutation(({ ctx, input }) => createRequest(ctx.db, ctx.actor, input)),
+
+  /** Changes the title, date, duration, place, docs link or requester. */
+  update: protectedProcedure
+    .input(z.object({ ...R, ...updateRequestInput.shape }))
+    .mutation(({ ctx, input: { id, ...patch } }) => updateRequest(ctx.db, ctx.actor, id, patch)),
+
+  /** Saves the brief as the next version. */
+  saveBrief: protectedProcedure
+    .input(z.object({ ...R, ...saveBriefInput.shape }))
+    .mutation(({ ctx, input: { id, ...brief } }) => saveBrief(ctx.db, ctx.actor, id, brief)),
+
+  /** A version of the brief, the current one without `version`. */
+  brief: protectedProcedure.input(z.object({ ...R, version: dbInt.optional() })).query(({ ctx, input }) => getBrief(ctx.db, ctx.actor, input.id, input.version)),
+
+  /** The brief versions, newest first. */
+  briefVersions: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => listBriefVersions(ctx.db, ctx.actor, input.id)),
+
+  /** The line differences between two brief versions. */
+  compareBriefs: protectedProcedure
+    .input(z.object({ ...R, from: dbInt, to: dbInt }))
+    .query(({ ctx, input }) => compareBriefs(ctx.db, ctx.actor, input.id, input.from, input.to)),
+
+  /** Submits a draft. */
+  submit: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => submitRequest(ctx.db, ctx.actor, input.id)),
+
+  /** Takes a submitted request back to a draft. */
+  recall: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => recallRequest(ctx.db, ctx.actor, input.id)),
+
+  /** Withdraws a draft or submitted request. */
+  withdraw: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => withdrawRequest(ctx.db, ctx.actor, input.id)),
+
+  /** Cancels an accepted request with a reason. */
+  cancel: protectedProcedure
+    .input(z.object({ ...R, reason: z.string() }))
+    .mutation(({ ctx, input }) => cancelRequest(ctx.db, ctx.actor, input.id, input.reason)),
+
+  /** Marks an event-week request as done. */
+  markDone: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => markDone(ctx.db, ctx.actor, input.id)),
+
+  /** The history of a request, newest first. */
+  history: protectedProcedure
+    .input(z.object({ ...R, limit: z.number().int().min(1).max(500).optional() }))
+    .query(({ ctx, input }) => requestHistory(ctx.db, ctx.actor, input.id, input.limit)),
+});

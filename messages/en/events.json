@@ -1,0 +1,110 @@
+{
+  "nav": "Requests",
+  "crumb": "Requests",
+  "status": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "accepted": "Accepted",
+    "event_week": "Event week",
+    "done": "Done",
+    "withdrawn": "Withdrawn",
+    "cancelled": "Cancelled"
+  },
+  "list": {
+    "title": "Event requests",
+    "description": "Events that are planned, in progress or done, with their briefs and status.",
+    "newRequest": "New request",
+    "filterLabel": "Filter by status",
+    "closed": "Withdrawn or cancelled",
+    "emptyTitle": "No requests",
+    "emptyText": "Nothing matches this filter.",
+    "emptyNone": "Requests you file or follow appear here.",
+    "colTitle": "Event",
+    "colStatus": "Status",
+    "colDate": "Date",
+    "colRequester": "Requester",
+    "colProject": "Project",
+    "noDate": "No date yet",
+    "noProject": "Not linked",
+    "dialogTitle": "New request",
+    "dialogDescription": "Start a draft. The brief, date and the rest can follow on the request page.",
+    "titleLabel": "Title",
+    "create": "Create draft"
+  },
+  "page": {
+    "tabs": "Request sections",
+    "tabBrief": "Brief",
+    "tabOverview": "Overview",
+    "requestedBy": "Requested by {name}",
+    "readOnly": "You can view this request but not change it."
+  },
+  "statusBar": {
+    "label": "Request status",
+    "current": "{status}, current step"
+  },
+  "actions": {
+    "submit": "Submit",
+    "recall": "Recall",
+    "withdraw": "Withdraw",
+    "cancel": "Cancel event",
+    "markDone": "Mark done",
+    "submitted": "Request submitted",
+    "recalled": "Request is a draft again",
+    "withdrawn": "Request withdrawn",
+    "cancelled": "Request cancelled",
+    "done": "Request marked done",
+    "cancelTitle": "Cancel this event",
+    "cancelDescription": "The request is closed for good. Say why, so everyone who follows it knows.",
+    "reason": "Reason",
+    "cancelConfirm": "Cancel event",
+    "keep": "Keep event"
+  },
+  "details": {
+    "title": "Details",
+    "name": "Title",
+    "startsAt": "Starts",
+    "startsAtHelp": "Shown in your time zone.",
+    "duration": "Duration in minutes",
+    "where": "Where",
+    "docs": "Event documents link",
+    "docsHelp": "An https link to the event's documents.",
+    "save": "Save details",
+    "saved": "Details saved"
+  },
+  "brief": {
+    "label": "Brief",
+    "help": "Describe the event in Markdown. Every saved change becomes a new version.",
+    "save": "Save new version",
+    "saved": "Saved as version {version}",
+    "unchanged": "Nothing changed, so no new version was saved.",
+    "conflict": "The brief changed in the meantime. Reload to see the latest version, then merge your edits.",
+    "reload": "Reload",
+    "readOnly": "The brief can no longer be edited."
+  },
+  "versions": {
+    "title": "Versions",
+    "version": "Version {version}",
+    "meta": "{name}, {date}",
+    "current": "current",
+    "compare": "Compare with current",
+    "diffTitle": "Changes from version {from} to version {to}",
+    "closeDiff": "Close comparison"
+  },
+  "history": {
+    "title": "History",
+    "empty": "No changes yet.",
+    "entry": "{name} changed {field}",
+    "created": "{name} created the request",
+    "status": "{name} changed the status from {from} to {to}",
+    "cancelled": "{name} cancelled the event: {reason}",
+    "brief": "{name} saved the brief: {from} → {to}",
+    "field": {
+      "title": "the title",
+      "startsAt": "the date",
+      "durationMinutes": "the duration",
+      "where": "the place",
+      "eventDocsUrl": "the documents link",
+      "requesterId": "the requester"
+    }
+  }
+}

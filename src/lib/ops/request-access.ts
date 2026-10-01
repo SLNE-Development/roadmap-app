@@ -12,7 +12,7 @@ export interface EventFlags {
   isEventDeveloper: boolean;
 }
 
-/** How an actor relates to a request, strongest first: event manager, admin (`staff`), requester, event developer, linked-project member. */
+/** How an actor relates to a request, strongest first: event manager, admin who is not the requester (both `manager`), requester, event developer, linked-project member; `staff` is reserved for the event-day view. */
 export type RequestRole = "requester" | "manager" | "developer" | "project" | "staff";
 
 /** A request the actor may view, with their relation to it and whether they may edit it. */
@@ -87,11 +87,9 @@ export async function requestAccess(db: Executor, actor: Actor, requestId: strin
     throw new NotFoundError(`Unknown request ${requestId}.`);
   }
 
-  const role: RequestRole = flags.isEventManager
+  const role: RequestRole = flags.isEventManager || (flags.isAdmin && !requester)
     ? "manager"
-    : flags.isAdmin
-      ? "staff"
-      : requester
+    : requester
         ? "requester"
         : flags.isEventDeveloper
           ? "developer"

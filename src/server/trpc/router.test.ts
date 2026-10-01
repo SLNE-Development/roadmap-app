@@ -276,4 +276,20 @@ describe("appRouter", () => {
     await api.writeNote({ project: slug, release: "v1", body: "Notes" });
     expect(await api.note({ project: slug, release: "v1" })).toMatchObject({ version: 1, body: "Notes" });
   });
+
+  describe("requests", () => {
+    it("hides a request from a stranger, refuses creation to a non-manager and reports a brief conflict", async () => {
+      const db = await createTestDb();
+      const manager = await insertUser(db, { isEventManager: true });
+      const stranger = await insertUser(db);
+      const created = await caller(db, manager).requests.create({ title: "Party", brief: "Hello" });
+      await expect(caller(db, stranger).requests.get({ id: created.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(caller(db, stranger).requests.create({ title: "Party", brief: "" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const api = caller(db, manager).requests;
+      await api.saveBrief({ id: created.id, body: "One", baseVersion: 1 });
+      await expect(api.saveBrief({ id: created.id, body: "Two", baseVersion: 1 })).rejects.toMatchObject({ code: "CONFLICT" });
+      expect((await api.get({ id: created.id })).brief).toBe("One");
+      expect(await api.list({})).toMatchObject([{ id: created.id, briefVersion: 2 }]);
+    });
+  });
 });
