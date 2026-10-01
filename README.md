@@ -93,9 +93,15 @@ you belong to.
   403 role, 404 unknown or invisible, 409 planning gate or ADR immutability.
   Unknown query parameters are rejected with 400. MCP writes default to the agent
   name "Claude Code"; REST writes carry no agent unless the body sets `agent`.
+  Tasks are added in batches: `POST /projects/{p}/systems/{s}/tasks` takes
+  `{ "tasks": [{ "title": "Write tests", "clientRef": "step-1" }] }` (1 to 50 tasks);
+  a retry with the same `clientRef`s returns the existing tasks with `created: false`.
 
 **Tools added in v2:**
 
+- `add_tasks` (`POST /projects/:project/systems/:system/tasks`, replaces `add_task`): Add up to 50 tasks to a system in one call. Pass a clientRef per task so a retried call returns the same tasks instead of adding them twice.
+- `update_tasks` (`PATCH /tasks`): Change up to 50 tasks in one call, same fields as update_task. All changes apply or none do.
+- `answer_questions` (`POST /projects/:project/questions/answers`): Answer up to 50 questions in one call; each resolves unless resolved is false. All apply or none do.
 - `my_work` (`GET /my-work`): What is waiting on you across your projects: blocked and in-progress tasks, planning items, questions and proposed ADRs.
 - `move_task` (`POST /tasks/:id/move`): Move a task to another system; it keeps its state, owner and checklist.
 - `set_task_checks` (`PUT /tasks/:id/checks`): Replace a task's checklist; items matched by title keep their state.

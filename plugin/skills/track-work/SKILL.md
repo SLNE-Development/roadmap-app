@@ -21,8 +21,12 @@ description: Keep the roadmap current while working so the team sees what is hap
 
 ## Finish
 
-`update_task` (numeric `id`) `done` for each finished task. When all are done, `move_system` to a
+`update_task` (numeric `id`) `done` for a finished task, or one `update_tasks` call with every
+finished task's `id` and `state: "done"`. When all are done, `move_system` to a
 review column (or done if there is no review), and post a closing update.
+
+New work found on the way: one `add_tasks` call on the system, each task with a `clientRef`
+(a short stable slug), so a retried call adds nothing twice.
 
 ## Blocked
 

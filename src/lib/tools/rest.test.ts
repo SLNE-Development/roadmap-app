@@ -136,10 +136,13 @@ describe("REST", () => {
     const db = await createTestDb();
     const { owner, slug } = await createProjectFixture(db);
     await send(db, owner, "POST", `/projects/${slug}/systems`, { slug: "s", title: "S" });
-    const task = await send(db, owner, "POST", `/projects/${slug}/systems/s/tasks`, { title: "First" });
-    expect(task.status).toBe(200);
-    const renamed = await send(db, owner, "PATCH", `/tasks/${task.json.id}`, { title: "Renamed" });
+    const added = await send(db, owner, "POST", `/projects/${slug}/systems/s/tasks`, { tasks: [{ title: "First", clientRef: "step-1" }] });
+    expect(added.status).toBe(200);
+    const [task] = added.json.tasks;
+    const renamed = await send(db, owner, "PATCH", `/tasks/${task.id}`, { title: "Renamed" });
     expect(renamed.status).toBe(200);
+    const batch = await send(db, owner, "PATCH", "/tasks", { updates: [{ id: task.id, notes: "n" }] });
+    expect(batch.status).toBe(200);
     const system = await send(db, owner, "GET", `/projects/${slug}/systems/s`);
     expect(system.json.tasks.map((t: { title: string }) => t.title)).toEqual(["Renamed"]);
     expect((await send(db, owner, "PATCH", "/tasks/abc", { title: "x" })).json.error).toContain("expected number");

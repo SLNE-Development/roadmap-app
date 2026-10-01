@@ -9,7 +9,7 @@ description: Use when receiving code review feedback, before implementing sugges
 
 ## Roadmap integration
 
-- The method below applies unchanged. Accepted review findings that change behaviour are tasks: `add_task` on the system.
+- The method below applies unchanged. Accepted review findings that change behaviour are tasks: one `add_tasks` call on the system, each with a `clientRef` (a short stable slug of the finding).
 
 
 ## Overview

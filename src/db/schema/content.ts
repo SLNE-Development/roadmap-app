@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { board, boardColumn, customField, domain, phase, project } from "./projects";
 import { tsvector } from "./tsvector";
@@ -99,9 +99,13 @@ export const task = pgTable(
     estimate: text("estimate", { enum: TASK_ESTIMATES }),
     planStep: integer("plan_step"),
     sortOrder: integer("sort_order").notNull(),
+    /** The caller's key for the task, so a retried batch add returns it instead of adding it again. */
+    clientRef: text("client_ref"),
   },
   (t) => [
     unique("task_system_plan_step").on(t.systemId, t.planStep),
+    // NULLs are distinct, so tasks without a ref never collide.
+    uniqueIndex("task_client_ref").on(t.systemId, t.clientRef),
     index("task_system_id_idx").on(t.systemId, t.sortOrder),
     index("task_owner_user_id_idx").on(t.ownerUserId),
   ],

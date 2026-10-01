@@ -13,6 +13,7 @@ import {
   updateAdr,
   updateAdrInput,
 } from "@/lib/ops/adrs";
+import { addTasks, addTasksInput, answerQuestions, answerQuestionsInput, updateTasks, updateTasksInput } from "@/lib/ops/batch";
 import {
   createBoard,
   createBoardInput,
@@ -80,7 +81,7 @@ import { setTaskChecks, setTaskChecksInput } from "@/lib/ops/checks";
 import { setDependencies, setDependenciesInput } from "@/lib/ops/dependencies";
 import { setSystemFields } from "@/lib/ops/fields";
 import { setSystemArchived } from "@/lib/ops/archive";
-import { addTask, addTaskInput, moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
+import { moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
 
@@ -567,13 +568,13 @@ register(
   }),
 
   defineTool({
-    name: "add_task",
-    description: "Add a task to a system, optionally with an estimate (S, M, L).",
-    input: { ...S, ...addTaskInput.shape },
+    name: "add_tasks",
+    description: "Add up to 50 tasks to a system in one call. Pass a clientRef per task so a retried call returns the same tasks instead of adding them twice.",
+    input: { ...S, ...addTasksInput.shape },
     write: true,
     method: "POST",
     path: "/projects/:project/systems/:system/tasks",
-    run: (db, actor, { project, system, ...input }) => addTask(db, actor, project, system, input),
+    run: (db, actor, { project, system, ...input }) => addTasks(db, actor, project, system, input),
   }),
   defineTool({
     name: "update_task",
@@ -584,6 +585,15 @@ register(
     method: "PATCH",
     path: "/tasks/:id",
     run: (db, actor, { id, ...patch }) => updateTask(db, actor, id, patch),
+  }),
+  defineTool({
+    name: "update_tasks",
+    description: "Change up to 50 tasks in one call, same fields as update_task. All changes apply or none do.",
+    input: updateTasksInput.shape,
+    write: true,
+    method: "PATCH",
+    path: "/tasks",
+    run: (db, actor, input) => updateTasks(db, actor, input),
   }),
   defineTool({
     name: "move_task",
@@ -705,6 +715,15 @@ register(
     method: "POST",
     path: "/projects/:project/questions/:id/answer",
     run: (db, actor, { project, ...input }) => answerQuestion(db, actor, project, input),
+  }),
+  defineTool({
+    name: "answer_questions",
+    description: "Answer up to 50 questions in one call; each resolves unless resolved is false. All apply or none do.",
+    input: { ...P, ...answerQuestionsInput.shape },
+    write: true,
+    method: "POST",
+    path: "/projects/:project/questions/answers",
+    run: (db, actor, { project, ...input }) => answerQuestions(db, actor, project, input),
   }),
   defineTool({
     name: "set_question_priority",

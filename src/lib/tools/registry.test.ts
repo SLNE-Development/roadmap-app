@@ -20,10 +20,10 @@ const SPEC_TOOLS = [
   "get_document", "write_spec", "write_plan",
   "get_glossary", "set_glossary_term",
   "list_pages", "get_page", "write_page", "search",
-  "add_task", "update_task", "set_task_checks", "move_task",
+  "add_tasks", "update_task", "update_tasks", "set_task_checks", "move_task",
   "post_update", "list_updates",
   "list_adrs", "get_adr", "create_adr", "update_adr", "accept_adr", "supersede_adr",
-  "list_questions", "add_question", "answer_question", "set_question_priority",
+  "list_questions", "add_question", "answer_question", "answer_questions", "set_question_priority",
   "list_activity",
 ];
 

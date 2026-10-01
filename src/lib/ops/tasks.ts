@@ -6,7 +6,7 @@ import { projectAccess, projectAccessById, slugSchema } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
-import { assertSystemActive, findSystem, systemColumns, userName } from "./lookup";
+import { assertSystemActive, findSystem, systemColumns, userName, type SystemRow } from "./lookup";
 import { isMember } from "./members";
 import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
@@ -66,6 +66,9 @@ export async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
   return { task: current, system: parent };
 }
 
+/** A task row as stored. */
+export type TaskRow = typeof task.$inferSelect;
+
 /** Adds a task at the end of a system's list; priority defaults to the system's. Editor or higher. */
 export async function addTask(
   db: Db,
@@ -79,14 +82,34 @@ export async function addTask(
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     // Lock the system row so concurrent adds get distinct sort orders.
     const parent = await findSystem(tx, project.id, systemSlug, true);
-    const [{ last }] = await tx.select({ last: max(task.sortOrder) }).from(task).where(eq(task.systemId, parent.id));
-    const [row] = await tx
-      .insert(task)
-      .values({ systemId: parent.id, title: input.title, priority: input.priority ?? parent.priority, estimate: input.estimate ?? null, sortOrder: (last ?? -1) + 1 })
-      .returning({ id: task.id });
-    await logChange(tx, actor, { projectId: project.id, systemId: parent.id, entity: "task", entityId: row.id, field: "created", newValue: input.title });
-    return row;
+    return addTaskInTx(tx, actor, parent, input);
   });
+}
+
+/**
+ * {@link addTask} inside the caller's transaction, for a system the caller has
+ * checked access to and locked; optionally stores the caller's `clientRef`.
+ */
+export async function addTaskInTx(
+  tx: Executor,
+  actor: Actor,
+  parent: SystemRow,
+  input: z.output<typeof addTaskInput> & { clientRef?: string },
+): Promise<{ id: number }> {
+  const [{ last }] = await tx.select({ last: max(task.sortOrder) }).from(task).where(eq(task.systemId, parent.id));
+  const [row] = await tx
+    .insert(task)
+    .values({
+      systemId: parent.id,
+      title: input.title,
+      priority: input.priority ?? parent.priority,
+      estimate: input.estimate ?? null,
+      sortOrder: (last ?? -1) + 1,
+      clientRef: input.clientRef ?? null,
+    })
+    .returning({ id: task.id });
+  await logChange(tx, actor, { projectId: parent.projectId, systemId: parent.id, entity: "task", entityId: row.id, field: "created", newValue: input.title });
+  return row;
 }
 
 /**
@@ -101,45 +124,51 @@ export async function addTask(
 export async function updateTask(db: Db, actor: Actor, taskId: number, raw: z.input<typeof updateTaskInput>): Promise<void> {
   const patch = updateTaskInput.parse(raw);
   await db.transaction(async (tx) => {
-    const { task: current, system: parent } = await taskAccess(tx, actor, taskId);
-    if ((patch.state === "doing" || patch.state === "done") && !parent.planningCompletedAt) {
-      const gaps = await planningGaps(tx, parent.id);
-      const head = `Task ${taskId} cannot be ${patch.state} while system ${parent.slug} is still in planning.`;
-      throw new ConflictError(gaps.length ? `${head} Missing: ${gaps.join(" ")}` : `${head} Call complete_planning first.`);
-    }
-    if (patch.ownerUserId && !(await isMember(tx, parent.projectId, patch.ownerUserId))) {
-      throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);
-    }
-    const nextState = patch.state ?? current.state;
-    if (patch.blockedReason !== undefined && nextState !== "blocked") throw new InvalidError(`Task ${taskId} is not blocked.`);
-    if (patch.state === "blocked" && !(patch.blockedReason ?? current.blockedReason)) {
-      throw new InvalidError(`Say what task ${taskId} is waiting for: pass blockedReason.`);
-    }
-    // Leaving the blocked state drops the reason.
-    const blockedReason = patch.state !== undefined && patch.state !== "blocked" ? null : patch.blockedReason;
-    if (patch.state === "doing" && (await isMember(tx, parent.projectId, actor.userId))) {
-      if (patch.ownerUserId === undefined && current.ownerUserId === null) patch.ownerUserId = actor.userId;
-      await claimSystem(tx, actor, parent);
-    }
-    const changes: Partial<typeof task.$inferSelect> = {};
-    for (const field of ["title", "state", "priority", "ownerUserId", "notes", "blockedReason", "estimate"] as const) {
-      const next = field === "blockedReason" ? blockedReason : patch[field];
-      if (next === undefined || next === current[field]) continue;
-      Object.assign(changes, { [field]: next });
-      const owner = field === "ownerUserId";
-      const note = field === "notes";
-      await logChange(tx, actor, {
-        projectId: parent.projectId,
-        systemId: parent.id,
-        entity: "task",
-        entityId: taskId,
-        field: owner ? "owner" : field,
-        oldValue: owner ? await userName(tx, current.ownerUserId) : note ? logNote(current.notes) : current[field],
-        newValue: owner ? await userName(tx, next as string | null) : note ? logNote(next as string) : (next as string | null),
-      });
-    }
-    if (Object.keys(changes).length > 0) await tx.update(task).set(changes).where(eq(task.id, taskId));
+    await updateTaskInTx(tx, actor, taskId, patch);
   });
+}
+
+/** {@link updateTask} inside the caller's transaction; returns the task as changed. */
+export async function updateTaskInTx(tx: Executor, actor: Actor, taskId: number, patch: z.output<typeof updateTaskInput>): Promise<TaskRow> {
+  const { task: current, system: parent } = await taskAccess(tx, actor, taskId);
+  if ((patch.state === "doing" || patch.state === "done") && !parent.planningCompletedAt) {
+    const gaps = await planningGaps(tx, parent.id);
+    const head = `Task ${taskId} cannot be ${patch.state} while system ${parent.slug} is still in planning.`;
+    throw new ConflictError(gaps.length ? `${head} Missing: ${gaps.join(" ")}` : `${head} Call complete_planning first.`);
+  }
+  if (patch.ownerUserId && !(await isMember(tx, parent.projectId, patch.ownerUserId))) {
+    throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);
+  }
+  const nextState = patch.state ?? current.state;
+  if (patch.blockedReason !== undefined && nextState !== "blocked") throw new InvalidError(`Task ${taskId} is not blocked.`);
+  if (patch.state === "blocked" && !(patch.blockedReason ?? current.blockedReason)) {
+    throw new InvalidError(`Say what task ${taskId} is waiting for: pass blockedReason.`);
+  }
+  // Leaving the blocked state drops the reason.
+  const blockedReason = patch.state !== undefined && patch.state !== "blocked" ? null : patch.blockedReason;
+  if (patch.state === "doing" && (await isMember(tx, parent.projectId, actor.userId))) {
+    if (patch.ownerUserId === undefined && current.ownerUserId === null) patch.ownerUserId = actor.userId;
+    await claimSystem(tx, actor, parent);
+  }
+  const changes: Partial<typeof task.$inferSelect> = {};
+  for (const field of ["title", "state", "priority", "ownerUserId", "notes", "blockedReason", "estimate"] as const) {
+    const next = field === "blockedReason" ? blockedReason : patch[field];
+    if (next === undefined || next === current[field]) continue;
+    Object.assign(changes, { [field]: next });
+    const owner = field === "ownerUserId";
+    const note = field === "notes";
+    await logChange(tx, actor, {
+      projectId: parent.projectId,
+      systemId: parent.id,
+      entity: "task",
+      entityId: taskId,
+      field: owner ? "owner" : field,
+      oldValue: owner ? await userName(tx, current.ownerUserId) : note ? logNote(current.notes) : current[field],
+      newValue: owner ? await userName(tx, next as string | null) : note ? logNote(next as string) : (next as string | null),
+    });
+  }
+  if (Object.keys(changes).length > 0) await tx.update(task).set(changes).where(eq(task.id, taskId));
+  return { ...current, ...changes };
 }
 
 /** Deletes a task and logs its title. Editor or higher. */
@@ -191,7 +220,7 @@ export async function reorderTasks(
 
 /**
  * Moves a task to the end of another system of the same project, keeping its
- * state, owner, notes, estimate and checks; its plan step is cleared. Editor or higher.
+ * state, owner, notes, estimate and checks; its plan step and client ref are cleared. Editor or higher.
  *
  * @throws NotFoundError if the target system is not in the task's project
  * @throws InvalidError if the target is the task's own system
@@ -231,7 +260,7 @@ export async function moveTask(db: Db, actor: Actor, taskId: number, raw: z.inpu
       throw new ConflictError(planningGateMessage(destination.slug, await planningGaps(tx, destination.id)));
     }
     const [{ last }] = await tx.select({ last: max(task.sortOrder) }).from(task).where(eq(task.systemId, destination.id));
-    await tx.update(task).set({ systemId: destination.id, planStep: null, sortOrder: (last ?? -1) + 1 }).where(eq(task.id, taskId));
+    await tx.update(task).set({ systemId: destination.id, planStep: null, clientRef: null, sortOrder: (last ?? -1) + 1 }).where(eq(task.id, taskId));
     for (const systemId of [source.id, destination.id]) {
       await logChange(tx, actor, { projectId: source.projectId, systemId, entity: "task", entityId: taskId, field: "moved", oldValue: source.slug, newValue: destination.slug });
     }

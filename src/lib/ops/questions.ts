@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { QUESTION_PRIORITIES, question, system, user, type QuestionPriority } from "@/db/schema";
@@ -96,24 +96,29 @@ export async function answerQuestion(db: Db, actor: Actor, projectSlug: string, 
   const input = answerQuestionInput.parse(raw);
   await db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
-    const current = await findQuestion(tx, project.id, input.id, true);
-    const now = new Date();
-    await tx
-      .update(question)
-      .set({
-        answer: input.answer,
-        resolved: input.resolved,
-        resolvedAt: input.resolved ? (current.resolvedAt ?? now) : null,
-        answeredByUserId: actor.userId,
-        answeredAgent: actor.agent ?? null,
-        answeredAt: now,
-      })
-      .where(eq(question.id, current.id));
-    await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "answer", oldValue: current.answer, newValue: input.answer });
-    if (current.resolved !== input.resolved) {
-      await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "resolved", oldValue: String(current.resolved), newValue: String(input.resolved) });
-    }
+    await answerQuestionInTx(tx, actor, project, input);
   });
+}
+
+/** {@link answerQuestion} inside the caller's transaction, for a project the caller has checked editor access to. */
+export async function answerQuestionInTx(tx: Executor, actor: Actor, project: { id: string }, input: z.output<typeof answerQuestionInput>): Promise<void> {
+  const current = await findQuestion(tx, project.id, input.id, true);
+  const now = new Date();
+  await tx
+    .update(question)
+    .set({
+      answer: input.answer,
+      resolved: input.resolved,
+      resolvedAt: input.resolved ? (current.resolvedAt ?? now) : null,
+      answeredByUserId: actor.userId,
+      answeredAgent: actor.agent ?? null,
+      answeredAt: now,
+    })
+    .where(eq(question.id, current.id));
+  await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "answer", oldValue: current.answer, newValue: input.answer });
+  if (current.resolved !== input.resolved) {
+    await logChange(tx, actor, { projectId: project.id, systemId: current.systemId, entity: "question", entityId: current.id, field: "resolved", oldValue: String(current.resolved), newValue: String(input.resolved) });
+  }
 }
 
 /** Marks a question resolved or unresolved. Editor or higher. */
@@ -152,8 +157,9 @@ export async function listQuestions(
 }
 
 /** {@link listQuestions} for a project and system the caller already resolved; performs no access check. */
-export async function questionsOf(db: Executor, projectId: string, filter: { systemId?: string; resolved?: boolean }): Promise<QuestionItem[]> {
+export async function questionsOf(db: Executor, projectId: string, filter: { systemId?: string; resolved?: boolean; ids?: string[] }): Promise<QuestionItem[]> {
   const conditions: SQL[] = [eq(question.projectId, projectId)];
+  if (filter.ids) conditions.push(inArray(question.id, filter.ids));
   if (filter.systemId) conditions.push(eq(question.systemId, filter.systemId));
   if (filter.resolved !== undefined) conditions.push(eq(question.resolved, filter.resolved));
   const rows = await db

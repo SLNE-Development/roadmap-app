@@ -14,4 +14,5 @@ argument-hint: "[the question]"
    `post_update`.
 4. When answered, find its `id` with `list_questions` (`system` filter, `resolved:
    false`), then `answer_question` with `id` and `answer` (resolves it), and continue.
+   Several answered at once: one `answer_questions` call with every `{ id, answer }`.
    If the answer is a decision that needs a human, also run `surf-roadmap:new-adr`.
