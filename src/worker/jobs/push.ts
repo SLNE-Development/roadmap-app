@@ -49,6 +49,13 @@ function encodePayload(payload: PushPayload): string | null {
 
 /** Error codes of a connection that failed or broke off, besides undici's `UND_ERR_*`. */
 const NETWORK_CODES = new Set(["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "EHOSTUNREACH", "ENETUNREACH", "EPIPE"]);
+/** TLS error codes besides `CERT_*` and `ERR_TLS_*`: the push service's certificate could not be trusted. */
+const TLS_CODES = new Set(["UNABLE_TO_VERIFY_LEAF_SIGNATURE", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN"]);
+
+/** Returns whether `code` names a failed TLS handshake, which counts as a network error. */
+function isTlsCode(code: string): boolean {
+  return code.startsWith("CERT_") || code.startsWith("ERR_TLS_") || TLS_CODES.has(code);
+}
 
 /** How a send ended. */
 type Outcome =
@@ -66,7 +73,7 @@ function outcomeOf(error: unknown): Outcome {
   const code = "code" in error && typeof error.code === "string" ? error.code : "";
   // web-push ends a request that runs past its timeout with this message and no code.
   const timedOut = error instanceof Error && error.message === "Socket timeout";
-  if (timedOut || NETWORK_CODES.has(code) || code.startsWith("UND_ERR_")) return { kind: "network" };
+  if (timedOut || NETWORK_CODES.has(code) || code.startsWith("UND_ERR_") || isTlsCode(code)) return { kind: "network" };
   return { kind: "local", error };
 }
 

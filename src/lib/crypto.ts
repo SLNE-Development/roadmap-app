@@ -14,6 +14,15 @@ function key(): Buffer {
 }
 
 /**
+ * Checks `ENCRYPTION_KEY` once at start, so a malformed key stops the process before it serves anything.
+ *
+ * @throws Error naming the variable when it is missing or not 32 bytes after base64 decoding
+ */
+export function checkEncryptionKey(): void {
+  key();
+}
+
+/**
  * Encrypts a secret such as a webhook URL with AES-256-GCM and a random 12-byte iv.
  *
  * @returns `v1.<iv>.<tag>.<ciphertext>`, each part base64url

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { asc, eq, gt, max } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { changeLog, discordOutbox, projectWebhook } from "@/db/schema";
+import { changeLog, discordOutbox, project, projectWebhook } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { DiscordEvent } from "@/lib/discord-events";
 import { createBoard } from "@/lib/ops/boards";
@@ -150,6 +150,31 @@ describe("discord delivery", () => {
     await runJob(QUEUE.deliver, "discord.flush", { webhookId }, deps);
     expect(fetch).toHaveBeenCalledTimes(1);
     warn.mockRestore();
+  });
+
+  it("drops the webhook's pending rows when it disables it, so turning it back on replays nothing", async () => {
+    const { db, owner, slug, webhookId } = await setup();
+    const { deps } = await queued(db, owner, slug);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await runJob(QUEUE.deliver, "discord.flush", { webhookId }, deps);
+
+    expect((await outbox(db)).map((r) => r.sentAt)).toEqual([NOW]);
+    warn.mockRestore();
+  });
+
+  it("posts nothing for an archived project", async () => {
+    const { db, owner, slug, projectId, webhookId } = await setup();
+    const { deps } = await queued(db, owner, slug);
+    await db.update(project).set({ archivedAt: NOW }).where(eq(project.id, projectId));
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+
+    await runJob(QUEUE.deliver, "discord.flush", { webhookId }, deps);
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect((await outbox(db)).map((r) => r.sentAt)).toEqual([null]);
   });
 
   it("disables the webhook on 401", async () => {

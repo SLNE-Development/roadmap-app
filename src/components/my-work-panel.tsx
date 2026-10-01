@@ -21,6 +21,7 @@ const KINDS: Record<string, { icon: typeof Bell; className: string }> = {
   change: { icon: History, className: "bg-secondary text-fg-2" },
 };
 const GENERIC = { icon: Bell, className: "bg-secondary text-fg-2" };
+const MENTION_PREFIX = "mention-";
 
 /** The line under a row's title: who did it (for changes), the detail and the age. */
 function detailLine(item: MyWorkItem, now: Date): string {
@@ -30,7 +31,7 @@ function detailLine(item: MyWorkItem, now: Date): string {
 }
 
 /** Rows in the look of the attention list: a soft-coloured icon square, the title, and a detail line with the age. */
-function Rows({ items }: { items: MyWorkItem[] }) {
+function Rows({ items, onOpen }: { items: MyWorkItem[]; onOpen?: (item: MyWorkItem) => void }) {
   const now = useNow();
   return (
     <ul className="flex flex-col">
@@ -41,6 +42,7 @@ function Rows({ items }: { items: MyWorkItem[] }) {
           <li key={item.key}>
             <Link
               href={item.href}
+              onClick={() => onOpen?.(item)}
               data-nav-item
               className="flex items-start gap-3.5 border-t px-4 py-3.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none sm:px-5"
             >
@@ -69,6 +71,11 @@ export function MyWorkPanel() {
   const trpc = useTRPC();
   const { data } = useSuspenseQuery(trpc.account.myWork.queryOptions());
   const markSeen = useMutation(trpc.account.markMyWorkSeen.mutationOptions());
+  const markRead = useMutation(trpc.notifications.markRead.mutationOptions());
+  // A mention row is an unread notification, keyed `mention-<notification id>`; opening it marks it read.
+  const openItem = (item: MyWorkItem) => {
+    if (item.kind === "mention") markRead.mutate({ ids: [item.key.slice(MENTION_PREFIX.length)] });
+  };
   const waiting = data.items.filter((i) => i.section === "waiting");
   const changes = data.items.filter((i) => i.section === "changes");
   if (waiting.length === 0 && changes.length === 0) return null;
@@ -76,7 +83,7 @@ export function MyWorkPanel() {
     <>
       {waiting.length > 0 && (
         <Panel title="Waiting on you" meta={String(waiting.length)}>
-          <Rows items={waiting} />
+          <Rows items={waiting} onOpen={openItem} />
         </Panel>
       )}
       {changes.length > 0 && (

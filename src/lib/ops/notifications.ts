@@ -9,6 +9,8 @@ import type { Actor } from "./actor";
 import { isMember } from "./members";
 export { NOTIFICATION_KINDS, type NotificationKind } from "@/lib/notification-kinds";
 import { readNotifyRules, wantsInbox, wantsPush } from "./notify-rules";
+/** The rules of a user who set none, next to `notify` for code that adds notification kinds. */
+export { DEFAULT_NOTIFY_RULES } from "./notify-rules";
 
 /** Input of {@link notify}. */
 export interface NotifyInput {
@@ -55,10 +57,10 @@ export const listNotificationsInput = z.object({
   unread: z.boolean().optional(),
 });
 
-/** Returns `text` as plain text (mention tokens as `@Name`) of at most `max` characters, ending with `…` when cut. */
+/** Returns `text` as plain text (mention tokens as `@Name`) of at most `max` code points, ending with `…` when cut; emoji are never split. */
 function clip(text: string, max: number): string {
-  const plain = mentionsToPlain(text);
-  return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
+  const chars = Array.from(mentionsToPlain(text));
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : chars.join("");
 }
 
 /** Returns how a notice names who caused it: the person, or `<agent> for <name>` for agent writes. */
@@ -81,13 +83,15 @@ export async function canReceive(tx: Executor, userId: string, projectId: string
 
 /**
  * Creates a notice for one user, following their rules for the inbox and push.
- * Returns whether a row was created: nothing is created for a user who cannot receive it
- * or for a source key they already got.
+ * Returns whether a row was created: nothing is created for a user who cannot receive it,
+ * who wants the kind neither in the inbox nor pushed, or for a source key they already got.
  */
 export async function notify(tx: Executor, input: NotifyInput): Promise<boolean> {
   if (!(await canReceive(tx, input.userId, input.projectId))) return false;
   const rules = await readNotifyRules(tx, input.userId);
   const inInbox = wantsInbox(rules, input.kind);
+  const push = wantsPush(rules, input.kind);
+  if (!inInbox && !push) return false;
   const rows = await tx
     .insert(notification)
     .values({
@@ -105,7 +109,7 @@ export async function notify(tx: Executor, input: NotifyInput): Promise<boolean>
       inInbox,
       // A row kept only for push never counts as unread.
       readAt: inInbox ? null : new Date(),
-      pushStatus: wantsPush(rules, input.kind) ? "pending" : "skipped",
+      pushStatus: push ? "pending" : "skipped",
     })
     .onConflictDoNothing({ target: [notification.userId, notification.sourceKey] })
     .returning({ id: notification.id });

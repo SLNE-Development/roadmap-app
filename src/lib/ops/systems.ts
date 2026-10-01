@@ -39,6 +39,9 @@ import { openAreaReopens, planningGaps } from "./planning";
 import { systemRollups } from "./rollups";
 import type { DomainRow, PhaseRow } from "./structure";
 
+/** Longest system notes. */
+const NOTES_MAX = 20000;
+
 /** Input of {@link createSystem}. */
 export const createSystemInput = z.object({
   slug: slugSchema,
@@ -68,7 +71,7 @@ export const updateSystemInput = z.object({
   summary: z.string().trim().max(2000).optional(),
   priority: z.enum(PRIORITIES).optional(),
   ownerUserId: nullableEntityId.optional(),
-  notes: z.string().max(20000).optional(),
+  notes: z.string().max(NOTES_MAX).optional(),
   domainId: nullableEntityId.optional(),
   phaseId: nullableEntityId.optional(),
 });
@@ -434,7 +437,7 @@ export async function applySystemPatch(
   raw: z.output<typeof updateSystemInput>,
 ): Promise<SystemRow> {
   const current = parent;
-  const patch = raw.notes === undefined ? raw : { ...raw, notes: await resolveMentionsIn(tx, project.id, raw.notes) };
+  const patch = raw.notes === undefined ? raw : { ...raw, notes: await resolveMentionsIn(tx, project.id, raw.notes, NOTES_MAX) };
   if (patch.ownerUserId && !(await isMember(tx, project.id, patch.ownerUserId))) {
     throw new InvalidError(`User ${patch.ownerUserId} is not a member of this project.`);
   }

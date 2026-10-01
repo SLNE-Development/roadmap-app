@@ -11,10 +11,14 @@ import { findSystem, systemAccess } from "./lookup";
 import { notifyMentions, resolveMentionsIn } from "./mentions";
 import { actorLabel } from "./notifications";
 
+/** Longest update summary and next step. */
+const SUMMARY_MAX = 5000;
+const NEXT_STEP_MAX = 2000;
+
 /** Input of {@link postUpdate}. */
 export const postUpdateInput = z.object({
-  summary: z.string().trim().min(1).max(5000),
-  nextStep: z.string().trim().max(2000).optional(),
+  summary: z.string().trim().min(1).max(SUMMARY_MAX),
+  nextStep: z.string().trim().max(NEXT_STEP_MAX).optional(),
   taskId: z.number().int().optional(),
   commit: z
     .string()
@@ -68,8 +72,8 @@ export async function postUpdate(
       if (rows.length === 0) throw new InvalidError(`Task ${input.taskId} does not belong to system ${systemSlug}.`);
     }
     const id = newId();
-    const summary = await resolveMentionsIn(tx, project.id, input.summary);
-    const nextStep = input.nextStep ? await resolveMentionsIn(tx, project.id, input.nextStep) : null;
+    const summary = await resolveMentionsIn(tx, project.id, input.summary, SUMMARY_MAX);
+    const nextStep = input.nextStep ? await resolveMentionsIn(tx, project.id, input.nextStep, NEXT_STEP_MAX) : null;
     await tx.insert(progressUpdate).values({
       id,
       systemId: parent.id,

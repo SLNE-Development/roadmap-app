@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { closeDb } from "@/db/client";
+import { checkEncryptionKey } from "@/lib/crypto";
 import { requireEnv, WORKER_REQUIRED_ENV } from "@/lib/env";
 import { closeValkey, getValkey } from "@/lib/valkey";
 import "./consumers";
@@ -11,6 +12,7 @@ import { registeredJobs, startWorkers } from "./jobs";
 /** Entry point of the worker process. */
 async function main(): Promise<void> {
   requireEnv(WORKER_REQUIRED_ENV);
+  checkEncryptionKey();
   const deps = productionDeps();
   const stop = await startWorkers(deps, getValkey());
   const stopFeed = startFeed(deps);

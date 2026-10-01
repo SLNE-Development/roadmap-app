@@ -12,10 +12,13 @@ import { findSystem } from "./lookup";
 import { notifyMentions, resolveMentionsIn } from "./mentions";
 import { actorLabel } from "./notifications";
 
+/** Longest question text or answer. */
+const TEXT_MAX = 5000;
+
 /** Input of {@link addQuestion}. */
 export const addQuestionInput = z.object({
   title: z.string().trim().min(1).max(200),
-  text: z.string().trim().max(5000).default(""),
+  text: z.string().trim().max(TEXT_MAX).default(""),
   system: slugSchema.optional(),
   priority: z.enum(QUESTION_PRIORITIES).default("normal"),
 });
@@ -23,7 +26,7 @@ export const addQuestionInput = z.object({
 /** Input of {@link answerQuestion}. */
 export const answerQuestionInput = z.object({
   id: z.string().min(1),
-  answer: z.string().trim().min(1).max(5000),
+  answer: z.string().trim().min(1).max(TEXT_MAX),
   resolved: z.boolean().default(true),
 });
 
@@ -75,7 +78,7 @@ export async function addQuestion(db: Db, actor: Actor, projectSlug: string, raw
     // Locking takes the write path, which refuses an archived system.
     const parent = input.system ? await findSystem(tx, project.id, input.system, true) : null;
     const id = newId();
-    const text = await resolveMentionsIn(tx, project.id, input.text);
+    const text = await resolveMentionsIn(tx, project.id, input.text, TEXT_MAX);
     await tx.insert(question).values({
       id,
       projectId: project.id,
@@ -119,7 +122,7 @@ export async function answerQuestionInTx(
   input: z.output<typeof answerQuestionInput>,
 ): Promise<void> {
   const current = await findQuestion(tx, project.id, input.id, true);
-  const answer = await resolveMentionsIn(tx, project.id, input.answer);
+  const answer = await resolveMentionsIn(tx, project.id, input.answer, TEXT_MAX);
   const now = new Date();
   await tx
     .update(question)

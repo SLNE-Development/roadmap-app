@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { ACTIVE_TTL_SECONDS, activeKey, NOTIFY_RULES_PREF, notifyRulesSchema } from "@/lib/notify-rules-schema";
+import { ACTIVE_TTL_SECONDS, activeKey, NOTIFY_RULES_PREF, storedNotifyRulesSchema, type NotifyRules } from "@/lib/notify-rules-schema";
 import { listMentionMembers } from "@/lib/ops/mentions";
 import { listNotifications, listNotificationsInput, markAllRead, markRead, unreadCount } from "@/lib/ops/notifications";
 import { readNotifyRules } from "@/lib/ops/notify-rules";
@@ -37,9 +37,18 @@ export const notificationsRouter = router({
   /** The signed-in user's notification rules, merged over the defaults. */
   rules: protectedProcedure.query(({ ctx }) => readNotifyRules(ctx.db, ctx.actor.userId)),
 
-  /** Saves the full rules object as the user's preference. */
-  setRules: protectedProcedure.input(notifyRulesSchema).mutation(async ({ ctx, input }) => {
-    await setPref(ctx.db, ctx.actor, NOTIFY_RULES_PREF, input);
+  /**
+   * Saves the rules merged over the user's current ones, so a client that knows fewer kinds (or some no longer
+   * used) keeps the rest; invalid quiet hours or time zones are still refused.
+   */
+  setRules: protectedProcedure.input(storedNotifyRulesSchema).mutation(async ({ ctx, input }) => {
+    const current = await readNotifyRules(ctx.db, ctx.actor.userId);
+    const rules: NotifyRules = {
+      kinds: { ...current.kinds, ...input.kinds },
+      quiet: { ...current.quiet, ...input.quiet },
+      skipPushWhileActive: input.skipPushWhileActive ?? current.skipPushWhileActive,
+    };
+    await setPref(ctx.db, ctx.actor, NOTIFY_RULES_PREF, rules);
   }),
 
   /** Marks the user as active for a while, so pushes are held back; a down key-value store is ignored. */

@@ -199,6 +199,20 @@ describe("appRouter", () => {
       expect(await api.notifications.rules()).toEqual(rules);
     });
 
+    it("merges rules from a client that knows other kinds over the saved ones", async () => {
+      const db = await createTestDb();
+      const user1 = await insertUser(db);
+      const api = caller(db, user1);
+      await api.notifications.setRules({ ...DEFAULT_NOTIFY_RULES, kinds: { ...DEFAULT_NOTIFY_RULES.kinds, "adr.proposed": { inbox: false, push: false } } });
+      const known = Object.fromEntries(Object.entries(DEFAULT_NOTIFY_RULES.kinds).filter(([kind]) => kind !== "adr.proposed"));
+      const stale = { kinds: { ...known,mention: { inbox: true, push: false }, "gone.kind": { inbox: true, push: true } }, quiet: DEFAULT_NOTIFY_RULES.quiet };
+      await api.notifications.setRules(stale as Parameters<typeof api.notifications.setRules>[0]);
+      expect(await api.notifications.rules()).toEqual({
+        ...DEFAULT_NOTIFY_RULES,
+        kinds: { ...DEFAULT_NOTIFY_RULES.kinds, mention: { inbox: true, push: false }, "adr.proposed": { inbox: false, push: false } },
+      });
+    });
+
     it("marks the user active on a heartbeat", async () => {
       const db = await createTestDb();
       const user1 = await insertUser(db);

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
-import { changeLog, task } from "@/db/schema";
+import { changeLog, notification, task } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture } from "@/test/fixtures";
 import { addTasks, answerQuestions, updateTasks } from "./batch";
@@ -161,6 +161,23 @@ describe("batch tools", () => {
       [q2.id, "B", true],
       [q1.id, "A", true],
     ]);
+  });
+
+  it("notifies members mentioned in batch task notes and answers", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const jules = await addMemberFixture(db, owner, slug, "editor", "Jules");
+    const s = await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await completePlanningFixture(db, s.id);
+    const [t] = (await addTasks(db, owner, slug, "s", { tasks: [{ title: "T" }] })).tasks;
+    const q = await addQuestion(db, owner, slug, { title: "One?" });
+
+    await updateTasks(db, owner, { updates: [{ id: t.id, notes: "@Jules can you check?" }] });
+    await answerQuestions(db, owner, slug, { answers: [{ id: q.id, answer: "Ask @Jules" }] });
+
+    const rows = await db.select({ userId: notification.userId, kind: notification.kind, sourceKey: notification.sourceKey }).from(notification);
+    expect(rows.map((r) => r.sourceKey).sort()).toEqual([`question:${q.id}:answer:mention:${jules.userId}`, `task:${t.id}:notes:mention:${jules.userId}`].sort());
+    expect(rows.every((r) => r.userId === jules.userId && r.kind === "mention")).toBe(true);
   });
 
   it("rejects more than 50 items", async () => {

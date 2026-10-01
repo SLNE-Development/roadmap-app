@@ -162,6 +162,16 @@ describe("push.send", () => {
     expect((await subscriptionOf(subscriptionId)).failures).toBe(1);
   });
 
+  it("counts a TLS error as a network failure and throws", async () => {
+    const subscriptionId = await subscribe();
+    const notificationId = await mention();
+    sendNotification.mockRejectedValue(Object.assign(new Error("certificate has expired"), { code: "CERT_HAS_EXPIRED" }));
+
+    await expect(sendPush(testDeps(db), { notificationId, subscriptionId })).rejects.toThrow("network error");
+
+    expect((await subscriptionOf(subscriptionId)).failures).toBe(1);
+  });
+
   it("throws without counting a failure when web-push refuses before sending", async () => {
     const subscriptionId = await subscribe();
     const notificationId = await mention();

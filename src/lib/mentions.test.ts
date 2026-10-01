@@ -63,6 +63,12 @@ describe("resolveMentionNames", () => {
     expect(resolveMentionNames("```\n@Jules\n```", members)).toBe("```\n@Jules\n```");
   });
 
+  it("ignores tilde fences and an unclosed fence to the end of the text", () => {
+    expect(resolveMentionNames("~~~\n@Jules\n~~~ @Jules", members)).toBe(`~~~\n@Jules\n~~~ ${formatMention("Jules", A)}`);
+    expect(resolveMentionNames("@Jules\n```\n@Jules", members)).toBe(`${formatMention("Jules", A)}\n\`\`\`\n@Jules`);
+    expect(resolveMentionNames("@Jules\n~~~\n@Jules", members)).toBe(`${formatMention("Jules", A)}\n~~~\n@Jules`);
+  });
+
   it("leaves unknown names alone", () => {
     expect(resolveMentionNames("@Nobody hi", members)).toBe("@Nobody hi");
   });

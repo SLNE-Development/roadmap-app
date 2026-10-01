@@ -35,6 +35,18 @@ the keys: new keys invalidate every saved device. Each person then turns push on
 **Notification settings → Devices**. Push needs HTTPS (or `localhost`); on iPhone and iPad
 it works only from the app added to the home screen.
 
+## Notifications
+
+The bell in the sidebar and the **Notifications** inbox list what concerns you: questions on
+your systems and answers to yours, planning rounds, assignments, blocked or finished work,
+proposed ADRs, updates, and mentions. Type `@Name` in notes, questions, answers, updates or
+planning answers to mention a project member; an agent's plain `@Name` resolves too when exactly
+one member has that name. Each person chooses per kind what reaches the inbox and what is pushed,
+and sets quiet hours, under account menu → **Notification settings**. Project owners post a
+project's changes to Discord channels with webhooks under project **Settings → Notifications**,
+optionally with a weekly digest. Push to browsers and phones needs the VAPID keys above (see
+[Push notifications](#push-notifications)).
+
 ## Accounts
 
 Only provisioned Discord accounts can sign in. The **first** account that signs in
@@ -66,8 +78,8 @@ Set `APP_PORT`, `POSTGRES_PORT` and `VALKEY_PORT` to override default ports 3000
 `.github/workflows/image.yml` publishes `ghcr.io/slne-development/roadmap-app`
 (`latest`, `sha-<commit>`) after CI passes on `main`.
 
-You set `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and
-`DISCORD_CLIENT_SECRET`. Coolify generates the database password
+You set `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID`,
+`DISCORD_CLIENT_SECRET` and `ENCRYPTION_KEY` (`openssl rand -base64 32`). Coolify generates the database password
 (`SERVICE_PASSWORD_POSTGRES`). `BETTER_AUTH_URL` must be the exact public origin with
 `https://`: Better Auth rejects sign-ins from any other origin with "Invalid origin".
 
@@ -75,7 +87,8 @@ You set `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `DISCORD_CLIENT_ID` and
    before the first pull.
 2. In Coolify, create a Docker Compose resource from `docker-compose.coolify.yml`.
 3. Set `BETTER_AUTH_URL` (e.g. `https://roadmap.example.com`), `BETTER_AUTH_SECRET`,
-   `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
+   `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` and `ENCRYPTION_KEY` (`openssl rand -base64 32`).
+   Required since v2 Part 6; keep it — a new key breaks saved Discord webhooks.
 4. Assign the same domain to the `app` service on port 3000, with `https://`.
 5. Add `https://<domain>/api/auth/callback/discord` as a redirect in the Discord application.
 6. Deploy, then sign in with Discord right away: the first account to sign in becomes admin.
@@ -123,7 +136,7 @@ Code session id and token totals, never code or prompts.
 - `add_tasks` (`POST /projects/:project/systems/:system/tasks`, replaces `add_task`): Add up to 50 tasks to a system in one call. Pass a clientRef per task so a retried call returns the same tasks instead of adding them twice.
 - `update_tasks` (`PATCH /tasks`): Change up to 50 tasks in one call, same fields as update_task. All changes apply or none do.
 - `answer_questions` (`POST /projects/:project/questions/answers`): Answer up to 50 questions in one call; each resolves unless resolved is false. All apply or none do.
-- `my_work` (`GET /my-work`): What is waiting on you across your projects: blocked and in-progress tasks, planning items, questions and proposed ADRs.
+- `my_work` (`GET /my-work`): What is waiting on you across your projects: blocked and in-progress tasks, planning items, questions, proposed ADRs and unread mentions.
 - `move_task` (`POST /tasks/:id/move`): Move a task to another system; it keeps its state, owner and checklist.
 - `set_task_checks` (`PUT /tasks/:id/checks`): Replace a task's checklist; items matched by title keep their state.
 - `set_dependencies` (`PUT /projects/:project/systems/:system/dependencies`): Set which systems this system depends on.

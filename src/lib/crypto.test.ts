@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { decryptSecret, encryptSecret } from "./crypto";
+import { checkEncryptionKey, decryptSecret, encryptSecret } from "./crypto";
 
 describe("encryptSecret / decryptSecret", () => {
   beforeEach(() => {
@@ -39,5 +39,11 @@ describe("encryptSecret / decryptSecret", () => {
     expect(() => encryptSecret("x")).toThrow("ENCRYPTION_KEY");
     vi.stubEnv("ENCRYPTION_KEY", randomBytes(16).toString("base64"));
     expect(() => encryptSecret("x")).toThrow("ENCRYPTION_KEY");
+  });
+
+  it("checks the key at start, naming the variable when it is malformed", () => {
+    expect(() => checkEncryptionKey()).not.toThrow();
+    vi.stubEnv("ENCRYPTION_KEY", "not-a-key");
+    expect(() => checkEncryptionKey()).toThrow("ENCRYPTION_KEY");
   });
 });

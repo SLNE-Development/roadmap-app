@@ -1,12 +1,18 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { adr, adrSystem, boardColumn, project, question, system, task, user, type NotificationKind } from "@/db/schema";
+import { adr, adrSystem, boardColumn, changeLog, notification, project, question, system, task, user, type NotificationKind } from "@/db/schema";
 import { formatAdrNumber } from "@/lib/adr-number";
 import { actorLabel, inMovedColumn, notify } from "@/lib/ops/notifications";
 import type { WorkerDeps } from "../deps";
 import { registerFeedConsumer, type ChangeEvent } from "../feed";
 
-/** Kinds that also reach the author when their own agent made the change, because the agent needs them. */
+/**
+ * Kinds that also reach the author when their own agent made the change, because the agent needs them.
+ *
+ * One notice per action: when the same write also mentioned a recipient (a `mention` row for the event's entity,
+ * created in the same transaction, so with the same `now()` as the change-log entry), the mention is kept and
+ * this consumer leaves that recipient out.
+ */
 export const SELF_AGENT_KINDS: NotificationKind[] = ["question.asked", "planning.round", "task.blocked", "system.blocked"];
 
 const MAX_INT = 2147483647;
@@ -47,7 +53,8 @@ const RULES: Record<string, Rule> = {
   },
   "question/created": (event, ctx, base) => {
     const q = ctx.questions.get(event.entityId);
-    const sys = event.systemId ? ctx.systems.get(event.systemId) : undefined;
+    // The question's system now, in case it moved since it was asked.
+    const sys = q?.systemId ? ctx.systems.get(q.systemId) : undefined;
     if (!q || !sys) return null;
     const title = `${q.priority === "blocking" ? "Blocking question" : "New question"} on ${sys.title}`;
     return { kind: "question.asked", recipients: [sys.ownerUserId], title, body: q.title, href: `${base}/questions#q-${event.entityId}` };
@@ -153,6 +160,7 @@ async function loadContext(events: ChangeEvent[], deps: WorkerDeps): Promise<Con
     if (e.entity === "system") systemIds.add(e.entityId);
   }
   for (const row of taskRows) systemIds.add(row.systemId);
+  for (const row of questionRows) if (row.systemId) systemIds.add(row.systemId);
   for (const a of adrs.values()) for (const id of a.systemIds) systemIds.add(id);
   const projectIds = [...new Set(events.map((e) => e.projectId))];
   const authorIds = [...new Set(events.map((e) => e.authorUserId).filter((id): id is string => id !== null))];
@@ -189,19 +197,47 @@ async function loadContext(events: ChangeEvent[], deps: WorkerDeps): Promise<Con
 }
 
 /**
+ * Returns `<change id>:<user id>` for every recipient the same write already mentioned: a `mention` row for the
+ * event's entity created at the change-log entry's time, compared in SQL to keep the microseconds.
+ */
+async function mentionedBy(deps: WorkerDeps, changeIds: number[], userIds: string[]): Promise<Set<string>> {
+  if (changeIds.length === 0 || userIds.length === 0) return new Set();
+  const rows = await deps.db
+    .select({ changeId: changeLog.id, userId: notification.userId })
+    .from(notification)
+    .innerJoin(
+      changeLog,
+      and(eq(changeLog.entity, notification.entity), eq(changeLog.entityId, notification.entityId), eq(changeLog.createdAt, notification.createdAt)),
+    )
+    .where(and(inArray(changeLog.id, changeIds), inArray(notification.userId, userIds), eq(notification.kind, "mention")));
+  return new Set(rows.map((r) => `${r.changeId}:${r.userId}`));
+}
+
+/**
  * Turns change-log entries into notifications for system and task owners, askers and the
  * owners of systems an ADR concerns. Idempotent: each recipient gets one notice per entry.
+ * A recipient the same write mentioned keeps only the mention.
  */
 export async function handleNotificationEvents(events: ChangeEvent[], deps: WorkerDeps): Promise<void> {
   const relevant = events.filter((e) => RULES[`${e.entity}/${e.field}`]);
   if (relevant.length === 0) return;
   const ctx = await loadContext(relevant, deps);
+  const planned: { event: ChangeEvent; draft: Draft; recipients: string[] }[] = [];
   for (const event of relevant) {
     const slug = ctx.slugs.get(event.projectId);
     const draft = slug ? RULES[`${event.entity}/${event.field}`](event, ctx, `/p/${slug}`) : null;
     if (!draft) continue;
     const selfToo = event.agent !== null && SELF_AGENT_KINDS.includes(draft.kind);
     const recipients = [...new Set(draft.recipients)].filter((id): id is string => id !== null && (selfToo || id !== event.authorUserId));
+    if (recipients.length > 0) planned.push({ event, draft, recipients });
+  }
+  const mentioned = await mentionedBy(
+    deps,
+    planned.map((p) => p.event.id),
+    [...new Set(planned.flatMap((p) => p.recipients))],
+  );
+  for (const { event, draft, recipients: all } of planned) {
+    const recipients = all.filter((id) => !mentioned.has(`${event.id}:${id}`));
     if (recipients.length === 0) continue;
     const actorName = actorLabel(ctx.names.get(event.authorUserId ?? ""), event.agent);
     await deps.db.transaction(async (tx) => {

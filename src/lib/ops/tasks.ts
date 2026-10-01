@@ -14,6 +14,9 @@ import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
 import { claimSystem, planningGateMessage } from "./systems";
 
+/** Longest task notes. */
+const NOTES_MAX = 5000;
+
 /** Input of {@link addTask}. */
 export const addTaskInput = z.object({
   title: z.string().trim().min(1).max(200), priority: z.enum(PRIORITIES).optional(),
@@ -26,7 +29,7 @@ export const updateTaskInput = z.object({
   state: z.enum(TASK_STATES).optional(),
   priority: z.enum(PRIORITIES).optional(),
   ownerUserId: nullableEntityId.optional(),
-  notes: z.string().max(5000).optional(),
+  notes: z.string().max(NOTES_MAX).optional(),
   blockedReason: z.string().trim().min(1).max(300).optional(),
   estimate: z.enum(TASK_ESTIMATES).nullable().optional(),
 });
@@ -153,7 +156,7 @@ export async function updateTaskInTx(tx: Executor, actor: Actor, taskId: number,
     if (patch.ownerUserId === undefined && current.ownerUserId === null) patch.ownerUserId = actor.userId;
     await claimSystem(tx, actor, parent);
   }
-  if (patch.notes !== undefined) patch.notes = await resolveMentionsIn(tx, parent.projectId, patch.notes);
+  if (patch.notes !== undefined) patch.notes = await resolveMentionsIn(tx, parent.projectId, patch.notes, NOTES_MAX);
   const changes: Partial<typeof task.$inferSelect> = {};
   for (const field of ["title", "state", "priority", "ownerUserId", "notes", "blockedReason", "estimate"] as const) {
     const next = field === "blockedReason" ? blockedReason : patch[field];

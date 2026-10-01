@@ -1,7 +1,7 @@
-import { asc, gt, max } from "drizzle-orm";
+import { asc, eq, gt, max } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import { changeLog, notification } from "@/db/schema";
+import { changeLog, notification, question, system } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { memoryBus } from "@/lib/bus";
 import { memoryKv } from "@/lib/kv";
@@ -169,6 +169,35 @@ describe("notifications consumer", () => {
     const { db, owner, editor, slug } = await setup();
     const { rows } = await handled(db, () => postUpdate(db, editor, slug, "core", { summary: "Schema done" }));
     expect(rows).toMatchObject([{ userId: owner.userId, kind: "update.posted", title: "Update on Core", href: `/p/${slug}/systems/core` }]);
+  });
+
+  it("leaves only the mention when a new question mentions the system owner", async () => {
+    const { db, owner, editor, slug } = await setup();
+    const { rows } = await handled(db, () => addQuestion(db, editor, slug, { title: "Which DB?", system: "core", text: "@Owner what do you think?" }));
+    expect(rows.map((r) => [r.userId, r.kind])).toEqual([[owner.userId, "mention"]]);
+  });
+
+  it("leaves only the mention when an answer mentions the asker", async () => {
+    const { db, owner, editor, slug } = await setup();
+    const { id } = await addQuestion(db, editor, slug, { title: "Which DB?" });
+    const { rows } = await handled(db, () => answerQuestion(db, owner, slug, { id, answer: "@Eddie Postgres" }));
+    expect(rows.map((r) => [r.userId, r.kind])).toEqual([[editor.userId, "mention"]]);
+  });
+
+  it("leaves only the mention when an update mentions the system owner", async () => {
+    const { db, owner, editor, slug } = await setup();
+    const { rows } = await handled(db, () => postUpdate(db, editor, slug, "core", { summary: "Schema done, @Owner please review" }));
+    expect(rows.map((r) => [r.userId, r.kind])).toEqual([[owner.userId, "mention"]]);
+  });
+
+  it("tells the system owner about a question that moved to their system since", async () => {
+    const { db, owner, editor, slug } = await setup();
+    await createSystem(db, owner, slug, { slug: "api", title: "API" });
+    await updateSystem(db, owner, slug, "api", { ownerUserId: editor.userId });
+    const events = await changes(db, () => addQuestion(db, owner, slug, { title: "Which DB?", system: "core" }));
+    await db.update(question).set({ systemId: (await db.select({ id: system.id }).from(system).where(eq(system.slug, "api")))[0].id });
+    await handleNotificationEvents(events, deps(db));
+    expect((await notices(db)).map((r) => [r.userId, r.kind, r.title])).toEqual([[editor.userId, "question.asked", "New question on API"]]);
   });
 
   it("creates nothing when the owner answers their own question", async () => {

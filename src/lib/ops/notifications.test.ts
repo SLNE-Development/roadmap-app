@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { allowedAccount, notification, project, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
+import { DEFAULT_NOTIFY_RULES, NOTIFY_RULES_PREF } from "@/lib/notify-rules-schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { listNotifications, markAllRead, markRead, notify, unreadCount, type NotifyInput } from "./notifications";
+import { setPref } from "./prefs";
 
 let db: Db;
 let owner: Actor;
@@ -74,6 +76,19 @@ describe("notify", () => {
     expect(row.title).toHaveLength(80);
     expect(row.title.endsWith("…")).toBe(true);
     expect(row.body).toBe("hi @Rik");
+  });
+
+  it("never splits an emoji when it truncates", async () => {
+    await notify(db, input(editor.userId, "cl:1", { title: "😀".repeat(100) }));
+    const [row] = await db.select().from(notification);
+    expect(row.title).toBe(`${"😀".repeat(79)}…`);
+  });
+
+  it("creates nothing when the user wants the kind neither in the inbox nor pushed", async () => {
+    const rules = { ...DEFAULT_NOTIFY_RULES, kinds: { ...DEFAULT_NOTIFY_RULES.kinds, mention: { inbox: false, push: false } } };
+    await setPref(db, editor, NOTIFY_RULES_PREF, rules);
+    expect(await notify(db, input(editor.userId, "cl:1"))).toBe(false);
+    expect(await db.select().from(notification)).toHaveLength(0);
   });
 });
 

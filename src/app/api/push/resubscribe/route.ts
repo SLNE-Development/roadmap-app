@@ -29,11 +29,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-/** Whether the request is JSON sent by a page or worker of this site, so another site cannot post it with the user's cookie. */
+/**
+ * Whether the request is JSON sent by a page or worker of this site, so another site cannot post it with the user's
+ * cookie. The browser's `Sec-Fetch-Site` decides when present (so a www/apex mismatch with the site URL does not
+ * matter); only without it is `Origin` compared to the site URL.
+ */
 function sameOriginJson(request: Request): boolean {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return false;
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite !== null && fetchSite !== "same-origin") return false;
+  if (fetchSite !== null) return fetchSite === "same-origin";
   const origin = request.headers.get("origin");
   return origin === null || origin === siteUrl().origin;
 }

@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, inArray, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { adr, adrSystem, board, boardColumn, changeLog, discordOutbox, project, projectWebhook, question, system } from "@/db/schema";
-import type { Executor } from "@/db/types";
+import type { Db, Executor } from "@/db/types";
 import { formatAdrNumber } from "@/lib/adr-number";
 import { decryptSecret } from "@/lib/crypto";
 import { buildDigest, buildDiscordBatches, plainMessage, type DigestData, type DiscordItem, type DiscordMessage } from "@/lib/discord-format";
@@ -66,9 +66,12 @@ async function send(webhookId: string, url: string, message: DiscordMessage): Pr
   return { kind: "rejected" };
 }
 
-/** Turns a webhook off because Discord no longer accepts it. */
-async function disable(tx: Executor, webhookId: string, status: number): Promise<void> {
-  await tx.update(projectWebhook).set({ enabled: false, disabledReason: DISABLED_REASON }).where(eq(projectWebhook.id, webhookId));
+/** Turns a webhook off because Discord no longer accepts it, and drops its pending rows so turning it back on replays no stale backlog. */
+async function disable(db: Db, webhookId: string, status: number, now: Date): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.update(projectWebhook).set({ enabled: false, disabledReason: DISABLED_REASON }).where(eq(projectWebhook.id, webhookId));
+    await tx.update(discordOutbox).set({ sentAt: now }).where(and(eq(discordOutbox.webhookId, webhookId), isNull(discordOutbox.sentAt)));
+  });
   console.warn(`Discord answered ${status} for webhook ${webhookId}; disabled it.`);
 }
 
@@ -84,7 +87,7 @@ async function withLock(deps: WorkerDeps, key: string, fn: () => Promise<void>):
 }
 
 /**
- * Posts the webhook's pending outbox rows, oldest first and at most 50. A Kv lock keeps flushes of one webhook from
+ * Posts the webhook's pending outbox rows, oldest first and at most 50; nothing while the project is archived. A Kv lock keeps flushes of one webhook from
  * overlapping, and no transaction stays open while Discord answers. A 429 schedules a retry after `retry_after`
  * (at most 10 in a row); 401 or 404 disables the webhook.
  *
@@ -99,8 +102,12 @@ export async function flushWebhook(deps: WorkerDeps, raw: unknown): Promise<void
   const queue = deps.queue("deliver");
   const ran = await withLock(deps, `discord-flush:${webhookId}`, async () => {
     const loaded = await deps.db.transaction(async (tx) => {
-      const [hook] = await tx.select({ enabled: projectWebhook.enabled, urlEnc: projectWebhook.urlEnc }).from(projectWebhook).where(eq(projectWebhook.id, webhookId));
-      if (!hook?.enabled) return null;
+      const [hook] = await tx
+        .select({ enabled: projectWebhook.enabled, urlEnc: projectWebhook.urlEnc, archivedAt: project.archivedAt })
+        .from(projectWebhook)
+        .innerJoin(project, eq(project.id, projectWebhook.projectId))
+        .where(eq(projectWebhook.id, webhookId));
+      if (!hook?.enabled || hook.archivedAt) return null;
       const pending = await tx
         .select({ id: discordOutbox.id, payload: discordOutbox.payload })
         .from(discordOutbox)
@@ -115,7 +122,7 @@ export async function flushWebhook(deps: WorkerDeps, raw: unknown): Promise<void
     const url = decryptSecret(loaded.urlEnc);
     for (const batch of buildDiscordBatches(rows.map((r) => r.payload as DiscordItem))) {
       const sent = await send(webhookId, url, batch.message);
-      if (sent.kind === "gone") return disable(deps.db, webhookId, sent.status);
+      if (sent.kind === "gone") return disable(deps.db, webhookId, sent.status, now);
       if (sent.kind === "failed") throw sent.error;
       if (sent.kind === "retry") {
         const n = retry + 1;
@@ -163,7 +170,7 @@ export async function sendTestMessage(deps: WorkerDeps, raw: unknown): Promise<v
   if (!hook) return;
   const text = `Test message from ${SITE_NAME} for ${hook.projectName}. Notifications will appear here.`;
   const sent = await send(webhookId, decryptSecret(hook.urlEnc), plainMessage(text, new URL(`/p/${hook.projectSlug}`, siteUrl()).href, hook.projectName));
-  if (sent.kind === "gone") await disable(deps.db, webhookId, sent.status);
+  if (sent.kind === "gone") await disable(deps.db, webhookId, sent.status, deps.now());
   else if (sent.kind === "retry") throw new Error(`Discord rate-limited the test message for webhook ${webhookId}`);
   else if (sent.kind === "failed") throw sent.error;
   else if (sent.kind === "sent") await deps.db.update(projectWebhook).set({ lastSentAt: deps.now() }).where(eq(projectWebhook.id, webhookId));
@@ -284,7 +291,7 @@ async function sendDigest(deps: WorkerDeps, webhookId: string, now: Date): Promi
     });
     if (!built) return;
     const sent = await send(webhookId, decryptSecret(built.urlEnc), built.message);
-    if (sent.kind === "gone") await disable(deps.db, webhookId, sent.status);
+    if (sent.kind === "gone") await disable(deps.db, webhookId, sent.status, now);
     else if (sent.kind === "retry") throw new Error(`Discord rate-limited the weekly digest for webhook ${webhookId}`);
     else if (sent.kind === "failed") throw sent.error;
     else if (sent.kind === "sent") {

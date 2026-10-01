@@ -7,7 +7,11 @@ import { project } from "./projects";
 export { NOTIFICATION_KINDS, type NotificationKind } from "@/lib/notification-kinds";
 export { DISCORD_EVENTS, type DiscordEvent } from "@/lib/discord-events";
 
-/** Where a notification's push delivery stands. */
+/**
+ * Where a notification's push delivery stands: `pending` waits for the dispatcher, `sent` means handed to the
+ * queue as one `push.send` job per device (not delivered; the jobs record each device's outcome on the
+ * subscription), `skipped` means no push will be sent. `failed` is not written today.
+ */
 export const PUSH_STATUSES = ["pending", "sent", "skipped", "failed"] as const;
 
 /**

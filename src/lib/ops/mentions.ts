@@ -28,10 +28,14 @@ export async function listMentionMembers(db: Executor, actor: Actor, slug: strin
   return memberNames(db, project.id);
 }
 
-/** Turns `@Name` in `text` into mention tokens for the project's current members. */
-export async function resolveMentionsIn(tx: Executor, projectId: string, text: string): Promise<string> {
+/**
+ * Turns `@Name` in `text` into mention tokens for the project's current members. Tokens are longer than the names
+ * they replace, so when the result would exceed `max` characters the text is kept as written.
+ */
+export async function resolveMentionsIn(tx: Executor, projectId: string, text: string, max: number): Promise<string> {
   if (!text.includes("@")) return text;
-  return resolveMentionNames(text, await memberNames(tx, projectId));
+  const resolved = resolveMentionNames(text, await memberNames(tx, projectId));
+  return resolved.length > max ? text : resolved;
 }
 
 /** Input of {@link notifyMentions}. */

@@ -34,13 +34,16 @@ export const planningItemInput = z.object({
 /** Input of {@link addPlanningRound}. */
 export const addRoundInput = z.object({ items: z.array(planningItemInput).min(1).max(20) });
 
+/** Longest planning answer. */
+const ANSWER_MAX = 5000;
+
 /** Input of {@link answerPlanningItems}; `accepted-risk` is allowed only for flagged risks. */
 export const answerItemsInput = z.object({
   answers: z
     .array(
       z.object({
         itemId: z.string().min(1),
-        answer: z.string().trim().min(1).max(5000),
+        answer: z.string().trim().min(1).max(ANSWER_MAX),
         status: z.enum(["answered", "accepted-risk"]).default("answered"),
       }),
     )
@@ -286,7 +289,7 @@ export async function answerPlanningItems(
       }
     }
     for (const a of input.answers) {
-      const answer = await resolveMentionsIn(tx, parent.projectId, a.answer);
+      const answer = await resolveMentionsIn(tx, parent.projectId, a.answer, ANSWER_MAX);
       await tx.update(planningItem).set({ answer, status: a.status }).where(eq(planningItem.id, a.itemId));
       await notifyMentions(tx, actor, {
         projectId: parent.projectId,

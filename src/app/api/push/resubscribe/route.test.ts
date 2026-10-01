@@ -31,17 +31,19 @@ afterEach(() => {
 
 const keys = { p256dh: "p256dh-key", auth: "auth-key" };
 
-function post(body: unknown, headers: Record<string, string> = {}): Promise<Response> {
+/** Posts `body`; a header set to null is left out. */
+function post(body: unknown, headers: Record<string, string | null> = {}): Promise<Response> {
+  const all = {
+    "content-type": "application/json",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/140.0 Safari/537.36",
+    "sec-fetch-site": "same-origin",
+    origin: "http://localhost:3000",
+    ...headers,
+  };
   return POST(
     new Request("http://test/api/push/resubscribe", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/140.0 Safari/537.36",
-        "sec-fetch-site": "same-origin",
-        origin: "http://localhost:3000",
-        ...headers,
-      },
+      headers: Object.fromEntries(Object.entries(all).filter((e): e is [string, string] => e[1] !== null)),
       body: JSON.stringify(body),
     }),
   );
@@ -87,9 +89,15 @@ describe("POST /api/push/resubscribe", () => {
     const body = { oldEndpoint: null, subscription: { endpoint: "https://push.example.com/new", keys }, label: null };
     expect((await post(body, { "sec-fetch-site": "cross-site", origin: "https://evil.example" })).status).toBe(403);
     expect((await post(body, { "sec-fetch-site": "same-site" })).status).toBe(403);
-    expect((await post(body, { origin: "https://evil.example" })).status).toBe(403);
+    expect((await post(body, { "sec-fetch-site": null, origin: "https://evil.example" })).status).toBe(403);
     expect((await post(body, { "content-type": "text/plain" })).status).toBe(403);
     expect(await endpoints()).toEqual([]);
+  });
+
+  it("trusts Sec-Fetch-Site: same-origin over an Origin that differs from the configured site URL", async () => {
+    const body = { oldEndpoint: null, subscription: { endpoint: "https://push.example.com/new", keys }, label: null };
+    expect((await post(body, { origin: "https://www.roadmap.example" })).status).toBe(200);
+    expect((await post(body, { "sec-fetch-site": null })).status).toBe(200);
   });
 
   it("answers 400 for a malformed body", async () => {

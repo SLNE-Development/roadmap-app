@@ -30,6 +30,7 @@ interface Recipient {
   subscriptionIds: string[];
 }
 
+/** Settles rows: `sent` means their `push.send` jobs are queued, not that a device got them. */
 async function setStatus(tx: Executor, ids: string[], pushStatus: "sent" | "skipped"): Promise<void> {
   if (ids.length > 0) await tx.update(notification).set({ pushStatus }).where(inArray(notification.id, ids));
 }
