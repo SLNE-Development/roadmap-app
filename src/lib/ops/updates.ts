@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { progressUpdate, project, system, task, user } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
@@ -29,7 +29,16 @@ export const postUpdateInput = z.object({
 });
 
 /** Filters of {@link listUpdates}. */
-export const listUpdatesInput = z.object({ system: z.string().optional(), limit: z.number().int().min(1).max(500).default(50) });
+export const listUpdatesInput = z.object({
+  system: z.string().optional(),
+  limit: z.number().int().min(1).max(500).default(50),
+  /** A user id: only that person's updates, agent updates made on their behalf included. */
+  person: z.string().optional(),
+  /** `only` keeps updates posted by agents, `exclude` drops them. */
+  agents: z.enum(["only", "exclude"]).optional(),
+  /** Id cursor: only updates after this one in the newest-first order, for "Load older". */
+  before: z.string().min(1).optional(),
+});
 
 /** A progress update as shown in feeds and on systems, with its author split into person and agent. */
 export interface UpdateItem extends AuthorFields {
@@ -107,12 +116,26 @@ export async function listUpdates(
   const filter = listUpdatesInput.parse(raw);
   const { project } = await projectAccess(db, actor, projectSlug, "viewer");
   const systemId = filter.system ? (await findSystem(db, project.id, filter.system)).id : null;
-  return updatesOf(db, systemId, project.id, filter.limit);
+  return updatesOf(db, systemId, project.id, filter.limit, filter);
 }
 
 /** {@link listUpdates} for a project and system the caller already resolved; performs no access check. */
-export async function updatesOf(db: Executor, systemId: string | null, projectId: string, limit: number): Promise<UpdateItem[]> {
-  const where = systemId ? eq(progressUpdate.systemId, systemId) : eq(system.projectId, projectId);
+export async function updatesOf(
+  db: Executor,
+  systemId: string | null,
+  projectId: string,
+  limit: number,
+  filter: Pick<z.infer<typeof listUpdatesInput>, "person" | "agents" | "before"> = {},
+): Promise<UpdateItem[]> {
+  const conditions: SQL[] = [systemId ? eq(progressUpdate.systemId, systemId) : eq(system.projectId, projectId)];
+  if (filter.person) conditions.push(eq(progressUpdate.authorUserId, filter.person));
+  if (filter.agents) conditions.push(filter.agents === "only" ? isNotNull(progressUpdate.agent) : isNull(progressUpdate.agent));
+  // Keyset on (created_at, id), read from the cursor row so microsecond timestamps compare exactly.
+  if (filter.before) {
+    conditions.push(
+      sql`(${progressUpdate.createdAt}, ${progressUpdate.id}) < (select p.created_at, p.id from progress_update p where p.id = ${filter.before})`,
+    );
+  }
   const rows = await db
     .select({
       id: progressUpdate.id,
@@ -133,7 +156,7 @@ export async function updatesOf(db: Executor, systemId: string | null, projectId
     .innerJoin(project, eq(project.id, system.projectId))
     .leftJoin(task, eq(task.id, progressUpdate.taskId))
     .leftJoin(user, eq(user.id, progressUpdate.authorUserId))
-    .where(where)
+    .where(and(...conditions))
     .orderBy(desc(progressUpdate.createdAt), desc(progressUpdate.id))
     .limit(limit);
   return rows.map(({ authorName, agent, repoUrl, ...r }) => ({

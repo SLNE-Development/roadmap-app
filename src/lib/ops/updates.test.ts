@@ -62,3 +62,33 @@ describe("mentions in updates", () => {
     expect(rows.map((r) => [r.kind, r.href, r.sourceKey])).toEqual([["mention", "/p/demo/systems/s", `update:${id}:mention:${jules.userId}`]]);
   });
 });
+
+describe("update cursor", () => {
+  it("pages newest first without gaps or repeats", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    for (const n of [1, 2, 3, 4, 5]) await postUpdate(db, owner, slug, "s", { summary: `U${n}` });
+    const first = await listUpdates(db, owner, slug, { limit: 2 });
+    const second = await listUpdates(db, owner, slug, { limit: 2, before: first.at(-1)!.id });
+    const third = await listUpdates(db, owner, slug, { limit: 2, before: second.at(-1)!.id });
+    expect([...first, ...second, ...third].map((u) => u.summary)).toEqual(["U5", "U4", "U3", "U2", "U1"]);
+    expect(await listUpdates(db, owner, slug, { limit: 2, before: third.at(-1)!.id })).toEqual([]);
+  });
+});
+
+describe("update filters", () => {
+  it("filters by person and by agent", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const editor = await addMemberFixture(db, owner, slug, "editor", "Edie");
+    await createSystem(db, owner, slug, { slug: "s", title: "S" });
+    await postUpdate(db, owner, slug, "s", { summary: "By owner" });
+    await postUpdate(db, editor, slug, "s", { summary: "By editor" });
+    await postUpdate(db, withAgent(owner, "Claude Code"), slug, "s", { summary: "By agent" });
+    const summaries = async (f: Parameters<typeof listUpdates>[3]) => (await listUpdates(db, owner, slug, f)).map((u) => u.summary).sort();
+    expect(await summaries({ person: editor.userId })).toEqual(["By editor"]);
+    expect(await summaries({ agents: "only" })).toEqual(["By agent"]);
+    expect(await summaries({ agents: "exclude" })).toEqual(["By editor", "By owner"]);
+  });
+});

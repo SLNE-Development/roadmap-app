@@ -1,13 +1,24 @@
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { changeLog, user } from "@/db/schema";
 import type { Executor } from "@/db/types";
+import { ACTIVITY_GROUP_KEYS, groupEntities } from "@/lib/activity-groups";
 import { projectAccess } from "./access";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { findSystem } from "./lookup";
 
 /** Filters of {@link listActivity}. */
-export const activityFilter = z.object({ system: z.string().optional(), limit: z.number().int().min(1).max(500).default(100) });
+export const activityFilter = z.object({
+  system: z.string().optional(),
+  limit: z.number().int().min(1).max(500).default(100),
+  /** A user id: only that person's changes, agent changes made on their behalf included. */
+  person: z.string().optional(),
+  /** `only` keeps changes made by agents, `exclude` drops them. */
+  agents: z.enum(["only", "exclude"]).optional(),
+  groups: z.array(z.enum(ACTIVITY_GROUP_KEYS)).optional(),
+  /** Id cursor: only changes with a smaller id, for "Load older". */
+  before: z.number().int().positive().optional(),
+});
 
 /** A change log entry as shown in history lists, with its author split into person and agent. */
 export interface HistoryEntry extends AuthorFields {
@@ -56,5 +67,9 @@ export async function listActivity(
   const { project } = await projectAccess(db, actor, projectSlug, "viewer");
   const conditions = [eq(changeLog.projectId, project.id)];
   if (filter.system) conditions.push(eq(changeLog.systemId, (await findSystem(db, project.id, filter.system)).id));
+  if (filter.person) conditions.push(eq(changeLog.authorUserId, filter.person));
+  if (filter.agents) conditions.push(filter.agents === "only" ? isNotNull(changeLog.agent) : isNull(changeLog.agent));
+  if (filter.groups?.length) conditions.push(inArray(changeLog.entity, groupEntities(filter.groups)));
+  if (filter.before) conditions.push(lt(changeLog.id, filter.before));
   return selectHistory(db, conditions, filter.limit);
 }
