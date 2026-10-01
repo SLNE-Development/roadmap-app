@@ -55,12 +55,12 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
   const live = view.post;
   const open = live !== null && live.resolvedAt === null && ["sending", "partial", "posted"].includes(live.status) && !live.resolving;
   const resolving = live !== null && live.resolving;
-  const stalled = live !== null && (live.status === "partial" || live.status === "failed");
+  const stalled = live !== null && (live.status === "partial" || live.status === "failed" || live.stale);
   let reason: string | null = null;
   if (!view.canAct) reason = t("reasonRights");
   else if (!view.hookSet) reason = t("reasonWebhook");
   const busy = post.isPending || resolve.isPending || resume.isPending || remove.isPending;
-  const deletable = live !== null && live.sentCount > 0 && ["posted", "partial", "failed"].includes(live.status);
+  const deletable = live !== null && live.sentCount > 0 && (["posted", "partial", "failed"].includes(live.status) || live.stale);
   return (
     <section aria-labelledby={`${id}-title`} className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">

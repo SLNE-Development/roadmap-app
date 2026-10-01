@@ -184,7 +184,7 @@ describe("events.post", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("re-queues once with a 5 s delay while another job holds the lock, then stops after 10 tries", async () => {
+  it("re-queues once with a 5 s delay while another job holds the lock, and keeps waiting longer than the lock lives", async () => {
     const s = await started();
     const calls = stubFetch([]);
     await s.deps.kv.set(`event-post:${s.post.id}`, "1", 120);
@@ -194,7 +194,65 @@ describe("events.post", () => {
     const added = s.deps.queues.deliver.jobs.slice(before);
     expect(added).toHaveLength(1);
     expect(added[0]).toMatchObject({ data: { postId: s.post.id, attempt: 1, busy: 1 }, opts: { delayMs: 5000, jobId: `event-post-${s.post.id}-1-b1` } });
-    await expect(s.run({ postId: s.post.id, attempt: 1, busy: 10 })).rejects.toThrow(/lock/);
+    // The give-up window outlasts the 300 s lock: 60 re-queues of 5 s are still waiting, the cap comes after.
+    await s.run({ postId: s.post.id, attempt: 1, busy: 60 });
+    expect(s.deps.queues.deliver.jobs.at(-1)).toMatchObject({ data: { busy: 61 } });
+    await expect(s.run({ postId: s.post.id, attempt: 1, busy: 200 })).rejects.toThrow(/lock/);
+  });
+
+  it("leaves the post partial (resumable) when the job fails for a reason that is not a Discord answer", async () => {
+    const s = await started();
+    await s.db.update(eventSettings).set({ publicWebhookEnc: "garbage" });
+    const calls = stubFetch([]);
+    await expect(s.run()).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+    const row = await s.row();
+    expect(row.status).toBe("partial");
+    expect(row.lastError).toMatch(/^The job failed: /);
+    expect(await s.deps.kv.get(`event-post:${s.post.id}`)).toBeNull();
+  });
+
+  it("stops sending when a resume took the post over while Discord answered", async () => {
+    const s = await started();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(url);
+      // The click of a resume lands while this part is in flight.
+      await s.db.update(eventPost).set({ attempt: 2 }).where(eq(eventPost.id, s.post.id));
+      return ok(`m${calls.length}`);
+    });
+    await s.run();
+    expect(calls).toHaveLength(1);
+    const row = await s.row();
+    expect(row.attempt).toBe(2);
+    expect(row.parts.every((p) => p.messageId === null)).toBe(true);
+    expect(row.status).toBe("sending");
+  });
+
+  it("sends nothing and creates no Discord event when the request was cancelled after the click", async () => {
+    const s = await started();
+    await s.db.update(eventRequest).set({ status: "cancelled" }).where(eq(eventRequest.id, s.request.id));
+    const spy = vi.spyOn(events, "ensureDiscordEvent");
+    const calls = stubFetch([]);
+    await s.run();
+    expect(calls).toHaveLength(0);
+    expect(spy).not.toHaveBeenCalled();
+    const row = await s.row();
+    expect(row.status).toBe("failed");
+    expect(row.lastError).toBe("The request is cancelled; nothing was posted.");
+    spy.mockRestore();
+  });
+
+  it("sends a disaster only in the event week", async () => {
+    const w = await postWorld({ status: "event_week" });
+    const deps = testDeps(w.db);
+    await postDisaster(w.db, w.manager, w.request.id, deps.queue("deliver"));
+    await w.db.update(eventRequest).set({ status: "accepted" }).where(eq(eventRequest.id, w.request.id));
+    const calls = stubFetch([]);
+    const [row] = await w.db.select().from(eventPost).where(eq(eventPost.kind, "disaster"));
+    await runJob("deliver", "events.post", { postId: row.id, attempt: row.attempt }, deps);
+    expect(calls).toHaveLength(0);
+    expect((await w.db.select().from(eventPost).where(eq(eventPost.id, row.id)))[0]).toMatchObject({ status: "failed", lastError: "The request is accepted; nothing was posted." });
   });
 
   it("releases the lock when it is done", async () => {
@@ -401,6 +459,21 @@ describe("events.edit", () => {
     expect(calls).toHaveLength(0);
     stubFetch([]);
     await s.runLast("events.delete");
+    expect((await s.row()).status).toBe("deleted");
+  });
+
+  it("sends nothing when the request was cancelled after the edit click, but a delete still runs", async () => {
+    const s = await posted();
+    await s.edit({ text: s.text + " NEU" });
+    await s.db.update(eventRequest).set({ status: "cancelled" }).where(eq(eventRequest.id, s.request.id));
+    const calls = stubFetch([]);
+    await s.runLast("events.edit");
+    expect(calls).toHaveLength(0);
+    expect(await s.row()).toMatchObject({ status: "failed", lastError: "The request is cancelled; nothing was posted." });
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const del = stubFetch([]);
+    await s.runLast("events.delete");
+    expect(del.map((c) => c.method)).toEqual(["DELETE", "DELETE", "DELETE"]);
     expect((await s.row()).status).toBe("deleted");
   });
 

@@ -60,6 +60,8 @@ function PostCard({ requestId, kind, post, view, requestStatus, canEdit }: { req
   const status = post?.status ?? "draft";
   const editable = canEdit && (!LOCKED.includes(status) || editing);
   const hasSent = (post?.sentCount ?? 0) > 0;
+  // A `sending` post whose job is lost can be resumed or deleted like a partial one.
+  const stale = post?.stale === true;
   const dirty = text !== (post?.text ?? "") || pingRole !== (post?.pingRole ?? false);
   const due = view.dues[kind];
   const canPing = kind !== "team";
@@ -234,17 +236,17 @@ function PostCard({ requestId, kind, post, view, requestStatus, canEdit }: { req
                 {t("post")}
               </Button>
             )}
-            {(status === "partial" || (status === "failed" && hasSent)) && (
+            {(status === "partial" || stale || (status === "failed" && hasSent)) && (
               <Button type="button" disabled={busy || reason !== null} aria-describedby={reason ? reasonId : undefined} onClick={() => resume.mutate({ id: requestId, kind })}>
                 {t("resume")}
               </Button>
             )}
-            {(status === "posted" || status === "partial") && (
+            {(status === "posted" || (status === "partial" && hasSent)) && (
               <Button type="button" variant="outline" disabled={busy} onClick={() => setEditing(true)}>
                 {t("edit")}
               </Button>
             )}
-            {(status === "posted" || status === "partial" || status === "failed") && hasSent && (
+            {(status === "posted" || status === "partial" || status === "failed" || stale) && hasSent && (
               <Button type="button" variant="outline" disabled={busy} onClick={() => setDeleteOpen(true)}>
                 {t("delete")}
               </Button>
@@ -255,7 +257,7 @@ function PostCard({ requestId, kind, post, view, requestStatus, canEdit }: { req
               </Button>
             )}
           </div>
-          {reason && (status === "draft" || status === "failed" || status === "partial") && (
+          {reason && (status === "draft" || status === "failed" || status === "partial" || stale) && (
             <p id={reasonId} className="text-[12.5px] text-muted-foreground">
               {reason}
             </p>

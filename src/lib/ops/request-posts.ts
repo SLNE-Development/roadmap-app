@@ -15,7 +15,16 @@ import { eventDayAccess, requestAccess } from "./request-access";
 import { lockRequest, logRequest } from "./requests";
 
 /** The statuses of a request in which its messages may be posted. */
-const POSTING_STATUSES: readonly string[] = ["accepted", "event_week"];
+export const POSTING_STATUSES: readonly string[] = ["accepted", "event_week"];
+
+/** How long the Kv lock of one post lives at most; a part takes at most 10 s and a post has a handful. */
+export const LOCK_SECONDS = 300;
+/** A `sending` post untouched for this long (the lock plus a margin) has lost its job: Resume and Delete accept it. */
+export const STALE_SENDING_MS = (LOCK_SECONDS + 60) * 1000;
+
+/** Whether `post` is `sending` and has not been written for longer than a job can hold it. */
+export const isStaleSending = (post: Pick<EventPostRow, "status" | "updatedAt">, now: Date = new Date()): boolean =>
+  post.status === "sending" && now.getTime() - post.updatedAt.getTime() > STALE_SENDING_MS;
 
 const kindSchema = z.enum(POST_KINDS);
 
@@ -151,6 +160,9 @@ async function beginJob(tx: Tx, actor: Actor, post: EventPostRow, set: Partial<t
   return attempt;
 }
 
+/** The status a post goes back to when its job cannot be queued: a lost (stale) `sending` post is `partial` again. */
+const restoreStatus = (post: EventPostRow): PostStatus => (post.status === "sending" ? "partial" : post.status);
+
 /** The job a click queues, and where the post goes back to when the queue is down. */
 interface Queued {
   name: "events.post" | "events.edit" | "events.delete" | "events.resolve";
@@ -201,9 +213,10 @@ async function enqueue(db: Db, queue: JobQueue, job: Queued): Promise<void> {
  * @throws NotFoundError for a request the actor cannot see, ForbiddenError without edit access
  * @throws ConflictError when the post is sending, partial, posted or already has message ids, the webhook is not set, or
  * the request is not accepted or in its event week
- * @throws InvalidError without a saved post, without text (announcement, reminder), or when a message does not fit Discord
+ * @throws InvalidError for a disaster or resolved kind (postDisaster guards the event week), without a saved post, without text (announcement, reminder), or when a message does not fit Discord
  */
 export async function startPost(db: Db, actor: Actor, requestId: string, kind: PostKind, queue: JobQueue): Promise<void> {
+  if (kind === "disaster" || kind === "resolved") throw new InvalidError("A disaster message is posted with the disaster panel.");
   const job = await db.transaction(async (tx) => {
     await requestAccess(tx, actor, requestId, "edit");
     const request = await lockRequest(tx, requestId);
@@ -227,7 +240,7 @@ export async function startPost(db: Db, actor: Actor, requestId: string, kind: P
  * Continues a `partial` or `failed` post: messages that already have an id stay as they are; the unsent rest is planned
  * again from the current text. Queues the job with the next attempt.
  *
- * @throws ConflictError while a job is running (`sending`), for a draft or posted post, an unset webhook or a request that
+ * @throws ConflictError while a job is running (`sending` and written within the last six minutes; an older one lost its job and may be resumed), for a draft or posted post, an unset webhook or a request that
  * no longer posts
  */
 export async function resumePost(db: Db, actor: Actor, requestId: string, kind: PostKind, queue: JobQueue): Promise<void> {
@@ -236,19 +249,20 @@ export async function resumePost(db: Db, actor: Actor, requestId: string, kind: 
     const request = await lockRequest(tx, requestId);
     const post = await livePost(tx, requestId, kind);
     if (!post) throw new NotFoundError(`There is no ${kind} post.`);
-    if (post.status === "sending") throw new ConflictError("A job is already sending this post.");
-    if (post.status !== "partial" && post.status !== "failed") throw new ConflictError(`A ${post.status} post cannot be resumed.`);
+    const stale = isStaleSending(post);
+    if (post.status === "sending" && !stale) throw new ConflictError("A job is already sending this post.");
+    if (post.status !== "partial" && post.status !== "failed" && !stale) throw new ConflictError(`A ${post.status} post cannot be resumed.`);
     if (post.parts.some((p) => p.deleted)) throw new ConflictError("This post is half deleted. Delete it again to finish.");
     const settings = await loadPostSettings(tx);
     checkReady(request, kind, settings);
     // A disaster that is being resolved goes on with the resolve job, an edited post with the edit job: each rebuilds its own plan.
     if (kind === "disaster" && post.note !== null) {
       const attempt = await beginJob(tx, actor, post, { postedBy: actor.userId }, `${kind} resumed`);
-      return { ...sendJob(post.id, attempt), name: "events.resolve" as const, data: { postId: post.id, attempt }, jobId: `event-resolve-${post.id}-${attempt}`, restore: { status: post.status, error: "The resolve could not be queued. Try again." } };
+      return { ...sendJob(post.id, attempt), name: "events.resolve" as const, data: { postId: post.id, attempt }, jobId: `event-resolve-${post.id}-${attempt}`, restore: { status: restoreStatus(post), error: "The resolve could not be queued. Try again." } };
     }
     if (post.editVersion > 0) {
       const attempt = await beginJob(tx, actor, post, { postedBy: actor.userId }, `${kind} resumed`);
-      return editJob(post.id, attempt, post.editVersion, post.status);
+      return editJob(post.id, attempt, post.editVersion, restoreStatus(post));
     }
     const frozen = post.parts.filter((p) => p.messageId !== null);
     const planned = plan(post, request, settings);
@@ -257,7 +271,9 @@ export async function resumePost(db: Db, actor: Actor, requestId: string, kind: 
     const card = planned.at(-1)?.kind === "text" ? [] : planned.slice(-1);
     const parts = [...frozen, ...texts, ...(frozen.some((p) => p.kind !== "text") ? [] : card)];
     const attempt = await beginJob(tx, actor, post, { parts, postedBy: actor.userId }, `${kind} resumed`);
-    return sendJob(post.id, attempt);
+    const job = sendJob(post.id, attempt);
+    // A lost `sending` post that cannot be queued stays resumable as `partial`.
+    return stale ? { ...job, restore: { ...job.restore, status: restoreStatus(post) } } : job;
   });
   await enqueue(db, queue, job);
 }
@@ -274,7 +290,8 @@ export const editPostInput = z.strictObject({
  * mention already in the first message stays as it is.
  *
  * @throws NotFoundError for a request the actor cannot see or a kind without a post, ForbiddenError without edit access
- * @throws ConflictError for a draft, failed, sending or half-deleted post, or an unset webhook
+ * @throws ConflictError for a draft, failed, sending or half-deleted post, a post of which no message is in Discord yet, a
+ * request that is not accepted or in its event week, or an unset webhook
  * @throws InvalidError for a disaster message, an image that is not an embed image of this request, or a part that does not fit Discord
  */
 export async function editPost(db: Db, actor: Actor, requestId: string, rawKind: PostKind, raw: unknown, queue: JobQueue): Promise<void> {
@@ -287,6 +304,9 @@ export async function editPost(db: Db, actor: Actor, requestId: string, rawKind:
     const post = await livePost(tx, requestId, kind);
     if (!post) throw new NotFoundError(`There is no ${kind} post.`);
     if (post.status !== "posted" && post.status !== "partial") throw new ConflictError(`A ${post.status} post cannot be edited this way.`);
+    // The edit job patches stored messages; a first send that stopped before any message went out is resumed instead (it keeps the role ping).
+    if (!post.parts.some((p) => p.messageId !== null)) throw new ConflictError("Nothing was posted yet; use Resume.");
+    if (!POSTING_STATUSES.includes(request.status)) throw new ConflictError(`A ${request.status} request cannot post messages.`);
     if (post.parts.some((p) => p.deleted)) throw new ConflictError("This post is half deleted. Delete it again to finish.");
     const settings = await loadPostSettings(tx);
     const target = POST_TARGET[kind];
@@ -307,7 +327,7 @@ export async function editPost(db: Db, actor: Actor, requestId: string, rawKind:
  * id. A Discord scheduled event of an announcement stays; cancelling the request removes it.
  *
  * @throws NotFoundError for a request the actor cannot see or a kind without a post, ForbiddenError without edit access
- * @throws ConflictError for a post that is a draft, sending, deleted or has no message in Discord
+ * @throws ConflictError for a post that is a draft, sending (unless its job was lost, see {@link isStaleSending}), deleted or has no message in Discord
  */
 export async function deletePost(db: Db, actor: Actor, requestId: string, rawKind: PostKind, queue: JobQueue): Promise<void> {
   const kind = parse(kindSchema, rawKind);
@@ -316,10 +336,10 @@ export async function deletePost(db: Db, actor: Actor, requestId: string, rawKin
     await lockRequest(tx, requestId);
     const post = await livePost(tx, requestId, kind);
     if (!post) throw new NotFoundError(`There is no ${kind} post.`);
-    if (post.status !== "posted" && post.status !== "partial" && post.status !== "failed") throw new ConflictError(`A ${post.status} post cannot be deleted.`);
+    if (post.status !== "posted" && post.status !== "partial" && post.status !== "failed" && !isStaleSending(post)) throw new ConflictError(`A ${post.status} post cannot be deleted.`);
     if (!post.parts.some((p) => p.messageId !== null)) throw new ConflictError("This post has no messages in Discord.");
     const attempt = await beginJob(tx, actor, post, {}, `${kind} deleting`);
-    return { name: "events.delete" as const, data: { postId: post.id, attempt }, jobId: `event-delete-${post.id}-${attempt}`, postId: post.id, attempt, restore: { status: post.status, error: "The delete could not be queued. Try again." } };
+    return { name: "events.delete" as const, data: { postId: post.id, attempt }, jobId: `event-delete-${post.id}-${attempt}`, postId: post.id, attempt, restore: { status: restoreStatus(post), error: "The delete could not be queued. Try again." } };
   });
   await enqueue(db, queue, job);
 }
@@ -327,7 +347,7 @@ export async function deletePost(db: Db, actor: Actor, requestId: string, rawKin
 /**
  * Queues a test send of the saved draft to the staff test webhook. The job marks the text as a test, drops any role mention,
  * never pings, never creates a Discord event and stores nothing on the post; its outcome is read with {@link testResult}.
- * Clicking twice within a minute queues one job.
+ * The job id follows the draft's last change and a two-second bucket: a double click queues one job, a retest after a change or a moment later queues another.
  *
  * @throws NotFoundError for a request the actor cannot see, ForbiddenError without edit access
  * @throws InvalidError for a disaster or resolved kind or a missing draft, ConflictError without the staff webhook
@@ -340,8 +360,8 @@ export async function testSend(db: Db, actor: Actor, requestId: string, rawKind:
   if (!settings.hooks.staff) throw new ConflictError("The staff test webhook is not set. An admin sets it in Event settings.");
   const post = await livePost(db, requestId, kind);
   if (!post || (kind !== "team" && post.text.trim() === "")) throw new InvalidError("Write the message first.");
-  const minute = Math.floor(Date.now() / 60_000);
-  await addWithTimeout(queue, "events.test", { requestId, kind, userId: actor.userId }, { jobId: `event-test-${requestId}-${kind}-${minute}`, attempts: 1 });
+  const bucket = Math.floor(Date.now() / 2000);
+  await addWithTimeout(queue, "events.test", { requestId, kind, userId: actor.userId }, { jobId: `event-test-${requestId}-${kind}-${post.updatedAt.getTime()}-${bucket}`, attempts: 1 });
 }
 
 /** The outcome of the last test send; `at` is when the job finished. */
@@ -430,7 +450,7 @@ export interface DisasterView {
   /** Whether the public webhook is set. */
   hookSet: boolean;
   /** The newest disaster post, if any. */
-  post: { id: string; status: EventPostRow["status"]; resolvedAt: Date | null; resolving: boolean; lastError: string | null; partsCount: number; sentCount: number } | null;
+  post: { id: string; status: EventPostRow["status"]; resolvedAt: Date | null; resolving: boolean; lastError: string | null; partsCount: number; sentCount: number; stale: boolean } | null;
   /** The embed a new disaster message would carry. */
   disasterEmbed: Embed;
   /** The embed the resolved message would carry with `note` filled. */
@@ -457,6 +477,7 @@ export async function disasterView(db: Db, actor: Actor, requestId: string, note
       lastError: post.lastError,
       partsCount: post.parts.length,
       sentCount: post.parts.filter((p) => p.messageId !== null).length,
+      stale: isStaleSending(post),
     },
     disasterEmbed: buildDisasterEmbed(request, settings),
     resolvedEmbed: buildResolvedEmbed(request, settings, note.trim() === "" ? null : note.trim()),
@@ -481,6 +502,8 @@ export interface PostView {
   dueAt: Date | null;
   /** Due date passed and not posted. */
   late: boolean;
+  /** `sending` for so long that its job is lost: Resume and Delete work again. */
+  stale: boolean;
 }
 
 /** The posts of a request and what the tab needs to enable its buttons. */
@@ -535,6 +558,7 @@ export async function listPosts(db: Db, actor: Actor, requestId: string, now: Da
       postedByName: post.status === "posted" ? postedByName : null,
       dueAt,
       late: dueAt !== null && post.status !== "posted" && dueAt.getTime() < now.getTime(),
+      stale: isStaleSending(post, now),
     };
   });
   return { posts, targets: { team: settings.hooks.team, public: settings.hooks.public, staff: settings.hooks.staff }, pingRoleSet: settings.pingRoleId !== null, dues: { team: due("team"), announcement: due("announcement"), reminder: due("reminder") } };

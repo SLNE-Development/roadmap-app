@@ -288,7 +288,7 @@ describe("testSend", () => {
     await expect(testSend(w.db, w.stranger, w.request.id, "announcement", memoryQueue())).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it("queues one job per minute however often it is clicked, and the result key can be read", async () => {
+  it("queues one job for a double click, another for a retest after a draft change, and keeps the id free of colons", async () => {
     const w = await postWorld();
     await setEventSecrets(w.db, w.admin, { staffWebhook: "https://discord.com/api/webhooks/333333333333333333/STAFF" });
     await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
@@ -296,8 +296,21 @@ describe("testSend", () => {
     await testSend(w.db, w.manager, w.request.id, "announcement", queue);
     await testSend(w.db, w.manager, w.request.id, "announcement", queue);
     expect(queue.jobs).toHaveLength(1);
+    await savePostDraft(w.db, w.manager, w.request.id, "announcement", { text: "Hallo Welt" });
+    await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+    expect(queue.jobs).toHaveLength(2);
+    expect(queue.jobs.every((j) => !String(j.opts.jobId).includes(":"))).toBe(true);
+  });
+
+  it("queues the test job and the result key can be read", async () => {
+    const w = await postWorld();
+    await setEventSecrets(w.db, w.admin, { staffWebhook: "https://discord.com/api/webhooks/333333333333333333/STAFF" });
+    await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
+    const queue = memoryQueue();
+    await testSend(w.db, w.manager, w.request.id, "announcement", queue);
+    expect(queue.jobs).toHaveLength(1);
     expect(queue.jobs[0]).toMatchObject({ jobName: "events.test", data: { requestId: w.request.id, kind: "announcement", userId: w.manager.userId } });
-    expect(queue.jobs[0].opts.jobId).toMatch(/^event-test-[^:]+-announcement-\d+$/);
+    expect(queue.jobs[0].opts.jobId).toMatch(/^event-test-[^:]+-announcement-\d+-\d+$/);
     expect(queue.jobs[0].opts.attempts).toBe(1);
     const kv = memoryKv();
     expect(await testResult(kv, w.db, w.manager, w.request.id, "announcement")).toBeNull();
@@ -345,5 +358,75 @@ describe("postDisaster and resolveDisaster", () => {
     const [after] = await w.db.select().from(eventPost);
     expect(after).toMatchObject({ status: "sending", note: "Fertig", attempt: 2 });
     expect(queue.jobs[0]).toMatchObject({ jobName: "events.resolve", data: { postId: row.id, attempt: 2 }, opts: { jobId: `event-resolve-${row.id}-2` } });
+  });
+});
+
+describe("a post that lost its job", () => {
+  const OLD = new Date(Date.now() - 10 * 60_000);
+
+  /** A started announcement with one message sent, `sending` since `at`. */
+  async function stuck(at: Date) {
+    const w = await postWorld();
+    const post = await draftPost(w.db, w.manager, w.request.id, "announcement", { text: longText(3900) });
+    await startPost(w.db, w.manager, w.request.id, "announcement", memoryQueue());
+    const [row] = await w.db.select().from(eventPost).where(eq(eventPost.id, post.id));
+    await w.db.update(eventPost).set({ parts: [{ ...row.parts[0], messageId: "1", sentAt: "x" }, ...row.parts.slice(1)], updatedAt: at }).where(eq(eventPost.id, post.id));
+    return { ...w, post };
+  }
+
+  it("is resumed once the sending status is older than the lock, but not while it is fresh", async () => {
+    const fresh = await stuck(new Date());
+    await expect(resumePost(fresh.db, fresh.manager, fresh.request.id, "announcement", memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    const old = await stuck(OLD);
+    const queue = memoryQueue();
+    await resumePost(old.db, old.manager, old.request.id, "announcement", queue);
+    const [row] = await old.db.select().from(eventPost).where(eq(eventPost.id, old.post.id));
+    expect(row).toMatchObject({ status: "sending", attempt: 2 });
+    expect(queue.jobs[0]).toMatchObject({ jobName: "events.post", data: { postId: old.post.id, attempt: 2 } });
+  });
+
+  it("is deleted once stale, but not while fresh", async () => {
+    const fresh = await stuck(new Date());
+    await expect(deletePost(fresh.db, fresh.manager, fresh.request.id, "announcement", memoryQueue())).rejects.toBeInstanceOf(ConflictError);
+    const old = await stuck(OLD);
+    const queue = memoryQueue();
+    await deletePost(old.db, old.manager, old.request.id, "announcement", queue);
+    expect(queue.jobs[0]).toMatchObject({ jobName: "events.delete" });
+  });
+
+  it("goes back to partial when the resume cannot be queued", async () => {
+    const old = await stuck(OLD);
+    const down = { ...memoryQueue(), add: async () => { throw new Error("down"); } };
+    await expect(resumePost(old.db, old.manager, old.request.id, "announcement", down as never)).rejects.toThrow();
+    const [row] = await old.db.select().from(eventPost).where(eq(eventPost.id, old.post.id));
+    expect(row.status).toBe("partial");
+  });
+
+  it("lists the stale flag", async () => {
+    const old = await stuck(OLD);
+    expect((await listPosts(old.db, old.manager, old.request.id)).posts[0].stale).toBe(true);
+    const fresh = await stuck(new Date());
+    expect((await listPosts(fresh.db, fresh.manager, fresh.request.id)).posts[0].stale).toBe(false);
+  });
+});
+
+describe("editing a partial post and starting disaster kinds", () => {
+  it("refuses to edit a partial post of which no message is in Discord yet", async () => {
+    const w = await postWorld();
+    const post = await draftPost(w.db, w.manager, w.request.id, "announcement", { text: "Hallo" });
+    await startPost(w.db, w.manager, w.request.id, "announcement", memoryQueue());
+    await w.db.update(eventPost).set({ status: "partial" }).where(eq(eventPost.id, post.id));
+    const queue = memoryQueue();
+    await expect(editPost(w.db, w.manager, w.request.id, "announcement", { text: "Neu" }, queue)).rejects.toThrow("Nothing was posted yet; use Resume.");
+    expect(queue.jobs).toHaveLength(0);
+  });
+
+  it("does not start a disaster or resolved post through startPost", async () => {
+    const w = await postWorld({ status: "accepted" });
+    for (const kind of ["disaster", "resolved"] as const) {
+      await w.db.insert(eventPost).values({ id: `p-${kind}`, requestId: w.request.id, kind, text: "x" });
+      await expect(startPost(w.db, w.manager, w.request.id, kind, memoryQueue())).rejects.toBeInstanceOf(InvalidError);
+    }
+    expect((await w.db.select().from(eventPost).where(eq(eventPost.kind, "disaster")))[0].status).toBe("draft");
   });
 });

@@ -7,18 +7,18 @@ import { deleteMessage, editMessage, sendMessage, toDiscordEmbed, type DiscordBo
 import { loadEventSecrets, loadWebhook } from "@/lib/event-secrets";
 import { buildResolvedEmbed, discordEventUrl, GERMAN, keepsMention, mayPing, plannedParts, POST_KINDS, POST_TARGET, POST_TODO_KEY, type PostPart } from "@/lib/event-messages";
 import { loadPostSettings, type PostSettings } from "@/lib/ops/event-settings";
-import { testResultKey } from "@/lib/ops/request-posts";
+import { LOCK_SECONDS, POSTING_STATUSES, testResultKey } from "@/lib/ops/request-posts";
 import { readUploadForWorker } from "@/lib/ops/uploads";
 import { QUEUE } from "@/lib/queue";
 import type { WorkerDeps } from "../deps";
 import { registerJob } from "../jobs";
 import { DiscordEventRetry, ensureDiscordEvent } from "./events-discord-event";
 
-/** How long the lock of one post lives at most; a part takes at most 10 s and a post has a handful. */
-const LOCK_SECONDS = 300;
-/** Re-queues behind a held lock, and 429 retries, in a row before the job gives up and BullMQ's backoff takes over. */
+/** 429 retries in a row before the job gives up and BullMQ's backoff takes over. */
 const MAX_RETRIES = 10;
 const BUSY_DELAY_MS = 5_000;
+/** Re-queues behind a held lock in a row: the window outlasts the lock, so a crashed holder's lock expires before the job gives up. */
+const MAX_BUSY = Math.ceil((LOCK_SECONDS * 1000) / BUSY_DELAY_MS) + 12;
 
 const jobData = z.object({
   postId: z.string().min(1),
@@ -56,23 +56,34 @@ async function partRequest(db: Db, post: EventPostRow, settings: PostSettings, p
   return partBody(db, settings, part, pings ? { parse: [], roles: [settings.pingRoleId!] } : { parse: [] });
 }
 
-/** Writes the post's progress only while this attempt still owns it. */
-async function update(db: Db, post: EventPostRow, set: Partial<typeof eventPost.$inferInsert>): Promise<boolean> {
+/** Ends a job quietly after it recorded why on the post, or after a newer click took the post over. */
+class Stop extends Error {}
+
+/** Writes the post's progress only while this attempt still owns it; a run that lost the post to a newer click stops here. */
+async function update(db: Db, post: EventPostRow, set: Partial<typeof eventPost.$inferInsert>): Promise<void> {
   const rows = await db
     .update(eventPost)
     .set({ ...set, updatedAt: new Date() })
     .where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt)))
     .returning({ id: eventPost.id });
-  return rows.length > 0;
+  if (rows.length === 0) throw new Stop();
 }
+
+/** Ends the run when the guarded write of a transaction matched no row, which rolls the transaction back. */
+const owned = (rows: unknown[]): void => {
+  if (rows.length === 0) throw new Stop();
+};
 
 /** Marks the post posted, ticks its to-do for the starter and logs it, in one transaction. */
 async function finish(db: Db, post: EventPostRow, now: Date, note: string | null): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx
-      .update(eventPost)
-      .set({ status: "posted", postedAt: now, lastError: note, updatedAt: now })
-      .where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt)));
+    owned(
+      await tx
+        .update(eventPost)
+        .set({ status: "posted", postedAt: now, lastError: note, updatedAt: now })
+        .where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt)))
+        .returning({ id: eventPost.id }),
+    );
     const templateKey = POST_TODO_KEY[post.kind];
     if (templateKey) {
       await tx
@@ -94,7 +105,9 @@ async function sendParts(deps: WorkerDeps, post: EventPostRow, settings: PostSet
     const result: WebhookResult = await sendMessage({ kind: target, url }, body, files);
     if (result.kind === "ok") {
       parts[i] = { ...parts[i], messageId: result.id, sentAt: deps.now().toISOString() };
-      await deps.db.transaction((tx) => tx.update(eventPost).set({ parts, updatedAt: new Date() }).where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt))));
+      // A resume that took the post over while Discord answered: this run sends nothing more.
+      const written = await deps.db.update(eventPost).set({ parts, updatedAt: new Date() }).where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt))).returning({ id: eventPost.id });
+      if (written.length === 0) return;
       continue;
     }
     if (result.kind === "retry") {
@@ -128,14 +141,18 @@ async function sendParts(deps: WorkerDeps, post: EventPostRow, settings: PostSet
 
 /**
  * Runs `run` while holding the post's Kv lock. Behind a held lock the job is queued again by `requeue` (the busy count so
- * far plus one) after 5 s; the 11th time in a row it throws.
+ * far plus one) after 5 s; it throws once the lock outlasted {@link MAX_BUSY} re-queues. An error of a run that is not a
+ * Discord answer (a decrypt or database error) leaves a post that is still `sending` as `partial`, so Resume works at once.
  */
-async function withLock(deps: WorkerDeps, postId: string, busy: number, requeue: (busy: number) => Promise<void>, run: () => Promise<void>): Promise<void> {
+async function withLock(deps: WorkerDeps, postId: string, attempt: number, busy: number, requeue: (busy: number) => Promise<void>, run: () => Promise<void>): Promise<void> {
   const key = `event-post:${postId}`;
   const token = randomUUID();
   if (await deps.kv.setIfAbsent(key, token, LOCK_SECONDS)) {
     try {
-      await run();
+      await run().catch(ignoreStop);
+    } catch (error) {
+      await releaseStuck(deps.db, postId, attempt, error);
+      throw error;
     } finally {
       // Only the holder deletes: a lock that expired and was taken by another job stays.
       if ((await deps.kv.get(key)) === token) await deps.kv.del(key);
@@ -143,8 +160,30 @@ async function withLock(deps: WorkerDeps, postId: string, busy: number, requeue:
     return;
   }
   const n = busy + 1;
-  if (n > MAX_RETRIES) throw new Error(`Another job held the lock of post ${postId} ${n} times in a row.`);
+  if (n > MAX_BUSY) throw new Error(`Another job held the lock of post ${postId} ${n} times in a row.`);
   await requeue(n);
+}
+
+/** Marks the post of `attempt` that is still `sending` as `partial` with the error; a failure here never hides the original error. */
+async function releaseStuck(db: Db, postId: string, attempt: number, error: unknown): Promise<void> {
+  try {
+    await db
+      .update(eventPost)
+      .set({ status: "partial", lastError: `The job failed: ${error instanceof Error ? error.message : "unknown error"}`.slice(0, 500), updatedAt: new Date() })
+      .where(and(eq(eventPost.id, postId), eq(eventPost.attempt, attempt), eq(eventPost.status, "sending")));
+  } catch {
+    // The post stays `sending`; Resume accepts it once it is stale.
+  }
+}
+
+/**
+ * Whether the request is still in a status in which its messages may be posted (the guard of the click that queued the
+ * job, checked again because the request may have been cancelled since). When it is not, the post ends `failed` with the reason.
+ */
+async function requestAllows(db: Db, post: EventPostRow, request: EventRequestRow, statuses: readonly string[]): Promise<boolean> {
+  if (statuses.includes(request.status)) return true;
+  await update(db, post, { status: "failed", lastError: `The request is ${request.status}; nothing was posted.` });
+  return false;
 }
 
 /** Runs one send attempt while holding the post's lock. */
@@ -155,6 +194,7 @@ async function runPost(deps: WorkerDeps, postId: string, attempt: number, retry:
   if (!loaded || loaded.attempt !== attempt || !["sending", "partial"].includes(loaded.status)) return;
   const [request] = await deps.db.select().from(eventRequest).where(eq(eventRequest.id, loaded.requestId)).limit(1);
   if (!request) return;
+  if (!(await requestAllows(deps.db, loaded, request, loaded.kind === "disaster" ? ["event_week"] : POSTING_STATUSES))) return;
   const settings = await loadPostSettings(deps.db);
   const secrets = await loadEventSecrets(deps.db);
   const target = POST_TARGET[loaded.kind];
@@ -203,11 +243,8 @@ async function runPost(deps: WorkerDeps, postId: string, attempt: number, retry:
 export async function sendPost(deps: WorkerDeps, raw: unknown): Promise<void> {
   const { postId, attempt, retry = 0, busy = 0 } = jobData.parse(raw);
   const base = `event-post-${postId}-${attempt}${retry > 0 ? `-r${retry}` : ""}`;
-  await withLock(deps, postId, busy, (n) => deps.queue("deliver").add("events.post", { postId, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 }), () => runPost(deps, postId, attempt, retry));
+  await withLock(deps, postId, attempt, busy, (n) => deps.queue("deliver").add("events.post", { postId, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 }), () => runPost(deps, postId, attempt, retry));
 }
-
-/** Ends a job quietly after it recorded why on the post. */
-class Stop extends Error {}
 
 /** What the edit, delete and resolve jobs share: the post as this run owns it, where it posts, and how a 429 re-queues it. */
 interface Run {
@@ -254,9 +291,9 @@ async function settle(run: Run, result: WebhookResult, what: string): Promise<st
 /** Whether Discord says the message is gone: a 404 that is not "Unknown Webhook" (10015). */
 const isMissing = (result: WebhookResult): boolean => result.kind === "gone" && result.status === 404 && result.code !== 10015;
 
-/** Stores the post's parts while this attempt still owns it; a run that lost the post to a newer click stops here. */
-async function saveParts(deps: WorkerDeps, post: EventPostRow, parts: PostPart[]): Promise<void> {
-  if (!(await update(deps.db, post, { parts }))) throw new Stop();
+/** Stores the post's parts while this attempt still owns it. */
+function saveParts(deps: WorkerDeps, post: EventPostRow, parts: PostPart[]): Promise<void> {
+  return update(deps.db, post, { parts });
 }
 
 /** Sends `part` as a new message that pings nobody. */
@@ -298,10 +335,11 @@ function canonical(value: unknown): string {
 const cardChanged = (stored: PostPart, want: PostPart): boolean =>
   stored.kind !== want.kind || stored.content !== want.content || canonical(stored.embed ?? null) !== canonical(want.embed ?? null) || (stored.uploadId ?? null) !== (want.uploadId ?? null);
 
-/** What an edit, delete or resolve run needs, loaded after the guard; null (after a visible error) when it cannot run. */
-async function prepare(deps: WorkerDeps, loaded: EventPostRow, job: { name: string; data: (n: number) => Record<string, unknown>; id: string }, retry: number): Promise<{ run: Run; request: EventRequestRow } | null> {
+/** What an edit, delete or resolve run needs, loaded after the guard; null (after a visible error) when it cannot run. `statuses` are the request statuses the job may run in; null (delete) means any. */
+async function prepare(deps: WorkerDeps, loaded: EventPostRow, job: { name: string; data: (n: number) => Record<string, unknown>; id: string; statuses: readonly string[] | null }, retry: number): Promise<{ run: Run; request: EventRequestRow } | null> {
   const [request] = await deps.db.select().from(eventRequest).where(eq(eventRequest.id, loaded.requestId)).limit(1);
   if (!request) return null;
+  if (job.statuses && !(await requestAllows(deps.db, loaded, request, job.statuses))) return null;
   const settings = await loadPostSettings(deps.db);
   const secrets = await loadEventSecrets(deps.db);
   const target = POST_TARGET[loaded.kind];
@@ -324,7 +362,7 @@ async function runEdit(deps: WorkerDeps, postId: string, editVersion: number, at
   const [loaded] = await deps.db.select().from(eventPost).where(eq(eventPost.id, postId)).limit(1);
   // A stale job (an older click, or a post nobody is editing) changes nothing.
   if (!loaded || loaded.attempt !== attempt || loaded.editVersion !== editVersion || !["sending", "partial"].includes(loaded.status)) return;
-  const ctx = await prepare(deps, loaded, { name: "events.edit", data: (n) => ({ postId, editVersion, attempt, retry: n }), id: `event-edit-${postId}-${loaded.attempt}` }, retry);
+  const ctx = await prepare(deps, loaded, { name: "events.edit", data: (n) => ({ postId, editVersion, attempt, retry: n }), id: `event-edit-${postId}-${loaded.attempt}`, statuses: POSTING_STATUSES }, retry);
   if (!ctx) return;
   const { run, request } = ctx;
   const { post, settings } = run;
@@ -382,7 +420,7 @@ async function runEdit(deps: WorkerDeps, postId: string, editVersion: number, at
     await persist();
   }
   await deps.db.transaction(async (tx) => {
-    await tx.update(eventPost).set({ status: "posted", lastError: null, updatedAt: deps.now() }).where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt)));
+    owned(await tx.update(eventPost).set({ status: "posted", lastError: null, updatedAt: deps.now() }).where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt))).returning({ id: eventPost.id }));
     await tx.insert(requestLog).values({ requestId: post.requestId, field: "post", oldValue: "sending", newValue: `${post.kind} edit posted`, authorUserId: post.postedBy });
   });
 }
@@ -397,7 +435,7 @@ export async function editPostMessages(deps: WorkerDeps, raw: unknown): Promise<
   const { postId, editVersion, attempt, retry = 0, busy = 0 } = editData.parse(raw);
   const base = `event-edit-${postId}-${attempt}${retry > 0 ? `-r${retry}` : ""}`;
   const requeue = (n: number) => deps.queue("deliver").add("events.edit", { postId, editVersion, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 });
-  await withLock(deps, postId, busy, requeue, () => runEdit(deps, postId, editVersion, attempt, retry).catch(ignoreStop));
+  await withLock(deps, postId, attempt, busy, requeue, () => runEdit(deps, postId, editVersion, attempt, retry));
 }
 
 /** Swallows {@link Stop}, which only ends a run whose outcome is already on the post. */
@@ -411,7 +449,7 @@ const deleteData = z.object({ postId: z.string().min(1), attempt: z.number().int
 async function runDelete(deps: WorkerDeps, postId: string, attempt: number, retry: number): Promise<void> {
   const [loaded] = await deps.db.select().from(eventPost).where(eq(eventPost.id, postId)).limit(1);
   if (!loaded || loaded.attempt !== attempt || !["sending", "partial"].includes(loaded.status) || !loaded.parts.some((p) => p.messageId !== null || p.deleted)) return;
-  const ctx = await prepare(deps, loaded, { name: "events.delete", data: (n) => ({ postId, attempt, retry: n }), id: `event-delete-${postId}-${loaded.attempt}` }, retry);
+  const ctx = await prepare(deps, loaded, { name: "events.delete", data: (n) => ({ postId, attempt, retry: n }), id: `event-delete-${postId}-${loaded.attempt}`, statuses: null }, retry);
   if (!ctx) return;
   const { run } = ctx;
   const parts = run.post.parts.map((p) => ({ ...p }));
@@ -422,7 +460,7 @@ async function runDelete(deps: WorkerDeps, postId: string, attempt: number, retr
     await saveParts(deps, run.post, parts);
   }
   await deps.db.transaction(async (tx) => {
-    await tx.update(eventPost).set({ status: "deleted", lastError: null, updatedAt: deps.now() }).where(and(eq(eventPost.id, postId), eq(eventPost.attempt, run.post.attempt)));
+    owned(await tx.update(eventPost).set({ status: "deleted", lastError: null, updatedAt: deps.now() }).where(and(eq(eventPost.id, postId), eq(eventPost.attempt, run.post.attempt))).returning({ id: eventPost.id }));
     await tx.insert(requestLog).values({ requestId: run.post.requestId, field: "post", oldValue: "sending", newValue: `${run.post.kind} deleted`, authorUserId: run.post.postedBy });
   });
 }
@@ -437,7 +475,7 @@ export async function deletePostMessages(deps: WorkerDeps, raw: unknown): Promis
   const { postId, attempt, retry = 0, busy = 0 } = deleteData.parse(raw);
   const base = `event-delete-${postId}-${attempt}${retry > 0 ? `-r${retry}` : ""}`;
   const requeue = (n: number) => deps.queue("deliver").add("events.delete", { postId, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 });
-  await withLock(deps, postId, busy, requeue, () => runDelete(deps, postId, attempt, retry).catch(ignoreStop));
+  await withLock(deps, postId, attempt, busy, requeue, () => runDelete(deps, postId, attempt, retry));
 }
 
 const resolveData = z.object({ postId: z.string().min(1), attempt: z.number().int().min(0), retry: z.number().int().min(0).optional(), busy: z.number().int().min(0).optional() });
@@ -446,7 +484,7 @@ const resolveData = z.object({ postId: z.string().min(1), attempt: z.number().in
 async function runResolve(deps: WorkerDeps, postId: string, attempt: number, retry: number): Promise<void> {
   const [loaded] = await deps.db.select().from(eventPost).where(eq(eventPost.id, postId)).limit(1);
   if (!loaded || loaded.attempt !== attempt || !["sending", "partial"].includes(loaded.status) || loaded.kind !== "disaster" || loaded.note === null || loaded.resolvedAt !== null) return;
-  const ctx = await prepare(deps, loaded, { name: "events.resolve", data: (n) => ({ postId, attempt, retry: n }), id: `event-resolve-${postId}-${attempt}` }, retry);
+  const ctx = await prepare(deps, loaded, { name: "events.resolve", data: (n) => ({ postId, attempt, retry: n }), id: `event-resolve-${postId}-${attempt}`, statuses: ["event_week"] }, retry);
   if (!ctx) return;
   const { run, request } = ctx;
   const { post, settings } = run;
@@ -464,7 +502,7 @@ async function runResolve(deps: WorkerDeps, postId: string, attempt: number, ret
   }
   const now = deps.now();
   await deps.db.transaction(async (tx) => {
-    await tx.update(eventPost).set({ parts, status: "posted", resolvedAt: now, lastError: null, updatedAt: now }).where(and(eq(eventPost.id, postId), eq(eventPost.attempt, post.attempt)));
+    owned(await tx.update(eventPost).set({ parts, status: "posted", resolvedAt: now, lastError: null, updatedAt: now }).where(and(eq(eventPost.id, postId), eq(eventPost.attempt, post.attempt))).returning({ id: eventPost.id }));
     await tx.insert(requestLog).values({ requestId: post.requestId, field: "post", oldValue: "sending", newValue: "disaster resolved", authorUserId: post.postedBy });
   });
 }
@@ -479,7 +517,7 @@ export async function resolveDisasterMessage(deps: WorkerDeps, raw: unknown): Pr
   const { postId, attempt, retry = 0, busy = 0 } = resolveData.parse(raw);
   const base = `event-resolve-${postId}-${attempt}${retry > 0 ? `-r${retry}` : ""}`;
   const requeue = (n: number) => deps.queue("deliver").add("events.resolve", { postId, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 });
-  await withLock(deps, postId, busy, requeue, () => runResolve(deps, postId, attempt, retry).catch(ignoreStop));
+  await withLock(deps, postId, attempt, busy, requeue, () => runResolve(deps, postId, attempt, retry));
 }
 
 const testData = z.object({ requestId: z.string().min(1), kind: z.enum(POST_KINDS), userId: z.string().min(1) });
