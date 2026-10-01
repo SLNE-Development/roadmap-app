@@ -15,6 +15,7 @@ import { membersRouter } from "./routers/members";
 import { notificationsRouter } from "./routers/notifications";
 import { pagesRouter } from "./routers/pages";
 import { planningRouter } from "./routers/planning";
+import { presenceRouter } from "./routers/presence";
 import { prefsRouter } from "./routers/prefs";
 import { projectsRouter } from "./routers/projects";
 import { questionsRouter } from "./routers/questions";
@@ -56,6 +57,7 @@ export const appRouter = router({
   github: githubRouter,
   insight: insightRouter,
   releases: releasesRouter,
+  presence: presenceRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

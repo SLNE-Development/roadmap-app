@@ -30,6 +30,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   github: ["github", "history", "gates", "systems"],
   insight: ["insight"],
   releases: ["releases", "systems", "insight", "history", "projects", "boards"],
+  presence: ["presence"],
 };
 
 /**
