@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { boardColumn, system } from "@/db/schema";
 import type { Db } from "@/db/types";
+import { memoryKv } from "@/lib/kv";
 import type { Actor } from "@/lib/ops/actor";
 import { writeSpec } from "@/lib/ops/documents";
 import { createSystem } from "@/lib/ops/systems";
@@ -15,7 +16,7 @@ import { appRouter } from "../router";
 vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: {} }) }));
 
 /** Calls the router in-process as `actor`. */
-const caller = (db: Db, actor: Actor) => createCallerFactory(appRouter)({ db, actor, sessionId: null });
+const caller = (db: Db, actor: Actor) => createCallerFactory(appRouter)({ db, actor, sessionId: null, kv: memoryKv() });
 
 /** Puts a system straight into the named column of its board. */
 async function place(db: Db, systemId: string, name: string) {

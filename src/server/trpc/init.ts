@@ -7,14 +7,16 @@ import { ZodError } from "zod";
 import { getDb } from "@/db/client";
 import type { Db } from "@/db/types";
 import { sessionAuth } from "@/lib/auth/actor";
+import { valkeyKv, type Kv } from "@/lib/kv";
 import type { Actor } from "@/lib/ops/actor";
 import { messageOf, OpError, statusOf } from "@/lib/ops/errors";
 
-/** What every procedure sees: the database, the signed-in actor and its session id, or `null` without a session. */
+/** What every procedure sees: the database, the key-value store, the signed-in actor and its session id, or `null` without a session. */
 export interface Context {
   db: Db;
   actor: Actor | null;
   sessionId: string | null;
+  kv: Kv;
 }
 
 /**
@@ -23,7 +25,7 @@ export interface Context {
  */
 export const createContext = cache(async (): Promise<Context> => {
   const auth = await sessionAuth();
-  return { db: getDb(), actor: auth?.actor ?? null, sessionId: auth?.sessionId ?? null };
+  return { db: getDb(), actor: auth?.actor ?? null, sessionId: auth?.sessionId ?? null, kv: valkeyKv() };
 });
 
 /** The tRPC error code of each op status. */

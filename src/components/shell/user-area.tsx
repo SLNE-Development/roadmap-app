@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, KeyRound, Laptop, LogOut, Monitor, Moon, ShieldCheck, Sun, Users } from "lucide-react";
+import { Bell, BellRing, KeyRound, Laptop, LogOut, Monitor, Moon, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -41,6 +41,11 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
           <DropdownMenuItem asChild>
             <Link href="/notifications">
               <Bell /> Notifications
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/settings/notifications">
+              <BellRing /> Notification settings
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

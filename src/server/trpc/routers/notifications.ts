@@ -1,7 +1,10 @@
 import "server-only";
 import { z } from "zod";
+import { ACTIVE_TTL_SECONDS, activeKey, NOTIFY_RULES_PREF, notifyRulesSchema } from "@/lib/notify-rules-schema";
 import { listMentionMembers } from "@/lib/ops/mentions";
 import { listNotifications, listNotificationsInput, markAllRead, markRead, unreadCount } from "@/lib/ops/notifications";
+import { readNotifyRules } from "@/lib/ops/notify-rules";
+import { setPref } from "@/lib/ops/prefs";
 import { protectedProcedure, router } from "../init";
 import { P } from "./shared";
 
@@ -25,4 +28,21 @@ export const notificationsRouter = router({
 
   /** The project's members, for the mention picker. */
   members: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => listMentionMembers(ctx.db, ctx.actor, input.project)),
+
+  /** The signed-in user's notification rules, merged over the defaults. */
+  rules: protectedProcedure.query(({ ctx }) => readNotifyRules(ctx.db, ctx.actor.userId)),
+
+  /** Saves the full rules object as the user's preference. */
+  setRules: protectedProcedure.input(notifyRulesSchema).mutation(async ({ ctx, input }) => {
+    await setPref(ctx.db, ctx.actor, NOTIFY_RULES_PREF, input);
+  }),
+
+  /** Marks the user as active for a while, so pushes are held back; a down key-value store is ignored. */
+  heartbeat: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      await ctx.kv.set(activeKey(ctx.actor.userId), "1", ACTIVE_TTL_SECONDS);
+    } catch {
+      // Web requests never wait on Valkey to finish.
+    }
+  }),
 });

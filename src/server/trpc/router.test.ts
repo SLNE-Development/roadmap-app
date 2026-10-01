@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { allowedAccount, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
+import { DEFAULT_NOTIFY_RULES, activeKey } from "@/lib/notify-rules-schema";
+import { memoryKv, type Kv } from "@/lib/kv";
 import { notify, type NotifyInput } from "@/lib/ops/notifications";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
@@ -13,8 +15,8 @@ import { appRouter } from "./router";
 vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: {} }) }));
 
 /** Calls the router in-process as `actor` (or without a session). */
-function caller(db: Db, actor: Actor | null) {
-  return createCallerFactory(appRouter)({ db, actor, sessionId: null });
+function caller(db: Db, actor: Actor | null, kv: Kv = memoryKv()) {
+  return createCallerFactory(appRouter)({ db, actor, sessionId: null, kv });
 }
 
 describe("appRouter", () => {
@@ -106,7 +108,7 @@ describe("appRouter", () => {
   it("refuses to end the current session from the sessions list", async () => {
     const db = await createTestDb();
     const owner = await insertUser(db);
-    const api = createCallerFactory(appRouter)({ db, actor: owner, sessionId: "sess-current" });
+    const api = createCallerFactory(appRouter)({ db, actor: owner, sessionId: "sess-current", kv: memoryKv() });
     await expect(api.account.endSession({ id: "sess-current" })).rejects.toMatchObject({
       code: "BAD_REQUEST",
       message: "Use Sign out to end this session.",
@@ -166,6 +168,50 @@ describe("appRouter", () => {
       const [row] = await db.select({ discordId: user.discordId }).from(user).where(eq(user.id, editor.userId));
       await db.delete(allowedAccount).where(eq(allowedAccount.discordId, row.discordId!));
       expect((await caller(db, owner).notifications.members({ project: slug })).map((m) => m.userId)).toEqual([owner.userId]);
+    });
+
+    it("rejects rules with an unknown time zone", async () => {
+      const db = await createTestDb();
+      const user1 = await insertUser(db);
+      const rules = { ...DEFAULT_NOTIFY_RULES, quiet: { ...DEFAULT_NOTIFY_RULES.quiet, timeZone: "Mars/Olympus" } };
+      await expect(caller(db, user1).notifications.setRules(rules)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects rules with a malformed quiet hours time", async () => {
+      const db = await createTestDb();
+      const user1 = await insertUser(db);
+      const rules = { ...DEFAULT_NOTIFY_RULES, quiet: { ...DEFAULT_NOTIFY_RULES.quiet, start: "25:00" } };
+      await expect(caller(db, user1).notifications.setRules(rules)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("saves rules and reads them back", async () => {
+      const db = await createTestDb();
+      const user1 = await insertUser(db);
+      const api = caller(db, user1);
+      expect(await api.notifications.rules()).toEqual(DEFAULT_NOTIFY_RULES);
+      const rules = {
+        ...DEFAULT_NOTIFY_RULES,
+        kinds: { ...DEFAULT_NOTIFY_RULES.kinds, mention: { inbox: true, push: false } },
+        quiet: { enabled: true, start: "21:30", end: "07:15", timeZone: "Europe/Berlin" },
+        skipPushWhileActive: false,
+      };
+      await api.notifications.setRules(rules);
+      expect(await api.notifications.rules()).toEqual(rules);
+    });
+
+    it("marks the user active on a heartbeat", async () => {
+      const db = await createTestDb();
+      const user1 = await insertUser(db);
+      const kv = memoryKv();
+      await caller(db, user1, kv).notifications.heartbeat();
+      expect(await kv.get(activeKey(user1.userId))).toBe("1");
+    });
+
+    it("answers a heartbeat even when the key-value store is down", async () => {
+      const db = await createTestDb();
+      const user1 = await insertUser(db);
+      const down: Kv = { ...memoryKv(), set: () => Promise.reject(new Error("down")) };
+      await expect(caller(db, user1, down).notifications.heartbeat()).resolves.toBeUndefined();
     });
 
     it("hides the members from a non-member", async () => {

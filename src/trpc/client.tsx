@@ -11,7 +11,7 @@ import { shouldInvalidate } from "./invalidation";
 import { makeQueryClient, queryProject } from "./query-client";
 
 /** The typed tRPC hooks: `useTRPC()` returns query and mutation options for every procedure. */
-export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
+export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 declare module "@tanstack/react-query" {
   interface Register {

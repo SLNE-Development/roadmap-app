@@ -4,6 +4,7 @@ import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 import { NotificationBell } from "@/components/notifications/bell";
+import { useActivityHeartbeat } from "@/hooks/use-activity-heartbeat";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AppSidebar, type SidebarActor, type SidebarProject, type SidebarProjectLink } from "./app-sidebar";
 import { CommandMenu, openCommandMenu } from "./command-menu";
@@ -35,6 +36,7 @@ export function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const showHelp = useCallback(() => setHelpOpen(true), []);
+  useActivityHeartbeat();
   useShortcuts({ projectSlug: project?.slug, firstBoardSlug: project?.boards[0]?.slug, canEdit: project?.role !== "viewer", onHelp: showHelp });
   const pathname = usePathname();
   const [menuPath, setMenuPath] = useState(pathname);
