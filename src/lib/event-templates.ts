@@ -58,5 +58,6 @@ export const DEFAULT_DETAILS_TEMPLATE: DetailsTemplate = {
 /** The style guides used when the stored one is empty, so a prompt never carries an empty style. */
 export const DEFAULT_STYLE_GUIDES = {
   announcement: "Freundlich, einladend und klar. Kurze Sätze, gern ein paar passende Emojis, keine Fachbegriffe.",
+  summary: "Ein bis zwei Sätze, höchstens 300 Zeichen, sachlich und neugierig machend, ohne Platzhalter und ohne Markdown.",
   team: "Sachlich und knapp, direkt an das Team gerichtet: was ansteht, wer was tut und bis wann.",
 } as const;

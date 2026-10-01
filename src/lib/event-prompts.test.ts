@@ -12,6 +12,7 @@ const input: PromptInput = {
     reminderExample: "EXAMPLE-REM Gleich geht es los",
     teamStyle: "STYLE-TEAM knapp",
     teamExample: "EXAMPLE-TEAM Team, bitte lesen",
+    summaryStyle: "STYLE-SUM nüchtern",
   },
   brief: "BRIEF-TEXT Ein Fest am Hafen. Mit Musik.",
   answers: [
@@ -62,10 +63,17 @@ describe("buildPrompts", () => {
   });
 
   it("asks the summary prompt for a short text without placeholders", () => {
-    expect(p.summary).toContain("höchstens 300 Zeichen");
+    expect(p.summary).toContain("Ausgabe: nur der Text.");
     expect(p.summary).not.toContain(PLACEHOLDER_GUIDE);
     expect(p.summary).toContain("BRIEF-TEXT");
     expect(p.summary).toContain("Piratenfest");
+  });
+
+  it("puts the summary style into the summary prompt and falls back to the default", () => {
+    expect(p.summary).toContain("STYLE-SUM nüchtern");
+    expect(p.summary).toContain("Ausgabe: nur der Text.");
+    const empty = buildPrompts({ ...input, settings: { ...input.settings, summaryStyle: "  " } });
+    expect(empty.summary).toContain(DEFAULT_STYLE_GUIDES.summary);
   });
 
   it("stays generic", () => {

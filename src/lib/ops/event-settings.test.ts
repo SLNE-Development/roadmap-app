@@ -8,7 +8,7 @@ import { DEFAULT_EVENT_TIME_ZONE, dueFor, PREP_TEMPLATE } from "@/lib/event-prep
 import { createTestDb } from "@/test/db";
 import { insertUser, requestFixture } from "@/test/fixtures";
 import { ForbiddenError, InvalidError } from "./errors";
-import { eventTimeZone, getEventSettings, previewTemplate, setEventSecrets, updateEventSettings } from "./event-settings";
+import { eventTimeZone, getEventSettings, loadPostSettings, previewTemplate, setEventSecrets, updateEventSettings } from "./event-settings";
 import { ensurePrepTodos } from "./request-setup";
 import { UPLOAD_REFERENCES } from "./uploads";
 
@@ -79,6 +79,28 @@ describe("updateEventSettings", () => {
     const logged = info.mock.calls.flat().join(" ");
     expect(logged).toContain("postAs");
     expect(logged).not.toContain("Crew");
+  });
+
+  it("saves the summary style and the avatar, which must be a template upload", async () => {
+    const { db, manager } = await world();
+    const requester = await insertUser(db, { name: "Requester" });
+    const request = await requestFixture(db, requester);
+    const file = { uploaderId: manager.userId, originalName: "a.png", mime: "image/png", bytes: 1 };
+    await db.insert(eventUpload).values([
+      { id: "av", requestId: null, purpose: "template", storageKey: "av.png", ...file },
+      { id: "req", requestId: request.id, purpose: "banner", storageKey: "req.png", ...file },
+    ]);
+    await expect(updateEventSettings(db, manager, { postAvatarUploadId: "req" })).rejects.toBeInstanceOf(InvalidError);
+    await expect(updateEventSettings(db, manager, { postAvatarUploadId: "nope" })).rejects.toBeInstanceOf(InvalidError);
+    await updateEventSettings(db, manager, { summaryStyle: "knapp", postAvatarUploadId: "av" });
+    expect(await getEventSettings(db, manager)).toMatchObject({ summaryStyle: "knapp", postAvatarUploadId: "av", postAvatarUrl: "/api/uploads/av" });
+    vi.stubEnv("BETTER_AUTH_URL", "https://app.example.com");
+    expect((await loadPostSettings(db)).postAvatarUrl).toBe("https://app.example.com/api/uploads/public/av");
+    const used = await db.transaction(async (tx) => (await Promise.all(UPLOAD_REFERENCES.map((check) => check(tx, "av")))).includes(true));
+    expect(used).toBe(true);
+    await updateEventSettings(db, manager, { postAvatarUploadId: null });
+    expect((await loadPostSettings(db)).postAvatarUrl).toBeNull();
+    await expect(updateEventSettings(db, manager, { summaryStyle: "x".repeat(20_001) })).rejects.toBeInstanceOf(InvalidError);
   });
 
   it("does nothing for an empty input", async () => {

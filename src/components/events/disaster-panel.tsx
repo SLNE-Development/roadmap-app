@@ -72,7 +72,7 @@ function NoteDialog({
         </Field>
         <div className="flex min-w-0 flex-col gap-1.5">
           <span className="text-[13px] font-medium">{t("preview")}</span>
-          <DiscordPreview parts={[{ kind: "embed", content: "", embed: build(trimmed === "" ? null : trimmed) }]} postAs={settings.data?.postAs ?? "Events"} locale={locale} timeZone={settings.data?.timeZone ?? "UTC"} />
+          <DiscordPreview parts={[{ kind: "embed", content: "", embed: build(trimmed === "" ? null : trimmed) }]} postAs={settings.data?.postAs ?? "Events"} avatarUrl={settings.data?.postAvatarUrl} locale={locale} timeZone={settings.data?.timeZone ?? "UTC"} />
         </div>
         <DialogFooter>
           <DialogClose asChild>

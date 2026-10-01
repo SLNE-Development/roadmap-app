@@ -7,10 +7,12 @@ import { scheduledEventUrl } from "@/lib/discord-bot";
 import { fillPlaceholders, placeholderValues, PLACEHOLDERS, type FillMode, type Placeholder } from "@/lib/event-placeholders";
 import { DEFAULT_EVENT_TIME_ZONE } from "@/lib/event-prep-template";
 import { detailsTemplateSchema, embedTemplateSchema, type DetailsTemplate, type EmbedTemplate } from "@/lib/event-templates";
+import { siteUrl } from "@/lib/site";
 import { timeZoneSchema } from "@/lib/notify-rules-schema";
 import type { Actor } from "./actor";
 import { ForbiddenError, InvalidError } from "./errors";
 import { eventFlags, requireEventManager } from "./request-access";
+import { uploadUrl } from "./uploads";
 import { DISCORD_WEBHOOK_URL, DISCORD_WEBHOOK_URL_MESSAGE } from "./webhooks";
 
 /** The id of the one settings row. */
@@ -25,6 +27,9 @@ export interface SecretState {
 /** The settings as the page sees them: managed fields in full, secrets only as {@link SecretState}. It has no property that could hold a secret. */
 export interface EventSettingsView {
   postAs: string;
+  /** The sender image (a settings upload) and the URL the app serves it at for signed-in users. */
+  postAvatarUploadId: string | null;
+  postAvatarUrl: string | null;
   pingRoleId: string | null;
   guildId: string | null;
   timeZone: string;
@@ -34,6 +39,7 @@ export interface EventSettingsView {
   reminderExample: string;
   teamStyle: string;
   teamExample: string;
+  summaryStyle: string;
   disasterTemplate: EmbedTemplate;
   resolvedTemplate: EmbedTemplate;
   cancelledTemplate: EmbedTemplate;
@@ -70,6 +76,8 @@ export const updateEventSettingsInput = z.strictObject({
   reminderExample: longText,
   teamStyle: longText,
   teamExample: longText,
+  summaryStyle: longText,
+  postAvatarUploadId: z.string().min(1).max(64).nullable(),
   disasterTemplate: embedTemplateSchema,
   resolvedTemplate: embedTemplateSchema,
   cancelledTemplate: embedTemplateSchema,
@@ -110,6 +118,8 @@ export async function eventTimeZone(db: Executor): Promise<string> {
 
 /** The settings a post is planned and sent with: no secret, only which webhooks are set. */
 export interface PostSettings extends Pick<EventSettingsRow, "postAs" | "pingRoleId" | "guildId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate" | "cancelledTemplate"> {
+  /** The public address Discord loads the sender image from; null without an avatar. */
+  postAvatarUrl: string | null;
   hooks: { public: boolean; team: boolean; staff: boolean };
 }
 
@@ -130,6 +140,7 @@ export async function loadPostSettings(db: Executor): Promise<PostSettings> {
     disasterTemplate: r.disasterTemplate,
     resolvedTemplate: r.resolvedTemplate,
     cancelledTemplate: r.cancelledTemplate,
+    postAvatarUrl: r.postAvatarUploadId ? new URL(`/api/uploads/public/${r.postAvatarUploadId}`, siteUrl()).toString() : null,
     hooks: { public: r.publicWebhookEnc !== null, team: r.teamWebhookEnc !== null, staff: r.staffWebhookEnc !== null },
   };
 }
@@ -177,6 +188,8 @@ export async function getEventSettings(db: Db, actor: Actor): Promise<EventSetti
   const r = await ensureSettings(db);
   return {
     postAs: r.postAs,
+    postAvatarUploadId: r.postAvatarUploadId,
+    postAvatarUrl: r.postAvatarUploadId ? uploadUrl(r.postAvatarUploadId) : null,
     pingRoleId: r.pingRoleId,
     guildId: r.guildId,
     timeZone: r.timeZone,
@@ -186,6 +199,7 @@ export async function getEventSettings(db: Db, actor: Actor): Promise<EventSetti
     reminderExample: r.reminderExample,
     teamStyle: r.teamStyle,
     teamExample: r.teamExample,
+    summaryStyle: r.summaryStyle,
     disasterTemplate: r.disasterTemplate,
     resolvedTemplate: r.resolvedTemplate,
     cancelledTemplate: r.cancelledTemplate,
@@ -217,6 +231,10 @@ export async function updateEventSettings(db: Db, actor: Actor, raw: unknown): P
     for (const template of [input.disasterTemplate, input.resolvedTemplate, input.cancelledTemplate]) {
       if (!template?.imageUploadId) continue;
       const [upload] = await tx.select({ requestId: eventUpload.requestId, purpose: eventUpload.purpose }).from(eventUpload).where(eq(eventUpload.id, template.imageUploadId)).limit(1);
+      if (!upload || upload.requestId !== null || upload.purpose !== "template") throw new InvalidError("Unknown settings image.");
+    }
+    if (input.postAvatarUploadId) {
+      const [upload] = await tx.select({ requestId: eventUpload.requestId, purpose: eventUpload.purpose }).from(eventUpload).where(eq(eventUpload.id, input.postAvatarUploadId)).limit(1);
       if (!upload || upload.requestId !== null || upload.purpose !== "template") throw new InvalidError("Unknown settings image.");
     }
     await ensureSettings(tx);

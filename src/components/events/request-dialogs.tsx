@@ -127,6 +127,7 @@ export function CancelDialog({ requestId, open, onOpenChange }: { requestId: str
               <DiscordPreview
                 parts={[{ kind: "embed", content: "", embed: { ...embed, title: fill(embed.title), description: fill(embed.description) } }]}
                 postAs={settings.data?.postAs ?? "Events"}
+                avatarUrl={settings.data?.postAvatarUrl}
                 locale={locale}
                 timeZone={settings.data?.timeZone ?? zone}
               />

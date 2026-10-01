@@ -595,6 +595,23 @@ describe("events.test", () => {
     return { ...w, deps, post };
   }
 
+  it("sets avatar_url on every message of a send and a test send when an avatar is configured, and omits it otherwise", async () => {
+    const s = await testWorld();
+    vi.stubEnv("BETTER_AUTH_URL", "https://app.example.com");
+    const without = stubFetch([]);
+    await testSend(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const job = s.deps.queues.deliver.jobs.find((j) => j.jobName === "events.test")!;
+    await runJob("deliver", "events.test", job.data, s.deps);
+    expect(without.length).toBeGreaterThan(0);
+    expect(without.every((c) => !("avatar_url" in c.body))).toBe(true);
+    await s.db.insert(eventUpload).values({ id: "avatar1", requestId: null, purpose: "template", uploaderId: s.manager.userId, originalName: "a.png", mime: "image/png", bytes: 1, storageKey: "avatar1.png" });
+    await updateEventSettings(s.db, s.manager, { postAvatarUploadId: "avatar1" });
+    const withAvatar = stubFetch([]);
+    await runJob("deliver", "events.test", job.data, s.deps);
+    expect(withAvatar.length).toBeGreaterThan(0);
+    expect(withAvatar.every((c) => c.body.avatar_url === "https://app.example.com/api/uploads/public/avatar1")).toBe(true);
+  });
+
   it("goes only to the staff webhook, never pings, strips the role mention and stores nothing on the post", async () => {
     const s = await testWorld();
     await s.db.update(eventPost).set({ text: `<@&${ROLE_ID}>\n${s.post.text}` }).where(eq(eventPost.id, s.post.id));

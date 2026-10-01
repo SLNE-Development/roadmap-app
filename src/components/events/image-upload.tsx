@@ -50,6 +50,7 @@ function parseMessage(text: string): string {
  * @param props.requestId the request the image belongs to, null for a settings image
  * @param props.purpose what the image is for, as the upload route expects
  * @param props.image the image to preview, if any
+ * @param props.previewClassName classes for the preview image instead of the default; a square avatar uses a fixed size
  * @param props.disabled whether the picker is read-only
  * @param props.onUploaded called with the stored image once the upload succeeded
  * @param props.onRemove called with the id of the shown image when the remove button is used
@@ -58,6 +59,7 @@ export function ImageUpload({
   requestId,
   purpose,
   image,
+  previewClassName,
   disabled = false,
   onUploaded,
   onRemove,
@@ -65,6 +67,7 @@ export function ImageUpload({
   requestId: string | null;
   purpose: "banner" | "embed" | "template";
   image: { id: string; url: string } | null;
+  previewClassName?: string;
   disabled?: boolean;
   onUploaded: (image: UploadedImage) => void | Promise<void>;
   onRemove: (id: string) => void;
@@ -99,7 +102,7 @@ export function ImageUpload({
       {image && (
         <div className="flex flex-wrap items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- served by the access-checked upload route */}
-          <img src={image.url} alt={t("previewAlt")} className="max-h-48 max-w-full border object-contain" />
+          <img src={image.url} alt={t("previewAlt")} className={previewClassName ?? "max-h-48 max-w-full border object-contain"} />
           {!disabled && (
             <Button type="button" variant="outline" size="sm" onClick={() => onRemove(image.id)}>
               {t("remove")}

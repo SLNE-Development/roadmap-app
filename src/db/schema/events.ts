@@ -284,6 +284,8 @@ export const eventSettings = pgTable("event_settings", {
   botStatus: text("bot_status", { enum: BOT_STATUSES }),
   botCheckedAt: timestamp("bot_checked_at", tz),
   postAs: text("post_as").notNull().default("Event-Team"),
+  /** The image shown as the profile picture of the webhook messages; a settings image (template upload). */
+  postAvatarUploadId: text("post_avatar_upload_id").references(() => eventUpload.id, { onDelete: "set null" }),
   pingRoleId: text("ping_role_id"),
   guildId: text("guild_id"),
   timeZone: text("time_zone").notNull().default("Europe/Berlin"),
@@ -294,6 +296,7 @@ export const eventSettings = pgTable("event_settings", {
   reminderExample: text("reminder_example").notNull().default(""),
   teamStyle: text("team_style").notNull().default(""),
   teamExample: text("team_example").notNull().default(""),
+  summaryStyle: text("summary_style").notNull().default(""),
   disasterTemplate: jsonb("disaster_template").notNull().$type<EmbedTemplate>().default(DEFAULT_DISASTER_TEMPLATE),
   resolvedTemplate: jsonb("resolved_template").notNull().$type<EmbedTemplate>().default(DEFAULT_RESOLVED_TEMPLATE),
   cancelledTemplate: jsonb("cancelled_template").notNull().$type<EmbedTemplate>().default(DEFAULT_CANCELLED_TEMPLATE),

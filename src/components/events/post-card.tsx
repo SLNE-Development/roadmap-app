@@ -75,7 +75,7 @@ export function PostPreview({ requestId, kind, text, pingRole, open, onOpenChang
             {preview.error.message}
           </p>
         ) : parts.length > 0 ? (
-          <DiscordPreview parts={parts.map((p) => ({ kind: p.kind, content: p.content, embed: p.embed }))} postAs={settings.data?.postAs ?? "Events"} locale={locale} timeZone={settings.data?.timeZone ?? zone} />
+          <DiscordPreview parts={parts.map((p) => ({ kind: p.kind, content: p.content, embed: p.embed }))} postAs={settings.data?.postAs ?? "Events"} avatarUrl={settings.data?.postAvatarUrl} locale={locale} timeZone={settings.data?.timeZone ?? zone} />
         ) : (
           <p className="border border-dashed px-4 py-3 text-[13px] text-muted-foreground">{t("previewEmpty")}</p>
         )}

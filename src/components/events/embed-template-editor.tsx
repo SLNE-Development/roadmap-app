@@ -21,7 +21,7 @@ import { useTRPC } from "@/trpc/client";
 export type TemplateEditorProps = (
   | { kind: "disaster" | "resolved" | "cancelled"; value: EmbedTemplate; onChange: (value: EmbedTemplate) => void; sharedImageId?: string | null; onImageChange?: (imageUploadId: string | null) => void }
   | { kind: "details"; value: DetailsTemplate; onChange: (value: DetailsTemplate) => void }
-) & { disabled: boolean; postAs: string; timeZone: string };
+) & { disabled: boolean; postAs: string; postAvatarUrl?: string | null; timeZone: string };
 
 type EditableField = HTMLInputElement | HTMLTextAreaElement;
 
@@ -189,7 +189,7 @@ export function EmbedTemplateEditor(props: TemplateEditorProps) {
       </div>
       <div className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-4 lg:self-start" aria-live="polite">
         <h4 className="text-[13px] font-semibold">{t("preview")}</h4>
-        {embed && <DiscordPreview parts={[{ kind: "embed", content: "", embed }]} postAs={props.postAs} locale={locale} timeZone={props.timeZone} />}
+        {embed && <DiscordPreview parts={[{ kind: "embed", content: "", embed }]} postAs={props.postAs} avatarUrl={props.postAvatarUrl} locale={locale} timeZone={props.timeZone} />}
         <p className="text-xs text-muted-foreground">{t("previewNote")}</p>
       </div>
     </div>

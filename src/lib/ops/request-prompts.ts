@@ -29,6 +29,7 @@ const PROMPT_SETTINGS_COLUMNS = {
   reminderExample: eventSettings.reminderExample,
   teamStyle: eventSettings.teamStyle,
   teamExample: eventSettings.teamExample,
+  summaryStyle: eventSettings.summaryStyle,
 };
 
 /**
@@ -40,7 +41,7 @@ const PROMPT_SETTINGS_COLUMNS = {
 export async function getPrompts(db: Db, actor: Actor, requestId: string): Promise<Record<PromptKind, string>> {
   const { request } = await requestAccess(db, actor, requestId, "edit");
   const [row] = await db.select(PROMPT_SETTINGS_COLUMNS).from(eventSettings).where(eq(eventSettings.id, "default")).limit(1);
-  const settings = row ?? { timeZone: DEFAULT_EVENT_TIME_ZONE, rulebookUrl: null, announcementStyle: "", announcementExample: "", reminderExample: "", teamStyle: "", teamExample: "" };
+  const settings = row ?? { timeZone: DEFAULT_EVENT_TIME_ZONE, rulebookUrl: null, announcementStyle: "", announcementExample: "", reminderExample: "", teamStyle: "", teamExample: "", summaryStyle: "" };
   const brief = await getBrief(db, actor, requestId);
   const rounds = await listRounds(db, actor, requestId);
   const fallbacks = await listFallbacks(db, actor, requestId);

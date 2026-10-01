@@ -53,6 +53,8 @@ export const UPLOAD_REFERENCES: ((tx: Tx, uploadId: string) => Promise<boolean>)
         .where(or(sql`${eventSettings.disasterTemplate}->>'imageUploadId' = ${uploadId}`, sql`${eventSettings.resolvedTemplate}->>'imageUploadId' = ${uploadId}`, sql`${eventSettings.cancelledTemplate}->>'imageUploadId' = ${uploadId}`))
         .limit(1)
     ).length > 0,
+  // The sender image of the webhook messages.
+  async (tx, uploadId) => (await tx.select({ id: eventSettings.id }).from(eventSettings).where(eq(eventSettings.postAvatarUploadId, uploadId)).limit(1)).length > 0,
 ];
 
 /** Whether the error says the file does not exist. */
@@ -165,6 +167,28 @@ export async function openUpload(db: Db, actor: Actor, id: string, dir: string =
     throw error;
   });
   return { stream: Readable.toWeb(createReadStream(file)) as ReadableStream, mime: row.mime, bytes: info.size, name: row.originalName };
+}
+
+/**
+ * Opens the webhook sender image for the public route: only the upload the settings currently use as the avatar, with no
+ * actor, because Discord fetches it.
+ *
+ * @throws NotFoundError for any other id or a missing file
+ */
+export async function openPublicAvatar(db: Db, id: string, dir: string = uploadsDir()): Promise<OpenedUpload> {
+  const [row] = await db
+    .select({ storageKey: eventUpload.storageKey, mime: eventUpload.mime, name: eventUpload.originalName })
+    .from(eventSettings)
+    .innerJoin(eventUpload, eq(eventUpload.id, eventSettings.postAvatarUploadId))
+    .where(eq(eventSettings.postAvatarUploadId, id))
+    .limit(1);
+  if (!row) throw new NotFoundError(`Unknown upload ${id}.`);
+  const file = safePath(dir, row.storageKey);
+  const info = await stat(file).catch((error: unknown) => {
+    if (isMissing(error)) throw new NotFoundError(`Unknown upload ${id}.`);
+    throw error;
+  });
+  return { stream: Readable.toWeb(createReadStream(file)) as ReadableStream, mime: row.mime, bytes: info.size, name: row.name };
 }
 
 /**

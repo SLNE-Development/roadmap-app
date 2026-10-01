@@ -22,7 +22,7 @@ export function EmbedTemplateSection({ kind, settings, canManage }: TemplateSect
         value={form.draft.template}
         sharedImageId={settings.disasterTemplate.imageUploadId}
         disabled={!canManage}
-        postAs={settings.postAs}
+        postAs={settings.postAs} postAvatarUrl={settings.postAvatarUrl}
         timeZone={settings.timeZone}
         onChange={(template) => form.patch({ template })}
         onImageChange={(imageUploadId) => form.patch((d) => ({ template: { ...d.template, imageUploadId } }))}
@@ -37,7 +37,7 @@ export function DetailsTemplateSection({ settings, canManage }: TemplateSectionP
   const form = useSectionDraft<{ template: DetailsTemplate }>({ template: settings.detailsTemplate }, (d) => ({ detailsTemplate: d.template }));
   return (
     <SectionCard id="details" title={ts("detailsTitle")} help={ts("detailsHelp")} save={canManage ? { dirty: form.dirty, pending: form.pending, onSave: form.save, onDiscard: form.discard } : undefined}>
-      <EmbedTemplateEditor kind="details" value={form.draft.template} disabled={!canManage} postAs={settings.postAs} timeZone={settings.timeZone} onChange={(template) => form.patch({ template })} />
+      <EmbedTemplateEditor kind="details" value={form.draft.template} disabled={!canManage} postAs={settings.postAs} postAvatarUrl={settings.postAvatarUrl} timeZone={settings.timeZone} onChange={(template) => form.patch({ template })} />
     </SectionCard>
   );
 }

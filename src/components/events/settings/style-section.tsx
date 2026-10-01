@@ -8,7 +8,7 @@ import { FieldGroup } from "@/components/ui/field";
 import { DEFAULT_STYLE_GUIDES } from "@/lib/event-templates";
 import type { EventSettingsView } from "@/lib/ops/event-settings";
 
-/** Writing style: the style guides and examples the copy prompts carry, for the announcement and reminder and for the team message. */
+/** Writing style: the style guides and examples the copy prompts carry, for the announcement and reminder, the team message and the short description. */
 export function StyleSection({ settings, canManage }: SectionProps & { settings: EventSettingsView }) {
   const ts = useTranslations("events.settings");
   const form = useSectionDraft(
@@ -18,6 +18,7 @@ export function StyleSection({ settings, canManage }: SectionProps & { settings:
       reminderExample: settings.reminderExample,
       teamStyle: settings.teamStyle,
       teamExample: settings.teamExample,
+      summaryStyle: settings.summaryStyle,
     },
     (d) => d,
   );
@@ -35,6 +36,10 @@ export function StyleSection({ settings, canManage }: SectionProps & { settings:
           <h3 className="text-sm font-semibold">{ts("teamTitle")}</h3>
           <AreaField label={ts("teamStyle")} help={ts("styleHelp")} value={draft.teamStyle} placeholder={DEFAULT_STYLE_GUIDES.team} disabled={!canManage} onChange={(v) => form.patch({ teamStyle: v })} />
           <AreaField label={ts("teamExample")} value={draft.teamExample} disabled={!canManage} onChange={(v) => form.patch({ teamExample: v })} />
+        </FieldGroup>
+        <FieldGroup>
+          <h3 className="text-sm font-semibold">{ts("summaryTitle")}</h3>
+          <AreaField label={ts("summaryStyle")} help={ts("styleHelp")} value={draft.summaryStyle} placeholder={DEFAULT_STYLE_GUIDES.summary} disabled={!canManage} onChange={(v) => form.patch({ summaryStyle: v })} />
         </FieldGroup>
       </div>
     </SectionCard>

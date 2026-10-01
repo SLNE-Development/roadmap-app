@@ -22,6 +22,7 @@ export interface PromptInput {
     reminderExample: string;
     teamStyle: string;
     teamExample: string;
+    summaryStyle: string;
   };
   brief: string;
   answers: { question: string; answer: string }[];
@@ -194,7 +195,8 @@ function summaryPrompt(input: PromptInput): string {
     "Du schreibst die Kurzbeschreibung für ein Community-Event.",
     block("Zur Orientierung (nicht abschreiben)", facts(input, true)),
     block("Briefing", input.brief.trim() ? [input.brief.trim()] : []),
-    "Schreibe eine Kurzbeschreibung des Events auf Deutsch: ein bis zwei Sätze, höchstens 300 Zeichen, keine Platzhalter, keine Überschrift, kein Markdown. Ausgabe: nur der Text.",
+    styleBlock(input.settings.summaryStyle, DEFAULT_STYLE_GUIDES.summary),
+    "Schreibe eine Kurzbeschreibung des Events auf Deutsch, ohne Überschrift. Ausgabe: nur der Text.",
   ]);
 }
 

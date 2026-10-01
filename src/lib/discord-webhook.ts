@@ -35,6 +35,8 @@ export interface DiscordBody {
   content?: string;
   embeds?: DiscordEmbed[];
   username: string;
+  /** The profile picture of the sender; Discord loads it from this public address. */
+  avatar_url?: string;
   allowed_mentions: AllowedMentions;
 }
 

@@ -1,0 +1,3 @@
+ALTER TABLE "event_settings" ADD COLUMN "post_avatar_upload_id" text;--> statement-breakpoint
+ALTER TABLE "event_settings" ADD COLUMN "summary_style" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "event_settings" ADD CONSTRAINT "event_settings_post_avatar_upload_id_event_upload_id_fk" FOREIGN KEY ("post_avatar_upload_id") REFERENCES "public"."event_upload"("id") ON DELETE set null ON UPDATE no action;

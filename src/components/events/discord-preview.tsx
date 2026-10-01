@@ -23,16 +23,22 @@ const PILL = "[&_a[href='#discord-mention']]:pointer-events-none [&_a[href='#dis
  *
  * @param props.parts the message parts in order
  * @param props.postAs the name Discord shows for the sender
+ * @param props.avatarUrl the sender image; without it the first letter of the name stands in
  */
-export function DiscordPreview({ parts, postAs, locale, timeZone }: { parts: PreviewPart[]; postAs: string; locale: string; timeZone: string }) {
+export function DiscordPreview({ parts, postAs, avatarUrl, locale, timeZone }: { parts: PreviewPart[]; postAs: string; avatarUrl?: string | null; locale: string; timeZone: string }) {
   const t = useTranslations("events.discordPreview");
   const plain = (text: string) => renderTimestamps(text, locale, timeZone);
   const rich = (text: string) => plain(text).replace(/<@&\d+>/g, `[@${t("mention")}](${MENTION_HREF})`);
   return (
     <div role="group" aria-label={t("label")} className="flex gap-3 border bg-card px-4 py-3">
-      <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-soft font-display text-sm font-semibold text-brand-strong">
-        {postAs.trim().charAt(0).toUpperCase()}
-      </span>
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- served by the access-checked upload route
+        <img src={avatarUrl} alt="" className="size-9 shrink-0 rounded-full object-cover" />
+      ) : (
+        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-soft font-display text-sm font-semibold text-brand-strong">
+          {postAs.trim().charAt(0).toUpperCase()}
+        </span>
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="text-sm font-semibold">{postAs}</span>
         {parts.map((part, i) => {

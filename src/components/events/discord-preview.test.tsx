@@ -11,15 +11,24 @@ afterEach(cleanup);
 const embed: Embed = { title: "Game night", description: "Starts <t:1791050400:t>", color: "#5865f2", imageUploadId: "up1", imageAs: "thumbnail", fields: [], footer: "Footer text" };
 
 /** Renders the parts for a German viewer in Berlin. */
-function show(parts: React.ComponentProps<typeof DiscordPreview>["parts"]) {
+function show(parts: React.ComponentProps<typeof DiscordPreview>["parts"], avatarUrl?: string) {
   return render(
     <NextIntlClientProvider locale="en" messages={en}>
-      <DiscordPreview parts={parts} postAs="Roadmap" locale="de-DE" timeZone="Europe/Berlin" />
+      <DiscordPreview parts={parts} postAs="Roadmap" avatarUrl={avatarUrl} locale="de-DE" timeZone="Europe/Berlin" />
     </NextIntlClientProvider>,
   );
 }
 
 describe("DiscordPreview", () => {
+  it("shows the sender image instead of the letter circle", () => {
+    const { container } = show([{ kind: "text", content: "Hi" }], "/api/uploads/av1");
+    expect(container.querySelector('img[src="/api/uploads/av1"]')).not.toBeNull();
+    expect(screen.queryByText("R")).toBeNull();
+    cleanup();
+    show([{ kind: "text", content: "Hi" }]);
+    expect(screen.getByText("R")).toBeTruthy();
+  });
+
   it("renders timestamp tokens as local time", () => {
     show([{ kind: "text", content: "Tonight at <t:1791050400:t>" }]);
     expect(screen.getByText(/20:00/)).toBeTruthy();

@@ -45,9 +45,10 @@ async function imageFile(db: Db, uploadId: string | null | undefined): Promise<W
 
 /** The body and files of one part, with the mentions the caller allows. */
 export async function partBody(db: Db, settings: PostSettings, part: PostPart, allowed_mentions: DiscordBody["allowed_mentions"]): Promise<{ body: DiscordBody; files: WebhookFile[] }> {
-  if (part.kind !== "embed" || !part.embed) return { body: { content: part.content, username: settings.postAs, allowed_mentions }, files: [] };
+  const sender = { username: settings.postAs, ...(settings.postAvatarUrl ? { avatar_url: settings.postAvatarUrl } : {}) };
+  if (part.kind !== "embed" || !part.embed) return { body: { content: part.content, ...sender, allowed_mentions }, files: [] };
   const file = await imageFile(db, part.uploadId ?? part.embed.imageUploadId);
-  return { body: { embeds: [toDiscordEmbed(part.embed, file?.name ?? null)], username: settings.postAs, allowed_mentions }, files: file ? [file] : [] };
+  return { body: { embeds: [toDiscordEmbed(part.embed, file?.name ?? null)], ...sender, allowed_mentions }, files: file ? [file] : [] };
 }
 
 /** The body and files of one part of a send. Only part 1 of a post that may ping, and only while it has no id yet, mentions the role. */
