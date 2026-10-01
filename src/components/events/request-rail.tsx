@@ -7,6 +7,7 @@ import Link from "next/link";
 import { historySentence } from "@/components/events/history-sentence";
 import { EventProgressBar } from "@/components/events/progress-bar";
 import { openCount } from "@/components/events/question-form";
+import { useScenarioTitle } from "@/components/events/scenario-title";
 import { PersonName } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,7 @@ function HistoryRows({ rows }: { rows: RequestHistoryItem[] }) {
 export function RequestRail({ detail }: { detail: RequestDetail }) {
   const t = useTranslations("events");
   const tr = useTranslations("events.rail");
+  const scenarioTitle = useScenarioTitle();
   const format = useFormatter();
   const trpc = useTRPC();
   const { request, canEdit, canDevelop, canManage, discordEvent } = detail;
@@ -106,7 +108,7 @@ export function RequestRail({ detail }: { detail: RequestDetail }) {
   const attention: { key: string; text: string; href?: string; late?: boolean }[] = [];
   if (open && questions > 0) attention.push({ key: "questions", text: tr("attention.questions", { count: questions }), href: `${base}?tab=questions` });
   if (status === "accepted" && (canEdit || canDevelop) && incomplete.length > 0) {
-    attention.push({ key: "fallback", text: tr("attention.fallback", { scenarios: incomplete.map((f) => f.title).join(", ") }), href: `${base}?tab=fallback` });
+    attention.push({ key: "fallback", text: tr("attention.fallback", { scenarios: incomplete.map((f) => scenarioTitle(f)).join(", ") }), href: `${base}?tab=fallback` });
   }
   if (open && lateTodos > 0) attention.push({ key: "todos", text: tr("attention.lateTodos", { count: lateTodos }), href: `${base}?tab=prep`, late: true });
   if (live && lateMessages > 0) attention.push({ key: "messages", text: tr("attention.lateMessages", { count: lateMessages }), href: `${base}?tab=messages`, late: true });

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { DirtyBar } from "@/components/events/dirty-bar";
+import { useScenarioTitle } from "@/components/events/scenario-title";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { EmptyState, Panel } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ interface ScenarioDraft {
  */
 function ScenarioCard({ requestId, scenario, canEdit }: { requestId: string; scenario: EventFallbackRow; canEdit: boolean }) {
   const t = useTranslations("events.fallback");
+  const scenarioTitle = useScenarioTitle();
   const trpc = useTRPC();
   const id = useId();
   const initial: ScenarioDraft = { title: scenario.title, whatWeDo: scenario.whatWeDo, whoDecides: scenario.whoDecides, message: scenario.playerMessage ?? "" };
@@ -58,7 +60,7 @@ function ScenarioCard({ requestId, scenario, canEdit }: { requestId: string; sce
     <Panel
       title={
         scenario.required ? (
-          draft.title
+          scenarioTitle(scenario)
         ) : (
           <Input aria-label={t("titleLabel")} className="h-8 w-72 max-w-full font-sans text-[14px] font-semibold" value={draft.title} maxLength={120} disabled={!canEdit} onChange={(e) => set("title")(e.target.value)} />
         )

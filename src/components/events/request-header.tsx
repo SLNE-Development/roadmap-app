@@ -34,7 +34,8 @@ interface MenuItem {
 function Facts({ detail, tab }: { detail: RequestDetail; tab: string }) {
   const t = useTranslations("events");
   const format = useFormatter();
-  const { request, canEdit, projectSlug, projectOpen, requesterName } = detail;
+  const { request, canEdit, projectSlug, projectOpen } = detail;
+  const requesterName = detail.requesterName ?? t("unknownPerson");
   const time = useWhen(request);
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-fg-2">

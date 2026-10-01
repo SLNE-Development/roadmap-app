@@ -67,6 +67,7 @@ export function useWhen(r: Pick<RequestListItem, "startsAt" | "endsAt">): string
 /** One request of the list: date block, title, status, time, requester, project and what needs attention. */
 export function RequestRow({ r }: { r: RequestListItem }) {
   const t = useTranslations("events.list");
+  const tUnknown = useTranslations("events");
   const when = useWhen(r);
   return (
     <li className="flex items-center gap-3.5 border-t px-4 py-3 first:border-t-0 sm:px-5">
@@ -82,7 +83,7 @@ export function RequestRow({ r }: { r: RequestListItem }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12.5px] text-fg-2">
           {when && <span className="tabular-nums">{when}</span>}
-          <PersonName name={r.requesterName} />
+          <PersonName name={r.requesterName ?? tUnknown("unknownPerson")} />
           {r.projectSlug && (
             <Link href={`/p/${r.projectSlug}`} className="border bg-card px-1.5 py-px hover:text-foreground hover:underline">
               {r.projectSlug}

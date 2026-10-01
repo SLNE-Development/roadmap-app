@@ -343,7 +343,7 @@ export async function getBrief(db: Db, actor: Actor, requestId: string, version?
 }
 
 /** Lists the brief versions, newest first. */
-export async function listBriefVersions(db: Db, actor: Actor, requestId: string): Promise<{ version: number; authorName: string; createdAt: Date }[]> {
+export async function listBriefVersions(db: Db, actor: Actor, requestId: string): Promise<{ version: number; authorName: string | null; createdAt: Date }[]> {
   await requestAccess(db, actor, requestId, "view");
   const rows = await db
     .select({ version: eventBriefVersion.version, createdAt: eventBriefVersion.createdAt, authorName: user.name })
@@ -351,7 +351,7 @@ export async function listBriefVersions(db: Db, actor: Actor, requestId: string)
     .leftJoin(user, eq(user.id, eventBriefVersion.authorUserId))
     .where(eq(eventBriefVersion.requestId, requestId))
     .orderBy(desc(eventBriefVersion.version));
-  return rows.map((r) => ({ version: r.version, authorName: r.authorName?.trim() || "unknown", createdAt: r.createdAt }));
+  return rows.map((r) => ({ version: r.version, authorName: r.authorName?.trim() || null, createdAt: r.createdAt }));
 }
 
 /**
@@ -512,7 +512,7 @@ export interface RequestListItem {
   /** The end of the event; null without a duration. */
   endsAt: Date | null;
   requesterId: string | null;
-  requesterName: string;
+  requesterName: string | null;
   projectSlug: string | null;
   briefVersion: number;
   /** Who accepted the request; null before. */
@@ -588,7 +588,7 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
   return rows.map(({ durationMinutes, ...r }) => ({
     ...r,
     endsAt: endsAtOf({ startsAt: r.startsAt, durationMinutes }),
-    requesterName: r.requesterName?.trim() || "unknown",
+    requesterName: r.requesterName?.trim() || null,
     waitingOnRequester: waiting.has(r.id),
     lateTodos: late.get(r.id)?.n ?? 0,
     needsActor:
@@ -605,7 +605,7 @@ export function canDeleteRequest(status: RequestStatus, staff: boolean, requeste
 /** A request with what its page needs. */
 export interface RequestDetail {
   request: EventRequestRow & { endsAt: Date | null };
-  requesterName: string;
+  requesterName: string | null;
   projectSlug: string | null;
   /** The current brief. */
   brief: string;
@@ -645,7 +645,7 @@ export async function getRequest(db: Db, actor: Actor, requestId: string): Promi
   const canManage = flags.isAdmin || flags.isEventManager;
   return {
     request: { ...request, endsAt: endsAtOf(request) },
-    requesterName: owner?.name?.trim() || "unknown",
+    requesterName: owner?.name?.trim() || null,
     projectSlug: linked?.slug ?? null,
     brief,
     canEdit,

@@ -284,7 +284,11 @@
     "copyFailed": "Kopieren fehlgeschlagen. Markiere den Befehl und kopiere ihn von Hand.",
     "close": "Schließen"
   },
+  "unknownPerson": "Unbekannt",
   "fallback": {
+    "titles": {
+      "server-down": "Server fällt während des Events aus"
+    },
     "help": "Was tun wir, wenn etwas schiefgeht? Für das Pflichtszenario müssen „Was wir tun“ und „Wer entscheidet“ ausgefüllt sein, bevor die Eventwoche starten kann.",
     "required": "Pflicht",
     "complete": "Vollständig",

@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { calls, fakeTRPC, handlers, resetTRPC } from "@/test/trpc-mock";
+import de from "../../../messages/de";
 import en from "../../../messages/en";
 
 vi.mock("@/trpc/client", () => ({ useTRPC: () => fakeTRPC() }));
@@ -15,7 +16,7 @@ const { FallbackTab } = await import("./fallback-tab");
 afterEach(cleanup);
 
 /** A scenario row; only the fields the tab reads. */
-const scenario = (id: string, title: string, over: object = {}) => ({ id, title, required: false, whatWeDo: "", whoDecides: "", playerMessage: null, ...over });
+const scenario = (id: string, title: string, over: object = {}) => ({ id, key: null, title, required: false, whatWeDo: "", whoDecides: "", playerMessage: null, ...over });
 
 let rows: ReturnType<typeof scenario>[] = [];
 beforeEach(() => {
@@ -26,11 +27,11 @@ beforeEach(() => {
 });
 
 /** Renders the tab in providers that stay the same across refetches. */
-function setup() {
+function setup(locale: "en" | "de" = "en") {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
   render(
     <QueryClientProvider client={client}>
-      <NextIntlClientProvider locale="en" messages={en} timeZone="UTC">
+      <NextIntlClientProvider locale={locale} messages={locale === "de" ? de : en} timeZone="UTC">
         <TooltipProvider>
           <Suspense fallback={null}>
             <FallbackTab requestId="r1" canEdit />
@@ -46,6 +47,14 @@ function setup() {
 const who = (index: number) => screen.getAllByLabelText("Who decides")[index] as HTMLInputElement;
 
 describe("FallbackTab", () => {
+  it("shows the required scenario title translated and keeps a custom title as written", async () => {
+    rows = [scenario("a", "Server dies mid-event", { required: true, key: "server-down" }), scenario("b", "Server dies mid-event")];
+    setup("de");
+    await screen.findAllByLabelText("Wer entscheidet");
+    expect(screen.getByRole("heading", { name: /Server fällt während des Events aus/ })).toBeTruthy();
+    expect((screen.getByLabelText("Titel des Szenarios") as HTMLInputElement).value).toBe("Server dies mid-event");
+  });
+
   it("keeps typed text when a refetch changes another scenario", async () => {
     const client = setup();
     await screen.findAllByLabelText("Who decides");

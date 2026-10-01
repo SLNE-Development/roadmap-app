@@ -27,6 +27,7 @@ function useLatest(requestId: string, currentVersion: number) {
  */
 export function BriefHistory({ requestId, currentVersion, comparing, onCompare }: { requestId: string; currentVersion: number; comparing: number | null; onCompare: (version: number | null) => void }) {
   const t = useTranslations("events.versions");
+  const tUnknown = useTranslations("events");
   const format = useFormatter();
   const { versions, latest } = useLatest(requestId, currentVersion);
   return (
@@ -48,8 +49,8 @@ export function BriefHistory({ requestId, currentVersion, comparing, onCompare }
                 )}
               </div>
               <span className="flex items-center gap-1.5 text-fg-2">
-                <PersonAvatar name={v.authorName} size="xs" />
-                <span className="min-w-0 truncate">{t("meta", { name: v.authorName, date: format.dateTime(v.createdAt, { dateStyle: "medium", timeStyle: "short" }) })}</span>
+                <PersonAvatar name={v.authorName ?? tUnknown("unknownPerson")} size="xs" />
+                <span className="min-w-0 truncate">{t("meta", { name: v.authorName ?? tUnknown("unknownPerson"), date: format.dateTime(v.createdAt, { dateStyle: "medium", timeStyle: "short" }) })}</span>
               </span>
             </li>
           ))}

@@ -7,6 +7,7 @@ import { useId, useState } from "react";
 import { toast } from "sonner";
 import { useNow } from "@/components/clock";
 import { DisasterPanel } from "@/components/events/disaster-panel";
+import { useScenarioTitle } from "@/components/events/scenario-title";
 import { Markdown } from "@/components/markdown";
 import { EmptyState, Panel, ProgressBar } from "@/components/page";
 import { Button } from "@/components/ui/button";
@@ -132,9 +133,10 @@ export function playerMessageTexts(message: string, view: Pick<EventDayView, "re
 /** One fallback scenario, always open: what we do, who decides and the player message with a Copy button. */
 function Scenario({ scenario, view }: { scenario: EventDayView["fallbacks"][number]; view: EventDayView }) {
   const t = useTranslations("events.eventDay");
+  const scenarioTitle = useScenarioTitle();
   const message = scenario.playerMessage ? playerMessageTexts(scenario.playerMessage, view) : null;
   return (
-    <Panel title={scenario.title} bodyClassName="gap-4 px-4 pb-4 sm:px-5">
+    <Panel title={scenarioTitle(scenario)} bodyClassName="gap-4 px-4 pb-4 sm:px-5">
       <div className="flex flex-col gap-1">
         <h3 className="text-[13px] font-semibold">{t("whatWeDo")}</h3>
         {scenario.whatWeDo.trim() ? <Markdown className="text-[13.5px]">{scenario.whatWeDo}</Markdown> : <p className="text-[13.5px] text-muted-foreground">{t("blank")}</p>}
@@ -159,7 +161,7 @@ function Scenario({ scenario, view }: { scenario: EventDayView["fallbacks"][numb
             >
               <Copy aria-hidden />
               {t("copy")}
-              <span className="sr-only"> ({scenario.title})</span>
+              <span className="sr-only"> ({scenarioTitle(scenario)})</span>
             </Button>
           </div>
           <p className="border-l-2 border-primary bg-secondary px-3 py-2 text-[13.5px] whitespace-pre-wrap">{message.shown}</p>

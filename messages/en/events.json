@@ -284,7 +284,11 @@
     "copyFailed": "Copying failed. Select the command and copy it by hand.",
     "close": "Close"
   },
+  "unknownPerson": "Unknown",
   "fallback": {
+    "titles": {
+      "server-down": "Server dies mid-event"
+    },
     "help": "What do we do when something goes wrong? The required scenario needs an answer to “what we do” and “who decides” before the event week can start.",
     "required": "Required",
     "complete": "Complete",

@@ -254,7 +254,7 @@ export async function removeChecklistItem(db: Db, actor: Actor, itemId: string):
 export interface EventDayView {
   request: { id: string; title: string; startsAt: Date | null; durationMinutes: number | null; where: string; status: string };
   checklist: { id: string; key: string | null; label: string; doneAt: Date | null; doneByName: string | null }[];
-  fallbacks: { id: string; title: string; whatWeDo: string; whoDecides: string; playerMessage: string | null }[];
+  fallbacks: { id: string; key: string | null; title: string; whatWeDo: string; whoDecides: string; playerMessage: string | null }[];
   /** The time zone of the event settings, for filling placeholders in player messages. */
   timeZone: string;
   /** The event docs link of the request and the rulebook link of the settings, for `{docs}` and `{rules}` in player messages. */
@@ -286,7 +286,7 @@ export async function eventDayView(db: Db, actor: Actor, requestId: string): Pro
   return {
     request: { id: request.id, title: request.title, startsAt: request.startsAt, durationMinutes: request.durationMinutes, where: request.where, status: request.status },
     checklist: checklist.map(({ item: c, doneByName }) => ({ id: c.id, key: c.key, label: c.label, doneAt: c.doneAt, doneByName })),
-    fallbacks: fallbacks.map((f) => ({ id: f.id, title: f.title, whatWeDo: f.whatWeDo, whoDecides: f.whoDecides, playerMessage: f.playerMessage })),
+    fallbacks: fallbacks.map((f) => ({ id: f.id, key: f.key, title: f.title, whatWeDo: f.whatWeDo, whoDecides: f.whoDecides, playerMessage: f.playerMessage })),
     timeZone: settings.timeZone,
     eventDocsUrl: request.eventDocsUrl,
     rulebookUrl: settings.rulebookUrl,

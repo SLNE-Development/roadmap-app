@@ -43,6 +43,11 @@ function view(rows: RequestListItem[]) {
 const section = (name: string) => screen.getByRole("heading", { name }).closest("section")!;
 
 describe("RequestList", () => {
+  it("shows a translated name for a requester without one", () => {
+    view([row({ title: "Nameless", requesterName: null })]);
+    expect(screen.getByText("Unknown")).toBeTruthy();
+  });
+
   const rows = [
     row({ title: "Waiting one", status: "submitted", needsActor: true }),
     row({ title: "Summer party", status: "accepted" }),
