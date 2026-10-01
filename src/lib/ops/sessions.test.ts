@@ -28,8 +28,8 @@ describe("sessions", () => {
       ["recent", false],
       ["old", false],
     ]);
-    expect(rows[2]).toMatchObject({ device: "Firefox on Linux", ip: "10.0.0.1", lastActiveAt: new Date(1000) });
-    expect(rows[1]).toMatchObject({ device: "Unknown device", ip: null });
+    expect(rows[2]).toMatchObject({ browser: "Firefox", system: "Linux", ip: "10.0.0.1", lastActiveAt: new Date(1000) });
+    expect(rows[1]).toMatchObject({ browser: null, system: null, ip: null });
   });
 
   it("ends all but the current session", async () => {

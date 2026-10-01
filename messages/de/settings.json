@@ -189,7 +189,7 @@
     "name": "Name",
     "namePlaceholder": "z. B. Risiko",
     "key": "Schlüssel",
-    "keyHelp": "Agents setzen den Wert über diesen Schlüssel; Kleinbuchstaben, Ziffern und Bindestriche.",
+    "keyHelp": "Agenten setzen den Wert über diesen Schlüssel; Kleinbuchstaben, Ziffern und Bindestriche.",
     "type": "Typ",
     "options": "Optionen",
     "optionsPlaceholder": "niedrig\nmittel\nhoch",

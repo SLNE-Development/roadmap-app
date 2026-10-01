@@ -1,4 +1,3 @@
-import { plural } from "@/lib/text";
 import { HEALTH_QUIET_DAYS, STALE_SYSTEM_DAYS } from "@/lib/ops/attention";
 
 const DAY_MS = 86_400_000;
@@ -20,10 +19,20 @@ export interface HealthInput {
   now: Date;
 }
 
+/** One reason behind a health status: a code with the numbers the UI words it with (`home.health.*`). */
+export type HealthReason =
+  | { code: "allDone" }
+  /** `days` is null when the project has never changed; `limit` is {@link HEALTH_QUIET_DAYS}. */
+  | { code: "noChanges"; days: number | null; limit: number }
+  | { code: "quietProgress"; stale: number; total: number }
+  | { code: "blocked"; blocked: number; open: number }
+  | { code: "staleSystems"; count: number; days: number }
+  | { code: "blockingQuestions"; count: number };
+
 /** The status of a project and the reasons behind it. */
 export interface ProjectHealth {
   status: HealthStatus;
-  reasons: string[];
+  reasons: HealthReason[];
 }
 
 /**
@@ -35,21 +44,21 @@ export interface ProjectHealth {
 export function projectHealth(input: HealthInput): ProjectHealth {
   const { systems, notDone, blocked, activeOrReview, staleSystems, blockingQuestions, lastChange, now } = input;
   if (systems === 0) return { status: "empty", reasons: [] };
-  if (notDone === 0) return { status: "on-track", reasons: ["Everything is done."] };
+  if (notDone === 0) return { status: "on-track", reasons: [{ code: "allDone" }] };
 
-  const stalled: string[] = [];
+  const stalled: HealthReason[] = [];
   const quietDays = lastChange === null ? null : (now.getTime() - lastChange.getTime()) / DAY_MS;
   if (quietDays === null || quietDays >= HEALTH_QUIET_DAYS) {
-    stalled.push(`No changes for ${quietDays === null ? `more than ${HEALTH_QUIET_DAYS} days` : plural(Math.floor(quietDays), "day")}.`);
+    stalled.push({ code: "noChanges", days: quietDays === null ? null : Math.floor(quietDays), limit: HEALTH_QUIET_DAYS });
   }
   if (activeOrReview > 0 && staleSystems / activeOrReview >= 0.5) {
-    stalled.push(`${staleSystems} of ${plural(activeOrReview, "system")} in progress ${activeOrReview === 1 ? "has" : "have"} gone quiet.`);
+    stalled.push({ code: "quietProgress", stale: staleSystems, total: activeOrReview });
   }
   if (stalled.length > 0) return { status: "stalled", reasons: stalled };
 
-  const risks: string[] = [];
-  if (blocked >= 1 && blocked / notDone >= 0.2) risks.push(`${blocked} of ${plural(notDone, "open system")} ${notDone === 1 ? "is" : "are"} blocked.`);
-  if (staleSystems >= 1) risks.push(`${plural(staleSystems, "system")} ${staleSystems === 1 ? "has" : "have"} had no update for ${STALE_SYSTEM_DAYS}+ days.`);
-  if (blockingQuestions >= 1) risks.push(`${plural(blockingQuestions, "blocking question")} ${blockingQuestions === 1 ? "is" : "are"} open.`);
+  const risks: HealthReason[] = [];
+  if (blocked >= 1 && blocked / notDone >= 0.2) risks.push({ code: "blocked", blocked, open: notDone });
+  if (staleSystems >= 1) risks.push({ code: "staleSystems", count: staleSystems, days: STALE_SYSTEM_DAYS });
+  if (blockingQuestions >= 1) risks.push({ code: "blockingQuestions", count: blockingQuestions });
   return risks.length > 0 ? { status: "at-risk", reasons: risks } : { status: "on-track", reasons: [] };
 }

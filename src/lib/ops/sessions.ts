@@ -1,14 +1,16 @@
 import { and, desc, eq, gt, ne } from "drizzle-orm";
 import { session } from "@/db/schema";
 import type { Executor } from "@/db/types";
-import { describeUserAgent } from "@/lib/user-agent";
+import { parseUserAgent } from "@/lib/user-agent";
 import type { Actor } from "./actor";
 import { NotFoundError } from "./errors";
 
 /** A signed-in session as shown to its owner: never the token. */
 export interface SessionRow {
   id: string;
-  device: string;
+  /** The browser and system the session was made with; null when unknown. */
+  browser: string | null;
+  system: string | null;
   ip: string | null;
   createdAt: Date;
   lastActiveAt: Date;
@@ -24,7 +26,7 @@ export async function listSessions(db: Executor, actor: Actor, currentSessionId:
     .where(and(eq(session.userId, actor.userId), gt(session.expiresAt, new Date())))
     .orderBy(desc(session.updatedAt));
   return rows
-    .map((s) => ({ id: s.id, device: describeUserAgent(s.userAgent), ip: s.ipAddress, createdAt: s.createdAt, lastActiveAt: s.updatedAt, current: s.id === currentSessionId }))
+    .map((s) => ({ id: s.id, ...parseUserAgent(s.userAgent), ip: s.ipAddress, createdAt: s.createdAt, lastActiveAt: s.updatedAt, current: s.id === currentSessionId }))
     .sort((a, b) => Number(b.current) - Number(a.current));
 }
 

@@ -58,7 +58,9 @@
     "actions": "Actions",
     "thisDevice": "This device",
     "signOutDevice": "Sign out {device}",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "deviceUnknown": "Unknown device",
+    "deviceOnSystem": "{browser} on {system}"
   },
   "connections": {
     "crumb": "Account",

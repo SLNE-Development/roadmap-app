@@ -34,7 +34,7 @@
     "description": "Du wirst Inhaber des Projekts. Es startet mit einem Entwicklungs-Board.",
     "name": "Name",
     "slug": "Slug",
-    "slugHint": "Wird in URLs, in surf-roadmap.json und von Agents verwendet. Kleinbuchstaben, Ziffern und Bindestriche.",
+    "slugHint": "Wird in URLs, in surf-roadmap.json und von Agenten verwendet. Kleinbuchstaben, Ziffern und Bindestriche.",
     "descriptionLabel": "Beschreibung",
     "repoUrl": "Repository-URL",
     "repoHint": "Commit-Hashes in Fortschrittsmeldungen verlinken hierhin.",
@@ -69,5 +69,14 @@
   "archive": {
     "projectArchived": "Dieses Projekt ist archiviert und schreibgeschützt."
   },
-  "summaryNothingWaiting": "Nichts wartet auf dich"
+  "summaryNothingWaiting": "Nichts wartet auf dich",
+  "health": {
+    "allDone": "Alles ist erledigt.",
+    "neverChanged": "Seit mehr als {limit} Tagen keine Änderungen.",
+    "noChanges": "Seit {days, plural, one {# Tag} other {# Tagen}} keine Änderungen.",
+    "quietProgress": "Ins Stocken geraten: {stale} von {total, plural, one {# System} other {# Systemen}} in Arbeit.",
+    "blocked": "Blockiert: {blocked} von {open, plural, one {# offenen System} other {# offenen Systemen}}.",
+    "staleSystems": "{count, plural, one {# System hat} other {# Systeme haben}} seit {days}+ Tagen keine Aktualisierung.",
+    "blockingQuestions": "{count, plural, one {# blockierende Frage ist} other {# blockierende Fragen sind}} offen."
+  }
 }

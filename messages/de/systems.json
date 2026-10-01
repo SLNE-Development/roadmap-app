@@ -3,7 +3,7 @@
   "new": "Neues System",
   "empty": {
     "title": "Noch keine Systeme",
-    "description": "Ein System ist ein Feature oder Bereich des Projekts. Es startet in der Planung.",
+    "description": "Ein System ist ein Feature oder ein Teil des Projekts. Es startet in der Planung.",
     "noMatchTitle": "Keine passenden Systeme",
     "noMatchDescription": "Versuche eine andere Suche oder entferne einen Filter.",
     "clear": "Filter zurücksetzen"
@@ -85,7 +85,7 @@
     "similar": "Ähnlich: <systems></systems>",
     "archivedSuffix": "(archiviert)",
     "slug": "Slug",
-    "slugHint": "Agents verweisen darüber auf das System.",
+    "slugHint": "Agenten verweisen darüber auf das System.",
     "board": "Board",
     "summary": "Zusammenfassung",
     "summaryPlaceholder": "Was das System tut, in ein bis zwei Sätzen.",

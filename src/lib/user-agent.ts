@@ -1,6 +1,12 @@
-/** Describes a browser's user agent as "Browser on System", or "Unknown device" when it is missing or not a known browser. */
-export function describeUserAgent(ua: string | null): string {
-  if (!ua) return "Unknown device";
+/** The browser and operating system of a user agent; both null when it is missing or not a known browser. */
+export interface DescribedUserAgent {
+  browser: string | null;
+  system: string | null;
+}
+
+/** Splits a browser's user agent into its browser and system, or nulls when it is missing or not a known browser. */
+export function parseUserAgent(ua: string | null): DescribedUserAgent {
+  if (!ua) return { browser: null, system: null };
   const browser = /Claude\//.test(ua)
     ? "Claude desktop"
     : /Edg\//.test(ua)
@@ -14,7 +20,7 @@ export function describeUserAgent(ua: string | null): string {
             : /Safari\//.test(ua)
               ? "Safari"
               : null;
-  if (!browser) return "Unknown device";
+  if (!browser) return { browser: null, system: null };
   const system = /iPhone/.test(ua)
     ? "iPhone"
     : /iPad/.test(ua)
@@ -28,5 +34,12 @@ export function describeUserAgent(ua: string | null): string {
             : /Linux|X11/.test(ua)
               ? "Linux"
               : null;
+  return { browser, system };
+}
+
+/** An English label such as "Chrome on Windows", or "Unknown device"; stored with push subscriptions, never shown translated. */
+export function describeUserAgent(ua: string | null): string {
+  const { browser, system } = parseUserAgent(ua);
+  if (!browser) return "Unknown device";
   return system ? `${browser} on ${system}` : browser;
 }

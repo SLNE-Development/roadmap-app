@@ -68,7 +68,7 @@
       "title": "Neues Release",
       "description": "Ein Release bündelt Systeme, die zusammen ausgeliefert werden. Weise Systeme von deren Seite zu.",
       "namePlaceholder": "1.0",
-      "slugHelp": "Agents und Links verweisen so auf das Release.",
+      "slugHelp": "Agenten und Links verweisen so auf das Release.",
       "submit": "Release erstellen",
       "created": "{name} erstellt"
     },
@@ -81,7 +81,7 @@
     "edit": {
       "title": "Release bearbeiten",
       "description": "Ändere den Namen, den Slug oder das Zieldatum.",
-      "slugHelp": "Agents und Links verweisen so auf das Release. Alte Links funktionieren nach einer Änderung nicht mehr.",
+      "slugHelp": "Agenten und Links verweisen so auf das Release. Alte Links funktionieren nach einer Änderung nicht mehr.",
       "saved": "{name} gespeichert"
     },
     "delete": {

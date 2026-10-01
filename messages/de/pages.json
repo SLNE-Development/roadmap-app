@@ -14,7 +14,7 @@
     "titleLabel": "Titel",
     "titlePlaceholder": "Onboarding",
     "slugLabel": "Slug",
-    "slugHelp": "Agents verweisen so auf die Seite.",
+    "slugHelp": "Agenten verweisen so auf die Seite.",
     "submit": "Seite erstellen",
     "created": "{title} erstellt"
   },

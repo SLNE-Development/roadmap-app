@@ -110,7 +110,7 @@
     "commit": "Commit {hash}",
     "compare": "Mit v{from} vergleichen",
     "emptyTitle": "Noch keine Aktivität",
-    "emptyDescription": "Meldungen von Agents und jede Änderung an diesem System erscheinen hier.",
+    "emptyDescription": "Meldungen von Agenten und jede Änderung an diesem System erscheinen hier.",
     "change": {
       "quoted": "„{title}“",
       "aTask": "eine Aufgabe",
@@ -151,13 +151,13 @@
       "planningAnswersBare": "hat Planungsantworten festgehalten",
       "planningCompleted": "hat die Planung abgeschlossen",
       "planningReopened": "hat die Planung wieder geöffnet",
-      "areaReopened": "hat den Bereich {area} wieder geöffnet",
-      "areaCompleted": "hat den Bereich {area} abgeschlossen",
+      "areaReopened": "hat den Planungsbereich {area} wieder geöffnet",
+      "areaCompleted": "hat den Planungsbereich {area} abgeschlossen",
       "specWritten": "hat Spezifikation {version} geschrieben",
       "planWritten": "hat Plan {version} geschrieben",
       "questionAsked": "hat {title} gefragt",
       "questionAnswered": "hat eine Frage beantwortet",
-      "questionResolved": "hat eine Frage erledigt",
+      "questionResolved": "hat eine Frage geklärt",
       "questionReopened": "hat eine Frage wieder geöffnet",
       "fallback": "hat {entity} {field} geändert"
     }
@@ -196,7 +196,7 @@
     "save": "Notizen speichern",
     "showLess": "Weniger anzeigen",
     "showAll": "Alles anzeigen",
-    "emptyHint": "Halte hier Kontext für Menschen und Agents fest: Links, Randbedingungen, laufende Entscheidungen."
+    "emptyHint": "Halte hier Kontext für Menschen und Agenten fest: Links, Randbedingungen, laufende Entscheidungen."
   },
   "view": {
     "noOwner": "Niemand verantwortlich",
@@ -208,7 +208,7 @@
     "about": "Über dieses System",
     "ready": "Bereit zum Abschließen",
     "readyThin": "Bereit zum Abschließen · Dünn besetzt: {areas}",
-    "areaReopened": "Bereich {area} am {date} wieder geöffnet: {reason}",
-    "areaReopenedHint": "Ein Agent schließt diesen Bereich mit {tool}, sobald seine Fragen beantwortet sind."
+    "areaReopened": "Planungsbereich {area} am {date} wieder geöffnet: {reason}",
+    "areaReopenedHint": "Ein Agent schließt diesen Planungsbereich mit {tool}, sobald seine Fragen beantwortet sind."
   }
 }

@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ColumnCategory } from "@/db/schema";
 import type { ProjectHealth } from "@/lib/health";
+import { healthReasonText } from "./health-reason";
 
 /** A project card's data, computed on the server. */
 export interface ProjectCardItem {
@@ -65,12 +66,13 @@ function HealthBadge({ health }: { health: ProjectHealth }) {
   const badge = HEALTH_BADGE[health.status];
   const label = t(badge.label);
   const { className } = badge;
+  const reasons = health.reasons.map((r) => healthReasonText(t, r));
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
           role="img"
-          aria-label={t("healthAria", { label, reasons: health.reasons.join(" ") })}
+          aria-label={t("healthAria", { label, reasons: reasons.join(" ") })}
           className={`px-1.5 py-0.5 text-[11px] font-semibold ${className}`}
         >
           {label}
@@ -79,7 +81,7 @@ function HealthBadge({ health }: { health: ProjectHealth }) {
       {health.reasons.length > 0 && (
         <TooltipContent>
           <ul className="list-disc pl-3.5">
-            {health.reasons.map((r) => (
+            {reasons.map((r) => (
               <li key={r}>{r}</li>
             ))}
           </ul>

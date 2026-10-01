@@ -38,7 +38,7 @@
   "sectionPages": "Seiten",
   "sectionQuestions": "Fragen",
   "sectionActivity": "Aktivität",
-  "sectionAgents": "Agents",
+  "sectionAgents": "Agenten",
   "roleAndMembers": "{role} · {count, plural, one {# Mitglied} other {# Mitglieder}}",
   "projectCount": "{count, plural, one {# Projekt} other {# Projekte}}",
   "commandTitle": "Suchen",

@@ -26,7 +26,12 @@
   "coverage": {
     "settledLabel": "{area}: {settled} of {asked} settled",
     "counts": "{asked} asked · {settled} settled · {open} open",
-    "thin": "Thin: {reason}"
+    "thin": "Thin: {reason}",
+    "reason": {
+      "none": "No questions asked yet.",
+      "fewSettled": "Only {settled, plural, one {# settled question} other {# settled questions}}; ask at least {min}.",
+      "noRisk": "No failure mode is flagged as a risk."
+    }
   },
   "reopenArea": {
     "reopened": "Area {area} reopened",

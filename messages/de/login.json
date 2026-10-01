@@ -1,9 +1,9 @@
 {
   "title": "Anmelden",
   "subtitle": "Nutze das Discord-Konto, das ein Admin zur Zugangsliste hinzugefügt hat.",
-  "headline": "Pläne, die dein Team und deine Agents gleichermaßen lesen.",
+  "headline": "Pläne, die dein Team und deine Agenten gleichermaßen lesen.",
   "tagline": "Boards, Planungsinterviews, Spezifikationen und Entscheidungen für jedes Surf-Projekt an einem Ort.",
-  "apiKeyHint": "Agents verbinden sich stattdessen mit einem API-Schlüssel. Erstelle ihn nach der Anmeldung unter API-Schlüssel.",
+  "apiKeyHint": "Agenten verbinden sich stattdessen mit einem API-Schlüssel. Erstelle ihn nach der Anmeldung unter API-Schlüssel.",
   "continueWithDiscord": "Weiter mit Discord",
   "redirecting": "Weiterleitung …",
   "signInFailed": "Anmeldung fehlgeschlagen.",

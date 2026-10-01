@@ -1,11 +1,20 @@
 import { NextIntlClientProvider } from "next-intl";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { extractHeadings } from "@/lib/headings";
 import type { GlossaryTerm } from "@/lib/glossary-match";
+import de from "../../messages/de";
 import en from "../../messages/en";
 import { Markdown } from "./markdown";
 import { TooltipProvider } from "./ui/tooltip";
+
+/** Wraps markdown in the intl provider that heading links need. */
+const intl = (node: ReactNode, locale: "en" | "de" = "en") => (
+  <NextIntlClientProvider locale={locale} messages={locale === "de" ? de : en}>
+    {node}
+  </NextIntlClientProvider>
+);
 
 describe("Markdown", () => {
   it("renders GitHub-flavoured markdown", () => {
@@ -53,16 +62,21 @@ describe("Markdown", () => {
 
   it("gives headings the same ids as extractHeadings when headingIds is set", () => {
     const md = "# Intro\n## Scope\n## Scope\n### Übersicht 🚀\n## `code` step\n#### deep\n```\n# not a heading\n```";
-    const html = renderToStaticMarkup(<Markdown headingIds>{md}</Markdown>);
+    const html = renderToStaticMarkup(intl(<Markdown headingIds>{md}</Markdown>));
     const ids = [...html.matchAll(/<h[1-3] id="([^"]*)"/g)].map((m) => m[1]);
     expect(ids).toEqual(extractHeadings(md).map((h) => h.id));
     expect(html).toContain('href="#scope-1"');
     expect(html).toContain('aria-label="Link to section Scope"');
   });
 
+  it("words the heading link in German", () => {
+    const html = renderToStaticMarkup(intl(<Markdown headingIds>{"## Umfang"}</Markdown>, "de"));
+    expect(html).toContain('aria-label="Link zum Abschnitt Umfang"');
+  });
+
   it("keeps ids equal to extractHeadings for headings with a link and an image", () => {
     const md = "## See [the docs](https://example.com) now\n### Logo ![alt text](https://example.com/a.png) here\n## See [the docs](https://example.com) now";
-    const html = renderToStaticMarkup(<Markdown headingIds>{md}</Markdown>);
+    const html = renderToStaticMarkup(intl(<Markdown headingIds>{md}</Markdown>));
     const ids = [...html.matchAll(/<h[1-3] id="([^"]*)"/g)].map((m) => m[1]);
     expect(ids).toEqual(extractHeadings(md).map((h) => h.id));
     expect(new Set(ids).size).toBe(ids.length);
@@ -87,11 +101,13 @@ describe("Markdown", () => {
     const glossary: GlossaryTerm[] = [{ id: "1", term: "Outbox", definition: "Queue table", aliases: [] }];
     const render = (md: string) =>
       renderToStaticMarkup(
-        <TooltipProvider>
-          <Markdown headingIds glossary={glossary}>
-            {md}
-          </Markdown>
-        </TooltipProvider>,
+        intl(
+          <TooltipProvider>
+            <Markdown headingIds glossary={glossary}>
+              {md}
+            </Markdown>
+          </TooltipProvider>,
+        ),
       );
 
     it("marks the first whole-word occurrence as a focusable term", () => {

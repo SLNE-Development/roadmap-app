@@ -2,7 +2,7 @@
   "apiKeys": {
     "crumb": "Konto",
     "title": "API-Schlüssel",
-    "description": "Mit Schlüsseln können das surf-roadmap-Plugin und andere Agents per MCP und REST in deinem Namen handeln, in jedem Projekt, in dem du Mitglied bist.",
+    "description": "Mit Schlüsseln können das surf-roadmap-Plugin und andere Agenten per MCP und REST in deinem Namen handeln, in jedem Projekt, in dem du Mitglied bist.",
     "never": "Nie",
     "expired": "Abgelaufen am {date}",
     "neverUsed": "nie",
@@ -19,7 +19,7 @@
     "copyDescription": "Der Schlüssel wird nur dieses eine Mal angezeigt. Setze diese beiden Zeilen als Umgebungsvariablen für das surf-roadmap-Plugin.",
     "copyFailed": "Kopieren fehlgeschlagen. Markiere die Zeilen und kopiere sie von Hand.",
     "emptyTitle": "Noch keine API-Schlüssel",
-    "emptyDescription": "Agents wie das surf-roadmap-Plugin nutzen einen Schlüssel, um deine Projekte per MCP und REST zu lesen und zu ändern. Erstelle oben einen.",
+    "emptyDescription": "Agenten wie das surf-roadmap-Plugin nutzen einen Schlüssel, um deine Projekte per MCP und REST zu lesen und zu ändern. Erstelle oben einen.",
     "keysTitle": "Schlüssel",
     "keyCount": "{count, plural, one {# Schlüssel} other {# Schlüssel}}",
     "key": "Schlüssel",
@@ -32,7 +32,7 @@
     "rotate": "Erneuern",
     "rotateTitle": "{name} erneuern?",
     "rotateTitleThis": "Diesen Schlüssel erneuern?",
-    "rotateDescription": "Ein neuer Schlüssel mit demselben Namen wird erstellt. Der alte Schlüssel funktioniert noch 24 Stunden, damit du deine Agents aktualisieren kannst, und läuft dann ab.",
+    "rotateDescription": "Ein neuer Schlüssel mit demselben Namen wird erstellt. Der alte Schlüssel funktioniert noch 24 Stunden, damit du deine Agenten aktualisieren kannst, und läuft dann ab.",
     "revoke": "Widerrufen",
     "revokeNow": "Jetzt widerrufen",
     "revokeTitle": "{name} widerrufen?",
@@ -58,7 +58,9 @@
     "actions": "Aktionen",
     "thisDevice": "Dieses Gerät",
     "signOutDevice": "{device} abmelden",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "deviceUnknown": "Unbekanntes Gerät",
+    "deviceOnSystem": "{browser} auf {system}"
   },
   "connections": {
     "crumb": "Konto",
@@ -69,7 +71,7 @@
     "linkedOn": "Verknüpft am {date}",
     "unlink": "Verknüpfung lösen",
     "noneLinked": "Kein GitHub-Konto verknüpft.",
-    "notConfigured": "Die GitHub App ist noch nicht eingerichtet.",
+    "notConfigured": "Die GitHub-App ist noch nicht eingerichtet.",
     "connect": "GitHub verbinden",
     "errors": {
       "state": "Diese GitHub-Anmeldung ist abgelaufen oder wurde von jemand anderem gestartet. Versuche die Verbindung erneut.",

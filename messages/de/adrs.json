@@ -9,7 +9,7 @@
   "tabAll": "Alle",
   "statusLabel": "Status",
   "emptyTitle": "Noch keine Entscheidungen",
-  "emptyDescription": "Agents halten die Entscheidungen, die du triffst, mit <code>surf-roadmap:new-adr</code> fest. Vorgeschlagene erscheinen hier zur Annahme.",
+  "emptyDescription": "Agenten halten die Entscheidungen, die du triffst, mit <code>surf-roadmap:new-adr</code> fest. Vorgeschlagene erscheinen hier zur Annahme.",
   "searchPlaceholder": "Entscheidungen durchsuchen",
   "noMatchTitle": "Keine passenden Entscheidungen",
   "noMatchQuery": "Hier enthält nichts „{query}“ im Titel oder in der Nummer.",
@@ -55,7 +55,7 @@
     "status": "Status",
     "emptyStatusTitle": "Keine Entscheidungen mit diesem Status",
     "emptyStatusDescription": "Probiere einen anderen Status oder entferne den Filter.",
-    "emptyDescription": "Von Agents festgehaltene Entscheidungen erscheinen hier als Karte.",
+    "emptyDescription": "Von Agenten festgehaltene Entscheidungen erscheinen hier als Karte.",
     "backToList": "Zurück zur Liste",
     "nodeSystem": "System {title}",
     "nodeTask": "Aufgabe {id} {title}"

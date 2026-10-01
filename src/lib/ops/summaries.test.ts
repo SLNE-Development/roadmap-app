@@ -42,7 +42,7 @@ describe("projectSummaries", () => {
     }
     const [p] = await listProjects(db, owner);
     const s = (await projectSummaries(db, [p.id])).get(p.id);
-    expect(s?.health).toEqual({ status: "at-risk", reasons: ["1 of 3 open systems are blocked."] });
+    expect(s?.health).toEqual({ status: "at-risk", reasons: [{ code: "blocked", blocked: 1, open: 3 }] });
   });
 
   it("counts blocking questions and rates a quiet project as stalled", async () => {
@@ -51,7 +51,7 @@ describe("projectSummaries", () => {
     await createSystem(db, owner, slug, { slug: "a", title: "A" });
     await addQuestion(db, owner, slug, { title: "Q?", priority: "blocking" });
     const [p] = await listProjects(db, owner);
-    expect((await projectSummaries(db, [p.id])).get(p.id)?.health.reasons).toEqual(["1 blocking question is open."]);
+    expect((await projectSummaries(db, [p.id])).get(p.id)?.health.reasons).toEqual([{ code: "blockingQuestions", count: 1 }]);
     const later = new Date(Date.now() + 15 * 86_400_000);
     expect((await projectSummaries(db, [p.id], later)).get(p.id)?.health.status).toBe("stalled");
   });

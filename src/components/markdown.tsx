@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeSlug from "rehype-slug";
@@ -106,16 +107,22 @@ function SectionHeading({
     <Tag {...props} className={linked ? "group" : undefined}>
       {children}
       {task && <TaskStateChip state={task.state} className="ml-2 align-middle" />}
-      {linked && props.id && (
-        <a
-          href={`#${props.id}`}
-          aria-label={`Link to section ${headingLabel(children)}`}
-          className="ml-2 text-muted-foreground no-underline opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-        >
-          #
-        </a>
-      )}
+      {linked && props.id && <SectionLink id={props.id} title={headingLabel(children)} />}
     </Tag>
+  );
+}
+
+/** The hover anchor of a heading; its own component so the translation hook runs only for linked headings. */
+function SectionLink({ id, title }: { id: string; title: string }) {
+  const t = useTranslations("common");
+  return (
+    <a
+      href={`#${id}`}
+      aria-label={t("sectionLink", { title })}
+      className="ml-2 text-muted-foreground no-underline opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+    >
+      #
+    </a>
   );
 }
 

@@ -69,5 +69,14 @@
   "archive": {
     "projectArchived": "This project is archived and read-only."
   },
-  "summaryNothingWaiting": "Nothing is waiting on you"
+  "summaryNothingWaiting": "Nothing is waiting on you",
+  "health": {
+    "allDone": "Everything is done.",
+    "neverChanged": "No changes for more than {limit} days.",
+    "noChanges": "No changes for {days, plural, one {# day} other {# days}}.",
+    "quietProgress": "Gone quiet: {stale} of {total, plural, one {# system} other {# systems}} in progress.",
+    "blocked": "Blocked: {blocked} of {open, plural, one {# open system} other {# open systems}}.",
+    "staleSystems": "{count, plural, one {# system has} other {# systems have}} had no update for {days}+ days.",
+    "blockingQuestions": "{count, plural, one {# blocking question is} other {# blocking questions are}} open."
+  }
 }

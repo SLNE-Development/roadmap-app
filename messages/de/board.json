@@ -61,7 +61,7 @@
     "label": "{title}, {column}",
     "ownerSr": "Verantwortlich: {name}",
     "interviewNotStarted": "Interview nicht gestartet",
-    "planningProgress": "Planung: {covered} von 4 Bereichen",
+    "planningProgress": "Planung: {covered} von 4 Planungsbereichen",
     "noTasks": "Keine Aufgaben",
     "openQuestions": "{count, plural, one {# offene Frage} other {# offene Fragen}}",
     "points": "{points} Pkt.",

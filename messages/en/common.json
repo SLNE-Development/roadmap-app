@@ -26,5 +26,6 @@
   "open": "Open",
   "archive": "Archive",
   "restore": "Restore",
-  "rename": "Rename"
+  "rename": "Rename",
+  "sectionLink": "Link to section {title}"
 }

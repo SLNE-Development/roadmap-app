@@ -26,16 +26,21 @@
   "coverage": {
     "settledLabel": "{area}: {settled} von {asked} geklärt",
     "counts": "{asked} gefragt · {settled} geklärt · {open} offen",
-    "thin": "Dünn: {reason}"
+    "thin": "Dünn: {reason}",
+    "reason": {
+      "none": "Noch keine Fragen gestellt.",
+      "fewSettled": "Erst {settled, plural, one {# geklärte Frage} other {# geklärte Fragen}}; stelle mindestens {min}.",
+      "noRisk": "Kein Fehlerfall ist als Risiko markiert."
+    }
   },
   "reopenArea": {
-    "reopened": "Bereich {area} wieder geöffnet",
-    "trigger": "Einen Bereich wieder öffnen",
+    "reopened": "Planungsbereich {area} wieder geöffnet",
+    "trigger": "Einen Planungsbereich wieder öffnen",
     "title": "Einen Planungsbereich wieder öffnen",
-    "description": "Das System bleibt, wo es ist, und die Planung bleibt abgeschlossen. Nur dieser Bereich nimmt neue Fragen an, und das System kann erst wieder in eine Erledigt-Spalte wandern, wenn er erneut abgeschlossen ist.",
-    "area": "Bereich",
+    "description": "Das System bleibt, wo es ist, und die Planung bleibt abgeschlossen. Nur dieser Planungsbereich nimmt neue Fragen an, und das System kann erst wieder in eine Erledigt-Spalte wandern, wenn er erneut abgeschlossen ist.",
+    "area": "Planungsbereich",
     "reason": "Grund",
     "reasonPlaceholder": "Was hat sich seit dem Abschluss der Planung geändert?",
-    "submit": "Bereich wieder öffnen"
+    "submit": "Planungsbereich wieder öffnen"
   }
 }

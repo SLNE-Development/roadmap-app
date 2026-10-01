@@ -26,5 +26,6 @@
   "open": "Öffnen",
   "archive": "Archivieren",
   "restore": "Wiederherstellen",
-  "rename": "Umbenennen"
+  "rename": "Umbenennen",
+  "sectionLink": "Link zum Abschnitt {title}"
 }

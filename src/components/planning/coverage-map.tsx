@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import { areaKey } from "@/components/system/text";
-import type { AreaCoverage } from "@/lib/planning-coverage";
+import { THIN_MIN_SETTLED, type AreaCoverage } from "@/lib/planning-coverage";
 
 /**
  * Per-area coverage of the planning interview: a segmented bar of settled
@@ -13,6 +13,13 @@ export function CoverageMap({ coverage }: { coverage: AreaCoverage[] }) {
     <ul role="list" className="flex flex-col gap-3 border bg-card px-4 py-3.5 sm:px-5">
       {coverage.map((c) => {
         const settled = c.answered + c.acceptedRisk;
+        // The English `reason` is for agents; the UI words it from the counts.
+        const reason =
+          c.asked === 0
+            ? t("reason.none")
+            : settled < THIN_MIN_SETTLED
+              ? t("reason.fewSettled", { settled, min: THIN_MIN_SETTLED })
+              : t("reason.noRisk");
         const pct = (n: number) => (c.asked === 0 ? 0 : (n / c.asked) * 100);
         return (
           <li key={c.area} className="flex flex-col gap-1.5">
@@ -31,9 +38,9 @@ export function CoverageMap({ coverage }: { coverage: AreaCoverage[] }) {
                 {t("counts", { asked: c.asked, settled, open: c.open })}
               </span>
             </div>
-            {c.thin && c.reason && (
+            {c.thin && (
               <p className="text-xs">
-                <span className="inline-block bg-cat-review-soft px-1.5 py-0.5 font-semibold text-cat-review">{t("thin", { reason: c.reason })}</span>
+                <span className="inline-block bg-cat-review-soft px-1.5 py-0.5 font-semibold text-cat-review">{t("thin", { reason })}</span>
               </p>
             )}
           </li>

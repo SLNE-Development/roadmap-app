@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeUserAgent } from "./user-agent";
+import { describeUserAgent, parseUserAgent } from "./user-agent";
 
 describe("describeUserAgent", () => {
   it.each([
@@ -17,5 +17,20 @@ describe("describeUserAgent", () => {
     ["curl/8.0", "Unknown device"],
   ])("describes %s", (ua, expected) => {
     expect(describeUserAgent(ua)).toBe(expected);
+  });
+});
+
+describe("parseUserAgent", () => {
+  it("returns browser and system", () => {
+    expect(parseUserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:127.0) Gecko/20100101 Firefox/127.0")).toEqual({ browser: "Firefox", system: "Linux" });
+  });
+
+  it("returns a browser without a system", () => {
+    expect(parseUserAgent("Mozilla/5.0 (Unknown) Chrome/126.0.0.0 Safari/537.36")).toEqual({ browser: "Chrome", system: null });
+  });
+
+  it("returns nulls when missing or not a browser", () => {
+    expect(parseUserAgent(null)).toEqual({ browser: null, system: null });
+    expect(parseUserAgent("curl/8.0")).toEqual({ browser: null, system: null });
   });
 });

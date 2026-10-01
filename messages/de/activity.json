@@ -12,9 +12,9 @@
     },
     "person": "Person",
     "system": "System",
-    "agents": "Agents",
-    "agentsOnly": "Nur Agents",
-    "noAgents": "Keine Agents",
+    "agents": "Agenten",
+    "agentsOnly": "Nur Agenten",
+    "noAgents": "Keine Agenten",
     "exportCsv": "CSV exportieren",
     "clear": "Filter zurücksetzen"
   },
@@ -48,7 +48,7 @@
     "showChanges": "Änderungen anzeigen"
   },
   "agents": {
-    "title": "Agents",
+    "title": "Agenten",
     "runsLabel": "Läufe",
     "tabs": {
       "live": "Live",
@@ -149,9 +149,9 @@
     "planningCompletedAlone": "hat die Planung abgeschlossen",
     "planningReopened": "hat die Planung von {target} wieder geöffnet",
     "planningReopenedAlone": "hat die Planung wieder geöffnet",
-    "areaReopened": "hat den Bereich {area} von {target} wieder geöffnet",
+    "areaReopened": "hat den Planungsbereich {area} von {target} wieder geöffnet",
     "areaReopenedAlone": "hat einen Planungsbereich wieder geöffnet",
-    "areaCompleted": "hat den Bereich {area} von {target} abgeschlossen",
+    "areaCompleted": "hat den Planungsbereich {area} von {target} abgeschlossen",
     "areaCompletedAlone": "hat einen Planungsbereich abgeschlossen",
     "planningArea": "Planung",
     "questionAsked": "hat {title} zu {target} gefragt",
@@ -176,7 +176,7 @@
     "webhookOn": "hat einen Discord-Webhook eingeschaltet",
     "webhookOff": "hat einen Discord-Webhook ausgeschaltet",
     "repoLinked": "hat Repository {target} verknüpft",
-    "repoUnlinked": "hat Repository {target} getrennt",
+    "repoUnlinked": "hat die Verknüpfung mit Repository {target} gelöst",
     "repoRules": "hat die Automatisierungsregeln eines Repositorys geändert",
     "codeLinked": "hat {code} mit {target} verknüpft",
     "codeLinkedAlone": "hat Code verknüpft",

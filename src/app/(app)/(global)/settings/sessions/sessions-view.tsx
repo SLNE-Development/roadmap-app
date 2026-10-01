@@ -26,6 +26,8 @@ import { useTRPC } from "@/trpc/client";
 export function SessionsView() {
   const t = useTranslations("account.sessions");
   const tc = useTranslations("common");
+  const deviceName = (s: { browser: string | null; system: string | null }) =>
+    s.browser === null ? t("deviceUnknown") : s.system === null ? s.browser : t("deviceOnSystem", { browser: s.browser, system: s.system });
   const format = useFormatter();
   const trpc = useTRPC();
   const { data } = useSuspenseQuery(trpc.account.sessions.queryOptions());
@@ -84,7 +86,7 @@ export function SessionsView() {
                   <TableCell className="py-2.5 pl-4 font-semibold sm:pl-5">
                     <span className="inline-flex items-center gap-2">
                       <Laptop className="size-4 text-fg-2" aria-hidden />
-                      {s.device}
+                      {deviceName(s)}
                       {s.current && <span className="bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-fg-2">{t("thisDevice")}</span>}
                     </span>
                   </TableCell>
@@ -98,7 +100,7 @@ export function SessionsView() {
                         size="sm"
                         className="text-destructive hover:text-destructive"
                         disabled={pending}
-                        aria-label={t("signOutDevice", { device: s.device })}
+                        aria-label={t("signOutDevice", { device: deviceName(s) })}
                         onClick={() => end.mutate({ id: s.id })}
                       >
                         {t("signOut")}
