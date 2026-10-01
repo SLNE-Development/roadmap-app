@@ -30,6 +30,7 @@ import { InvalidError } from "@/lib/ops/errors";
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
 import { GATE_RULES } from "@/lib/ops/gates";
 import { deleteGlossaryTerm, listGlossary, setGlossaryTerm, setGlossaryTermInput } from "@/lib/ops/glossary";
+import { getProgress, progressInput } from "@/lib/ops/insight";
 import { listMembers } from "@/lib/ops/members";
 import { getPage, listPages, writePage, writePageInput } from "@/lib/ops/pages";
 import { searchProjectInput, searchProjectWithRefs } from "@/lib/ops/search";
@@ -767,6 +768,19 @@ register(
     run: async (db, actor, { project, brief, ...filter }) => {
       const rows = await listActivity(db, actor, project, filter);
       return brief === false ? rows : briefActivity(rows);
+    },
+  }),
+
+  defineTool({
+    name: "get_progress",
+    description: "Task burn-up totals and a projected finish range; set series for daily points.",
+    input: { ...P, ...progressInput.shape, series: z.boolean().default(false) },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/progress",
+    run: async (db, actor, { project, series, ...filter }) => {
+      const { points, ...rest } = await getProgress(db, actor, project, filter);
+      return { totals: rest.totals, scopeAdded: rest.scopeAdded, projection: rest.projection, ...(series ? { points } : {}) };
     },
   }),
 

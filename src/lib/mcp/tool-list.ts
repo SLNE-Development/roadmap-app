@@ -7,7 +7,7 @@ import { MCP_INSTRUCTIONS } from "./server";
  * Size of the tool list plus instructions an agent loads on connect, in bytes.
  * Raise only with a reason in the commit message.
  */
-export const TOOL_LIST_BUDGET_BYTES = 37888;
+export const TOOL_LIST_BUDGET_BYTES = 38656;
 
 /** The tools as MCP `tools/list` serialises them (REST-only tools left out): name, description and JSON input schema. */
 export function toolListPayload(): { name: string; description: string; inputSchema: unknown }[] {

@@ -10,6 +10,7 @@ import { gatesRouter } from "./routers/gates";
 import { githubRouter } from "./routers/github";
 import { glossaryRouter } from "./routers/glossary";
 import { historyRouter } from "./routers/history";
+import { insightRouter } from "./routers/insight";
 import { membersRouter } from "./routers/members";
 import { notificationsRouter } from "./routers/notifications";
 import { pagesRouter } from "./routers/pages";
@@ -52,6 +53,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   webhooks: webhooksRouter,
   github: githubRouter,
+  insight: insightRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */
