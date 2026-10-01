@@ -376,7 +376,10 @@ describe("views", () => {
     await todo(new Date(Date.now() - day));
     await todo(new Date(Date.now() - day), { doneAt: new Date() });
     await todo(new Date(Date.now() + day));
-    expect(await flags()).toMatchObject({ waitingOnRequester: true, lateTodos: 2 });
+    expect(await flags()).toMatchObject({ waitingOnRequester: true, lateTodos: 2, needsActor: true, requesterId: w.R.userId });
+    expect((await listRequests(w.db, w.M)).find((r) => r.id === req.id)!.needsActor).toBe(false);
+    await todo(new Date(Date.now() - day), { ownerUserId: w.M.userId });
+    expect((await listRequests(w.db, w.M)).find((r) => r.id === req.id)!.needsActor).toBe(true);
     await w.db.update(eventRequest).set({ status: "done" }).where(eq(eventRequest.id, req.id));
     expect(await flags()).toMatchObject({ lateTodos: 0 });
   });

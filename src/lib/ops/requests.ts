@@ -511,13 +511,19 @@ export interface RequestListItem {
   startsAt: Date | null;
   /** The end of the event; null without a duration. */
   endsAt: Date | null;
+  requesterId: string | null;
   requesterName: string;
   projectSlug: string | null;
   briefVersion: number;
+  /** Who accepted the request; null before. */
+  acceptedBy: string | null;
+  submittedAt: Date | null;
   /** Whether questions of the team wait for an answer. */
   waitingOnRequester: boolean;
   /** How many undone to-dos are past their due date. */
   lateTodos: number;
+  /** Whether the request waits on the actor: open questions for its requester, a submitted one for a developer, or a late to-do the actor owns. */
+  needsActor: boolean;
 }
 
 const OPEN_STATUSES = REQUEST_STATUSES.filter(isOpen);
@@ -542,6 +548,9 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
       startsAt: eventRequest.startsAt,
       durationMinutes: eventRequest.durationMinutes,
       briefVersion: eventRequest.briefVersion,
+      requesterId: eventRequest.requesterId,
+      acceptedBy: eventRequest.acceptedBy,
+      submittedAt: eventRequest.submittedAt,
       requesterName: user.name,
       projectSlug: project.slug,
     })
@@ -570,13 +579,21 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
       ? []
       : (
           await db
-            .select({ requestId: eventTodo.requestId, n: count() })
+            .select({ requestId: eventTodo.requestId, n: count(), mine: count(sql`case when ${eventTodo.ownerUserId} = ${actor.userId} then 1 end`) })
             .from(eventTodo)
             .where(and(inArray(eventTodo.requestId, lateIds), isNull(eventTodo.doneAt), lt(eventTodo.dueAt, new Date())))
             .groupBy(eventTodo.requestId)
-        ).map((r) => [r.requestId, r.n] as const),
+        ).map((r) => [r.requestId, r] as const),
   );
-  return rows.map(({ durationMinutes, ...r }) => ({ ...r, endsAt: endsAtOf({ startsAt: r.startsAt, durationMinutes }), requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: waiting.has(r.id), lateTodos: late.get(r.id) ?? 0 }));
+  return rows.map(({ durationMinutes, ...r }) => ({
+    ...r,
+    endsAt: endsAtOf({ startsAt: r.startsAt, durationMinutes }),
+    requesterName: r.requesterName?.trim() || "unknown",
+    waitingOnRequester: waiting.has(r.id),
+    lateTodos: late.get(r.id)?.n ?? 0,
+    needsActor:
+      (waiting.has(r.id) && r.requesterId === actor.userId) || (flags.isEventDeveloper && r.status === "submitted") || (late.get(r.id)?.mine ?? 0) > 0,
+  }));
 }
 
 /** Whether a request in `status` may be deleted by an actor who is staff (manager or admin) or the requester of it. */
