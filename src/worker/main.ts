@@ -4,6 +4,7 @@ import { requireEnv, WORKER_REQUIRED_ENV } from "@/lib/env";
 import { closeValkey, getValkey } from "@/lib/valkey";
 import "./consumers";
 import { productionDeps } from "./deps";
+import { startFeed } from "./feed";
 import { beat } from "./heartbeat";
 import { registeredJobs, startWorkers } from "./jobs";
 
@@ -12,6 +13,7 @@ async function main(): Promise<void> {
   requireEnv(WORKER_REQUIRED_ENV);
   const deps = productionDeps();
   const stop = await startWorkers(deps, getValkey());
+  const stopFeed = startFeed(deps);
 
   const jobs = registeredJobs();
   const queues = [...new Set(jobs.map((job) => job.queue))];
@@ -28,6 +30,7 @@ async function main(): Promise<void> {
     stopping = true;
     setTimeout(() => process.exit(1), 30_000).unref();
     clearInterval(heartbeat);
+    await stopFeed();
     await stop();
     await closeValkey();
     await closeDb();
