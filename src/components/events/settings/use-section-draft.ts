@@ -30,7 +30,8 @@ export function useSectionDraft<T extends object>(initial: T, toPatch: (draft: T
     draft,
     dirty,
     pending: mutation.isPending,
-    patch: (part: Partial<T>) => setDraft((d) => ({ ...d, ...part })),
+    /** Merges fields into the draft; pass a function to build them from the latest draft, e.g. after an upload finished. */
+    patch: (part: Partial<T> | ((latest: T) => Partial<T>)) => setDraft((d) => ({ ...d, ...(typeof part === "function" ? part(d) : part) })),
     discard: () => setDraft(saved),
     save: () => {
       const sent = draft;

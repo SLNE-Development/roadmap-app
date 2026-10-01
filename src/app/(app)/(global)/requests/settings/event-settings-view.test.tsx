@@ -108,6 +108,37 @@ describe("EventSettingsView", () => {
     expect(within(card("posting")).getByText("Unsaved changes")).toBeTruthy();
   });
 
+  it("keeps the title typed while the Störfall image uploads", async () => {
+    const realXhr = globalThis.XMLHttpRequest;
+    const requests: { onload: () => void; status: number; responseText: string }[] = [];
+    vi.stubGlobal(
+      "XMLHttpRequest",
+      class {
+        upload = {};
+        status = 0;
+        responseText = "";
+        onload = () => {};
+        onerror = () => {};
+        open() {}
+        send() {
+          requests.push(this);
+        }
+      },
+    );
+    setup();
+    await screen.findByText("Störfall message", { selector: "h2" });
+    const disaster = card("disaster");
+    const file = disaster.querySelector("input[type=file]") as HTMLInputElement;
+    fireEvent.change(file, { target: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
+    await waitFor(() => expect(requests).toHaveLength(1));
+    fireEvent.change(within(disaster).getByLabelText("Title"), { target: { value: "Typed during upload" } });
+    Object.assign(requests[0], { status: 201, responseText: JSON.stringify({ id: "img2", url: "/api/uploads/img2", originalName: "a.png" }) });
+    requests[0].onload();
+    await waitFor(() => expect(within(disaster).getByRole("img", { name: /preview/i }).getAttribute("src")).toBe("/api/uploads/img2"));
+    expect((within(disaster).getByLabelText("Title") as HTMLInputElement).value).toBe("Typed during upload");
+    vi.stubGlobal("XMLHttpRequest", realXhr);
+  });
+
   it("lists the placeholders with their meaning, with {note} where it is allowed", async () => {
     setup();
     await screen.findByText("Cancelled message", { selector: "h2" });

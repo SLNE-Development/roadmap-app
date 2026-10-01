@@ -19,7 +19,7 @@ import { useTRPC } from "@/trpc/client";
  * (`sharedImageId`).
  */
 export type TemplateEditorProps = (
-  | { kind: "disaster" | "resolved" | "cancelled"; value: EmbedTemplate; onChange: (value: EmbedTemplate) => void; sharedImageId?: string | null }
+  | { kind: "disaster" | "resolved" | "cancelled"; value: EmbedTemplate; onChange: (value: EmbedTemplate) => void; sharedImageId?: string | null; onImageChange?: (imageUploadId: string | null) => void }
   | { kind: "details"; value: DetailsTemplate; onChange: (value: DetailsTemplate) => void }
 ) & { disabled: boolean; postAs: string; timeZone: string };
 
@@ -147,8 +147,8 @@ export function EmbedTemplateEditor(props: TemplateEditorProps) {
                   purpose="template"
                   image={props.value.imageUploadId ? { id: props.value.imageUploadId, url: `/api/uploads/${props.value.imageUploadId}` } : null}
                   disabled={disabled}
-                  onUploaded={(image) => props.onChange({ ...props.value, imageUploadId: image.id })}
-                  onRemove={() => props.onChange({ ...props.value, imageUploadId: null })}
+                  onUploaded={(image) => (props.onImageChange ?? ((id) => props.onChange({ ...props.value, imageUploadId: id })))(image.id)}
+                  onRemove={() => (props.onImageChange ?? ((id) => props.onChange({ ...props.value, imageUploadId: id })))(null)}
                 />
                 <p className="text-[13px] text-fg-2">{t("imageHelp")}</p>
               </div>

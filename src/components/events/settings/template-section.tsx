@@ -25,6 +25,7 @@ export function EmbedTemplateSection({ kind, settings, canManage }: TemplateSect
         postAs={settings.postAs}
         timeZone={settings.timeZone}
         onChange={(template) => form.patch({ template })}
+        onImageChange={(imageUploadId) => form.patch((d) => ({ template: { ...d.template, imageUploadId } }))}
       />
     </SectionCard>
   );
