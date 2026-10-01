@@ -12,3 +12,4 @@ import "../github/prune";
 import "../github/installations";
 import "../github/pulls";
 import "../github/checks";
+import "./realtime";
