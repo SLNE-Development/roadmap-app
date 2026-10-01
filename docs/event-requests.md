@@ -45,13 +45,13 @@ The **Messages** tab has one editor each for the team notice, the announcement a
 - **Post now**: asks for confirmation, then posts. Announcement and reminder can ping the event role once, on their first message, when the ping box is ticked. The team notice never pings. Every post ends with the details card (date, time, duration, place, links), which carries the banner.
 - Once any part of a post has been sent, its draft text is locked. Change it with **Edit**: it updates every sent message in place and never pings.
 - **Delete messages** removes the messages from Discord (a Discord event stays).
-- If a post stalls (shown as "Partly posted" or "Failed"): check the channel first, then press **Resume**. A crash between Discord answering and the database write can repeat one message.
+- If a post stalls (shown as "Partly posted" or "Failed"): check the channel first, then press **Resume**. A crash between Discord answering and the database write can repeat one message. A post that shows "Sending" for more than six minutes has lost its job (for example after a worker crash); Resume and Delete work again then.
 
 The announcement also creates a real Discord scheduled event when a bot token and server ID are set and the request has an event docs link. If Discord refuses (permission denied, rejected, server error, rate limit), the announcement still posts with the details card and the post shows a note.
 
 ### Event day
 
-During the event week the **Event day** tab shows the checklist (server checked by the host, staff online, rewards ready, fallback plan read), check-in and the fallback scenarios. Anyone signed in can open it in the event week, read the checklist and check themselves in; only the requester, event managers, developers and admins tick items.
+During the event week the **Event day** tab shows the checklist (server checked by the host, staff online, rewards ready, fallback plan read), check-in and the fallback scenarios. Anyone signed in can open it in the event week, read the checklist and check themselves in; only the requester (while the request is open), event managers, developers and admins tick items, and only in the event week.
 
 ### Disaster and resolve
 
@@ -62,7 +62,7 @@ If the event breaks, an event manager or the requester presses **Post disaster m
 Event developers see requests once they are submitted.
 
 1. **Questions.** In the plugin, `get_request` reads the brief, answers and progress; `ask_requester` asks a round of questions. Requester answers with "Not sure" come back in the top-level `notSure` list for you to decide.
-2. **Accept.** On a submitted request press **Accept request**. Either **Create project** (the Event board, three phases, one system with the brief as spec version 1, deadline at the end of the event) or **Link to an existing project** (you must be an editor of it; pick a system or create a new one). A system belongs to at most one request, so linking one that is already linked elsewhere is refused. Linking writes no spec: the banner then reads "Brief not applied yet". The requester is not added to the project; they see a progress bar of task counts only.
+2. **Accept.** On a submitted request press **Accept request**. Either **Create project** (the Event board, three phases, one system with the brief as spec version 1, deadline at the end of the event) or **Link to an existing project** (you must be an editor of it; pick a system or create a new one). A system belongs to at most one request, so linking one that is already linked elsewhere is refused. Linking writes no spec: the banner then reads "This system was linked to an existing spec; the brief was not applied to it." The requester is not added to the project; they see a progress bar of task counts only.
 3. **Brief changed.** When the requester edits the brief after the spec was written, the project shows **Brief changed since spec vN** with **Show changes**, and **Update from brief** gives you the command `/surf-roadmap:requests update <request-id>` to paste into your agent. The app runs nothing itself.
 4. **`/surf-roadmap:requests`.** `/surf-roadmap:requests <request-id>` develops a request the first time, `update <request-id>` brings the system in line with the changed brief. Without an id the command asks for it (the last part of the request's URL), because there is no list tool. The skill `event-requests` reads `get_request` (use `specBasis.briefVersion` as `sinceBrief` to get the brief diff), plans the system with `plan-system`, asks the planner through `ask_requester` and reports with one `post_update`.
 5. **Never delete done work.** Tasks in state `done` are never changed. Steps that the brief dropped keep their tasks and are listed in the report.
@@ -75,7 +75,7 @@ On the **Accounts** page (Admin section) tick **Event manager** and/or **Event d
 
 ### Event settings and secrets
 
-Event managers and admins open `/requests/settings` (**Event settings**); everyone else sees not-found. Managers change the post-as name, ping role id, server ID, time zone (default `Europe/Berlin`), rulebook link, style guides and examples, and the details, disaster and resolved templates (with a preview). **Only admins** set the three webhook URLs (public, team, staff test) and the bot token. They are encrypted with `ENCRYPTION_KEY`; nobody, admins included, sees them again, only `…••••abcd` hints. Create the webhooks in Discord (Channel settings → Integrations → Webhooks). The ping role id comes from Developer Mode → right-click the role → **Copy role ID**.
+Event managers and admins open `/requests/settings` (**Event settings**); everyone else sees not-found. Managers change the post-as name, ping role id, server ID, time zone (default `Europe/Berlin`), rulebook link, style guides and examples, and the details, disaster and resolved templates (with a preview). **Only admins** set the three webhook URLs (public, team, staff test) and the bot token. They are encrypted with `ENCRYPTION_KEY`; nobody, admins included, sees them again, only `••••abcd` hints (the last four characters). Create the webhooks in Discord (Channel settings → Integrations → Webhooks). The ping role id comes from Developer Mode → right-click the role → **Copy role ID**.
 
 ### Bot (optional)
 
