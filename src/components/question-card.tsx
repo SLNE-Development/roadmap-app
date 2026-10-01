@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useNow } from "@/components/clock";
+import { MentionTextarea } from "@/components/mentions/mention-textarea";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +14,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Textarea } from "@/components/ui/textarea";
 import { QUESTION_PRIORITIES, type QuestionPriority } from "@/db/schema";
 import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -138,10 +138,11 @@ export function QuestionCard({ projectSlug, question: q, canEdit }: { projectSlu
         >
           <label className="flex flex-col gap-1.5 text-[12.5px] font-semibold text-fg-2">
             Your answer
-            <Textarea
+            <MentionTextarea
               rows={3}
+              projectSlug={projectSlug}
               value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
+              onValueChange={setAnswer}
               className="bg-background text-sm font-normal text-foreground"
               placeholder="Answer in a sentence or two; Markdown works."
             />

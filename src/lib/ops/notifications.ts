@@ -1,5 +1,6 @@
 import { and, count, desc, eq, exists, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { allowedAccount, notification, project, projectMember, user, type NotificationKind } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { newId } from "@/lib/id";
@@ -44,6 +45,15 @@ const BODY_LENGTH = 140;
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
 const MAX_UNREAD = 99;
+
+/** Input of {@link listNotifications}. */
+export const listNotificationsInput = z.object({
+  /** The id of the last row of the previous page. */
+  before: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(MAX_LIMIT).optional(),
+  /** Lists only unread rows. */
+  unread: z.boolean().optional(),
+});
 
 /** Returns `text` as plain text (mention tokens as `@Name`) of at most `max` characters, ending with `…` when cut. */
 function clip(text: string, max: number): string {
@@ -112,9 +122,11 @@ function visibleTo(db: Executor, actor: Actor): SQL[] {
 }
 
 /** Lists the actor's inbox, newest first; `before` is the id of the last row of the previous page. */
-export async function listNotifications(db: Executor, actor: Actor, input: { before?: string; limit?: number }): Promise<NotificationItem[]> {
-  const limit = Math.min(Math.max(input.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
+export async function listNotifications(db: Executor, actor: Actor, raw: z.input<typeof listNotificationsInput>): Promise<NotificationItem[]> {
+  const input = listNotificationsInput.parse(raw);
+  const limit = input.limit ?? DEFAULT_LIMIT;
   const conditions = visibleTo(db, actor);
+  if (input.unread) conditions.push(isNull(notification.readAt));
   if (input.before) {
     // Compared in SQL, so the cursor keeps the database's microsecond timestamps.
     const cursor = alias(notification, "cursor");
@@ -145,14 +157,14 @@ export async function listNotifications(db: Executor, actor: Actor, input: { bef
     .limit(limit);
 }
 
-/** Counts the actor's unread inbox rows that {@link listNotifications} would show, capped at 99. */
+/** Counts the actor's unread inbox rows that {@link listNotifications} would show, capped at 100 so callers can tell "more than 99" apart. */
 export async function unreadCount(db: Executor, actor: Actor): Promise<number> {
   const capped = db
     .select({ id: notification.id })
     .from(notification)
     .innerJoin(project, eq(project.id, notification.projectId))
     .where(and(...visibleTo(db, actor), isNull(notification.readAt)))
-    .limit(MAX_UNREAD)
+    .limit(MAX_UNREAD + 1)
     .as("capped");
   const [row] = await db.select({ n: count() }).from(capped);
   return row.n;

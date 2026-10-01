@@ -10,6 +10,7 @@ import { gatesRouter } from "./routers/gates";
 import { glossaryRouter } from "./routers/glossary";
 import { historyRouter } from "./routers/history";
 import { membersRouter } from "./routers/members";
+import { notificationsRouter } from "./routers/notifications";
 import { pagesRouter } from "./routers/pages";
 import { planningRouter } from "./routers/planning";
 import { prefsRouter } from "./routers/prefs";
@@ -46,6 +47,7 @@ export const appRouter = router({
   search: searchRouter,
   agents: agentsRouter,
   admin: adminRouter,
+  notifications: notificationsRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

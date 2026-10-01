@@ -136,7 +136,7 @@ register(
 
   defineTool({
     name: "my_work",
-    description: "Your waiting work: blocked and doing tasks, open planning items and questions, proposed ADRs.",
+    description: "Your waiting work: blocked and doing tasks, open planning items and questions, proposed ADRs, unread mentions.",
     input: {},
     write: false,
     method: "GET",

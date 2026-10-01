@@ -1,8 +1,9 @@
 import type { ComponentProps, ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { TaskStateChip } from "@/components/chips";
+import { MentionChip } from "@/components/mentions/mention-chip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TaskState } from "@/db/schema";
 import { rehypeGlossary, type GlossaryTerm } from "@/lib/glossary-match";
@@ -11,10 +12,19 @@ import { stepNumberOf } from "@/lib/plan-steps";
 /** The task state of each plan step, by step number. */
 export type StepStates = Map<number, { taskId: number; state: TaskState }>;
 
+/** The href of a mention token, `user:<id>`. */
+const MENTION_HREF = /^user:([0-9a-f-]{36})$/;
+
+/** Keeps mention hrefs and otherwise applies react-markdown's default transform, which removes unsafe URLs. */
+function urlTransform(url: string): string {
+  return MENTION_HREF.test(url) ? url : defaultUrlTransform(url);
+}
+
 /**
  * Renders GitHub-flavoured markdown written by people or agents. Raw HTML is
  * skipped and unsafe URLs (such as `javascript:`) are removed by react-markdown's
- * default URL transform; links open in a new tab.
+ * default URL transform; links open in a new tab. Mention tokens (`[@Name](user:<id>)`)
+ * render as chips.
  *
  * @param props.headingIds give headings ids (as `extractHeadings` computes them)
  *   and h1-h3 a hover link to their section; only specs and plans set it
@@ -42,13 +52,18 @@ export function Markdown({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[...(headingIds ? [rehypeSlug] : []), ...(glossary?.length ? [rehypeGlossary(glossary)] : [])]}
         skipHtml
+        urlTransform={urlTransform}
         components={{
           h1: (props) => <SectionHeading level={1} linked={headingIds} stepStates={stepStates} {...props} />,
           h2: (props) => <SectionHeading level={2} linked={headingIds} stepStates={stepStates} {...props} />,
           h3: (props) => <SectionHeading level={3} linked={headingIds} stepStates={stepStates} {...props} />,
           // react-markdown passes the hast `node`, which must not reach the DOM.
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" />,
+          a: ({ node: _node, ...props }) => {
+            const mention = props.href ? MENTION_HREF.exec(props.href) : null;
+            if (mention) return <MentionChip name={headingLabel(props.children).replace(/^@/, "")} userId={mention[1]} />;
+            return <a {...props} target="_blank" rel="noreferrer noopener" />;
+          },
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           abbr: ({ node: _node, title, children }) => <GlossaryAbbr definition={title}>{children}</GlossaryAbbr>,
         }}
@@ -104,7 +119,7 @@ function SectionHeading({
   );
 }
 
-/** The plain text of heading children, for an accessible name. */
+/** The plain text of heading (or link) children, for an accessible name. */
 function headingLabel(children: ReactNode): string {
   if (children == null || typeof children === "boolean") return "";
   if (typeof children === "string" || typeof children === "number") return String(children);

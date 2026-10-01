@@ -25,6 +25,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   search: ["search"],
   agents: ["agents"],
   admin: ["admin"],
+  notifications: ["notifications", "account"],
 };
 
 /**

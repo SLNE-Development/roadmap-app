@@ -3,6 +3,7 @@
 import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
+import { NotificationBell } from "@/components/notifications/bell";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AppSidebar, type SidebarActor, type SidebarProject, type SidebarProjectLink } from "./app-sidebar";
 import { CommandMenu, openCommandMenu } from "./command-menu";
@@ -53,6 +54,7 @@ export function AppShell({
             <Menu className="size-5" />
           </button>
           <span className="min-w-0 flex-1 truncate font-display text-base font-semibold">{project?.name ?? "Roadmap"}</span>
+          <NotificationBell className="size-11" />
           <button type="button" aria-label="Search" onClick={openCommandMenu} className="flex size-11 items-center justify-center">
             <Search className="size-[19px]" />
           </button>

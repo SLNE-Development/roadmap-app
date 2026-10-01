@@ -97,7 +97,7 @@ describe("inbox", () => {
     expect(await unreadCount(db, owner)).toBe(1);
   });
 
-  it("caps the unread count at 99", async () => {
+  it("caps the unread count at 100, so callers can show 99+", async () => {
     await db.insert(notification).values(
       Array.from({ length: 150 }, (_, i) => ({
         id: `n-${String(i).padStart(3, "0")}`,
@@ -111,7 +111,7 @@ describe("inbox", () => {
         sourceKey: `cl:${i}`,
       })),
     );
-    expect(await unreadCount(db, editor)).toBe(99);
+    expect(await unreadCount(db, editor)).toBe(100);
   });
 
   it("pages newest first with a cursor", async () => {

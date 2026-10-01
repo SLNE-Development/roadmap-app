@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ROLE_LABEL } from "@/components/chips";
+import { NotificationBell } from "@/components/notifications/bell";
 import { ProjectMark } from "@/components/person-avatar";
 import { plural } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,7 @@ function Count({ value }: { value: number }) {
 }
 
 /**
- * The persistent left navigation: logo, project switcher, search, the project's
+ * The persistent left navigation: logo, project switcher, search and the notification bell, the project's
  * sections (or the project list outside a project), settings and the account area.
  */
 export function AppSidebar({
@@ -128,15 +129,18 @@ export function AppSidebar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <button
-        type="button"
-        onClick={openCommandMenu}
-        className="flex shrink-0 items-center gap-2 border bg-background px-2.5 py-[7px] text-[13px] text-muted-foreground hover:text-foreground"
-      >
-        <Search className="size-[15px]" aria-hidden />
-        <span className="flex-1 text-left">Search or jump to…</span>
-        <kbd className="border bg-card px-[5px] py-px font-mono text-[11px]">⌘K</kbd>
-      </button>
+      <div className="flex shrink-0 items-stretch gap-1.5">
+        <button
+          type="button"
+          onClick={openCommandMenu}
+          className="flex min-w-0 flex-1 items-center gap-2 border bg-background px-2.5 py-[7px] text-[13px] text-muted-foreground hover:text-foreground"
+        >
+          <Search className="size-[15px]" aria-hidden />
+          <span className="flex-1 truncate text-left">Search or jump to…</span>
+          <kbd className="border bg-card px-[5px] py-px font-mono text-[11px]">⌘K</kbd>
+        </button>
+        <NotificationBell className="w-[34px] border bg-background text-muted-foreground hover:text-foreground" />
+      </div>
 
       {/* Only the navigation between search and settings scrolls; the top and bottom stay put. */}
       <div className="-mx-3 flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto overscroll-contain px-3">

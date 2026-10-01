@@ -1,18 +1,31 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { allowedAccount, projectMember, user } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { newMentions, resolveMentionNames, type MentionMember } from "@/lib/mentions";
+import { projectAccess } from "./access";
 import type { Actor } from "./actor";
 import { actorLabel, notify } from "./notifications";
 
-/** Active members of a project (removed accounts left out) as `{ userId, name }`. */
-async function memberNames(tx: Executor, projectId: string): Promise<MentionMember[]> {
+/** A project member as the mention picker offers them. */
+export interface MentionCandidate extends MentionMember {
+  image: string | null;
+}
+
+/** Active members of a project (removed accounts left out) as `{ userId, name, image }`, by name. */
+async function memberNames(tx: Executor, projectId: string): Promise<MentionCandidate[]> {
   return tx
-    .select({ userId: user.id, name: user.name })
+    .select({ userId: user.id, name: user.name, image: user.image })
     .from(projectMember)
     .innerJoin(user, eq(user.id, projectMember.userId))
     .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
-    .where(eq(projectMember.projectId, projectId));
+    .where(eq(projectMember.projectId, projectId))
+    .orderBy(asc(user.name));
+}
+
+/** Lists the members a mention in the project can name; any member may read it. */
+export async function listMentionMembers(db: Executor, actor: Actor, slug: string): Promise<MentionCandidate[]> {
+  const { project } = await projectAccess(db, actor, slug, "viewer");
+  return memberNames(db, project.id);
 }
 
 /** Turns `@Name` in `text` into mention tokens for the project's current members. */

@@ -23,6 +23,19 @@ describe("Markdown", () => {
     expect(html).toContain("click");
   });
 
+  it("draws mention tokens as chips that are not links", () => {
+    const html = renderToStaticMarkup(<Markdown>{"hi [@Rik](user:0190c0de-0000-7000-8000-000000000001)"}</Markdown>);
+    expect(html).toMatch(/<span[^>]*>@Rik<\/span>/);
+    expect(html).not.toContain("href");
+    expect(html).not.toContain("<a");
+  });
+
+  it("still removes javascript hrefs next to mentions", () => {
+    const html = renderToStaticMarkup(<Markdown>{"[x](javascript:alert(1)) [@Rik](user:0190c0de-0000-7000-8000-000000000001)"}</Markdown>);
+    expect(html).not.toContain("javascript:");
+    expect(html).toContain("@Rik");
+  });
+
   it("opens links in a new tab without referrer", () => {
     const html = renderToStaticMarkup(<Markdown>{"[repo](https://github.com/x/y)"}</Markdown>);
     expect(html).toContain('href="https://github.com/x/y"');

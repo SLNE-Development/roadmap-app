@@ -4,12 +4,12 @@ import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { MentionTextarea } from "@/components/mentions/mention-textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Textarea } from "@/components/ui/textarea";
 import type { QuestionPriority } from "@/db/schema";
 import { useTRPC } from "@/trpc/client";
 
@@ -75,7 +75,7 @@ export function AskQuestionDialog({
             </Field>
             <Field>
               <FieldLabel htmlFor="question-text">Details</FieldLabel>
-              <Textarea id="question-text" value={text} maxLength={5000} onChange={(e) => setText(e.target.value)} />
+              <MentionTextarea id="question-text" projectSlug={projectSlug} value={text} maxLength={5000} onValueChange={setText} />
               <FieldDescription>Optional. Context that helps someone answer; Markdown works.</FieldDescription>
             </Field>
             <Field>

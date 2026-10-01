@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
+import { MentionTextarea } from "@/components/mentions/mention-textarea";
 import { TASK_ESTIMATES, TASK_STATES, type ColumnCategory, type TaskEstimate, type TaskState } from "@/db/schema";
 import { formatAdrNumber } from "@/lib/adr-number";
 import type { TaskItem } from "@/lib/ops/systems";
@@ -91,6 +92,7 @@ export function TaskStateBox({ state }: { state: TaskState }) {
  *
  * @param props.draft the text being edited, owned by the caller so it can be prefilled on open
  * @param props.onSave saves the draft; omit for a read-only dialog
+ * @param props.mentionsIn the project slug whose members `@` suggests while editing; omit for plain text
  */
 function TextDialog({
   open,
@@ -104,6 +106,7 @@ function TextDialog({
   required,
   saving,
   onSave,
+  mentionsIn,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -116,6 +119,7 @@ function TextDialog({
   required?: boolean;
   saving?: boolean;
   onSave?: () => void;
+  mentionsIn?: string;
 }) {
   const empty = required && !draft.trim();
   return (
@@ -132,16 +136,29 @@ function TextDialog({
             <DialogTitle className="font-display text-[19px] font-semibold">{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
-          <Textarea
-            aria-label={label}
-            placeholder={label}
-            value={draft}
-            maxLength={maxLength}
-            required={required}
-            readOnly={!onSave}
-            rows={6}
-            onChange={(e) => onDraftChange(e.target.value)}
-          />
+          {mentionsIn && onSave ? (
+            <MentionTextarea
+              aria-label={label}
+              placeholder={label}
+              projectSlug={mentionsIn}
+              value={draft}
+              maxLength={maxLength}
+              required={required}
+              rows={6}
+              onValueChange={onDraftChange}
+            />
+          ) : (
+            <Textarea
+              aria-label={label}
+              placeholder={label}
+              value={draft}
+              maxLength={maxLength}
+              required={required}
+              readOnly={!onSave}
+              rows={6}
+              onChange={(e) => onDraftChange(e.target.value)}
+            />
+          )}
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
@@ -506,6 +523,7 @@ function TaskRow({
         draft={notes}
         onDraftChange={setNotes}
         maxLength={5000}
+        mentionsIn={projectSlug}
         saving={update.isPending}
         onSave={canEdit ? () => update.mutate({ id: task.id, patch: { notes } }, { onSuccess: () => setNotesOpen(false) }) : undefined}
       />

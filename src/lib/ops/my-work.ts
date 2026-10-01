@@ -5,6 +5,7 @@ import {
   allowedAccount,
   boardColumn,
   changeLog,
+  notification,
   planningItem,
   planningRound,
   project,
@@ -21,8 +22,8 @@ import { plural } from "@/lib/text";
 import type { Actor } from "./actor";
 import { getPref, setPref } from "./prefs";
 
-/** What kind of thing is waiting on someone. Part 6 adds `"mention"`. */
-export type MyWorkKind = "task" | "planning" | "question" | "decision" | "change";
+/** What kind of thing is waiting on someone. */
+export type MyWorkKind = "task" | "planning" | "question" | "decision" | "mention" | "change";
 
 /** One row of the My work inbox. */
 export interface MyWorkItem {
@@ -45,6 +46,8 @@ export interface MyWorkItem {
 export const MY_WORK_SEEN_PREF = "mywork.seenAt";
 
 const DAY_MS = 86_400_000;
+/** How far back unread mentions count as waiting. */
+const MENTION_DAYS = 14;
 const DEFAULT_CHANGES = 30;
 const MAX_CHANGES = 100;
 
@@ -66,7 +69,7 @@ export function markMyWorkSeen(db: Db, actor: Actor, at: Date): Promise<void> {
  * is not a member sees nothing of that project), and archived projects and
  * systems are left out. Waiting items come first: the actor's blocked then
  * in-progress tasks, open planning items, questions and proposed ADRs on
- * their systems; then up to `changesLimit` changes newer than the seen time
+ * their systems, and their unread mentions of the last 14 days; then up to `changesLimit` changes newer than the seen time
  * (or the last 7 days), newest first.
  *
  * @param opts.now the reference time for the default change window
@@ -99,7 +102,7 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
   const ownedById = new Map(owned.map((s) => [s.id, s]));
   const planningIds = owned.filter((s) => s.category === "planning").map((s) => s.id);
 
-  const [taskRows, roundRows, questionRows, askedRows, adrRows, changeRows] = await Promise.all([
+  const [taskRows, roundRows, questionRows, askedRows, adrRows, changeRows, mentionRows] = await Promise.all([
     db
       .select({
         id: task.id,
@@ -228,6 +231,27 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
           )
           .orderBy(desc(changeLog.createdAt), desc(changeLog.id))
           .limit(limit),
+    db
+      .select({
+        id: notification.id,
+        projectId: notification.projectId,
+        title: notification.title,
+        body: notification.body,
+        href: notification.href,
+        createdAt: notification.createdAt,
+      })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.userId, actor.userId),
+          eq(notification.kind, "mention"),
+          eq(notification.inInbox, true),
+          isNull(notification.readAt),
+          inArray(notification.projectId, projectIds),
+          gt(notification.createdAt, new Date(opts.now.getTime() - MENTION_DAYS * DAY_MS)),
+        ),
+      )
+      .orderBy(desc(notification.createdAt), desc(notification.id)),
   ]);
 
   const stateSince = new Map<string, Date>();
@@ -357,6 +381,19 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
     );
   }
 
+  const mentions = mentionRows.map((m) =>
+    item(m.projectId, {
+      key: `mention-${m.id}`,
+      kind: "mention",
+      section: "waiting",
+      systemSlug: null,
+      title: m.title,
+      detail: m.body,
+      href: m.href,
+      at: m.createdAt,
+    }),
+  );
+
   const changes = changeRows.map((c) => {
     const s = c.systemId ? ownedById.get(c.systemId) : undefined;
     const { verb, target, from, to } = describeChange(c, { systemTitle: s?.title ?? null });
@@ -375,5 +412,5 @@ export async function myWork(db: Executor, actor: Actor, opts: { now: Date; chan
     });
   });
 
-  return [...tasks, ...planning, ...questions, ...decisions, ...changes];
+  return [...tasks, ...planning, ...questions, ...decisions, ...mentions, ...changes];
 }

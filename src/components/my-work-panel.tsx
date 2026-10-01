@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
-import { Bell, CircleHelp, History, ListChecks, Lock, Scale } from "lucide-react";
+import { AtSign, Bell, CircleHelp, History, ListChecks, Lock, Scale } from "lucide-react";
 import Link from "next/link";
 import { useNow } from "@/components/clock";
 import { Panel } from "@/components/page";
@@ -17,6 +17,7 @@ const KINDS: Record<string, { icon: typeof Bell; className: string }> = {
   planning: { icon: Lock, className: "bg-cat-planning-soft text-cat-planning" },
   question: { icon: CircleHelp, className: "bg-cat-todo-soft text-cat-todo" },
   decision: { icon: Scale, className: "bg-cat-review-soft text-cat-review" },
+  mention: { icon: AtSign, className: "bg-brand-soft text-brand-strong" },
   change: { icon: History, className: "bg-secondary text-fg-2" },
 };
 const GENERIC = { icon: Bell, className: "bg-secondary text-fg-2" };

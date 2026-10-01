@@ -3,8 +3,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { MentionTextarea } from "@/components/mentions/mention-textarea";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 import { Markdown } from "./markdown";
@@ -71,13 +71,14 @@ export function SystemNotes({ projectSlug, systemSlug, notes, canEdit }: { proje
             );
           }}
         >
-          <Textarea
+          <MentionTextarea
             aria-label="Notes"
             className="min-h-40 text-[13px]"
+            projectSlug={projectSlug}
             value={text}
             autoFocus
-            onChange={(e) => {
-              setDraft(e.target.value);
+            onValueChange={(value) => {
+              setDraft(value);
               setDirty(true);
             }}
           />

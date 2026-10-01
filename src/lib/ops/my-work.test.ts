@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { allowedAccount, changeLog, user } from "@/db/schema";
+import { allowedAccount, changeLog, notification, project, user } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { acceptAdr, createAdr } from "./adrs";
 import { setSystemArchived } from "./archive";
 import { removeMember, setMember } from "./members";
 import { markMyWorkSeen, myWork } from "./my-work";
+import { listNotifications, markRead, notify } from "./notifications";
 import { addPlanningRound } from "./planning";
 import { addQuestion, answerQuestion } from "./questions";
 import { createSystem, updateSystem } from "./systems";
@@ -147,5 +148,41 @@ describe("myWork", () => {
     expect((await myWork(db, admin, { now })).filter((i) => i.section === "waiting").map((i) => i.title)).toEqual(["Q"]);
     await removeMember(db, owner, slug, admin.userId);
     expect(await myWork(db, admin, { now })).toEqual([]);
+  });
+
+  it("lists unread mentions of the last 14 days, not read ones", async () => {
+    const { db, alice, slug, now } = await setup();
+    const [{ id: projectId }] = await db.select({ id: project.id }).from(project).where(eq(project.slug, slug));
+    const mention = (sourceKey: string, title: string) =>
+      notify(db, { userId: alice.userId, projectId, kind: "mention", entity: "question", entityId: "q1", title, href: `/p/${slug}/questions`, sourceKey });
+    await mention("question:q1:text:mention:a", "Owner mentioned you");
+    await mention("question:q2:text:mention:a", "Read mention");
+    const [read] = (await listNotifications(db, alice, {})).filter((n) => n.title === "Read mention");
+    await markRead(db, alice, [read.id]);
+    const items = (await myWork(db, alice, { now })).filter((i) => i.kind === "mention");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ title: "Owner mentioned you", section: "waiting", projectSlug: slug, href: `/p/${slug}/questions` });
+    const later = new Date(now.getTime() + 15 * 86_400_000);
+    expect((await myWork(db, alice, { now: later })).filter((i) => i.kind === "mention")).toEqual([]);
+  });
+
+  it("leaves out mentions kept only for push", async () => {
+    const { db, alice, slug, now } = await setup();
+    const [{ id: projectId }] = await db.select({ id: project.id }).from(project).where(eq(project.slug, slug));
+    await db.insert(notification).values({
+      id: "push-only",
+      userId: alice.userId,
+      projectId,
+      kind: "mention",
+      entity: "question",
+      entityId: "q1",
+      title: "Push only",
+      body: "",
+      href: `/p/${slug}/questions`,
+      sourceKey: "question:q1:text:mention:a",
+      inInbox: false,
+      pushStatus: "pending",
+    });
+    expect((await myWork(db, alice, { now })).filter((i) => i.kind === "mention")).toEqual([]);
   });
 });
