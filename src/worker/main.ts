@@ -2,6 +2,8 @@ import { writeFile } from "node:fs/promises";
 import { closeDb } from "@/db/client";
 import { checkEncryptionKey } from "@/lib/crypto";
 import { requireEnv, WORKER_REQUIRED_ENV } from "@/lib/env";
+import { checkUploadsDir } from "@/lib/ops/uploads";
+import { uploadsDir } from "@/lib/uploads";
 import { closeValkey, getProducerValkey, getValkey } from "@/lib/valkey";
 import "./consumers";
 import { productionDeps } from "./deps";
@@ -31,7 +33,9 @@ async function waitForProducer(): Promise<void> {
 
 /** Entry point of the worker process. */
 async function main(): Promise<void> {
-  requireEnv(WORKER_REQUIRED_ENV);
+  const uploads = uploadsDir();
+  requireEnv(WORKER_REQUIRED_ENV, { ...process.env, EVENT_UPLOADS_DIR: uploads });
+  await checkUploadsDir(uploads);
   checkEncryptionKey();
   const deps = productionDeps();
   const stop = await startWorkers(deps, getValkey());

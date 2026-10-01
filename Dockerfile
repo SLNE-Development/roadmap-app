@@ -35,6 +35,8 @@ COPY --from=build --chown=node:node /app/drizzle ./drizzle
 COPY --from=build --chown=node:node /app/dist/worker ./worker
 COPY --from=prod-deps --chown=node:node /app/node_modules ./worker/node_modules
 
+RUN mkdir -p /data/uploads && chown node:node /data/uploads
+
 USER node
 EXPOSE 3000
 

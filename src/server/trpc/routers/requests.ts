@@ -21,6 +21,7 @@ import {
   updateRequestInput,
   withdrawRequest,
 } from "@/lib/ops/requests";
+import { deleteUpload, setBanner, setBannerInput } from "@/lib/ops/uploads";
 import { protectedProcedure, router } from "../init";
 
 /** The request a procedure acts on. */
@@ -81,4 +82,10 @@ export const requestsRouter = router({
   history: protectedProcedure
     .input(z.object({ ...R, limit: z.number().int().min(1).max(500).optional() }))
     .query(({ ctx, input }) => requestHistory(ctx.db, ctx.actor, input.id, input.limit)),
+
+  /** Sets or clears the banner image of a request. */
+  setBanner: protectedProcedure.input(setBannerInput).mutation(({ ctx, input }) => setBanner(ctx.db, ctx.actor, input)),
+
+  /** Deletes an uploaded image, clearing it as the banner first. */
+  deleteUpload: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => deleteUpload(ctx.db, ctx.actor, input.id)),
 });

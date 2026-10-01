@@ -106,5 +106,23 @@
       "eventDocsUrl": "den Dokumentenlink",
       "requesterId": "die anfragende Person"
     }
+  },
+  "image": {
+    "choose": "Bild auswählen",
+    "replace": "Bild ersetzen",
+    "remove": "Bild entfernen",
+    "hint": "Wähle eine Datei oder ziehe sie hierher. PNG, JPEG, WEBP oder GIF, bis zu {size} MiB.",
+    "previewAlt": "Vorschau des hochgeladenen Bildes",
+    "progress": "Fortschritt des Uploads",
+    "uploading": "Wird hochgeladen, {percent} %",
+    "tooLarge": "Das Bild darf höchstens {size} MiB groß sein.",
+    "wrongType": "Nur PNG-, JPEG-, WEBP- und GIF-Bilder werden akzeptiert.",
+    "failed": "Der Upload ist fehlgeschlagen. Versuche es erneut."
+  },
+  "banner": {
+    "title": "Event-Banner",
+    "help": "Das Bild, das mit der Event-Ankündigung gezeigt wird.",
+    "saved": "Banner gespeichert",
+    "removed": "Banner entfernt"
   }
 }

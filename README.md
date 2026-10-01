@@ -22,6 +22,7 @@ Better Auth (Discord), MCP TypeScript SDK.
 | `VALKEY_URL` | yes | Valkey (Redis-compatible) URL for background jobs, caching and live updates. |
 | `METRICS_TOKEN` | no | Bearer token for `/api/metrics` (Prometheus). Empty disables the endpoint. |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | no | Web Push keys (`npx web-push generate-vapid-keys`) and a `mailto:` or `https:` contact. Push is off unless all three are set. |
+| `EVENT_UPLOADS_DIR` | no | Directory for uploaded event images, `/data/uploads` by default; compose mounts the `roadmap-uploads` volume there in `app` and `worker`. Publish-once files, no backup needed. |
 | `POSTGRES_PASSWORD` | compose only | Password of the bundled Postgres. |
 
 Copy `.env.example` to `.env` and fill it in.

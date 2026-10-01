@@ -6,6 +6,7 @@ import { useId, useState } from "react";
 import { toast } from "sonner";
 import { UnderlineTabs } from "@/components/activity/url-tabs";
 import { BriefHistory } from "@/components/events/brief-history";
+import { ImageUpload } from "@/components/events/image-upload";
 import { StatusBar } from "@/components/events/status-bar";
 import { Markdown } from "@/components/markdown";
 import { Page, PageHeader, Panel } from "@/components/page";
@@ -150,6 +151,33 @@ function DetailsForm({ detail }: { detail: RequestDetail }) {
         </div>
       )}
     </form>
+  );
+}
+
+/** The Overview tab's banner picker: uploads an image, makes it the banner and deletes the one it replaces. */
+function BannerPanel({ detail }: { detail: RequestDetail }) {
+  const t = useTranslations("events.banner");
+  const trpc = useTRPC();
+  const { request, canEdit } = detail;
+  const set = useMutation(trpc.requests.setBanner.mutationOptions());
+  const remove = useMutation(trpc.requests.deleteUpload.mutationOptions({ onSuccess: () => toast.success(t("removed")) }));
+  const current = request.bannerUploadId;
+  return (
+    <Panel title={t("title")} bodyClassName="gap-3 px-4 pb-4 sm:px-5">
+      <p className="text-[13px] text-fg-2">{t("help")}</p>
+      <ImageUpload
+        requestId={request.id}
+        purpose="banner"
+        image={current ? { id: current, url: `/api/uploads/${current}` } : null}
+        disabled={!canEdit}
+        onUploaded={async (image) => {
+          await set.mutateAsync({ requestId: request.id, uploadId: image.id });
+          toast.success(t("saved"));
+          if (current) remove.mutate({ id: current });
+        }}
+        onRemove={(id) => remove.mutate({ id })}
+      />
+    </Panel>
   );
 }
 
@@ -326,6 +354,7 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "overview"
         </div>
       ) : (
         <div className="flex flex-col gap-6">
+          <BannerPanel detail={detail} />
           <Panel title={t("details.title")}>
             <DetailsForm key={request.updatedAt.getTime()} detail={detail} />
           </Panel>

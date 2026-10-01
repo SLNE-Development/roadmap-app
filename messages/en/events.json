@@ -106,5 +106,23 @@
       "eventDocsUrl": "the documents link",
       "requesterId": "the requester"
     }
+  },
+  "image": {
+    "choose": "Choose image",
+    "replace": "Replace image",
+    "remove": "Remove image",
+    "hint": "Choose a file or drop it here. PNG, JPEG, WEBP or GIF, up to {size} MiB.",
+    "previewAlt": "Preview of the uploaded image",
+    "progress": "Upload progress",
+    "uploading": "Uploading, {percent}%",
+    "tooLarge": "The image may be at most {size} MiB.",
+    "wrongType": "Only PNG, JPEG, WEBP and GIF images are accepted.",
+    "failed": "The upload failed. Try again."
+  },
+  "banner": {
+    "title": "Event banner",
+    "help": "The image shown with the event announcement.",
+    "saved": "Banner saved",
+    "removed": "Banner removed"
   }
 }

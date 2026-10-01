@@ -218,6 +218,13 @@
       "when": 1790863046775,
       "tag": "0030_request-notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790863735354,
+      "tag": "0031_event-uploads",
+      "breakpoints": true
     }
   ]
 }

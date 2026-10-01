@@ -27,6 +27,9 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-}
+      - EVENT_UPLOADS_DIR=${EVENT_UPLOADS_DIR:-/data/uploads}
+    volumes:
+      - roadmap-uploads:/data/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,6 +53,9 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-}
+      - EVENT_UPLOADS_DIR=${EVENT_UPLOADS_DIR:-/data/uploads}
+    volumes:
+      - roadmap-uploads:/data/uploads
     depends_on:
       app:
         condition: service_healthy
@@ -113,3 +119,4 @@ services:
 volumes:
   roadmap-db:
   roadmap-valkey:
+  roadmap-uploads:

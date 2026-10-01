@@ -9,8 +9,8 @@ export const APP_REQUIRED_ENV = [
   "ENCRYPTION_KEY",
 ] as const;
 
-/** Environment variables the worker refuses to start without. */
-export const WORKER_REQUIRED_ENV = ["DATABASE_URL", "VALKEY_URL", "ENCRYPTION_KEY"] as const;
+/** Environment variables the worker refuses to start without; `EVENT_UPLOADS_DIR` has a default, applied by `uploadsDir()`. */
+export const WORKER_REQUIRED_ENV = ["DATABASE_URL", "VALKEY_URL", "ENCRYPTION_KEY", "EVENT_UPLOADS_DIR"] as const;
 
 /**
  * Checks that every named variable is set and non-empty.
