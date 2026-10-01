@@ -21,7 +21,9 @@ export default async function BoardPage({
     trpc.structure.phases.queryOptions({ project: slug }),
     trpc.systems.latestUpdates.queryOptions({ project: slug }),
   );
-  if (!detail.boards.some((b) => b.slug === boardSlug)) notFound();
+  const board = detail.boards.find((b) => b.slug === boardSlug);
+  if (!board) notFound();
+  await prefetch(trpc.prefs.get.queryOptions({ key: `board.collapsed.${board.id}` }));
 
   return (
     <HydrateClient>

@@ -7,6 +7,8 @@ import {
   prefKeySchema,
   setPref,
 } from "@/lib/ops/prefs";
+import { InvalidError } from "@/lib/ops/errors";
+import { prefSchema } from "@/lib/pref-keys";
 import { protectedProcedure, router } from "../init";
 
 /** The signed-in user's own preferences; every procedure acts on the actor alone. */
@@ -23,12 +25,17 @@ export const prefsRouter = router({
       getPrefs(ctx.db, ctx.actor.userId, input.prefix),
     ),
 
-  /** Sets a preference. */
+  /** Sets a preference; the key must be a known one and the value must fit its schema. */
   set: protectedProcedure
     .input(z.object({ key: prefKeySchema, value: z.unknown() }))
-    .mutation(({ ctx, input }) =>
-      setPref(ctx.db, ctx.actor, input.key, input.value),
-    ),
+    .mutation(({ ctx, input }) => {
+      const schema = prefSchema(input.key);
+      if (!schema) throw new InvalidError("Unknown preference.");
+      const parsed = schema.safeParse(input.value);
+      if (!parsed.success)
+        throw new InvalidError(`Invalid value for ${input.key}.`);
+      return setPref(ctx.db, ctx.actor, input.key, parsed.data);
+    }),
 
   /** Deletes a preference. */
   delete: protectedProcedure

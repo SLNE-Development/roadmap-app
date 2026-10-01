@@ -1,16 +1,19 @@
 "use client";
 
 import { useSuspenseQueries } from "@tanstack/react-query";
-import { CircleCheck, GitBranch, Milestone, Newspaper } from "lucide-react";
+import { CircleCheck, GitBranch, Milestone, Newspaper, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
+import { Fragment, useState } from "react";
 import { AgentTag, CATEGORY_CLASS, CATEGORY_LABEL } from "@/components/chips";
 import { useNow } from "@/components/clock";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { AttentionList } from "@/components/overview/attention-list";
+import { CustomizeDialog } from "@/components/overview/customize-dialog";
 import { EmptyState, Page, PageHeader, Panel, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
 import type { ColumnCategory } from "@/db/schema";
+import { resolvePanels, type PanelId } from "@/lib/overview-panels";
 import { relativeAge } from "@/lib/time";
 import { useTRPC } from "@/trpc/client";
 
@@ -36,6 +39,7 @@ function repoLabel(url: string): string {
 export function OverviewView({ slug }: { slug: string }) {
   const trpc = useTRPC();
   const now = useNow();
+  const [customizing, setCustomizing] = useState(false);
   const [
     { data: detail },
     { data: systems },
@@ -43,6 +47,7 @@ export function OverviewView({ slug }: { slug: string }) {
     { data: updates },
     { data: activity },
     { data: attention },
+    { data: panelPref },
   ] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
@@ -51,6 +56,7 @@ export function OverviewView({ slug }: { slug: string }) {
       trpc.history.updates.queryOptions({ project: slug, filter: { limit: 8 } }),
       trpc.history.activity.queryOptions({ project: slug, filter: { limit: 1 } }),
       trpc.projects.attention.queryOptions({ project: slug }),
+      trpc.prefs.get.queryOptions({ key: "overview.panels" }),
     ],
   });
   const data = { detail, systems, phases, updates, activity };
@@ -68,28 +74,9 @@ export function OverviewView({ slug }: { slug: string }) {
     <NewSystemDialog projectSlug={slug} boards={data.detail.boards.map((b) => ({ slug: b.slug, name: b.name }))} />
   );
 
-  return (
-    <Page>
-      <PageHeader
-        title={project.name}
-        description={project.description || undefined}
-        actions={
-          (project.repoUrl || newSystem) && (
-            <>
-              {project.repoUrl && (
-                <Button variant="outline" asChild className="text-[13px] font-normal text-fg-2">
-                  <a href={project.repoUrl} target="_blank" rel="noreferrer noopener">
-                    <GitBranch aria-hidden className="size-3.5" />
-                    {repoLabel(project.repoUrl)}
-                  </a>
-                </Button>
-              )}
-              {newSystem}
-            </>
-          )
-        }
-      />
-
+  const panels = resolvePanels(panelPref);
+  const panelNodes: Record<PanelId, React.ReactNode> = {
+    status: (
       <section aria-label="Systems by status" className="flex flex-col gap-3 border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
           <h2 className="text-[15px] font-semibold">
@@ -116,123 +103,174 @@ export function OverviewView({ slug }: { slug: string }) {
           ))}
         </ul>
       </section>
-
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-5">
-          <Panel title="Needs attention" meta={attention.length > 0 && `${attention.length} ${attention.length === 1 ? "item" : "items"}`}>
-            {attention.length > 0 ? (
-              <AttentionList items={attention} />
-            ) : (
-              <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-                <EmptyState
-                  icon={<CircleCheck />}
-                  title="Nothing needs attention"
-                  description="No blocked systems, open planning, pending decisions or stale questions."
-                />
-              </div>
-            )}
-          </Panel>
-
-          <Panel
-            title="Phases"
+    ),
+    attention: (
+      <Panel title="Needs attention" meta={attention.length > 0 && `${attention.length} ${attention.length === 1 ? "item" : "items"}`}>
+        {attention.length > 0 ? (
+          <AttentionList items={attention} />
+        ) : (
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            <EmptyState
+              icon={<CircleCheck />}
+              title="Nothing needs attention"
+              description="No blocked systems, open planning, pending decisions or stale questions."
+            />
+          </div>
+        )}
+      </Panel>
+    ),
+    phases: (
+      <Panel
+        title="Phases"
+        action={
+          <Link href={`${base}/roadmap`} className="text-[13px] font-medium text-brand-strong hover:underline">
+            Open roadmap
+          </Link>
+        }
+        bodyClassName="px-4 pb-3 sm:px-5"
+      >
+        {data.phases.length === 0 ? (
+          <EmptyState
+            icon={<Milestone />}
+            title="No phases yet"
+            description="Phases order the work into milestones."
+            className="mb-2"
             action={
-              <Link href={`${base}/roadmap`} className="text-[13px] font-medium text-brand-strong hover:underline">
-                Open roadmap
-              </Link>
+              canEdit && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`${base}/settings/structure`}>Add phases</Link>
+                </Button>
+              )
             }
-            bodyClassName="px-4 pb-3 sm:px-5"
-          >
-            {data.phases.length === 0 ? (
-              <EmptyState
-                icon={<Milestone />}
-                title="No phases yet"
-                description="Phases order the work into milestones."
-                className="mb-2"
-                action={
-                  canEdit && (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`${base}/settings/structure`}>Add phases</Link>
-                    </Button>
-                  )
-                }
-              />
-            ) : (
-              <ol className="flex flex-col">
-                {data.phases.map((p, i) => {
-                  const items = data.systems.filter((s) => s.phaseId === p.id);
-                  const done = items.filter((s) => s.columnCategory === "done").length;
-                  const complete = items.length > 0 && done === items.length;
-                  return (
-                    <li key={p.id} className="grid grid-cols-[22px_minmax(0,150px)_minmax(0,1fr)_48px] items-center gap-3 py-[7px]">
-                      <span className="font-mono text-[11.5px] text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
-                      <span className="truncate font-medium">{p.name}</span>
-                      <ProgressBar value={done} total={items.length} colorClass={complete ? "bg-cat-done" : "bg-primary"} className="h-1.5 min-w-0" />
-                      <span className="text-right font-mono text-[12.5px] text-fg-2">
-                        {done}/{items.length}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </Panel>
-        </div>
-
-        <Panel
-          title="Latest updates"
-          action={
-            <Link href={`${base}/activity`} className="text-[13px] font-medium text-brand-strong hover:underline">
-              All activity
-            </Link>
-          }
-        >
-          {data.updates.length === 0 ? (
-            <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-              <EmptyState icon={<Newspaper />} title="No updates yet" description="Progress updates from people and agents show up here." />
-            </div>
-          ) : (
-            <ol className="flex flex-col">
-              {data.updates.map((u) => {
-                const { authorName: name, agent } = u;
-                return (
-                  <li key={u.id}>
-                    <article className="flex gap-3 border-t px-4 py-3 sm:px-5">
-                      <PersonAvatar name={name} size="md" />
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12.5px] text-muted-foreground">
-                          <span className="font-semibold text-foreground">{name}</span>
-                          {agent && <AgentTag agent={agent} />}
-                          <span>on</span>
-                          <Link href={`${base}/systems/${u.systemSlug}`} className="font-medium text-fg-2 hover:text-foreground hover:underline">
-                            {u.systemTitle}
-                          </Link>
-                          <time className="ml-auto whitespace-nowrap" dateTime={u.createdAt.toISOString()}>
-                            {relativeAge(u.createdAt.toISOString(), now)}
-                          </time>
-                        </div>
-                        <p className="line-clamp-3 text-[13.5px] leading-normal break-words">{u.summary}</p>
-                        {u.commitHash &&
-                          (u.commitUrl ? (
-                            <a
-                              href={u.commitUrl}
-                              target="_blank"
-                              rel="noreferrer noopener"
-                              className="self-start font-mono text-[11.5px] text-brand-strong hover:underline"
-                            >
-                              {u.commitHash.slice(0, 7)}
-                            </a>
-                          ) : (
-                            <span className="self-start font-mono text-[11.5px] text-muted-foreground">{u.commitHash.slice(0, 7)}</span>
-                          ))}
+          />
+        ) : (
+          <ol className="flex flex-col">
+            {data.phases.map((p, i) => {
+              const items = data.systems.filter((s) => s.phaseId === p.id);
+              const done = items.filter((s) => s.columnCategory === "done").length;
+              const complete = items.length > 0 && done === items.length;
+              return (
+                <li key={p.id} className="grid grid-cols-[22px_minmax(0,150px)_minmax(0,1fr)_48px] items-center gap-3 py-[7px]">
+                  <span className="font-mono text-[11.5px] text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="truncate font-medium">{p.name}</span>
+                  <ProgressBar value={done} total={items.length} colorClass={complete ? "bg-cat-done" : "bg-primary"} className="h-1.5 min-w-0" />
+                  <span className="text-right font-mono text-[12.5px] text-fg-2">
+                    {done}/{items.length}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </Panel>
+    ),
+    updates: (
+      <Panel
+        title="Latest updates"
+        action={
+          <Link href={`${base}/activity`} className="text-[13px] font-medium text-brand-strong hover:underline">
+            All activity
+          </Link>
+        }
+      >
+        {data.updates.length === 0 ? (
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            <EmptyState icon={<Newspaper />} title="No updates yet" description="Progress updates from people and agents show up here." />
+          </div>
+        ) : (
+          <ol className="flex flex-col">
+            {data.updates.map((u) => {
+              const { authorName: name, agent } = u;
+              return (
+                <li key={u.id}>
+                  <article className="flex gap-3 border-t px-4 py-3 sm:px-5">
+                    <PersonAvatar name={name} size="md" />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12.5px] text-muted-foreground">
+                        <span className="font-semibold text-foreground">{name}</span>
+                        {agent && <AgentTag agent={agent} />}
+                        <span>on</span>
+                        <Link href={`${base}/systems/${u.systemSlug}`} className="font-medium text-fg-2 hover:text-foreground hover:underline">
+                          {u.systemTitle}
+                        </Link>
+                        <time className="ml-auto whitespace-nowrap" dateTime={u.createdAt.toISOString()}>
+                          {relativeAge(u.createdAt.toISOString(), now)}
+                        </time>
                       </div>
-                    </article>
-                  </li>
-                );
-              })}
-            </ol>
+                      <p className="line-clamp-3 text-[13.5px] leading-normal break-words">{u.summary}</p>
+                      {u.commitHash &&
+                        (u.commitUrl ? (
+                          <a
+                            href={u.commitUrl}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="self-start font-mono text-[11.5px] text-brand-strong hover:underline"
+                          >
+                            {u.commitHash.slice(0, 7)}
+                          </a>
+                        ) : (
+                          <span className="self-start font-mono text-[11.5px] text-muted-foreground">{u.commitHash.slice(0, 7)}</span>
+                        ))}
+                    </div>
+                  </article>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </Panel>
+    ),
+  };
+  const shown = panels.filter((p) => p.visible);
+  const wide = shown.find((p) => p.id === "status");
+  const rest = shown.filter((p) => p.id !== "status");
+  const leftCount = Math.ceil(rest.length / 2);
+  const left = rest.slice(0, leftCount);
+  const right = rest.slice(leftCount);
+
+  return (
+    <Page>
+      <PageHeader
+        title={project.name}
+        description={project.description || undefined}
+        actions={
+          <>
+            {project.repoUrl && (
+              <Button variant="outline" asChild className="text-[13px] font-normal text-fg-2">
+                <a href={project.repoUrl} target="_blank" rel="noreferrer noopener">
+                  <GitBranch aria-hidden className="size-3.5" />
+                  {repoLabel(project.repoUrl)}
+                </a>
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setCustomizing(true)} className="text-[13px] font-normal text-fg-2">
+              <SlidersHorizontal aria-hidden className="size-3.5" />
+              Customize
+            </Button>
+            {newSystem}
+          </>
+        }
+      />
+
+      {wide && <Fragment key="status">{panelNodes.status}</Fragment>}
+
+      {rest.length > 0 && (
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-5">
+            {left.map((p) => (
+              <Fragment key={p.id}>{panelNodes[p.id]}</Fragment>
+            ))}
+          </div>
+          {right.length > 0 && (
+            <div className="flex flex-col gap-5">
+              {right.map((p) => (
+                <Fragment key={p.id}>{panelNodes[p.id]}</Fragment>
+              ))}
+            </div>
           )}
-        </Panel>
-      </div>
+        </div>
+      )}
+      <CustomizeDialog panels={panels} open={customizing} onOpenChange={setCustomizing} />
     </Page>
   );
 }

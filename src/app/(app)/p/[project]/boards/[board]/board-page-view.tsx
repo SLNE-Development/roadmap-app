@@ -40,6 +40,7 @@ export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardS
       <BoardView
         projectSlug={slug}
         projectName={detail.project.name}
+        boardId={board.id}
         board={{ slug: board.slug, name: board.name }}
         boards={detail.boards.map((b) => ({ slug: b.slug, name: b.name }))}
         canEdit={canEdit}

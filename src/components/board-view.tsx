@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { ArrowRightLeft, Ban, ChevronDown, ChevronRight, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Rows3, Search, SquareKanban } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -26,6 +26,7 @@ import type { BoardCardView } from "@/lib/board-card";
 import type { CardField } from "@/lib/card-fields";
 import { focusReady, moveKey, moveTargets } from "@/lib/board-moves";
 import { groupIntoLanes, LANE_KEYS, type LaneKey } from "@/lib/lanes";
+import { BOARD_COLLAPSED_SCHEMA } from "@/lib/pref-keys";
 import { plural } from "@/lib/text";
 import { hasFilters, withParam, type BoardQuery } from "@/lib/url-filters";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,7 @@ const STACK_SIZE = 5;
 export function BoardView({
   projectSlug,
   projectName,
+  boardId,
   board,
   boards,
   canEdit,
@@ -86,6 +88,7 @@ export function BoardView({
 }: {
   projectSlug: string;
   projectName: string;
+  boardId: string;
   board: { slug: string; name: string };
   boards: { slug: string; name: string }[];
   canEdit: boolean;
@@ -114,8 +117,21 @@ export function BoardView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startFilter] = useTransition();
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const [collapsedLanes, setCollapsedLanes] = useState<Set<string>>(() => new Set());
+  const queryClient = useQueryClient();
+  const collapsedKey = `board.collapsed.${boardId}`;
+  const collapsedQuery = trpc.prefs.get.queryOptions({ key: collapsedKey });
+  const { data: collapsedPref } = useSuspenseQuery(collapsedQuery);
+  const setCollapsedPref = useMutation(
+    trpc.prefs.set.mutationOptions({
+      onMutate: async (vars) => {
+        await queryClient.cancelQueries({ queryKey: collapsedQuery.queryKey });
+        const previous = queryClient.getQueryData(collapsedQuery.queryKey);
+        queryClient.setQueryData(collapsedQuery.queryKey, vars.value);
+        return { previous };
+      },
+      onError: (_error, _vars, context) => queryClient.setQueryData(collapsedQuery.queryKey, context?.previous ?? null),
+    }),
+  );
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [optimistic, moveOptimistic] = useOptimistic(cards, (state, move: { slug: string; columnId: string }) =>
@@ -126,6 +142,20 @@ export function BoardView({
   const phaseName = useMemo(() => new Map(phases.map((p) => [p.id, p.name])), [phases]);
   const customName = useMemo(() => new Map(customFields.map((f) => [f.key, f.name])), [customFields]);
   const categoryOf = useMemo(() => new Map(columns.map((c) => [c.id, c.category])), [columns]);
+
+  // Without a saved choice the Done columns start collapsed; a saved one is authoritative.
+  const saved = collapsedPref ? BOARD_COLLAPSED_SCHEMA.safeParse(collapsedPref) : null;
+  const collapsed = saved?.success
+    ? { columns: new Set(saved.data.columns), lanes: new Set(saved.data.lanes) }
+    : { columns: new Set(columns.filter((c) => c.category === "done").map((c) => c.id)), lanes: new Set<string>() };
+  const isCollapsed = (col: BoardColumnView) => col.category === "done" && collapsed.columns.has(col.id);
+  /** Saves the collapsed state with one column or lane entry flipped, or set to `to`. */
+  const flipCollapsed = (kind: "columns" | "lanes", entry: string, to?: boolean) => {
+    const next = { columns: new Set(collapsed.columns), lanes: new Set(collapsed.lanes) };
+    if (to ?? !next[kind].has(entry)) next[kind].add(entry);
+    else next[kind].delete(entry);
+    setCollapsedPref.mutate({ key: collapsedKey, value: { columns: [...next.columns], lanes: [...next.lanes] } });
+  };
 
   /**
    * Moves a card to a column and persists it; a refusal restores the card and shows why.
@@ -144,7 +174,7 @@ export function BoardView({
         .then(() => null, (error: Error) => error);
       // Re-armed after settling: on a refusal the card must end up back in its original column.
       if (byKey) focusTarget.current = { slug, columnId: failure ? card.columnId : columnId };
-      if (!failure) setExpanded((prev) => (prev.has(columnId) ? prev : new Set(prev).add(columnId)));
+      if (!failure && collapsed.columns.has(columnId)) flipCollapsed("columns", columnId, false);
       const message = failure
         ? refusedMessage(card.title, failure.message)
         : moveMessage(card.title, columns.find((c) => c.id === columnId)?.name ?? "");
@@ -217,21 +247,10 @@ export function BoardView({
     },
   });
 
-  const toggleLane = (laneKey: string) =>
-    setCollapsedLanes((prev) => {
-      const next = new Set(prev);
-      if (next.has(laneKey)) next.delete(laneKey);
-      else next.add(laneKey);
-      return next;
-    });
+  // Lane entries carry the lane kind so switching kinds does not carry the collapse over.
+  const toggleLane = (laneKey: string) => flipCollapsed("lanes", `${query.lane}:${laneKey}`);
 
-  const toggle = (columnId: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(columnId)) next.delete(columnId);
-      else next.add(columnId);
-      return next;
-    });
+  const toggle = (columnId: string) => flipCollapsed("columns", columnId);
 
   /** Opens the header's New system dialog, which creates the system in planning. */
   const openNewSystem = () => setNewSystemOpen(true);
@@ -428,7 +447,7 @@ export function BoardView({
             const items = visible.filter((c) => c.columnId === col.id);
             const isOver = (dragOver ?? overColumnId) === col.id && draggedFrom !== undefined && draggedFrom !== col.id;
 
-            if (col.category === "done" && !expanded.has(col.id)) {
+            if (isCollapsed(col)) {
               return (
                 <section key={col.id} data-column-id={col.id} aria-label={`${col.name}, collapsed`} {...dropTarget(col.id)} className="flex w-10 shrink-0">
                   <button
@@ -484,7 +503,7 @@ export function BoardView({
             <div className="sticky top-0 z-20 flex h-9 items-center gap-3 bg-background">
               {columns.map((col) => {
                 const total = visible.filter((c) => c.columnId === col.id).length;
-                if (col.category === "done" && !expanded.has(col.id)) {
+                if (isCollapsed(col)) {
                   return (
                     <button
                       key={col.id}
@@ -519,7 +538,7 @@ export function BoardView({
               })}
             </div>
             {lanes.map((lane) => {
-              const open = !collapsedLanes.has(lane.key);
+              const open = !collapsed.lanes.has(`${query.lane}:${lane.key}`);
               return (
                 <div key={lane.key} role="group" aria-label={lane.name} className="mt-2">
                   <div className="sticky top-9 z-10 bg-background pb-1">
@@ -541,7 +560,7 @@ export function BoardView({
                           key={col.id}
                           className={cn(
                             "shrink-0 text-[11.5px] text-muted-foreground tabular-nums",
-                            col.category === "done" && !expanded.has(col.id) ? "w-10 text-center" : "w-[228px] px-3",
+                            isCollapsed(col) ? "w-10 text-center" : "w-[228px] px-3",
                           )}
                         >
                           {lane.countByColumn[col.id] ?? 0}
@@ -554,7 +573,7 @@ export function BoardView({
                       {columns.map((col) => {
                         const items = lane.cards.filter((c) => c.columnId === col.id);
                         const isOver = (dragOver ?? overColumnId) === col.id && draggedFrom !== undefined && draggedFrom !== col.id;
-                        if (col.category === "done" && !expanded.has(col.id)) {
+                        if (isCollapsed(col)) {
                           return (
                             <section
                               key={col.id}
