@@ -378,7 +378,7 @@ register(
 
   defineTool({
     name: "add_task",
-    description: "Add a task to a system.",
+    description: "Add a task to a system, optionally with an estimate (S, M, L).",
     input: { ...S, ...addTaskInput.shape },
     write: true,
     method: "POST",
@@ -388,7 +388,7 @@ register(
   defineTool({
     name: "update_task",
     description:
-      "Change a task's title, state, priority, owner, notes or blockedReason. Blocked needs a blockedReason; doing and done need completed planning.",
+      "Change a task's title, state, priority, owner, notes, blockedReason or estimate (S, M, L, or null to clear). Blocked needs a blockedReason; doing and done need completed planning.",
     input: { id: intParam("Task id from get_system."), ...updateTaskInput.shape },
     write: true,
     method: "PATCH",

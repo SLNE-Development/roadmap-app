@@ -23,6 +23,11 @@ describe("INVALIDATES", () => {
     for (const name of Object.keys(appRouter._def.record)) expect(Object.hasOwn(INVALIDATES, name), name).toBe(true);
   });
 
+  it("refetches phase rollups and blocked tasks after system and task mutations", () => {
+    expect(affectedRouters([["systems", "update"]])).toEqual(expect.arrayContaining(["structure", "tasks"]));
+    expect(affectedRouters([["tasks", "update"]])).toContain("structure");
+  });
+
   it("scopes a board mutation to the planning gaps too", () => {
     expect(affectedRouters([["boards", "update"]])).toContain("planning");
   });

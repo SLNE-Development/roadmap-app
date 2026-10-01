@@ -14,6 +14,7 @@ import {
   user,
   type ColumnCategory,
   type Priority,
+  type TaskEstimate,
   type TaskState,
 } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
@@ -26,6 +27,7 @@ import { findBoard, findSystem, loadBoards, lockProject, userName, type BoardCol
 import { isMember } from "./members";
 import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
+import { systemRollups } from "./rollups";
 import type { DomainRow, PhaseRow } from "./structure";
 
 /** Input of {@link createSystem}. */
@@ -87,6 +89,9 @@ export interface SystemListItem {
   tasksTotal: number;
   tasksDone: number;
   tasksBlocked: number;
+  points: number;
+  pointsDone: number;
+  unestimated: number;
 }
 
 /** A task as shown on its system. */
@@ -99,6 +104,7 @@ export interface TaskItem {
   ownerName: string | null;
   notes: string;
   blockedReason: string | null;
+  estimate: TaskEstimate | null;
   planStep: number | null;
 }
 
@@ -261,6 +267,8 @@ export async function listSystems(
     .groupBy(task.systemId);
   const bySystem = new Map(counts.map((c) => [c.systemId, c]));
 
+  const rollups = await systemRollups(db, project.id);
+
   const planning = await db
     .select({
       systemId: planningRound.systemId,
@@ -282,6 +290,9 @@ export async function listSystems(
     tasksTotal: bySystem.get(r.id)?.total ?? 0,
     tasksDone: bySystem.get(r.id)?.done ?? 0,
     tasksBlocked: bySystem.get(r.id)?.blocked ?? 0,
+    points: rollups.get(r.id)?.points ?? 0,
+    pointsDone: rollups.get(r.id)?.pointsDone ?? 0,
+    unestimated: rollups.get(r.id)?.unestimated ?? 0,
   }));
 }
 
@@ -304,6 +315,7 @@ export async function getSystem(db: Executor, actor: Actor, projectSlug: string,
       ownerName: user.name,
       notes: task.notes,
       blockedReason: task.blockedReason,
+      estimate: task.estimate,
       planStep: task.planStep,
     })
     .from(task)

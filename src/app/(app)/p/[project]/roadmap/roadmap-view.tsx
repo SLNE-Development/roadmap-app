@@ -37,18 +37,20 @@ function SystemChip({ system, projectSlug }: { system: SystemListItem; projectSl
  */
 export function RoadmapView({ slug }: { slug: string }) {
   const trpc = useTRPC();
-  const [{ data: detail }, { data: phases }, { data: systems }] = useSuspenseQueries({
+  const [{ data: detail }, { data: phases }, { data: systems }, { data: phaseRollups }] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.structure.phases.queryOptions({ project: slug }),
       trpc.systems.list.queryOptions({ project: slug }),
+      trpc.structure.phaseRollups.queryOptions({ project: slug }),
     ],
   });
   const canEdit = detail.role !== "viewer";
+  const rollupOf = new Map(phaseRollups.map((r) => [r.phaseId, r]));
   const rows = phases.map((p, i) => {
     const items = systems.filter((s) => s.phaseId === p.id);
     const done = items.filter((s) => s.columnCategory === "done").length;
-    return { phase: p, n: phaseNumber(i), items, done, complete: items.length > 0 && done === items.length };
+    return { phase: p, n: phaseNumber(i), items, done, rollup: rollupOf.get(p.id), complete: items.length > 0 && done === items.length };
   });
   const nowIndex = rows.findIndex((r) => !r.complete);
   const byId = new Map(rows.map((r) => [r.phase.id, r]));
@@ -121,6 +123,12 @@ export function RoadmapView({ slug }: { slug: string }) {
                     {r.complete && <span className="sr-only">(done)</span>}
                   </div>
                   {r.phase.goal && <span className="text-[12.5px] leading-[1.45] text-fg-2">{r.phase.goal}</span>}
+                  {r.rollup && r.rollup.tasks > 0 && (
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      {r.rollup.points > 0 && `${r.rollup.pointsDone}/${r.rollup.points} pts · `}
+                      {r.rollup.done}/{r.rollup.tasks} tasks done
+                    </span>
+                  )}
                   {deps.length > 0 && (
                     <span className="text-xs text-muted-foreground">
                       Builds on {deps.map((d) => `${d.n} ${d.phase.name}`).join(", ").replace(/, ([^,]*)$/, " and $1")}

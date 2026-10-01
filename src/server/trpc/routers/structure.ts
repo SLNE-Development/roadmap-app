@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { phaseRollups } from "@/lib/ops/rollups";
 import {
   createDomain,
   createPhase,
@@ -30,6 +31,9 @@ export const structureRouter = router({
 
   /** The project's phases in delivery order, with their dependencies. */
   phases: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => listPhases(ctx.db, ctx.actor, input.project)),
+
+  /** Task and point rollups per phase; `phaseId` is null for systems without a phase. */
+  phaseRollups: protectedProcedure.input(z.object(P)).query(({ ctx, input }) => phaseRollups(ctx.db, ctx.actor, input.project)),
 
   /** Adds a domain. */
   createDomain: protectedProcedure

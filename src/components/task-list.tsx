@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Check, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound } from "lucide-react";
+import { Check, Gauge, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ProgressBar } from "@/components/page";
@@ -32,8 +32,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
-import { TASK_STATES, type ColumnCategory, type TaskState } from "@/db/schema";
+import { TASK_ESTIMATES, TASK_STATES, type ColumnCategory, type TaskEstimate, type TaskState } from "@/db/schema";
 import type { TaskItem } from "@/lib/ops/systems";
+import { rollup } from "@/lib/rollup";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 import { CATEGORY_CLASS, CATEGORY_TEXT, CategoryDot, STATE_CATEGORY, STATE_LABEL } from "./chips";
@@ -241,6 +242,25 @@ function TaskRow({
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Gauge />
+                Estimate
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-40">
+                <DropdownMenuRadioGroup
+                  value={task.estimate ?? ""}
+                  onValueChange={(v) => update.mutate({ id: task.id, patch: { estimate: (v || null) as TaskEstimate | null } })}
+                >
+                  <DropdownMenuRadioItem value="">None</DropdownMenuRadioItem>
+                  {TASK_ESTIMATES.map((e) => (
+                    <DropdownMenuRadioItem key={e} value={e}>
+                      {e}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuItem onSelect={openNotes}>
               <StickyNote />
               Notes
@@ -272,6 +292,11 @@ function TaskRow({
         >
           <StickyNote aria-hidden className="size-4" />
         </button>
+      )}
+      {task.estimate && (
+        <span title={`Estimate ${task.estimate}`} className="shrink-0 border px-1.5 font-mono text-[11px] text-fg-2">
+          {task.estimate}
+        </span>
       )}
       <span className="hidden size-[22px] shrink-0 sm:inline-flex" title={task.ownerName ?? "No owner"}>
         {task.ownerName && <PersonAvatar name={task.ownerName} size="sm" />}
@@ -351,7 +376,7 @@ export function TaskList({
   const pending = add.isPending;
   const [title, setTitle] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const done = tasks.filter((t) => t.state === "done").length;
+  const { done, points, pointsDone, unestimated } = rollup(tasks);
   const collapsible = tasks.length > COLLAPSE_AT && done > 0;
   const [showDone, setShowDone] = useState(!collapsible);
   const visible = showDone ? tasks : tasks.filter((t) => t.state !== "done");
@@ -366,6 +391,12 @@ export function TaskList({
               {done} of {tasks.length} done
             </span>
             <ProgressBar value={done} total={tasks.length} colorClass={CATEGORY_CLASS[category]} className="h-1.5 max-w-[200px]" />
+            {points > 0 && (
+              <span className="text-[13px] text-fg-2 tabular-nums">
+                {pointsDone} / {points} pts
+              </span>
+            )}
+            {unestimated > 0 && <span className="text-[13px] text-muted-foreground tabular-nums">{unestimated} unestimated</span>}
           </>
         )}
         {collapsible && (

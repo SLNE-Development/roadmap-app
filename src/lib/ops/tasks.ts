@@ -1,6 +1,6 @@
 import { eq, max } from "drizzle-orm";
 import { z } from "zod";
-import { PRIORITIES, system, task, TASK_STATES } from "@/db/schema";
+import { PRIORITIES, system, task, TASK_ESTIMATES, TASK_STATES } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { projectAccess, projectAccessById } from "./access";
 import type { Actor } from "./actor";
@@ -13,7 +13,10 @@ import { planningGaps } from "./planning";
 import { claimSystem } from "./systems";
 
 /** Input of {@link addTask}. */
-export const addTaskInput = z.object({ title: z.string().trim().min(1).max(200), priority: z.enum(PRIORITIES).optional() });
+export const addTaskInput = z.object({
+  title: z.string().trim().min(1).max(200), priority: z.enum(PRIORITIES).optional(),
+  estimate: z.enum(TASK_ESTIMATES).nullable().optional(),
+});
 
 /** Input of {@link updateTask}; omitted fields stay unchanged. */
 export const updateTaskInput = z.object({
@@ -23,6 +26,7 @@ export const updateTaskInput = z.object({
   ownerUserId: nullableEntityId.optional(),
   notes: z.string().max(5000).optional(),
   blockedReason: z.string().trim().min(1).max(300).optional(),
+  estimate: z.enum(TASK_ESTIMATES).nullable().optional(),
 });
 
 /** Notes are logged cut to this many characters, so the change log does not store whole notes twice. */
@@ -68,7 +72,7 @@ export async function addTask(
     const [{ last }] = await tx.select({ last: max(task.sortOrder) }).from(task).where(eq(task.systemId, parent.id));
     const [row] = await tx
       .insert(task)
-      .values({ systemId: parent.id, title: input.title, priority: input.priority ?? parent.priority, sortOrder: (last ?? -1) + 1 })
+      .values({ systemId: parent.id, title: input.title, priority: input.priority ?? parent.priority, estimate: input.estimate ?? null, sortOrder: (last ?? -1) + 1 })
       .returning({ id: task.id });
     await logChange(tx, actor, { projectId: project.id, systemId: parent.id, entity: "task", entityId: row.id, field: "created", newValue: input.title });
     return row;
@@ -108,7 +112,7 @@ export async function updateTask(db: Db, actor: Actor, taskId: number, raw: z.in
       await claimSystem(tx, actor, parent);
     }
     const changes: Partial<typeof task.$inferSelect> = {};
-    for (const field of ["title", "state", "priority", "ownerUserId", "notes", "blockedReason"] as const) {
+    for (const field of ["title", "state", "priority", "ownerUserId", "notes", "blockedReason", "estimate"] as const) {
       const next = field === "blockedReason" ? blockedReason : patch[field];
       if (next === undefined || next === current[field]) continue;
       Object.assign(changes, { [field]: next });

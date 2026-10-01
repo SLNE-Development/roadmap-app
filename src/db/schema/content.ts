@@ -14,6 +14,12 @@ export const TASK_STATES = ["todo", "doing", "blocked", "done"] as const;
 /** The state of a task. */
 export type TaskState = (typeof TASK_STATES)[number];
 
+/** Task estimates, from smallest to largest. */
+export const TASK_ESTIMATES = ["S", "M", "L"] as const;
+
+/** The estimate of a task. */
+export type TaskEstimate = (typeof TASK_ESTIMATES)[number];
+
 /** Kinds of versioned system documents. */
 export const DOCUMENT_KINDS = ["spec", "plan"] as const;
 
@@ -75,6 +81,7 @@ export const task = pgTable(
     ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "set null" }),
     notes: text("notes").notNull().default(""),
     blockedReason: text("blocked_reason"),
+    estimate: text("estimate", { enum: TASK_ESTIMATES }),
     planStep: integer("plan_step"),
     sortOrder: integer("sort_order").notNull(),
   },
