@@ -18,7 +18,7 @@ Better Auth (Discord), MCP TypeScript SDK.
 | `BETTER_AUTH_SECRET` | yes | Random secret signing sessions (`openssl rand -base64 32`). |
 | `BETTER_AUTH_URL` | yes | Public base URL, e.g. `https://roadmap.example.com`. |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | yes | Discord OAuth application. Redirect URL: `<BETTER_AUTH_URL>/api/auth/callback/discord`. |
-| `ENCRYPTION_KEY` | yes | 32-byte base64 key encrypting stored secrets such as Discord webhook URLs (`openssl rand -base64 32`). |
+| `ENCRYPTION_KEY` | yes | 32-byte base64 key encrypting stored secrets such as Discord webhook URLs and GitHub credentials (`openssl rand -base64 32`). |
 | `VALKEY_URL` | yes | Valkey (Redis-compatible) URL for background jobs, caching and live updates. |
 | `METRICS_TOKEN` | no | Bearer token for `/api/metrics` (Prometheus). Empty disables the endpoint. |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | no | Web Push keys (`npx web-push generate-vapid-keys`) and a `mailto:` or `https:` contact. Push is off unless all three are set. |
@@ -143,6 +143,34 @@ Code session id and token totals, never code or prompts.
 - `set_system_fields` (`PATCH /projects/:project/systems/:system/fields`): Set custom field values of a system by key.
 - `archive_system` (`POST /projects/:project/systems/:system/archive`): Archive a system or restore it.
 - `set_question_priority` (`PATCH /projects/:project/questions/:id/priority`): Set a question's priority: blocking, normal or nice.
+
+## GitHub
+
+Connect GitHub so pull requests and checks show up on tasks and systems. Repositories linked through the GitHub App send pull requests, pushes and checks; repositories added by hand send pull requests and pushes, but no checks.
+
+1. An admin opens the account menu, then **GitHub App** under the Admin section, clicks **Create GitHub App** and confirms on GitHub. Then **Install on an account or org** and pick the repositories.
+2. Project owners link repositories under project **Settings** → **GitHub**. People link their own GitHub login under account menu → **Connections**.
+3. Repositories outside the app can be added by hand: add a webhook with the URL and secret shown in the dialog.
+
+The app requests read-only permissions: Metadata, Contents, Pull requests and Checks.
+
+`BETTER_AUTH_URL` must be the public origin: the app's webhook and callback URLs are derived from it when the app is created. If the domain changes later, update those URLs in the app's settings on GitHub. GitHub cannot reach `localhost`, so creating the app from a local dev server fails; use a public URL (for example a tunnel) as `BETTER_AUTH_URL`, or choose **Use an existing app**.
+
+### Referencing tasks from pull requests
+
+- `roadmap#<id>` in a pull request title links the task. When the project enables it, the task is closed on merge.
+- `roadmap:<system-slug>` in the body links the pull request to the system. The body only links and never closes anything.
+- Never use a bare `#<id>`: GitHub reads it as an issue, not a task.
+
+Example title: `Add rate limiting [roadmap#42 roadmap#43]`.
+
+Owners can turn on three rules per repository (all off by default):
+
+- **Close tasks when a PR merges**: tasks referenced in the title are set to done on merge.
+- **Move to review when a PR opens**: a linked system in a todo, active or blocked column moves to the board's first review column, unless a column gate refuses it.
+- **Warn when checks fail**: the system owner is notified when a linked pull request's checks fail (GitHub App repositories only).
+
+Changes are made as the PR author when they linked their GitHub login and can edit the project, otherwise as the owner who linked the repository; with neither, the rule is skipped.
 
 ## The surf-roadmap plugin
 

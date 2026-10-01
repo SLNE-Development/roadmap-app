@@ -41,7 +41,8 @@ Process skills first (plan-system, systematic-debugging), then implementation sk
 2. Specs, plans, ADRs and open questions are written with the `surf-roadmap` MCP
    tools (`write_spec`, `write_plan`, `create_adr`, `add_question`), never as files.
 3. The project slug comes from `surf-roadmap.json`; pass it as `project` to every tool.
-4. The user's instructions (CLAUDE.md, direct requests) come first, then these skills.
+4. Pull requests reference tasks as `roadmap#<id>` in the title (inside `[...]`) and `roadmap:<system-slug>` in the body, never a bare `#<id>`.
+5. The user's instructions (CLAUDE.md, direct requests) come first, then these skills.
 
 ## Red flags
 

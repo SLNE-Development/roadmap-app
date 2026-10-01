@@ -10,6 +10,7 @@ description: Use when implementation is complete, all tests pass, and you need t
 ## Roadmap integration
 
 - Before presenting options, every task of the system is `done` or explicitly left with the user's agreement; the system is moved to a review or done column with `move_system`; a closing `post_update` summarises the branch. Pushing follows the commits block of CLAUDE.md (never without a human's word or a plan step that pushes).
+- When you open a pull request, end its title with the ids of the tasks the branch completes as `[roadmap#<id> roadmap#<id>]`, and put `roadmap:<system-slug>` in the body. Titles close tasks on merge when the project enables it; the body only links. Never use a bare `#<id>`, which GitHub reads as an issue.
 
 
 ## Overview
@@ -125,7 +126,8 @@ git push -u origin <feature-branch>
 # git push origin HEAD:refs/heads/<new-branch>
 ```
 
-Then create the pull/merge request against <base-branch> with the forge's
+Then create the pull/merge request (title and body per the Roadmap
+integration section) against <base-branch> with the forge's
 tooling — its CLI if one is available, or the creation URL most forges
 print when you push — following the repo's PR template and conventions if
 present, and report the URL to your human partner.
