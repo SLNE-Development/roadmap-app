@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { project } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { ApiKeyRateLimitedError } from "@/lib/auth/rate-limit";
 import type { Actor } from "@/lib/ops/actor";
@@ -231,5 +233,15 @@ describe("REST call recording", () => {
     expect(brief.json.latestNote).toEqual({ version: 1 });
     const full = await send(db, owner, "GET", `/projects/${slug}/releases/v1?notes=true`);
     expect(full.json.latestNote).toEqual({ version: 1, body: "Shipped things" });
+  });
+
+  it("reads progress with a numeric days query value", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    await db.update(project).set({ createdAt: new Date(Date.now() - 30 * 86_400_000) }).where(eq(project.id, projectId));
+    const res = await send(db, owner, "GET", `/projects/${slug}/progress?days=14&series=true`);
+    expect(res.status).toBe(200);
+    expect(res.json.points).toHaveLength(14);
+    expect((await send(db, owner, "GET", `/projects/${slug}/progress?days=15`)).status).toBe(400);
   });
 });

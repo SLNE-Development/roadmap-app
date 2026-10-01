@@ -49,6 +49,7 @@ export async function getDecisionGraph(
   const shown = new Set(adrs.map((a) => a.id));
   for (const a of adrs) if (a.supersedesId && shown.has(a.supersedesId)) edges.push({ from: `adr:${a.id}`, to: `adr:${a.supersedesId}`, kind: "supersedes" });
   if (adrs.length === 0) return { nodes, edges };
+  const seen = new Set(nodes.map((n) => n.id));
   const adrIds = adrs.map((a) => a.id);
 
   if (input.systems) {
@@ -60,7 +61,8 @@ export async function getDecisionGraph(
       .where(and(inArray(adrSystem.adrId, adrIds), isNull(system.archivedAt)))
       .orderBy(asc(system.slug));
     for (const r of rows) {
-      if (!nodes.some((n) => n.id === `sys:${r.id}`)) nodes.push({ kind: "system", id: `sys:${r.id}`, slug: r.slug, title: r.title, category: r.category });
+      if (!seen.has(`sys:${r.id}`)) nodes.push({ kind: "system", id: `sys:${r.id}`, slug: r.slug, title: r.title, category: r.category });
+      seen.add(`sys:${r.id}`);
       edges.push({ from: `adr:${r.adrId}`, to: `sys:${r.id}`, kind: "concerns" });
     }
   }
@@ -73,7 +75,8 @@ export async function getDecisionGraph(
       .where(and(inArray(adrTask.adrId, adrIds), isNull(system.archivedAt)))
       .orderBy(asc(task.id));
     for (const r of rows) {
-      if (!nodes.some((n) => n.id === `task:${r.id}`)) nodes.push({ kind: "task", id: `task:${r.id}`, taskId: r.id, title: r.title, systemSlug: r.systemSlug });
+      if (!seen.has(`task:${r.id}`)) nodes.push({ kind: "task", id: `task:${r.id}`, taskId: r.id, title: r.title, systemSlug: r.systemSlug });
+      seen.add(`task:${r.id}`);
       edges.push({ from: `adr:${r.adrId}`, to: `task:${r.id}`, kind: "task" });
     }
   }

@@ -29,7 +29,11 @@ export function BurnupChart({ points, projection, width = 560 }: { points: Burnu
   const last = points.at(-1);
   if (!last) return null;
   const range = projection.status === "range" ? projection : null;
-  const extraDays = range ? Math.max(0, Math.round((Date.parse(`${range.latest}T00:00:00Z`) - Date.parse(`${last.day}T00:00:00Z`)) / DAY_MS)) : 0;
+  const daysFromLast = (key: string) => Math.round((Date.parse(`${key}T00:00:00Z`) - Date.parse(`${last.day}T00:00:00Z`)) / DAY_MS);
+  const latestDays = range ? Math.max(0, daysFromLast(range.latest)) : 0;
+  // A slow pace would squash the history, so the projection is clipped at the right edge.
+  const extraDays = Math.min(latestDays, Math.max(14, points.length));
+  const clipped = latestDays > extraDays;
   const lastIndex = points.length - 1;
   const span = lastIndex + extraDays;
   const maxScope = Math.max(...points.map((p) => p.scope));
@@ -40,7 +44,21 @@ export function BurnupChart({ points, projection, width = 560 }: { points: Burnu
   const keys = [...points.map((p) => p.day), ...Array.from({ length: extraDays }, (_, i) => addDays(last.day, i + 1))];
   const line = (pick: (p: BurnupPoint) => number) => points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i)} ${y(pick(p))}`).join(" ");
   const band = (width - MARGIN.left - MARGIN.right) / Math.max(1, span);
-  const earliestX = range ? x(lastIndex + Math.round((Date.parse(`${range.earliest}T00:00:00Z`) - Date.parse(`${last.day}T00:00:00Z`)) / DAY_MS)) : 0;
+  // The triangle from today's done count to the earliest and latest finish on the scope line, cut at the right edge.
+  const projectionPoints = (r: { earliest: string; latest: string }) => {
+    const [early, late] = [r.earliest, r.latest].map((k) => lastIndex + daysFromLast(k));
+    const rise = last.scope - last.done;
+    const cut = (target: number) => y(last.done + (rise * (span - lastIndex)) / (target - lastIndex));
+    const pts: [number, number][] = [[lastIndex, y(last.done)]];
+    if (early > span) pts.push([span, cut(early)]);
+    else pts.push([early, y(last.scope)]);
+    if (late <= span) pts.push([late, y(last.scope)]);
+    else {
+      if (early <= span) pts.push([span, y(last.scope)]);
+      pts.push([span, cut(late)]);
+    }
+    return pts.map(([i, py]) => `${x(i)},${py}`).join(" ");
+  };
   const shown = hover === null ? null : points[hover];
   const summary = `Burn-up over ${points.length} days: done ${last.done} of ${last.scope} tasks`;
 
@@ -66,8 +84,13 @@ export function BurnupChart({ points, projection, width = 560 }: { points: Burnu
         <line x1={x(lastIndex)} x2={x(lastIndex)} y1={MARGIN.top} y2={baseline} className="stroke-border" strokeWidth={1} strokeDasharray="3 3" />
         {range && (
           <>
-            <polygon points={`${x(lastIndex)},${y(last.done)} ${earliestX},${y(last.scope)} ${x(span)},${y(last.scope)}`} className="fill-primary/15" />
+            <polygon points={projectionPoints(range)} className="fill-primary/15" />
             <line x1={x(lastIndex)} x2={x(span)} y1={y(last.scope)} y2={y(last.scope)} className="stroke-muted-foreground" strokeWidth={1.75} strokeDasharray="4 3" />
+            {clipped && (
+              <text x={x(span)} y={y(last.scope) - 5} textAnchor="end" className={LABEL}>
+                {`→ ${dayName(range.latest)}`}
+              </text>
+            )}
           </>
         )}
         {shown && hover !== null && (

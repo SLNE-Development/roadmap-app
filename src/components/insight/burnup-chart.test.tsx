@@ -39,4 +39,19 @@ describe("BurnupChart", () => {
     );
     expect(html).toMatch(/<polygon[^>]*class="[^"]*fill-primary\/15/);
   });
+
+  it("clips a slow projection at the right edge and labels where it ends", () => {
+    const html = renderToStaticMarkup(
+      <BurnupChart
+        points={points}
+        projection={{ status: "range", paceLow: 0.01, paceHigh: 0.02, earliest: "2026-12-01", latest: "2027-03-01" }}
+      />,
+    );
+    const polygon = html.match(/<polygon points="([^"]*)"/)![1];
+    const xs = polygon.split(" ").map((p) => Number(p.split(",")[0]));
+    expect(Math.max(...xs)).toBeLessThanOrEqual(546);
+    expect(html).toContain("→ 1 Mar");
+    // the history keeps most of the width: its last day sits well left of the edge
+    expect(Number(html.match(/<line x1="([0-9.]+)"[^>]*stroke-dasharray="3 3"/)![1])).toBeLessThan(120);
+  });
 });

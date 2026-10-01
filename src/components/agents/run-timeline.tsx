@@ -58,13 +58,24 @@ export function CallTimeline({ calls }: { calls: CallRow[] }) {
  * activity filtered to the agents' changes of its system.
  *
  * @param props.systems the project's systems by id, to name them
+ * @param props.releases the project's release names by id
  */
-export function ChangedList({ changes, projectSlug, systems }: { changes: HistoryEntry[]; projectSlug: string; systems: Map<string, { slug: string; title: string }> }) {
+export function ChangedList({
+  changes,
+  projectSlug,
+  systems,
+  releases,
+}: {
+  changes: HistoryEntry[];
+  projectSlug: string;
+  systems: Map<string, { slug: string; title: string }>;
+  releases: Map<string, string>;
+}) {
   return (
     <ul className="flex flex-col border bg-card">
       {changes.map((change) => {
         const system = change.systemId ? systems.get(change.systemId) : undefined;
-        const { verb, target, from, to } = describeChange(change, { systemTitle: system?.title ?? null });
+        const { verb, target, from, to } = describeChange(change, { systemTitle: system?.title ?? null, releaseName: change.entity === "release" ? (releases.get(change.entityId) ?? null) : null });
         const href = `/p/${projectSlug}/activity?agents=1${system ? `&system=${system.slug}` : ""}`;
         return (
           <li key={change.id} className="border-b last:border-b-0">

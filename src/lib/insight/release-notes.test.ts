@@ -42,10 +42,11 @@ describe("composeReleaseNotes", () => {
       shipped: [
         { title: "A", summary: "", lastUpdate: "Did the thing\nmore detail" },
         { title: "B_*x*", summary: "  ", lastUpdate: null },
+        { title: "C", summary: "First line\nsecond line", lastUpdate: null },
       ],
       decisions: [],
       notShipped: [],
     });
-    expect(body).toBe("# 2.0\n\nShipped 5 Jan 2026.\n\n## Shipped\n\n- **A**: Did the thing\n- **B_*x***");
+    expect(body).toBe("# 2.0\n\nShipped 5 Jan 2026.\n\n## Shipped\n\n- **A**: Did the thing\n- **B_*x***\n- **C**: First line");
   });
 });

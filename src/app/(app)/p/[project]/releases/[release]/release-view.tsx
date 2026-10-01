@@ -11,6 +11,8 @@ import { BurnupChart } from "@/components/insight/burnup-chart";
 import { finishText } from "@/components/insight/stat-tiles";
 import { Page, PageHeader, Panel } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
+import { DeleteReleaseDialog } from "@/components/releases/delete-release-dialog";
+import { EditReleaseDialog } from "@/components/releases/edit-release-dialog";
 import { ReleaseRiskChip, ReleaseStatusChip } from "@/components/releases/release-chips";
 import { ReleaseNotes } from "@/components/releases/release-notes";
 import { ShipReleaseDialog } from "@/components/releases/ship-release-dialog";
@@ -50,7 +52,8 @@ function countdown(target: string, now: Date): string {
 
 /**
  * A release page: target and freeze state, tiles, category bar, the systems not done yet and the burn-up
- * on the overview tab, the versioned release notes on the other. Owners freeze, unfreeze and ship.
+ * on the overview tab, the versioned release notes on the other. Editors edit a planned release; owners also
+ * edit a frozen one, freeze, unfreeze and ship, and delete a planned one.
  *
  * @param props.tab the open tab
  * @param props.version the notes version to show, the latest when undefined
@@ -75,29 +78,24 @@ export function ReleaseView({
   const [{ data: detail }, { data: project }] = useSuspenseQueries({
     queries: [trpc.releases.get.queryOptions(ref), trpc.projects.get.queryOptions({ project: slug })],
   });
-  const { release: r, systems, counts, openQuestions, risk, projection, latestNote } = detail;
+  const { release: r, systems, counts, openQuestions, risk, projection, frozenBy, latestNote } = detail;
   const progress = useQuery({
     ...trpc.insight.progress.queryOptions({ project: slug, filter: { release: releaseSlug, days: burnupDays } }),
     enabled: tab === "overview",
   });
-  // Who froze the release is in the change log; the release row only holds when.
-  const history = useQuery({
-    ...trpc.history.activity.queryOptions({ project: slug, filter: { groups: ["structure"], limit: 500 } }),
-    enabled: r.status === "frozen",
-  });
-  const freezer = history.data?.find((e) => e.entity === "release" && e.entityId === r.id && e.field === "status" && e.newValue === "frozen")?.authorName;
   const freeze = useMutation(trpc.releases.freeze.mutationOptions());
   const unfreeze = useMutation(trpc.releases.unfreeze.mutationOptions());
 
   const active = !project.project.archivedAt;
   const canEdit = project.role !== "viewer" && active;
   const isOwner = (project.role === "owner" || project.role === "admin") && active;
+  const canEditRelease = r.status === "planned" ? canEdit : r.status === "frozen" && isOwner;
   const base = `/p/${slug}/releases/${releaseSlug}`;
   const notDone = systems.filter((s) => s.category !== "done");
   const shownCategories = COLUMN_CATEGORIES.filter((c) => counts[c] > 0);
   const target = r.targetDate ? `target ${formatDate(`${r.targetDate}T00:00:00Z`, now)}` : "no target date";
   const state = [
-    r.status === "frozen" && r.frozenAt ? `Frozen ${formatDate(new Date(r.frozenAt).toISOString(), now)}${freezer ? ` by ${freezer}` : ""}` : null,
+    r.status === "frozen" && r.frozenAt ? `Frozen ${formatDate(new Date(r.frozenAt).toISOString(), now)}${frozenBy ? ` by ${frozenBy}` : ""}` : null,
     r.status === "shipped" && r.shippedAt ? `Shipped ${formatDate(new Date(r.shippedAt).toISOString(), now)}` : null,
     r.status !== "shipped" && r.targetDate ? countdown(r.targetDate, now) : null,
   ].filter(Boolean);
@@ -105,6 +103,8 @@ export function ReleaseView({
   const actions = (
     <>
       <ReleaseStatusChip status={r.status} />
+      {canEditRelease && <EditReleaseDialog projectSlug={slug} release={{ slug: r.slug, name: r.name, targetDate: r.targetDate }} />}
+      {isOwner && r.status === "planned" && <DeleteReleaseDialog projectSlug={slug} releaseSlug={releaseSlug} releaseName={r.name} />}
       {isOwner && r.status === "planned" && (
         <Button variant="outline" disabled={freeze.isPending} onClick={() => freeze.mutate(ref, { onSuccess: () => toast.success(`Froze ${r.name}`) })}>
           <Lock aria-hidden />

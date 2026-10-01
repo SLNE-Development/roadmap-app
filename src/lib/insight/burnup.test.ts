@@ -93,6 +93,14 @@ describe("replayTasks and sampleBurnup", () => {
     expect(on(points, "30")).toEqual({ scope: 1, done: 0 });
   });
 
+  it("never appends the current state before the task's creation", () => {
+    const lives = replayTasks([entry(1, "moved", "7", new Date("2026-08-30T10:00:00Z"))], [{ id: 1, state: "done" }], origin);
+    expect(lives[0].states).toEqual([
+      { at: origin, state: "todo" },
+      { at: origin, state: "done" },
+    ]);
+  });
+
   it("treats a task missing from current without a deleted entry as deleted at its last entry", () => {
     const points = sample([entry(1, "created", null, at("02")), entry(1, "state", "done", at("04"))], []);
     expect(on(points, "03")).toEqual({ scope: 1, done: 0 });
@@ -173,6 +181,10 @@ describe("projectFinish", () => {
     expect(projectFinish(series(5, (i) => i))).toEqual({ status: "none", reason: "too-little-history" });
     expect(projectFinish(series(20, () => 40))).toEqual({ status: "done" });
     expect(projectFinish([])).toEqual({ status: "none", reason: "too-little-history" });
+  });
+
+  it("answers no-scope instead of done when there are no tasks", () => {
+    expect(projectFinish(series(20, () => 0, 0))).toEqual({ status: "none", reason: "no-scope" });
   });
 
   it("uses the earliest point for 7 to 14 points", () => {

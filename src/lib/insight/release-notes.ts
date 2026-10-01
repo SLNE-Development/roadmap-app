@@ -25,14 +25,14 @@ function firstLine(text: string): string {
 
 /**
  * Composes the markdown of a release's first note. Empty sections are left out. A system's line
- * uses its summary, else the first line of its last update, else only the title. Titles are
+ * uses the first line of its summary, else the first line of its last update, else only the title. Titles are
  * not escaped: project members write them.
  */
 export function composeReleaseNotes(input: ReleaseNotesInput): string {
   const sections = [`# ${input.name}`, `Shipped ${formatDay(input.shippedOn)}.`];
   if (input.shipped.length > 0) {
     const lines = input.shipped.map((s) => {
-      const text = s.summary.trim() || (s.lastUpdate ? firstLine(s.lastUpdate) : "");
+      const text = firstLine(s.summary) || (s.lastUpdate ? firstLine(s.lastUpdate) : "");
       return text ? `- **${s.title}**: ${text}` : `- **${s.title}**`;
     });
     sections.push(`## Shipped\n\n${lines.join("\n")}`);

@@ -94,6 +94,19 @@ describe("describeChange", () => {
     expect(text(entry("release", "deleted", "1.0", null), null)).toBe("deleted release 1.0");
   });
 
+  it("names the release when it is known", () => {
+    const named = (e: ChangeFacts) => {
+      const s = describeChange(e, { releaseName: "One" });
+      return [s.verb, s.target, s.from !== undefined ? `${s.from} →` : null, s.to].filter(Boolean).join(" ");
+    };
+    expect(named(entry("release", "slug", "1-0", "one"))).toBe("changed the slug of release One 1-0 → one");
+    expect(named(entry("release", "targetDate", null, "2026-12-01"))).toBe("changed the target date of release One none → 2026-12-01");
+    expect(named(entry("release", "status", "planned", "frozen"))).toBe("froze release One");
+    expect(named(entry("release", "status", "frozen", "planned"))).toBe("unfroze release One");
+    expect(named(entry("release", "status", "frozen", "shipped"))).toBe("shipped release One");
+    expect(named(entry("release", "notes", null, "v2"))).toBe("wrote notes of release One v2");
+  });
+
   it("describes a system joining or leaving a release", () => {
     expect(text(entry("system", "release", null, "1.0"))).toBe("changed the release of Inventory none → 1.0");
     expect(text(entry("system", "release", "1.0", null), null)).toBe("changed the release 1.0 → none");

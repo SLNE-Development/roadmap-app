@@ -39,9 +39,9 @@ const CATEGORY_FILL: Record<ColumnCategory, string> = {
   done: "fill-cat-done",
 };
 
-/** Edge looks by kind: supersedes solid, links dashed. The important marker beats the base `stroke-border`. */
+/** Edge looks by kind: supersedes solid, links dashed. `GraphView` merges these over its base `stroke-border`. */
 const EDGE: Record<string, string> = {
-  supersedes: "stroke-fg-2!",
+  supersedes: "stroke-fg-2",
   concerns: "[stroke-dasharray:5_4]",
   task: "[stroke-dasharray:5_4]",
 };

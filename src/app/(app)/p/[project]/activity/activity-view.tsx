@@ -75,11 +75,12 @@ export function ActivityView({
   const filter = { system: systemSlug, person, agents, limit };
   // Progress updates belong to no entity group, so groups narrow the changes only.
   const showUpdates = kind !== "changes";
-  const [{ data: detail }, { data: systems }, { data: members }] = useSuspenseQueries({
+  const [{ data: detail }, { data: systems }, { data: members }, { data: releases }] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.systems.list.queryOptions({ project: slug }),
       trpc.members.list.queryOptions({ project: slug }),
+      trpc.releases.list.queryOptions({ project: slug }),
     ],
   });
   const updatePages = useInfiniteQuery({
@@ -99,7 +100,7 @@ export function ActivityView({
 
   const systemsById = new Map(systems.map((s) => [s.id, { slug: s.slug, title: s.title }]));
   const columns = new Map<string, ColumnCategory>(detail.boards.flatMap((b) => b.columns.map((c) => [`${b.name} / ${c.name}`, c.category] as const)));
-  const all: TimelineItem[] = [...updateItems(updates.map(iso)), ...changeItems(changes.map(iso), systemsById, columns)];
+  const all: TimelineItem[] = [...updateItems(updates.map(iso)), ...changeItems(changes.map(iso), systemsById, columns, new Map(releases.map((r) => [r.id, r.name])))];
   // Items older than the oldest loaded item of a stream that has more would leave a gap there, so they wait.
   const oldest = [
     ...(changePages.hasNextPage ? [changes.at(-1)?.createdAt.toISOString()] : []),

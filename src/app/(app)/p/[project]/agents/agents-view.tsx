@@ -36,10 +36,12 @@ function RunDetail({ slug, runId }: { slug: string; runId: string }) {
   const trpc = useTRPC();
   const { data, isPending, error } = useQuery(trpc.agents.run.queryOptions({ project: slug, runId }));
   const { data: systems } = useQuery(trpc.systems.list.queryOptions({ project: slug }));
+  const { data: releases } = useQuery(trpc.releases.list.queryOptions({ project: slug }));
   if (isPending) return <p className="px-4 text-sm text-muted-foreground">Loading run…</p>;
   if (error) return <p className="px-4 text-sm text-cat-blocked">{error.message}</p>;
   const { run, calls, changes } = data;
   const byId = new Map((systems ?? []).map((s) => [s.id, { slug: s.slug, title: s.title }]));
+  const releaseNames = new Map((releases ?? []).map((r) => [r.id, r.name]));
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-6">
       <p className="text-[15px] font-semibold">{run.title ?? "Untitled run"}</p>
@@ -55,7 +57,7 @@ function RunDetail({ slug, runId }: { slug: string; runId: string }) {
       </section>
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">What changed</h3>
-        {changes.length === 0 ? <p className="text-sm text-muted-foreground">No changes were made.</p> : <ChangedList changes={changes} projectSlug={slug} systems={byId} />}
+        {changes.length === 0 ? <p className="text-sm text-muted-foreground">No changes were made.</p> : <ChangedList changes={changes} projectSlug={slug} systems={byId} releases={releaseNames} />}
       </section>
     </div>
   );

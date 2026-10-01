@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { boardColumn, changeLog, release, releaseNote, system } from "@/db/schema";
+import { boardColumn, changeLog, release, releaseNote, system, task } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { ConflictError, ForbiddenError, NotFoundError } from "./errors";
@@ -98,7 +98,7 @@ describe("releases", () => {
     await updateSystem(db, owner, slug, "a", { release: "1-0" });
     await updateSystem(db, owner, slug, "b", { release: "2-0" });
     expect((await listSystems(db, owner, slug, { release: "1-0" })).map((s) => s.slug)).toEqual(["a"]);
-    expect(await listSystems(db, owner, slug, { release: "9-9" })).toEqual([]);
+    await expect(listSystems(db, owner, slug, { release: "9-9" })).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("moves a system between planned releases and rejects unknown ones", async () => {
@@ -196,6 +196,37 @@ describe("getRelease and listReleases", () => {
   });
 });
 
+describe("getRelease risk and frozenBy", () => {
+  const later = () => new Date(Date.now() + 10 * 86_400_000);
+
+  it("is unknown for an empty release, a release without tasks and a done projection with systems still open", async () => {
+    const { db, owner, slug } = await setup();
+    await createRelease(db, owner, slug, { slug: "1-0", name: "1.0", targetDate: "2026-12-01" });
+    expect((await getRelease(db, owner, slug, "1-0", later())).risk).toBe("unknown");
+    await updateSystem(db, owner, slug, "a", { release: "1-0" });
+    const bare = await getRelease(db, owner, slug, "1-0", later());
+    expect(bare.projection).toEqual({ status: "none", reason: "no-scope" });
+    expect(bare.risk).toBe("unknown");
+    await addTask(db, owner, slug, "a", { title: "one" });
+    await db.update(task).set({ state: "done" });
+    const open = await getRelease(db, owner, slug, "1-0", later());
+    expect(open.projection).toEqual({ status: "done" });
+    expect(open.risk).toBe("unknown");
+    await markDone(db, ["a"]);
+    expect((await getRelease(db, owner, slug, "1-0", later())).risk).toBe("on-track");
+  });
+
+  it("names who froze the release while it is frozen", async () => {
+    const { db, owner, slug } = await setup();
+    await createRelease(db, owner, slug, { slug: "1-0", name: "1.0" });
+    expect((await getRelease(db, owner, slug, "1-0")).frozenBy).toBeNull();
+    await freezeRelease(db, owner, slug, "1-0");
+    expect((await getRelease(db, owner, slug, "1-0")).frozenBy).toBe("Owner");
+    await unfreezeRelease(db, owner, slug, "1-0");
+    expect((await getRelease(db, owner, slug, "1-0")).frozenBy).toBeNull();
+  });
+});
+
 describe("shipRelease", () => {
   /** A release holding a (done, summary, accepted ADR), b (done, update) and c (not done). */
   async function shippable() {
@@ -254,6 +285,14 @@ describe("release notes", () => {
     expect((await getReleaseNote(db, owner, slug, "1-0", 2)).body).toBe("second");
     expect((await getReleaseNote(db, owner, slug, "1-0")).version).toBe(3);
     await expect(getReleaseNote(db, owner, slug, "1-0", 9)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("rejects an empty body and trims the rest", async () => {
+    const { db, owner, slug } = await setup();
+    await createRelease(db, owner, slug, { slug: "1-0", name: "1.0" });
+    await expect(writeReleaseNote(db, owner, slug, "1-0", "   ")).rejects.toThrow();
+    await writeReleaseNote(db, owner, slug, "1-0", "  hello \n");
+    expect((await getReleaseNote(db, owner, slug, "1-0")).body).toBe("hello");
   });
 
   it("gives concurrent writes distinct versions", async () => {

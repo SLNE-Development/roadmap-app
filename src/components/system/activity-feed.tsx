@@ -73,6 +73,8 @@ export function describeChange(e: HistoryEntry, names: ActivityNames): string {
       return e.newValue ? `set the domain to ${names.domains.get(e.newValue) ?? "a removed domain"}` : "cleared the domain";
     case "system.phaseId":
       return e.newValue ? `set the phase to ${names.phases.get(e.newValue) ?? "a removed phase"}` : "cleared the phase";
+    case "system.release":
+      return e.newValue ? `moved it to release ${e.newValue}` : `removed it from ${e.oldValue ?? "its release"}`;
     case "system.gateOverride": {
       // newValue is "<column>: <reason>".
       const text = e.newValue ?? "";

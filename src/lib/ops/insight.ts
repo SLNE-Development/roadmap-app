@@ -3,11 +3,11 @@ import { z } from "zod";
 import { board, boardColumn, changeLog, COLUMN_CATEGORIES, system, task, type ColumnCategory } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { dayKeys } from "@/lib/chart/scale";
-import { timeInCategory, type TimeCategory } from "@/lib/insight/column-time";
+import { currentSince, timeInCategory, type TimeCategory } from "@/lib/insight/column-time";
 import { projectFinish, replayTasks, sampleBurnup, type BurnupPoint, type Projection, type TaskLogEntry } from "@/lib/insight/burnup";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
-import { findRelease } from "./releases";
+import { findRelease } from "./release-lookup";
 
 const DAY_MS = 86_400_000;
 
@@ -149,7 +149,7 @@ export async function getColumnTimes(db: Executor, actor: Actor, slug: string, r
 
   const systems = wanted.map((r) => {
     const moves = movesOf.get(r.id) ?? [];
-    const since = moves.at(-1)?.at ?? r.createdAt;
+    const since = currentSince({ createdAt: r.createdAt, moves });
     return {
       slug: r.slug,
       title: r.title,

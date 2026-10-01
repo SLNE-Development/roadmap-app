@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { timeInCategory } from "./column-time";
+import { currentSince, timeInCategory } from "./column-time";
 
 const DAY = 86_400_000;
 const d = (day: string) => new Date(`2026-09-${day}T00:00:00Z`);
@@ -27,5 +27,23 @@ describe("timeInCategory", () => {
   it("counts a move to an unresolved column as unknown", () => {
     const t = timeInCategory({ createdAt: d("01"), moves: [{ at: d("02"), to: "unknown" }], now: d("05") });
     expect(t).toMatchObject({ planning: DAY, unknown: 3 * DAY });
+  });
+});
+
+describe("currentSince", () => {
+  it("is the creation time without moves and across planning columns", () => {
+    expect(currentSince({ createdAt: d("01"), moves: [] })).toEqual(d("01"));
+    expect(currentSince({ createdAt: d("01"), moves: [{ at: d("03"), to: "planning" }] })).toEqual(d("01"));
+  });
+
+  it("walks back to the first move into the current category", () => {
+    const moves = [
+      { at: d("03"), to: "active" as const },
+      { at: d("05"), to: "active" as const },
+      { at: d("07"), to: "active" as const },
+    ];
+    expect(currentSince({ createdAt: d("01"), moves })).toEqual(d("03"));
+    expect(currentSince({ createdAt: d("01"), moves: [...moves, { at: d("09"), to: "done" }] })).toEqual(d("09"));
+    expect(currentSince({ createdAt: d("01"), moves: [{ at: d("02"), to: "done" }, ...moves] })).toEqual(d("03"));
   });
 });

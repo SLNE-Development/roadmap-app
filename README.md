@@ -150,6 +150,18 @@ Code session id and token totals, never code or prompts.
 - `set_system_fields` (`PATCH /projects/:project/systems/:system/fields`): Set custom field values of a system by key.
 - `archive_system` (`POST /projects/:project/systems/:system/archive`): Archive a system or restore it.
 - `set_question_priority` (`PATCH /projects/:project/questions/:id/priority`): Set a question's priority: blocking, normal or nice.
+- `get_progress` (`GET /projects/:project/progress`): Task burn-up totals and a projected finish range; set series for daily points.
+- `list_releases` (`GET /projects/:project/releases`): List releases with target date, status and done counts.
+- `get_release` (`GET /projects/:project/releases/:release`): A release's readiness: systems, open questions, unmet gates, slip risk.
+
+`list_systems` also takes a `release` filter, and `update_system` a `release` field that moves a system into a release or, with null, out of it.
+
+## Insight and releases
+
+- **Roadmap → Progress** shows the task burn-up (scope and done per day, in UTC days) with a projected finish range from the last two weeks' pace.
+- **Releases** group systems that ship together. Editors plan a release and assign systems to it; owners freeze it, ship it and change a frozen release's scope. Shipping writes version 1 of the release notes, and a shipped release's scope is fixed.
+- **Decisions → Map** draws the decisions with the systems and tasks they concern.
+- **Activity → Export CSV** downloads the filtered activity. Scripts can fetch it with a session or with `Authorization: Bearer <ROADMAP_API_KEY>` at `GET /api/projects/:project/activity/csv`.
 
 ## GitHub
 

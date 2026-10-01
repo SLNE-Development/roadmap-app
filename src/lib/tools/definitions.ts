@@ -775,7 +775,8 @@ register(
   defineTool({
     name: "get_progress",
     description: "Task burn-up totals and a projected finish range; set series for daily points.",
-    input: { ...P, ...progressInput.shape, series: z.boolean().default(false) },
+    // REST query values are strings, so `days` accepts a numeric string too.
+    input: { ...P, ...progressInput.shape, days: z.preprocess(fromNumericString, progressInput.shape.days), series: z.boolean().default(false) },
     write: false,
     method: "GET",
     path: "/projects/:project/progress",
@@ -797,7 +798,7 @@ register(
   defineTool({
     name: "get_release",
     description: "A release's readiness: systems, open questions, unmet gates, slip risk.",
-    input: { ...P, release: z.string(), notes: z.boolean().default(false) },
+    input: { ...P, release: slugSchema, notes: z.boolean().default(false) },
     write: false,
     method: "GET",
     path: "/projects/:project/releases/:release",

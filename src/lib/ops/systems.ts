@@ -38,6 +38,7 @@ import { notifyMentions, resolveMentionsIn } from "./mentions";
 import { actorLabel } from "./notifications";
 import { nullableEntityId } from "./params";
 import { openAreaReopens, planningGaps } from "./planning";
+import { findRelease } from "./release-lookup";
 import { assignRelease } from "./releases";
 import { systemRollups } from "./rollups";
 import type { DomainRow, PhaseRow } from "./structure";
@@ -269,7 +270,7 @@ export async function listSystems(
   if (filter.phase) conditions.push(eq(system.phaseId, filter.phase));
   if (filter.category) conditions.push(eq(boardColumn.category, filter.category));
   if (filter.priority) conditions.push(eq(system.priority, filter.priority));
-  if (filter.release) conditions.push(eq(release.slug, filter.release));
+  if (filter.release) conditions.push(eq(system.releaseId, (await findRelease(db, project.id, filter.release)).id));
   if (filter.owner === "none") conditions.push(isNull(system.ownerUserId));
   else if (filter.owner) conditions.push(eq(system.ownerUserId, filter.owner));
   if (filter.archived === "exclude") conditions.push(isNull(system.archivedAt));

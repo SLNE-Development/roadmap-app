@@ -25,7 +25,7 @@ export type BurnupPoint = { day: string; scope: number; done: number };
 
 export type Projection =
   | { status: "done" }
-  | { status: "none"; reason: "no-pace" | "too-little-history" }
+  | { status: "none"; reason: "no-pace" | "too-little-history" | "no-scope" }
   | { status: "range"; paceLow: number; paceHigh: number; earliest: string; latest: string };
 
 const isState = (value: string | null): value is TaskState => TASK_STATES.some((s) => s === value);
@@ -37,7 +37,7 @@ const isState = (value: string | null): value is TaskState => TASK_STATES.some((
  * 2. `createdAt` is the time of the first `created` entry. With none, it's `origin` (the project's `createdAt`).
  * 3. The state at `createdAt` is `todo`. Each `state` entry appends `{ at, state: newValue }`.
  * 4. `deletedAt` is the time of the first `deleted` entry, or `null`. Entries after `deletedAt` are ignored.
- * 5. For a task that still exists (it's in `current`) whose replayed final state differs from `current.state`, append `{ at: time of that task's last log entry, or createdAt when it has none, state: current.state }`. The current row is the ground truth.
+ * 5. For a task that still exists (it's in `current`) whose replayed final state differs from `current.state`, append `{ at: the later of createdAt and that task's last log entry's time, state: current.state }`. The current row is the ground truth.
  * 6. A task that is in `entries` but neither in `current` nor deleted (its system was removed by cascade) is treated as deleted at its last log entry's time.
  * 7. `systemId` entries don't change counts. Filtering by phase, board, domain or release uses the task's current system, or for a deleted task the system of its last log entry (the caller resolves that before calling).
  */
@@ -71,7 +71,7 @@ export function replayTasks(entries: TaskLogEntry[], current: CurrentTask[], ori
 
     const now = currentById.get(taskId);
     if (!deleted && now) {
-      if (states.at(-1)!.state !== now.state) states.push({ at: last?.at ?? createdAt, state: now.state });
+      if (states.at(-1)!.state !== now.state) states.push({ at: last && last.at > createdAt ? last.at : createdAt, state: now.state });
       states.sort((a, b) => a.at.getTime() - b.at.getTime());
     } else if (!deleted && last) {
       deletedAt = last.at;
@@ -106,6 +106,7 @@ export function sampleBurnup(lives: TaskLife[], days: string[], now: Date): Burn
 export function projectFinish(points: BurnupPoint[]): Projection {
   if (points.length < 7) return { status: "none", reason: "too-little-history" };
   const last = points[points.length - 1];
+  if (last.scope === 0) return { status: "none", reason: "no-scope" };
   const from = Math.max(0, points.length - 1 - 14);
   const first = points[from];
   const remaining = last.scope - last.done;

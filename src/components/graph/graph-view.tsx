@@ -2,6 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import type { GraphLayout } from "@/lib/graph/layout";
+import { cn } from "@/lib/utils";
 
 type LaidOutNode = GraphLayout["nodes"][number];
 
@@ -52,7 +53,7 @@ export function GraphView({
             fill="none"
             strokeWidth={1.5}
             markerEnd={`url(#${markerId})`}
-            className={`stroke-border ${edgeClassName(e.kind)}`}
+            className={cn("stroke-border", edgeClassName(e.kind))}
           />
         ))}
         {layout.nodes.map((n) => (

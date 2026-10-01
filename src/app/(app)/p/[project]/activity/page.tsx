@@ -33,6 +33,7 @@ export default async function ActivityPage({
     trpc.projects.get.queryOptions({ project: slug }),
     trpc.systems.list.queryOptions({ project: slug }),
     trpc.members.list.queryOptions({ project: slug }),
+    trpc.releases.list.queryOptions({ project: slug }),
   );
   const system = systems.find((s) => s.slug === one(sp.system))?.slug;
   // `person` is a user id; an old link carries a name, which the view matches client-side.

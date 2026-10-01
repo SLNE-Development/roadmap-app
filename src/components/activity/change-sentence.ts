@@ -18,6 +18,8 @@ export interface ChangeContext {
   adrLabel?: string | null;
   /** Name of the column a `column` entry refers to, when known. */
   columnName?: string | null;
+  /** Current name of the release a `release` entry refers to, when known. */
+  releaseName?: string | null;
 }
 
 /**
@@ -125,6 +127,10 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
     targetIsSystem: false,
     ...extra,
   });
+  const release = ctx.releaseName ?? null;
+  /** A sentence about the release: "`verb` release X", or "`verb` a release" when its name is unknown. */
+  const ofRelease = (verb: string, extra: Partial<ChangeSentence> = {}): ChangeSentence =>
+    release ? plain(`${verb} release`, release, extra) : plain(`${verb} a release`, null, extra);
   const change = { from: label(e.oldValue), to: label(e.newValue) };
 
   switch (`${e.entity}:${e.field}`) {
@@ -252,16 +258,16 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
     case "release:name":
       return plain("renamed a release", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
     case "release:slug":
-      return plain("changed the slug of a release", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+      return ofRelease("changed the slug of", { from: e.oldValue ?? "", to: e.newValue ?? "" });
     case "release:targetDate":
-      return plain("changed the target date of a release", null, { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
+      return ofRelease("changed the target date of", { from: e.oldValue ?? "none", to: e.newValue ?? "none" });
     case "release:status": {
-      if (e.newValue === "frozen") return plain("froze a release");
-      if (e.newValue === "shipped") return plain("shipped a release");
-      return plain(e.oldValue === "frozen" ? "unfroze a release" : "changed the status of a release", null, e.oldValue === "frozen" ? {} : change);
+      if (e.newValue === "frozen") return ofRelease("froze");
+      if (e.newValue === "shipped") return ofRelease("shipped");
+      return e.oldValue === "frozen" ? ofRelease("unfroze") : ofRelease("changed the status of", change);
     }
     case "release:notes":
-      return plain("wrote release notes", null, { to: e.newValue ?? "" });
+      return release ? plain("wrote notes of release", release, { to: e.newValue ?? "" }) : plain("wrote release notes", null, { to: e.newValue ?? "" });
     case "release:deleted":
       return plain("deleted release", e.oldValue);
 

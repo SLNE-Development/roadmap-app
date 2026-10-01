@@ -1,22 +1,22 @@
 import { and, asc, desc, eq, inArray, isNull, max } from "drizzle-orm";
 import { z } from "zod";
-import { adr, adrSystem, boardColumn, COLUMN_CATEGORIES, question, release, releaseNote, system, task, user, type ColumnCategory } from "@/db/schema";
+import { adr, adrSystem, boardColumn, changeLog, COLUMN_CATEGORIES, question, release, releaseNote, system, task, user, type ColumnCategory } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import type { Projection } from "@/lib/insight/burnup";
 import { composeReleaseNotes } from "@/lib/insight/release-notes";
 import { newId } from "@/lib/id";
 import { rollup, type Rollup } from "@/lib/rollup";
 import { projectAccess, slugSchema, type AccessRole, type ProjectRow } from "./access";
-import type { Actor } from "./actor";
+import { authorFields, type Actor } from "./actor";
 import { ConflictError, ForbiddenError, isUniqueViolation, NotFoundError } from "./errors";
 import { columnRulesOf, evaluateGates, type GateSubject } from "./gates";
 import { getProgress } from "./insight";
 import { logChange } from "./log";
 import type { SystemRow } from "./lookup";
+import { findRelease, type ReleaseRow } from "./release-lookup";
 import { latestUpdates } from "./updates";
 
-/** A release row. */
-export type ReleaseRow = typeof release.$inferSelect;
+export type { ReleaseRow };
 
 /** Input of {@link createRelease}. */
 export const createReleaseInput = z.object({
@@ -35,23 +35,6 @@ export const updateReleaseInput = z.object({
 /** Whether the role may manage owner-only parts of a release. */
 function isOwnerRole(role: AccessRole): boolean {
   return role === "owner" || role === "admin";
-}
-
-/**
- * Returns the release with `slug` in the project, optionally locking its row
- * until the surrounding transaction ends.
- *
- * @throws NotFoundError if there is none
- */
-export async function findRelease(tx: Executor, projectId: string, slug: string, lock = false): Promise<ReleaseRow> {
-  const query = tx
-    .select()
-    .from(release)
-    .where(and(eq(release.projectId, projectId), eq(release.slug, slug)))
-    .limit(1);
-  const [row] = lock ? await query.for("update") : await query;
-  if (!row) throw new NotFoundError(`Unknown release ${slug}.`);
-  return row;
 }
 
 /**
@@ -256,6 +239,8 @@ export interface ReleaseDetail {
   openQuestions: { id: string; title: string; priority: string; systemSlug: string }[];
   risk: ReleaseRisk;
   projection: Projection;
+  /** Who froze the release, while it is frozen. */
+  frozenBy: string | null;
   latestNote: { version: number; body: string } | null;
 }
 
@@ -315,6 +300,19 @@ export async function getRelease(db: Db, actor: Actor, projectSlug: string, rele
     : [];
   const slugById = new Map(members.map((m) => [m.id, m.slug]));
   const { projection } = await getProgress(db, actor, projectSlug, { release: releaseSlug }, now);
+  let frozenBy: string | null = null;
+  if (row.status === "frozen") {
+    const [froze] = await db
+      .select({ name: user.name, agent: changeLog.agent })
+      .from(changeLog)
+      .leftJoin(user, eq(user.id, changeLog.authorUserId))
+      .where(and(eq(changeLog.entity, "release"), eq(changeLog.entityId, row.id), eq(changeLog.field, "status"), eq(changeLog.newValue, "frozen")))
+      .orderBy(desc(changeLog.id))
+      .limit(1);
+    if (froze) frozenBy = authorFields(froze.name, froze.agent).authorName;
+  }
+  // No systems says nothing about the date, and a projection of "done" only counts when every system is.
+  const unmeasurable = members.length === 0 || (projection.status === "done" && members.some((m) => m.category !== "done"));
   const [note] = await db
     .select({ version: releaseNote.version, body: releaseNote.body })
     .from(releaseNote)
@@ -330,8 +328,9 @@ export async function getRelease(db: Db, actor: Actor, projectSlug: string, rele
     counts,
     estimates: rollup(tasks),
     openQuestions: questions.map((q) => ({ id: q.id, title: q.title, priority: q.priority, systemSlug: slugById.get(q.systemId as string) as string })),
-    risk: releaseRisk(row.status, row.targetDate, projection),
+    risk: unmeasurable && row.status !== "shipped" ? "unknown" : releaseRisk(row.status, row.targetDate, projection),
     projection,
+    frozenBy,
     latestNote: note ?? null,
   };
 }
@@ -381,6 +380,9 @@ export async function shipRelease(db: Db, actor: Actor, projectSlug: string, rel
   const input = shipReleaseInput.parse(raw);
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "owner");
+    const found = await findRelease(tx, project.id, releaseSlug);
+    // Same lock order as updateSystem → assignRelease: system rows by id, then the release row.
+    await tx.select({ id: system.id }).from(system).where(eq(system.releaseId, found.id)).orderBy(asc(system.id)).for("no key update");
     const current = await findRelease(tx, project.id, releaseSlug, true);
     if (current.status === "shipped") throw new ConflictError(`${current.name} is already shipped.`);
     const members = await systemsOf(tx, current.id);
@@ -428,8 +430,12 @@ export async function shipRelease(db: Db, actor: Actor, projectSlug: string, rel
   });
 }
 
+/** Input of {@link writeReleaseNote}: the markdown body of the new version. */
+export const writeReleaseNoteInput = z.string().trim().min(1).max(200_000);
+
 /** Writes a new version of a release's notes, also on a shipped release. Editor or higher. */
-export async function writeReleaseNote(db: Db, actor: Actor, projectSlug: string, releaseSlug: string, body: string): Promise<{ version: number }> {
+export async function writeReleaseNote(db: Db, actor: Actor, projectSlug: string, releaseSlug: string, raw: string): Promise<{ version: number }> {
+  const body = writeReleaseNoteInput.parse(raw);
   return db.transaction(async (tx) => {
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     const current = await findRelease(tx, project.id, releaseSlug, true);

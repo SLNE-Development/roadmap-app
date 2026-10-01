@@ -81,11 +81,13 @@ export function updateItems(updates: UpdateLike[]): UpdateTimelineItem[] {
  *
  * @param systems the project's systems by id, to name and link them
  * @param columns the category of each "Board / Column", to colour moves
+ * @param releases the project's release names by id, to name release changes
  */
 export function changeItems(
   entries: ChangeLike[],
   systems: Map<string, { slug: string; title: string }>,
   columns: Map<string, ColumnCategory> = new Map(),
+  releases: Map<string, string> = new Map(),
 ): ChangeTimelineItem[] {
   const adrLabels = new Map<string, string>();
   for (const e of entries) {
@@ -96,7 +98,11 @@ export function changeItems(
     .filter((e) => e.entity !== "update")
     .map((e) => {
       const system = e.systemId ? systems.get(e.systemId) : undefined;
-      const sentence = describeChange(e, { systemTitle: system?.title ?? null, adrLabel: adrLabels.get(e.entityId) ?? null });
+      const sentence = describeChange(e, {
+        systemTitle: system?.title ?? null,
+        adrLabel: adrLabels.get(e.entityId) ?? null,
+        releaseName: e.entity === "release" ? (releases.get(e.entityId) ?? null) : null,
+      });
       const toCategory = e.entity === "system" && e.field === "column" && e.newValue ? (columns.get(e.newValue) ?? null) : null;
       return {
         kind: "change",

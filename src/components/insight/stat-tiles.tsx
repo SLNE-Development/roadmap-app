@@ -10,10 +10,10 @@ export const RANGES = [
   { days: 365, label: "1 year" },
 ] as const;
 
-/** The projected finish as "20–29 Oct" (or "29 Oct – 3 Nov"), "Done" or "Not enough pace yet". */
+/** The projected finish as "20–29 Oct" (or "29 Oct – 3 Nov"), "Done", "No tasks yet" or "Not enough pace yet". */
 export function finishText(projection: Projection): string {
   if (projection.status === "done") return "Done";
-  if (projection.status === "none") return "Not enough pace yet";
+  if (projection.status === "none") return projection.reason === "no-scope" ? "No tasks yet" : "Not enough pace yet";
   const [from, to] = [projection.earliest, projection.latest].map((k) => dayTicks([k], 1)[0].label);
   const [fromDay, fromMonth] = from.split(" ");
   return fromMonth === to.split(" ")[1] ? `${fromDay}–${to}` : `${from} – ${to}`;
@@ -49,7 +49,7 @@ export function StatTiles({
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       <Tile value={`${totals.done} / ${totals.scope}`} caption="tasks done" />
-      <Tile value={`+${scopeAdded}`} caption={`scope added in ${range}`} />
+      <Tile value={scopeAdded >= 0 ? `+${scopeAdded}` : String(scopeAdded)} caption={`scope added in ${range}`} />
       <Tile value={finishText(projection)} caption="projected finish" />
     </div>
   );

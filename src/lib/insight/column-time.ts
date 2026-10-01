@@ -21,3 +21,16 @@ export function timeInCategory(input: { createdAt: Date; moves: { at: Date; to: 
   out[category] += Math.max(0, input.now.getTime() - since);
   return out;
 }
+
+/**
+ * When the system entered the category it is in now: the first move of the run of moves
+ * that ended there, so moves between columns of one category don't restart the stay.
+ * Systems start in planning; with no move into another category that is `createdAt`.
+ */
+export function currentSince(input: { createdAt: Date; moves: { at: Date; to: TimeCategory }[] }): Date {
+  const { moves } = input;
+  const category: TimeCategory = moves.at(-1)?.to ?? "planning";
+  let i = moves.length;
+  while (i > 0 && moves[i - 1].to === category) i--;
+  return i === 0 && category === "planning" ? input.createdAt : moves[i].at;
+}
