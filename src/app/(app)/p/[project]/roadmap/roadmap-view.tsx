@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import type { SystemListItem } from "@/lib/ops/systems";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
+import { hasPhaseDependencies, PhaseGraph } from "./phase-graph";
 import { ProgressView, type ProgressParams } from "./progress-view";
 
-/** The views of the roadmap page; `graph` shows the rail until the dependency graph exists. */
+/** The views of the roadmap page; `graph` draws the phase dependencies. */
 export type RoadmapMode = "rail" | "graph" | "progress";
 
 /** The tabs of the view switch and the `?view=` value each one sets. */
@@ -70,6 +71,8 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
   const byId = new Map(rows.map((r) => [r.phase.id, r]));
   const unphased = systems.filter((s) => !s.phaseId || !byId.has(s.phaseId));
   const doneCount = systems.filter((s) => s.columnCategory === "done").length;
+  const graphRows = rows.map((r, i) => ({ phase: r.phase, n: r.n, total: r.items.length, done: r.done, complete: r.complete, now: i === nowIndex }));
+  const showGraph = mode === "graph" && hasPhaseDependencies(graphRows);
   const editPhases = canEdit && (
     <Button variant="outline" asChild>
       <Link href={`/p/${slug}/settings/structure`}>Edit phases</Link>
@@ -117,66 +120,76 @@ export function RoadmapView({ slug, mode, progress }: { slug: string; mode: Road
           action={editPhases}
         />
       ) : (
-        <ol className="flex flex-col border bg-card">
-          {rows.map((r, i) => {
-            const now = i === nowIndex;
-            const past = nowIndex < 0 || i < nowIndex;
-            const deps = r.phase.dependsOn.map((id) => byId.get(id)).filter((d) => d !== undefined);
-            return (
-              <li
-                key={r.phase.id}
-                className="grid grid-cols-[44px_minmax(0,1fr)] gap-x-4 border-b pr-4 last:border-b-0 sm:pr-5 lg:grid-cols-[44px_minmax(0,290px)_minmax(0,1fr)_150px]"
-              >
-                <div className="relative row-span-3 flex justify-center lg:row-span-1">
-                  <span aria-hidden className={cn("absolute inset-y-0 left-[21px] w-0.5", past ? "bg-cat-done" : "bg-border")} />
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "relative mt-[18px] size-3 rounded-full",
-                      r.complete ? "bg-cat-done" : now ? "border-[3px] border-primary bg-card" : "border-2 border-border bg-card",
-                    )}
-                  />
-                </div>
-                <div className="flex flex-col gap-[3px] pt-3.5 lg:py-3.5">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-mono text-[11.5px] text-muted-foreground">{r.n}</span>
-                    <span className="text-[14.5px] font-semibold">{r.phase.name}</span>
-                    {now && <span className="bg-brand-soft px-1.5 py-px text-[11px] font-bold text-brand-strong">NOW</span>}
-                    {r.complete && <span className="sr-only">(done)</span>}
+        <>
+          {mode === "graph" &&
+            (showGraph ? (
+              <PhaseGraph slug={slug} rows={graphRows} />
+            ) : (
+              <p className="text-[13px] text-muted-foreground">No phase dependencies yet. Add them in Settings → Structure.</p>
+            ))}
+          {!showGraph && (
+          <ol className="flex flex-col border bg-card">
+            {rows.map((r, i) => {
+              const now = i === nowIndex;
+              const past = nowIndex < 0 || i < nowIndex;
+              const deps = r.phase.dependsOn.map((id) => byId.get(id)).filter((d) => d !== undefined);
+              return (
+                <li
+                  key={r.phase.id}
+                  className="grid grid-cols-[44px_minmax(0,1fr)] gap-x-4 border-b pr-4 last:border-b-0 sm:pr-5 lg:grid-cols-[44px_minmax(0,290px)_minmax(0,1fr)_150px]"
+                >
+                  <div className="relative row-span-3 flex justify-center lg:row-span-1">
+                    <span aria-hidden className={cn("absolute inset-y-0 left-[21px] w-0.5", past ? "bg-cat-done" : "bg-border")} />
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "relative mt-[18px] size-3 rounded-full",
+                        r.complete ? "bg-cat-done" : now ? "border-[3px] border-primary bg-card" : "border-2 border-border bg-card",
+                      )}
+                    />
                   </div>
-                  {r.phase.goal && <span className="text-[12.5px] leading-[1.45] text-fg-2">{r.phase.goal}</span>}
-                  {r.rollup && r.rollup.tasks > 0 && (
-                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                      {r.rollup.points > 0 && `${r.rollup.pointsDone}/${r.rollup.points} pts · `}
-                      {r.rollup.done}/{r.rollup.tasks} tasks done
-                    </span>
-                  )}
-                  {deps.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      Builds on {deps.map((d) => `${d.n} ${d.phase.name}`).join(", ").replace(/, ([^,]*)$/, " and $1")}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap content-center gap-1.5 py-3">
-                  {r.items.length > 0 ? (
-                    r.items.map((s) => <SystemChip key={s.id} system={s} projectSlug={slug} />)
-                  ) : (
-                    <span className="text-[12.5px] text-muted-foreground">No systems yet</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2.5 pb-3.5 lg:pb-0">
-                  <ProgressBar
-                    value={r.done}
-                    total={r.items.length}
-                    colorClass={r.complete ? "bg-cat-done" : "bg-primary"}
-                    className="h-1.5"
-                  />
-                  <span className="w-[30px] text-right font-mono text-xs text-fg-2">{r.items.length ? `${r.done}/${r.items.length}` : "–"}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+                  <div className="flex flex-col gap-[3px] pt-3.5 lg:py-3.5">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className="font-mono text-[11.5px] text-muted-foreground">{r.n}</span>
+                      <span className="text-[14.5px] font-semibold">{r.phase.name}</span>
+                      {now && <span className="bg-brand-soft px-1.5 py-px text-[11px] font-bold text-brand-strong">NOW</span>}
+                      {r.complete && <span className="sr-only">(done)</span>}
+                    </div>
+                    {r.phase.goal && <span className="text-[12.5px] leading-[1.45] text-fg-2">{r.phase.goal}</span>}
+                    {r.rollup && r.rollup.tasks > 0 && (
+                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                        {r.rollup.points > 0 && `${r.rollup.pointsDone}/${r.rollup.points} pts · `}
+                        {r.rollup.done}/{r.rollup.tasks} tasks done
+                      </span>
+                    )}
+                    {deps.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        Builds on {deps.map((d) => `${d.n} ${d.phase.name}`).join(", ").replace(/, ([^,]*)$/, " and $1")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap content-center gap-1.5 py-3">
+                    {r.items.length > 0 ? (
+                      r.items.map((s) => <SystemChip key={s.id} system={s} projectSlug={slug} />)
+                    ) : (
+                      <span className="text-[12.5px] text-muted-foreground">No systems yet</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2.5 pb-3.5 lg:pb-0">
+                    <ProgressBar
+                      value={r.done}
+                      total={r.items.length}
+                      colorClass={r.complete ? "bg-cat-done" : "bg-primary"}
+                      className="h-1.5"
+                    />
+                    <span className="w-[30px] text-right font-mono text-xs text-fg-2">{r.items.length ? `${r.done}/${r.items.length}` : "–"}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          )}
+        </>
       )}
       {mode !== "progress" &&
         systems.length > 0 &&
