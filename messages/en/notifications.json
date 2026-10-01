@@ -1,1 +1,120 @@
-{}
+{
+  "text": {
+    "questionAnswered": "{actor} answered your question",
+    "questionBlocking": "Blocking question on {system}",
+    "questionNew": "New question on {system}",
+    "planningRound": "Planning questions on {system}",
+    "systemAssigned": "You own {system}",
+    "taskAssigned": "Task #{number} is yours: {title}",
+    "taskBlocked": "Task #{number} is blocked",
+    "systemBlocked": "{system} is blocked",
+    "systemDone": "{system} is done",
+    "adrProposed": "ADR-{number} proposed: {title}",
+    "updatePosted": "Update on {system}",
+    "mentionQuestion": "{actor} mentioned you in a question",
+    "mentionAnswer": "{actor} mentioned you in an answer",
+    "mentionPlanning": "{actor} mentioned you in planning on {system}",
+    "mentionNotes": "{actor} mentioned you in notes on {system}",
+    "mentionTask": "{actor} mentioned you on task #{number}",
+    "mentionUpdate": "{actor} mentioned you in an update on {system}",
+    "prMerged": "PR #{number} merged: {title}",
+    "checksFailed": "Checks failed on {system}",
+    "automationClose": "Could not close task {title}",
+    "automationReview": "Could not move {title} to review",
+    "actorForAgent": "{agent} for {name}"
+  },
+  "inbox": {
+    "crumb": "Account",
+    "title": "Notifications",
+    "description": "Mentions of you and changes to the work you own, newest first.",
+    "markAllRead": "Mark all read",
+    "show": "Show",
+    "unread": "Unread",
+    "unread99": "Unread 99+",
+    "all": "All",
+    "loading": "Loading notifications…",
+    "caughtUp": "All caught up",
+    "empty": "No notifications yet",
+    "emptyDescription": "When someone mentions you or changes your work, it shows up here.",
+    "loadMore": "Load more"
+  },
+  "list": {
+    "unread": "Unread: "
+  },
+  "bell": {
+    "title": "Notifications",
+    "labelUnread": "Notifications, {count} unread",
+    "unreadCount": "{count} unread",
+    "allRead": "All read",
+    "loading": "Loading…",
+    "empty": "Nothing yet. Mentions and changes to your work show up here.",
+    "markAllRead": "Mark all read",
+    "seeAll": "See all"
+  },
+  "push": {
+    "off": "Push notifications are not set up on this server. An admin sets VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT.",
+    "enabled": "Push notifications are on for this device",
+    "enableFailed": "Could not turn on push notifications.",
+    "enable": "Enable on this device",
+    "denied": "Notifications are blocked for this site. Allow them in your browser's site settings, then reload.",
+    "iosNeedsHomeScreen": "On iPhone and iPad, push works from the home-screen app: tap Share → Add to Home Screen, open Roadmap from there, and enable it again.",
+    "unsupported": "This browser can't receive push notifications."
+  },
+  "devices": {
+    "title": "Devices",
+    "count": "{count, plural, one {# device} other {# devices}}",
+    "loadFailed": "Your devices could not be loaded. Reload the page to try again.",
+    "testSent": "Test push sent",
+    "removed": "Device removed",
+    "none": "No devices receive pushes yet.",
+    "device": "Device",
+    "lastPush": "Last push",
+    "actions": "Actions",
+    "thisDevice": "This device",
+    "lastPushAgo": "Last push {when}",
+    "sendTestTo": "Send test to {label}",
+    "sendTest": "Send test",
+    "removeLabel": "Remove {label}"
+  },
+  "quietHours": {
+    "hold": "Hold pushes during quiet hours",
+    "from": "From",
+    "to": "To",
+    "timeZone": "Time zone"
+  },
+  "rules": {
+    "notifyWhen": "Notify me when",
+    "inbox": "Inbox",
+    "push": "Push",
+    "inboxLabel": "{label}: inbox",
+    "pushLabel": "{label}: push",
+    "pushNotSetUp": "Push is not set up",
+    "pushOff": "Push notifications are not set up on this server. An admin sets VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT.",
+    "kinds": {
+      "mention": "Someone mentions me",
+      "questionAnswered": "My question is answered",
+      "questionAsked": "A question is asked on my system",
+      "planningRound": "Planning questions on my system",
+      "systemAssigned": "I become owner of a system",
+      "taskAssigned": "I become owner of a task",
+      "taskBlocked": "A task on my system is blocked",
+      "systemBlocked": "My system is blocked",
+      "systemDone": "My system is done",
+      "adrProposed": "A decision is proposed on my system",
+      "updatePosted": "A progress update on my system",
+      "prMerged": "A pull request on my task or system is merged",
+      "checksFailed": "Checks fail on a pull request of my system",
+      "automationBlocked": "A GitHub automation is blocked on my system"
+    }
+  },
+  "settings": {
+    "crumb": "Account",
+    "title": "Notification settings",
+    "description": "Choose what reaches your inbox and what is pushed to your devices.",
+    "rulesTitle": "Notifications",
+    "quietTitle": "Quiet hours",
+    "quietMeta": "Pushes wait until quiet hours end",
+    "activeTitle": "While you are using the app",
+    "skipPush": "Don't push while I'm using the app"
+  }
+}

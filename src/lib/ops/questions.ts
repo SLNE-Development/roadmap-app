@@ -10,7 +10,7 @@ import { NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem } from "./lookup";
 import { notifyMentions, resolveMentionsIn } from "./mentions";
-import { actorLabel } from "./notifications";
+import { actorValues } from "@/lib/notification-text";
 
 /** Longest question text or answer. */
 const TEXT_MAX = 5000;
@@ -94,7 +94,7 @@ export async function addQuestion(db: Db, actor: Actor, projectSlug: string, raw
       projectId: project.id,
       before: null,
       after: text,
-      title: `${actorLabel(actor.name, actor.agent)} mentioned you in a question`,
+      title: { key: "mentionQuestion", values: { ...actorValues(actor.name, actor.agent) } },
       href: `/p/${project.slug}/questions#q-${id}`,
       source: `question:${id}:text`,
     });
@@ -143,7 +143,7 @@ export async function answerQuestionInTx(
     projectId: project.id,
     before: current.answer,
     after: answer,
-    title: `${actorLabel(actor.name, actor.agent)} mentioned you in an answer`,
+    title: { key: "mentionAnswer", values: { ...actorValues(actor.name, actor.agent) } },
     href: `/p/${project.slug}/questions#q-${current.id}`,
     source: `question:${current.id}:answer`,
   });

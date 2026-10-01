@@ -9,7 +9,7 @@ import { logChange } from "./log";
 import { assertSystemActive, findSystem, systemColumns, userName, type SystemRow } from "./lookup";
 import { isMember } from "./members";
 import { notifyMentions, resolveMentionsIn } from "./mentions";
-import { actorLabel } from "./notifications";
+import { actorValues } from "@/lib/notification-text";
 import { nullableEntityId } from "./params";
 import { planningGaps } from "./planning";
 import { claimSystem, planningGateMessage } from "./systems";
@@ -180,7 +180,7 @@ export async function updateTaskInTx(tx: Executor, actor: Actor, taskId: number,
       projectId: parent.projectId,
       before: current.notes,
       after: changes.notes,
-      title: `${actorLabel(actor.name, actor.agent)} mentioned you on task #${taskId}`,
+      title: { key: "mentionTask", values: { ...actorValues(actor.name, actor.agent), number: taskId } },
       href: `/p/${project.slug}/systems/${parent.slug}#task-${taskId}`,
       source: `task:${taskId}:notes`,
     });

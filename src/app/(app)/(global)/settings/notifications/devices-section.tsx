@@ -1,12 +1,12 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 import { EnablePush } from "@/components/notifications/enable-push";
 import { PushDevices } from "@/components/notifications/push-devices";
 import { Panel } from "@/components/page";
 import { currentEndpointHash, pushSupport, registerPushWorker } from "@/lib/push-client";
-import { plural } from "@/lib/text";
 import { useTRPC } from "@/trpc/client";
 
 /** Query key of this browser's push state, read in the browser only. */
@@ -14,6 +14,7 @@ const PUSH_CLIENT_KEY = ["push-client"];
 
 /** The push devices section: this browser's push state above the list of the user's devices. */
 export function DevicesSection({ pushEnabled }: { pushEnabled: boolean }) {
+  const t = useTranslations("notifications.devices");
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const browser = useQuery({
@@ -37,7 +38,7 @@ export function DevicesSection({ pushEnabled }: { pushEnabled: boolean }) {
   const settled = devices.data !== undefined || devices.isError;
   return (
     <div id="devices">
-      <Panel title="Devices" meta={devices.data ? plural(list.length, "device") : undefined}>
+      <Panel title={t("title")} meta={devices.data ? t("count", { count: list.length }) : undefined}>
         <EnablePush
           pushEnabled={pushEnabled}
           // Unknown until the devices tell whether this browser is one of them.
@@ -46,7 +47,7 @@ export function DevicesSection({ pushEnabled }: { pushEnabled: boolean }) {
           onEnabled={() => queryClient.invalidateQueries({ queryKey: PUSH_CLIENT_KEY })}
         />
         {devices.data && <PushDevices devices={list} pushEnabled={pushEnabled} />}
-        {devices.isError && !devices.data && <p className="px-4 pb-4 text-[13.5px] text-destructive sm:px-5">Your devices could not be loaded. Reload the page to try again.</p>}
+        {devices.isError && !devices.data && <p className="px-4 pb-4 text-[13.5px] text-destructive sm:px-5">{t("loadFailed")}</p>}
       </Panel>
     </div>
   );

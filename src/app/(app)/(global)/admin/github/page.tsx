@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { defaultAppName } from "@/lib/github/manifest";
-import { isPublicOrigin, unreachableOriginMessage } from "@/lib/github/urls";
+import { isPublicOrigin } from "@/lib/github/urls";
 import { siteUrl } from "@/lib/site";
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 import { GitHubAdminView } from "./github-admin-view";
@@ -25,7 +25,7 @@ export default async function AdminGitHubPage({ searchParams }: { searchParams: 
     <HydrateClient>
       <GitHubAdminView
         defaultName={defaultAppName(siteUrl())}
-        unreachable={isPublicOrigin(siteUrl()) ? null : unreachableOriginMessage(siteUrl())}
+        unreachableOrigin={isPublicOrigin(siteUrl()) ? null : origin}
         urls={{ webhook: `${origin}/api/github/app`, setup: `${origin}/api/github/setup`, oauth: `${origin}/api/github/oauth/callback` }}
         created={one(sp.created) === "1"}
         requested={one(sp.requested) === "1"}

@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Trash2, UserPlus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -40,13 +41,15 @@ const HEAD = "text-xs font-semibold text-muted-foreground";
 
 /** Lists provisioned Discord accounts with admin toggles, removal and a form to add one. */
 export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]; selfId: string }) {
+  const t = useTranslations("admin.users");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const add = useMutation(trpc.account.addAccount.mutationOptions());
   // The toast lives on the hook: the removed account's row (with its dialog) is gone once the refetch settles.
   const remove = useMutation(
     trpc.account.removeAccount.mutationOptions({
       onMutate: ({ discordId }) => accounts.find((a) => a.discordId === discordId)?.displayName,
-      onSuccess: (_data, _input, name) => toast.success(`Removed ${name ?? "account"}`),
+      onSuccess: (_data, _input, name) => toast.success(name ? t("removed", { name }) : t("removedAccount")),
     }),
   );
   const setAdmin = useMutation(trpc.account.setAdmin.mutationOptions());
@@ -56,7 +59,7 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
 
   return (
     <div className="flex flex-col gap-5" aria-busy={pending}>
-      <Panel title="Add an account" bodyClassName="px-4 pb-4 sm:px-5 sm:pb-5">
+      <Panel title={t("addTitle")} bodyClassName="px-4 pb-4 sm:px-5 sm:pb-5">
         <form
           className="flex flex-col gap-3 sm:flex-row sm:items-start"
           onSubmit={(e) => {
@@ -64,7 +67,7 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
             const input = { discordId: discordId.trim(), displayName: displayName.trim() };
             add.mutate(input, {
               onSuccess: () => {
-                toast.success(`Added ${input.displayName}`);
+                toast.success(t("added", { name: input.displayName }));
                 setDiscordId("");
                 setDisplayName("");
               },
@@ -73,7 +76,7 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <Label htmlFor="new-discord-id" className="text-[12.5px] font-semibold text-fg-2">
-              Discord user id
+              {t("discordId")}
             </Label>
             <Input
               id="new-discord-id"
@@ -84,17 +87,17 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
               onChange={(e) => setDiscordId(e.target.value)}
             />
             <p id="new-discord-id-hint" className="text-xs text-muted-foreground">
-              In Discord with Developer Mode on: right-click the user, Copy User ID.
+              {t("discordIdHint")}
             </p>
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <Label htmlFor="new-display-name" className="text-[12.5px] font-semibold text-fg-2">
-              Display name
+              {t("displayName")}
             </Label>
             <Input id="new-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
           </div>
           <Button type="submit" className="sm:mt-[23px]" disabled={pending || !discordId.trim() || !displayName.trim()}>
-            Add account
+            {t("addAccount")}
           </Button>
         </form>
       </Panel>
@@ -102,20 +105,20 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
       {accounts.length === 0 ? (
         <EmptyState
           icon={<UserPlus />}
-          title="No accounts yet"
-          description="Add a Discord user id above so that person can sign in."
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
         />
       ) : (
-        <Panel title="Allowlist" meta={accounts.length === 1 ? "1 account" : `${accounts.length} accounts`}>
+        <Panel title={t("allowlistTitle")} meta={t("accountCount", { count: accounts.length })}>
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className={cn(HEAD, "pl-4 sm:pl-5")}>Name</TableHead>
-                <TableHead className={HEAD}>Discord id</TableHead>
-                <TableHead className={HEAD}>Status</TableHead>
-                <TableHead className={HEAD}>Admin</TableHead>
+                <TableHead className={cn(HEAD, "pl-4 sm:pl-5")}>{t("name")}</TableHead>
+                <TableHead className={HEAD}>{t("discordIdShort")}</TableHead>
+                <TableHead className={HEAD}>{t("status")}</TableHead>
+                <TableHead className={HEAD}>{t("admin")}</TableHead>
                 <TableHead className="pr-4 sm:pr-5">
-                  <span className="sr-only">Remove</span>
+                  <span className="sr-only">{tc("remove")}</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -134,9 +137,9 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                     <TableCell className="font-mono text-xs text-muted-foreground">{a.discordId}</TableCell>
                     <TableCell>
                       {a.userName ? (
-                        <Tag className="bg-cat-done-soft font-semibold text-cat-done">Signed in as {a.userName}</Tag>
+                        <Tag className="bg-cat-done-soft font-semibold text-cat-done">{t("signedInAs", { name: a.userName })}</Tag>
                       ) : (
-                        <Tag>Not signed in yet</Tag>
+                        <Tag>{t("notSignedIn")}</Tag>
                       )}
                     </TableCell>
                     <TableCell>
@@ -151,13 +154,13 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                                 { userId: a.userId as string, isAdmin: checked === true },
                                 {
                                   onSuccess: () =>
-                                    toast.success(checked === true ? `${a.displayName} is now an admin` : `${a.displayName} is no longer an admin`),
+                                    toast.success(checked === true ? t("nowAdmin", { name: a.displayName }) : t("noLongerAdmin", { name: a.displayName })),
                                 },
                               )
                             }
                           />
                           <Label htmlFor={adminId} className={cn("text-[13px] font-normal", self && "text-muted-foreground")}>
-                            Admin{self && " (you)"}
+                            {self ? t("adminYou") : t("admin")}
                           </Label>
                         </span>
                       )}
@@ -168,7 +171,7 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            aria-label={`Remove ${a.displayName}`}
+                            aria-label={t("removeName", { name: a.displayName })}
                             className="text-muted-foreground hover:text-destructive"
                             disabled={pending || self}
                           >
@@ -177,20 +180,18 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Remove {a.displayName}?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              They are signed out everywhere and their API keys stop working. Their project memberships stay but grant nothing.
-                            </AlertDialogDescription>
+                            <AlertDialogTitle>{t("removeTitle", { name: a.displayName })}</AlertDialogTitle>
+                            <AlertDialogDescription>{t("removeDescription")}</AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Keep</AlertDialogCancel>
+                            <AlertDialogCancel>{t("keep")}</AlertDialogCancel>
                             <AlertDialogAction
                               variant="destructive"
                               onClick={() =>
                                 remove.mutate({ discordId: a.discordId })
                               }
                             >
-                              Remove
+                              {tc("remove")}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

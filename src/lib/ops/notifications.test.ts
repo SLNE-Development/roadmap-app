@@ -7,6 +7,7 @@ import { DEFAULT_NOTIFY_RULES, NOTIFY_RULES_PREF } from "@/lib/notify-rules-sche
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { listNotifications, markAllRead, markRead, notify, unreadCount, type NotifyInput } from "./notifications";
+import { actorValues } from "@/lib/notification-text";
 import { setPref } from "./prefs";
 
 let db: Db;
@@ -137,5 +138,39 @@ describe("inbox", () => {
     expect(page2).toHaveLength(5);
     const ids = new Set([...page1, ...page2].map((n) => n.id));
     expect(ids.size).toBe(35);
+  });
+});
+
+describe("notify in the recipient's language", () => {
+  const text = { key: "questionAnswered", values: { actor: "Jules" } } as const;
+
+  it("renders the title in the language of the recipient's locale preference", async () => {
+    await setPref(db, editor, "locale", "de");
+    await notify(db, input(editor.userId, "cl:1", { title: text }));
+    const [row] = await db.select().from(notification);
+    expect(row.title).toBe("Jules hat deine Frage beantwortet");
+  });
+
+  it("renders English for a recipient without a preference", async () => {
+    await notify(db, input(editor.userId, "cl:1", { title: text }));
+    const [row] = await db.select().from(notification);
+    expect(row.title).toBe("Jules answered your question");
+  });
+
+  it("keeps a title written out as it is", async () => {
+    await setPref(db, editor, "locale", "de");
+    await notify(db, input(editor.userId, "cl:1", { title: "As written" }));
+    const [row] = await db.select().from(notification);
+    expect(row.title).toBe("As written");
+  });
+});
+
+describe("notify with an agent as the actor", () => {
+  it("names the agent in the recipient's language", async () => {
+    await setPref(db, editor, "locale", "de");
+    await notify(db, input(editor.userId, "cl:1", { title: { key: "mentionQuestion", values: actorValues("Jules", "Claude") } }));
+    const [row] = await db.select().from(notification);
+    expect(row.title).toBe("Claude für Jules hat dich in einer Frage erwähnt");
+    expect(row.title).not.toContain(" for ");
   });
 });

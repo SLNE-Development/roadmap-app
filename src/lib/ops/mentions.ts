@@ -2,6 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { allowedAccount, projectMember, user } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { newMentions, resolveMentionNames, type MentionMember } from "@/lib/mentions";
+import type { NotificationText } from "@/lib/notification-text";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
 import { actorLabel, notify } from "./notifications";
@@ -43,7 +44,7 @@ export interface MentionNotice {
   projectId: string;
   before: string | null;
   after: string;
-  title: string;
+  title: NotificationText;
   href: string;
   /** Becomes the notification's source key as `${source}:mention:${userId}`. */
   source: string;

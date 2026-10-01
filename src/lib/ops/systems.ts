@@ -35,7 +35,7 @@ import { logChange } from "./log";
 import { assertSystemActive, findBoard, findSystem, loadBoards, lockProject, userName, type BoardColumnRow, type BoardWithColumns, systemColumns, type SystemRow } from "./lookup";
 import { isMember } from "./members";
 import { notifyMentions, resolveMentionsIn } from "./mentions";
-import { actorLabel } from "./notifications";
+import { actorValues } from "@/lib/notification-text";
 import { nullableEntityId } from "./params";
 import { openAreaReopens, planningGaps } from "./planning";
 import { findRelease } from "./release-lookup";
@@ -496,7 +496,7 @@ export async function applySystemPatch(
       projectId: project.id,
       before: current.notes,
       after: row.notes,
-      title: `${actorLabel(actor.name, actor.agent)} mentioned you in notes on ${row.title}`,
+      title: { key: "mentionNotes", values: { ...actorValues(actor.name, actor.agent), system: row.title } },
       href: `/p/${project.slug}/systems/${row.slug}`,
       source: `system:${row.id}:notes`,
     });

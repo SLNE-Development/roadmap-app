@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -27,13 +28,14 @@ function badgeText(count: number): string {
  * @param props.className classes of the trigger button, which differs between the sidebar and the mobile bar
  */
 export function NotificationBell({ className }: { className?: string }) {
+  const t = useTranslations("notifications.bell");
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
   const { data: unread = 0 } = useQuery({ ...trpc.notifications.unread.queryOptions(), refetchInterval: UNREAD_REFRESH_MS });
   const latest = useQuery({ ...trpc.notifications.list.queryOptions({ limit: LATEST }), enabled: open });
   const markRead = useMutation(trpc.notifications.markRead.mutationOptions());
   const markAllRead = useMutation(trpc.notifications.markAllRead.mutationOptions());
-  const label = unread > 0 ? `Notifications, ${badgeText(unread)} unread` : "Notifications";
+  const label = unread > 0 ? t("labelUnread", { count: badgeText(unread) }) : t("title");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -49,16 +51,16 @@ export function NotificationBell({ className }: { className?: string }) {
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 gap-0 rounded-none p-0">
         <div className="flex items-center justify-between border-b px-3 py-2.5">
-          <h2 className="text-sm font-semibold">Notifications</h2>
-          <span className="text-xs text-muted-foreground">{unread > 0 ? `${badgeText(unread)} unread` : "All read"}</span>
+          <h2 className="text-sm font-semibold">{t("title")}</h2>
+          <span className="text-xs text-muted-foreground">{unread > 0 ? t("unreadCount", { count: badgeText(unread) }) : t("allRead")}</span>
         </div>
         <div className="max-h-[60vh] overflow-y-auto">
           {latest.isPending ? (
-            <p className="px-3 py-4 text-sm text-muted-foreground">Loading…</p>
+            <p className="px-3 py-4 text-sm text-muted-foreground">{t("loading")}</p>
           ) : latest.error ? (
             <p className="px-3 py-4 text-sm text-cat-blocked">{latest.error.message}</p>
           ) : latest.data.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-muted-foreground">Nothing yet. Mentions and changes to your work show up here.</p>
+            <p className="px-3 py-4 text-sm text-muted-foreground">{t("empty")}</p>
           ) : (
             <NotificationList
               compact
@@ -77,10 +79,10 @@ export function NotificationBell({ className }: { className?: string }) {
             onClick={() => markAllRead.mutate()}
             className="font-medium text-brand-strong hover:underline disabled:text-muted-foreground disabled:no-underline"
           >
-            Mark all read
+            {t("markAllRead")}
           </button>
           <Link href="/notifications" onClick={() => setOpen(false)} className="font-medium text-brand-strong hover:underline">
-            See all
+            {t("seeAll")}
           </Link>
         </div>
       </PopoverContent>

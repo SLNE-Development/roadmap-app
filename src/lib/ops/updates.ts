@@ -9,7 +9,7 @@ import { InvalidError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, systemAccess } from "./lookup";
 import { notifyMentions, resolveMentionsIn } from "./mentions";
-import { actorLabel } from "./notifications";
+import { actorValues } from "@/lib/notification-text";
 
 /** Longest update summary and next step. */
 const SUMMARY_MAX = 5000;
@@ -98,7 +98,7 @@ export async function postUpdate(
       projectId: project.id,
       before: null,
       after: nextStep ? `${summary}\n${nextStep}` : summary,
-      title: `${actorLabel(actor.name, actor.agent)} mentioned you in an update on ${parent.title}`,
+      title: { key: "mentionUpdate", values: { ...actorValues(actor.name, actor.agent), system: parent.title } },
       href: `/p/${project.slug}/systems/${parent.slug}`,
       source: `update:${id}`,
     });

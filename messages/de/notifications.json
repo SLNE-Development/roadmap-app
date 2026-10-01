@@ -1,1 +1,120 @@
-{}
+{
+  "text": {
+    "questionAnswered": "{actor} hat deine Frage beantwortet",
+    "questionBlocking": "Blockierende Frage zu {system}",
+    "questionNew": "Neue Frage zu {system}",
+    "planningRound": "Planungsfragen zu {system}",
+    "systemAssigned": "Du bist verantwortlich für {system}",
+    "taskAssigned": "Aufgabe #{number} gehört dir: {title}",
+    "taskBlocked": "Aufgabe #{number} ist blockiert",
+    "systemBlocked": "{system} ist blockiert",
+    "systemDone": "{system} ist erledigt",
+    "adrProposed": "ADR-{number} vorgeschlagen: {title}",
+    "updatePosted": "Fortschrittsmeldung zu {system}",
+    "mentionQuestion": "{actor} hat dich in einer Frage erwähnt",
+    "mentionAnswer": "{actor} hat dich in einer Antwort erwähnt",
+    "mentionPlanning": "{actor} hat dich in der Planung von {system} erwähnt",
+    "mentionNotes": "{actor} hat dich in den Notizen zu {system} erwähnt",
+    "mentionTask": "{actor} hat dich bei Aufgabe #{number} erwähnt",
+    "mentionUpdate": "{actor} hat dich in einer Fortschrittsmeldung zu {system} erwähnt",
+    "prMerged": "PR #{number} gemergt: {title}",
+    "checksFailed": "Checks fehlgeschlagen bei {system}",
+    "automationClose": "Aufgabe {title} konnte nicht geschlossen werden",
+    "automationReview": "{title} konnte nicht in Review verschoben werden",
+    "actorForAgent": "{agent} für {name}"
+  },
+  "inbox": {
+    "crumb": "Konto",
+    "title": "Benachrichtigungen",
+    "description": "Erwähnungen von dir und Änderungen an der Arbeit, für die du verantwortlich bist, neueste zuerst.",
+    "markAllRead": "Alle als gelesen markieren",
+    "show": "Anzeigen",
+    "unread": "Ungelesen",
+    "unread99": "Ungelesen 99+",
+    "all": "Alle",
+    "loading": "Benachrichtigungen werden geladen…",
+    "caughtUp": "Alles gelesen",
+    "empty": "Noch keine Benachrichtigungen",
+    "emptyDescription": "Wenn dich jemand erwähnt oder deine Arbeit ändert, erscheint es hier.",
+    "loadMore": "Mehr laden"
+  },
+  "list": {
+    "unread": "Ungelesen: "
+  },
+  "bell": {
+    "title": "Benachrichtigungen",
+    "labelUnread": "Benachrichtigungen, {count} ungelesen",
+    "unreadCount": "{count} ungelesen",
+    "allRead": "Alles gelesen",
+    "loading": "Wird geladen…",
+    "empty": "Noch nichts. Erwähnungen und Änderungen an deiner Arbeit erscheinen hier.",
+    "markAllRead": "Alle als gelesen markieren",
+    "seeAll": "Alle anzeigen"
+  },
+  "push": {
+    "off": "Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet. Ein Admin setzt VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY und VAPID_SUBJECT.",
+    "enabled": "Push-Benachrichtigungen sind für dieses Gerät aktiviert",
+    "enableFailed": "Push-Benachrichtigungen konnten nicht aktiviert werden.",
+    "enable": "Auf diesem Gerät aktivieren",
+    "denied": "Benachrichtigungen sind für diese Website blockiert. Erlaube sie in den Website-Einstellungen deines Browsers und lade die Seite neu.",
+    "iosNeedsHomeScreen": "Auf iPhone und iPad funktioniert Push über die App auf dem Home-Bildschirm: Tippe auf Teilen → Zum Home-Bildschirm, öffne Roadmap von dort und aktiviere Push erneut.",
+    "unsupported": "Dieser Browser kann keine Push-Benachrichtigungen empfangen."
+  },
+  "devices": {
+    "title": "Geräte",
+    "count": "{count, plural, one {# Gerät} other {# Geräte}}",
+    "loadFailed": "Deine Geräte konnten nicht geladen werden. Lade die Seite neu und versuche es erneut.",
+    "testSent": "Test-Push gesendet",
+    "removed": "Gerät entfernt",
+    "none": "Noch kein Gerät erhält Push-Benachrichtigungen.",
+    "device": "Gerät",
+    "lastPush": "Letzter Push",
+    "actions": "Aktionen",
+    "thisDevice": "Dieses Gerät",
+    "lastPushAgo": "Letzter Push {when}",
+    "sendTestTo": "Test an {label} senden",
+    "sendTest": "Test senden",
+    "removeLabel": "{label} entfernen"
+  },
+  "quietHours": {
+    "hold": "Pushes während der Ruhezeit zurückhalten",
+    "from": "Von",
+    "to": "Bis",
+    "timeZone": "Zeitzone"
+  },
+  "rules": {
+    "notifyWhen": "Benachrichtige mich, wenn",
+    "inbox": "Posteingang",
+    "push": "Push",
+    "inboxLabel": "{label}: Posteingang",
+    "pushLabel": "{label}: Push",
+    "pushNotSetUp": "Push ist nicht eingerichtet",
+    "pushOff": "Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet. Ein Admin setzt VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY und VAPID_SUBJECT.",
+    "kinds": {
+      "mention": "mich jemand erwähnt",
+      "questionAnswered": "meine Frage beantwortet wird",
+      "questionAsked": "eine Frage zu meinem System gestellt wird",
+      "planningRound": "Planungsfragen zu meinem System anfallen",
+      "systemAssigned": "ich für ein System verantwortlich werde",
+      "taskAssigned": "ich für eine Aufgabe verantwortlich werde",
+      "taskBlocked": "eine Aufgabe in meinem System blockiert ist",
+      "systemBlocked": "mein System blockiert ist",
+      "systemDone": "mein System erledigt ist",
+      "adrProposed": "eine Entscheidung zu meinem System vorgeschlagen wird",
+      "updatePosted": "eine Fortschrittsmeldung zu meinem System erscheint",
+      "prMerged": "ein Pull Request zu meiner Aufgabe oder meinem System gemergt wird",
+      "checksFailed": "Checks bei einem Pull Request meines Systems fehlschlagen",
+      "automationBlocked": "eine GitHub-Automatisierung bei meinem System blockiert ist"
+    }
+  },
+  "settings": {
+    "crumb": "Konto",
+    "title": "Benachrichtigungseinstellungen",
+    "description": "Lege fest, was in deinem Posteingang landet und was auf deine Geräte gepusht wird.",
+    "rulesTitle": "Benachrichtigungen",
+    "quietTitle": "Ruhezeit",
+    "quietMeta": "Pushes warten, bis die Ruhezeit endet",
+    "activeTitle": "Während du die App nutzt",
+    "skipPush": "Nicht pushen, solange ich die App nutze"
+  }
+}

@@ -75,7 +75,7 @@ onGitHubEvent("check_suite", async (job, deps, api) => {
           kind: "checks.failed",
           entity: "system",
           entityId: s.id,
-          title: `Checks failed on ${s.title}`,
+          title: { key: "checksFailed", values: { system: s.title } },
           actorName: actor ? actorLabel(actor.name, actor.agent) : null,
           body: changed.find((l) => l.systemId === s.id)?.title,
           href: `/p/${projectSlug}/systems/${s.slug}`,

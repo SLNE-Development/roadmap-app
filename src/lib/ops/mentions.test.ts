@@ -46,7 +46,7 @@ describe("notifyMentions", () => {
     const { owner, slug, projectId } = await createProjectFixture(db);
     const e = await addMemberFixture(db, owner, slug, "editor", "E");
     const after = `[@E](user:${e.userId}) [@Owner](user:${owner.userId})`;
-    const notice = { projectId, title: "Owner mentioned you", href: "/p/demo/systems/auth", source: "system:s1:notes" };
+    const notice = { projectId, title: { key: "mentionQuestion" as const, values: { actor: "Owner" } }, href: "/p/demo/systems/auth", source: "system:s1:notes" };
     await notifyMentions(db, owner, { ...notice, before: null, after });
     const rows = await db.select().from(notification);
     expect(rows).toHaveLength(1);

@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { SegmentedLinks } from "@/components/activity/url-tabs";
 import { NotificationList } from "@/components/notifications/notification-list";
 import { EmptyState, Page, PageHeader, Panel } from "@/components/page";
@@ -19,6 +20,8 @@ const PAGE = 30;
  * @param props.unreadOnly lists only unread rows, bound to `?show=unread`
  */
 export function NotificationsView({ unreadOnly }: { unreadOnly: boolean }) {
+  const t = useTranslations("notifications.inbox");
+  const tc = useTranslations("common");
   const trpc = useTRPC();
   const { data: unread = 0 } = useQuery(trpc.notifications.unread.queryOptions());
   const list = useInfiniteQuery(
@@ -34,31 +37,31 @@ export function NotificationsView({ unreadOnly }: { unreadOnly: boolean }) {
   return (
     <Page width="medium">
       <PageHeader
-        crumbs={[{ label: "Account" }]}
-        title="Notifications"
-        description="Mentions of you and changes to the work you own, newest first."
+        crumbs={[{ label: t("crumb") }]}
+        title={t("title")}
+        description={t("description")}
         actions={
           <Button size="sm" variant="outline" disabled={unread === 0 || markAllRead.isPending} onClick={() => markAllRead.mutate()}>
-            Mark all read
+            {t("markAllRead")}
           </Button>
         }
       />
       <SegmentedLinks
-        label="Show"
+        label={t("show")}
         items={[
-          { label: unread > 99 ? "Unread 99+" : "Unread", count: unread > 99 ? undefined : unread, href: `${PATH}?show=unread`, active: unreadOnly },
-          { label: "All", href: PATH, active: !unreadOnly },
+          { label: unread > 99 ? t("unread99") : t("unread"), count: unread > 99 ? undefined : unread, href: `${PATH}?show=unread`, active: unreadOnly },
+          { label: t("all"), href: PATH, active: !unreadOnly },
         ]}
       />
       {list.isPending ? (
-        <p className="text-sm text-muted-foreground">Loading notifications…</p>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
       ) : list.error ? (
         <p className="text-sm text-cat-blocked">{list.error.message}</p>
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<Bell />}
-          title={unreadOnly ? "All caught up" : "No notifications yet"}
-          description="When someone mentions you or changes your work, it shows up here."
+          title={unreadOnly ? t("caughtUp") : t("empty")}
+          description={t("emptyDescription")}
         />
       ) : (
         <Panel>
@@ -67,7 +70,7 @@ export function NotificationsView({ unreadOnly }: { unreadOnly: boolean }) {
       )}
       {list.hasNextPage && (
         <Button variant="outline" size="sm" className="w-fit" disabled={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>
-          {list.isFetchingNextPage ? "Loading…" : "Load more"}
+          {list.isFetchingNextPage ? tc("loading") : t("loadMore")}
         </Button>
       )}
     </Page>

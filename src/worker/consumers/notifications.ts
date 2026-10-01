@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { adr, adrSystem, boardColumn, changeLog, notification, project, question, system, task, user, type NotificationKind } from "@/db/schema";
 import { formatAdrNumber } from "@/lib/adr-number";
+import { actorValues, type NotificationText } from "@/lib/notification-text";
 import { actorLabel, inMovedColumn, notify } from "@/lib/ops/notifications";
 import type { WorkerDeps } from "../deps";
 import { registerFeedConsumer, type ChangeEvent } from "../feed";
@@ -31,7 +32,7 @@ interface Context {
 interface Draft {
   kind: NotificationKind;
   recipients: (string | null)[];
-  title: string;
+  title: NotificationText;
   body?: string;
   href: string;
 }
@@ -48,15 +49,15 @@ const RULES: Record<string, Rule> = {
   "question/answer": (event, ctx, base) => {
     const q = ctx.questions.get(event.entityId);
     if (event.newValue === null || !q) return null;
-    const actor = actorLabel(ctx.names.get(event.authorUserId ?? ""), event.agent);
-    return { kind: "question.answered", recipients: [q.authorUserId], title: `${actor} answered your question`, body: q.title, href: `${base}/questions#q-${event.entityId}` };
+    const actor = actorValues(ctx.names.get(event.authorUserId ?? ""), event.agent);
+    return { kind: "question.answered", recipients: [q.authorUserId], title: { key: "questionAnswered", values: actor }, body: q.title, href: `${base}/questions#q-${event.entityId}` };
   },
   "question/created": (event, ctx, base) => {
     const q = ctx.questions.get(event.entityId);
     // The question's system now, in case it moved since it was asked.
     const sys = q?.systemId ? ctx.systems.get(q.systemId) : undefined;
     if (!q || !sys) return null;
-    const title = `${q.priority === "blocking" ? "Blocking question" : "New question"} on ${sys.title}`;
+    const title: NotificationText = { key: q.priority === "blocking" ? "questionBlocking" : "questionNew", values: { system: sys.title } };
     return { kind: "question.asked", recipients: [sys.ownerUserId], title, body: q.title, href: `${base}/questions#q-${event.entityId}` };
   },
   "planning/round": (event, ctx, base) => {
@@ -65,7 +66,7 @@ const RULES: Record<string, Rule> = {
     return {
       kind: "planning.round",
       recipients: [sys.ownerUserId],
-      title: `Planning questions on ${sys.title}`,
+      title: { key: "planningRound", values: { system: sys.title } },
       body: event.newValue ?? undefined,
       href: `${base}/systems/${sys.slug}?tab=planning`,
     };
@@ -73,21 +74,21 @@ const RULES: Record<string, Rule> = {
   "system/owner": (event, ctx, base) => {
     const sys = ctx.systems.get(event.entityId);
     if (event.newValue === null || !sys || sys.ownerName !== event.newValue) return null;
-    return { kind: "system.assigned", recipients: [sys.ownerUserId], title: `You own ${sys.title}`, href: `${base}/systems/${sys.slug}` };
+    return { kind: "system.assigned", recipients: [sys.ownerUserId], title: { key: "systemAssigned", values: { system: sys.title } }, href: `${base}/systems/${sys.slug}` };
   },
   "task/owner": (event, ctx, base) => {
     const id = taskId(event);
     const t = id === null ? undefined : ctx.tasks.get(id);
     const sys = t && ctx.systems.get(t.systemId);
     if (event.newValue === null || !t || !sys || t.ownerName !== event.newValue) return null;
-    return { kind: "task.assigned", recipients: [t.ownerUserId], title: `Task #${id} is yours: ${t.title}`, href: `${base}/systems/${sys.slug}#task-${id}` };
+    return { kind: "task.assigned", recipients: [t.ownerUserId], title: { key: "taskAssigned", values: { number: id!, title: t.title } }, href: `${base}/systems/${sys.slug}#task-${id}` };
   },
   "task/state": (event, ctx, base) => {
     const id = taskId(event);
     const t = id === null ? undefined : ctx.tasks.get(id);
     const sys = t && ctx.systems.get(t.systemId);
     if (event.newValue !== "blocked" || !t || !sys) return null;
-    return { kind: "task.blocked", recipients: [sys.ownerUserId, t.ownerUserId], title: `Task #${id} is blocked`, body: t.title, href: `${base}/systems/${sys.slug}#task-${id}` };
+    return { kind: "task.blocked", recipients: [sys.ownerUserId, t.ownerUserId], title: { key: "taskBlocked", values: { number: id! } }, body: t.title, href: `${base}/systems/${sys.slug}#task-${id}` };
   },
   "system/column": (event, ctx, base) => {
     const sys = ctx.systems.get(event.entityId);
@@ -95,7 +96,7 @@ const RULES: Record<string, Rule> = {
     if (!sys || !inMovedColumn(event.newValue, sys.columnName)) return null;
     if (sys.category !== "blocked" && sys.category !== "done") return null;
     const kind = sys.category === "blocked" ? "system.blocked" : "system.done";
-    return { kind, recipients: [sys.ownerUserId], title: `${sys.title} is ${sys.category}`, href: `${base}/systems/${sys.slug}` };
+    return { kind, recipients: [sys.ownerUserId], title: { key: sys.category === "blocked" ? "systemBlocked" : "systemDone", values: { system: sys.title } }, href: `${base}/systems/${sys.slug}` };
   },
   "adr/created": (event, ctx, base) => {
     const a = ctx.adrs.get(event.entityId);
@@ -103,14 +104,14 @@ const RULES: Record<string, Rule> = {
     return {
       kind: "adr.proposed",
       recipients: a.systemIds.map((id) => ctx.systems.get(id)?.ownerUserId ?? null),
-      title: `ADR-${formatAdrNumber(a.number)} proposed: ${a.title}`,
+      title: { key: "adrProposed", values: { number: formatAdrNumber(a.number), title: a.title } },
       href: `${base}/adrs/${a.number}`,
     };
   },
   "update/posted": (event, ctx, base) => {
     const sys = event.systemId ? ctx.systems.get(event.systemId) : undefined;
     if (!sys) return null;
-    return { kind: "update.posted", recipients: [sys.ownerUserId], title: `Update on ${sys.title}`, body: event.newValue ?? undefined, href: `${base}/systems/${sys.slug}` };
+    return { kind: "update.posted", recipients: [sys.ownerUserId], title: { key: "updatePosted", values: { system: sys.title } }, body: event.newValue ?? undefined, href: `${base}/systems/${sys.slug}` };
   },
 };
 

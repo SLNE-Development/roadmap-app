@@ -1,9 +1,9 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useNow } from "@/components/clock";
 import type { NotificationItem } from "@/lib/ops/notifications";
-import { relativeAge } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,6 +23,8 @@ export function NotificationList({
   onOpen: (item: NotificationItem) => void;
   compact?: boolean;
 }) {
+  const t = useTranslations("notifications.list");
+  const format = useFormatter();
   const now = useNow();
   return (
     <ul className="flex flex-col">
@@ -42,12 +44,12 @@ export function NotificationList({
               <span aria-hidden className={cn("mt-[7px] size-2 shrink-0", unread ? "bg-brand-strong" : "bg-transparent")} />
               <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
                 <span className={cn("text-[13.5px]", unread ? "font-semibold" : "font-medium text-fg-2")}>
-                  {unread && <span className="sr-only">Unread: </span>}
+                  {unread && <span className="sr-only">{t("unread")}</span>}
                   {n.title}
                 </span>
                 {!compact && n.body && <span className="line-clamp-2 text-[13px] leading-[1.45] text-fg-2">{n.body}</span>}
                 <span className="text-xs text-muted-foreground">
-                  {n.projectName} · {relativeAge(n.createdAt.toISOString(), now)}
+                  {n.projectName} · {format.relativeTime(n.createdAt, now)}
                 </span>
               </span>
             </Link>

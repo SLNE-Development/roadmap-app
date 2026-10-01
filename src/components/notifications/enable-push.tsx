@@ -1,19 +1,19 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { PUSH_OFF } from "@/components/notifications/rules-table";
 import { Button } from "@/components/ui/button";
 import { enablePush, type PushSupport } from "@/lib/push-client";
 import { useTRPC } from "@/trpc/client";
 
-const MESSAGES: Record<Exclude<PushSupport, "supported">, string> = {
-  denied: "Notifications are blocked for this site. Allow them in your browser's site settings, then reload.",
-  "ios-needs-home-screen":
-    "On iPhone and iPad, push works from the home-screen app: tap Share → Add to Home Screen, open Roadmap from there, and enable it again.",
-  unsupported: "This browser can't receive push notifications.",
-};
+/** The message key (under `notifications.push`) explaining each unsupported state. */
+const MESSAGE_KEYS = {
+  denied: "denied",
+  "ios-needs-home-screen": "iosNeedsHomeScreen",
+  unsupported: "unsupported",
+} as const satisfies Record<Exclude<PushSupport, "supported">, string>;
 
 /**
  * What this browser's push state asks of the user: a button to turn pushes on, or why it cannot. Shows nothing
@@ -34,6 +34,7 @@ export function EnablePush({
   subscribed: boolean;
   onEnabled: () => void;
 }) {
+  const t = useTranslations("notifications.push");
   const trpc = useTRPC();
   const key = useQuery(trpc.notifications.pushKey.queryOptions(undefined, { enabled: pushEnabled }));
   const subscribe = useMutation(trpc.notifications.subscribe.mutationOptions());
@@ -45,22 +46,22 @@ export function EnablePush({
       // Asks for permission before any await; only ever called from this click handler.
       const { subscription, label } = await enablePush(publicKey);
       // A failed save is toasted by the global mutation handler.
-      subscribe.mutate({ ...subscription, label }, { onSuccess: () => toast.success("Push notifications are on for this device"), onSettled: onEnabled });
+      subscribe.mutate({ ...subscription, label }, { onSuccess: () => toast.success(t("enabled")), onSettled: onEnabled });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not turn on push notifications.");
+      toast.error(error instanceof Error ? error.message : t("enableFailed"));
       onEnabled();
     } finally {
       setAsking(false);
     }
   }
 
-  if (!pushEnabled) return <p className="px-4 pb-4 text-[13.5px] text-fg-2 sm:px-5">{PUSH_OFF}</p>;
+  if (!pushEnabled) return <p className="px-4 pb-4 text-[13.5px] text-fg-2 sm:px-5">{t("off")}</p>;
   if (support === null || subscribed) return null;
-  if (support !== "supported") return <p className="px-4 pb-4 text-[13.5px] text-fg-2 sm:px-5">{MESSAGES[support]}</p>;
+  if (support !== "supported") return <p className="px-4 pb-4 text-[13.5px] text-fg-2 sm:px-5">{t(MESSAGE_KEYS[support])}</p>;
   return (
     <div className="px-4 pb-4 sm:px-5">
       <Button onClick={() => key.data && enable(key.data)} disabled={asking || subscribe.isPending || !key.data}>
-        Enable on this device
+        {t("enable")}
       </Button>
     </div>
   );

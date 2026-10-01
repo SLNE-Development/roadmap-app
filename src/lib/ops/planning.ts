@@ -22,7 +22,7 @@ import { ConflictError, InvalidError, NotFoundError } from "./errors";
 import { logChange } from "./log";
 import { findSystem, loadBoards, systemAccess, type SystemRow } from "./lookup";
 import { notifyMentions, resolveMentionsIn } from "./mentions";
-import { actorLabel } from "./notifications";
+import { actorValues } from "@/lib/notification-text";
 
 /** One question of a planning round. */
 export const planningItemInput = z.object({
@@ -295,7 +295,7 @@ export async function answerPlanningItems(
         projectId: parent.projectId,
         before: byId.get(a.itemId)!.answer,
         after: answer,
-        title: `${actorLabel(actor.name, actor.agent)} mentioned you in planning on ${parent.title}`,
+        title: { key: "mentionPlanning", values: { ...actorValues(actor.name, actor.agent), system: parent.title } },
         href: `/p/${projectSlug}/systems/${parent.slug}?tab=planning`,
         source: `planning:${a.itemId}`,
       });

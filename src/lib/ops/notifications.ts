@@ -5,10 +5,12 @@ import { allowedAccount, notification, project, projectMember, user, type Notifi
 import type { Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import { mentionsToPlain } from "@/lib/mentions";
+import { renderNotificationText, type NotificationText } from "@/lib/notification-text";
 import type { Actor } from "./actor";
 import { isMember } from "./members";
 export { NOTIFICATION_KINDS, type NotificationKind } from "@/lib/notification-kinds";
 import { readNotifyRules, wantsInbox, wantsPush } from "./notify-rules";
+import { getPref } from "./prefs";
 /** The rules of a user who set none, next to `notify` for code that adds notification kinds. */
 export { DEFAULT_NOTIFY_RULES } from "./notify-rules";
 
@@ -19,7 +21,8 @@ export interface NotifyInput {
   kind: NotificationKind;
   entity: string;
   entityId: string;
-  title: string;
+  /** The title as written, or a message rendered in the recipient's language (their `locale` preference). */
+  title: string | NotificationText;
   body?: string;
   /** An app-relative path starting with `/p/`. */
   href: string;
@@ -101,7 +104,7 @@ export async function notify(tx: Executor, input: NotifyInput): Promise<boolean>
       kind: input.kind,
       entity: input.entity,
       entityId: input.entityId,
-      title: clip(input.title, TITLE_LENGTH),
+      title: clip(typeof input.title === "string" ? input.title : renderNotificationText(await getPref(tx, input.userId, "locale"), input.title), TITLE_LENGTH),
       body: clip(input.body ?? "", BODY_LENGTH),
       href: input.href,
       actorName: input.actorName ?? null,
