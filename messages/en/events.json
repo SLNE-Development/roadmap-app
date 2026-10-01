@@ -305,7 +305,7 @@
   },
   "prep": {
     "help": "Prepare the event step by step. Dates follow the event date until you set one by hand.",
-    "empty": "No to-dos yet. They are created when the request is accepted.",
+    "empty": "The template to-dos appear once the request is accepted. You can add your own below.",
     "owner": "Owner",
     "noOwner": "No owner",
     "due": "Due",

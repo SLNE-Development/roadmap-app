@@ -305,7 +305,7 @@
   },
   "prep": {
     "help": "Bereite das Event Schritt für Schritt vor. Die Termine folgen dem Eventdatum, bis du einen von Hand setzt.",
-    "empty": "Noch keine Aufgaben. Sie entstehen, sobald die Anfrage angenommen wird.",
+    "empty": "Die Vorlagen-Aufgaben entstehen, sobald die Anfrage angenommen wird. Eigene kannst du unten hinzufügen.",
     "owner": "Zuständig",
     "noOwner": "Niemand",
     "due": "Fällig",
