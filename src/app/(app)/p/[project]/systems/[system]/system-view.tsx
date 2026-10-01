@@ -23,6 +23,7 @@ import { PropertiesPanel, SystemFacts } from "@/components/system/properties";
 import { DecisionsPanel, PlanningPanel } from "@/components/system/rail";
 import { SystemTabs, tabHref, type SystemTab } from "@/components/system/tabs";
 import { AREA_LABEL } from "@/components/system/text";
+import type { GlossaryTerm } from "@/lib/glossary-match";
 import { stepStates } from "@/lib/plan-steps";
 import { formatDate } from "@/lib/time";
 import { describeGaps } from "@/components/system/text";
@@ -55,6 +56,7 @@ function VersionedDocument({
   param: string;
   empty: { title: string; description: string };
   stepStates?: StepStates;
+  glossary?: GlossaryTerm[];
   aside?: ReactNode;
 }) {
   const trpc = useTRPC();
@@ -80,6 +82,7 @@ function ComparedDocument({
   param: string;
   empty: { title: string; description: string };
   stepStates?: StepStates;
+  glossary?: GlossaryTerm[];
   aside?: ReactNode;
 }) {
   const trpc = useTRPC();
@@ -116,7 +119,7 @@ export function SystemView({
 }) {
   const trpc = useTRPC();
   const ref = { project: slug, system: systemSlug };
-  const [{ data: o }, { data: planning }, { data: history }, { data: members }, { data: domains }, { data: phases }, { data: systems }] = useSuspenseQueries({
+  const [{ data: o }, { data: planning }, { data: history }, { data: members }, { data: domains }, { data: phases }, { data: systems }, { data: glossary }] = useSuspenseQueries({
     queries: [
       trpc.systems.overview.queryOptions(ref),
       trpc.planning.get.queryOptions(ref),
@@ -125,6 +128,7 @@ export function SystemView({
       trpc.structure.domains.queryOptions({ project: slug }),
       trpc.structure.phases.queryOptions({ project: slug }),
       trpc.systems.list.queryOptions({ project: slug }),
+      trpc.glossary.list.queryOptions({ project: slug }),
     ],
   });
   // Editors of an active project may archive or restore; edits also need the system itself active.
@@ -167,11 +171,13 @@ export function SystemView({
   const specSection = {
     title: "Specification",
     param: "spec",
+    glossary,
     empty: { title: "No spec yet", description: "The spec is written at the end of the planning interview." },
   };
   const planSection = {
     title: "Implementation plan",
     param: "plan",
+    glossary,
     empty: { title: "No plan yet", description: "An agent writes the implementation plan once the spec is agreed; its steps become tasks." },
   };
 

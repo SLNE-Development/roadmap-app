@@ -25,6 +25,7 @@ export function SettingsNav({
     { href: base, label: "General", count: null },
     { href: `${base}/members`, label: "Members", count: memberCount },
     { href: `${base}/structure`, label: "Structure", count: null },
+    { href: `${base}/glossary`, label: "Glossary", count: null },
     { href: `${base}/boards`, label: "Boards", count: boardCount },
     { href: `${base}/fields`, label: "Fields", count: fieldCount },
   ];

@@ -67,6 +67,8 @@
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.7",
+    "rehype-stringify": "^10.0.1",
+    "remark-rehype": "^11.1.2",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",

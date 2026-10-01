@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { extractHeadings } from "@/lib/headings";
+import type { GlossaryTerm } from "@/lib/glossary-match";
 import { Markdown } from "./markdown";
+import { TooltipProvider } from "./ui/tooltip";
 
 describe("Markdown", () => {
   it("renders GitHub-flavoured markdown", () => {
@@ -56,5 +58,34 @@ describe("Markdown", () => {
   it("adds no ids without headingIds", () => {
     const html = renderToStaticMarkup(<Markdown>{"# Intro\n## Scope"}</Markdown>);
     expect(html).not.toContain("id=");
+  });
+
+  describe("glossary", () => {
+    const glossary: GlossaryTerm[] = [{ id: "1", term: "Outbox", definition: "Queue table", aliases: [] }];
+    const render = (md: string) =>
+      renderToStaticMarkup(
+        <TooltipProvider>
+          <Markdown headingIds glossary={glossary}>
+            {md}
+          </Markdown>
+        </TooltipProvider>,
+      );
+
+    it("marks the first whole-word occurrence as a focusable term", () => {
+      const html = render("The outbox feeds workers. The outbox again.");
+      expect(html.match(/<abbr/g)).toHaveLength(1);
+      expect(html).toContain('tabindex="0"');
+      expect(html).toContain("data-glossary");
+    });
+
+    it("leaves headings, code and links unwrapped and headings linked", () => {
+      const html = render("## Outbox\n\n`outbox` [outbox](https://x)");
+      expect(html).not.toContain("<abbr");
+      expect(html).toContain('aria-label="Link to section Outbox"');
+    });
+
+    it("changes nothing without a glossary", () => {
+      expect(renderToStaticMarkup(<Markdown>{"The outbox."}</Markdown>)).not.toContain("<abbr");
+    });
   });
 });

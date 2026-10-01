@@ -20,6 +20,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   prefs: ["prefs"],
   views: ["views"],
   gates: ["gates"],
+  glossary: ["glossary", "history"],
 };
 
 /**

@@ -52,6 +52,7 @@ export default async function SystemPage({
       trpc.members.list.queryOptions({ project: slug }),
       trpc.structure.domains.queryOptions({ project: slug }),
       trpc.structure.phases.queryOptions({ project: slug }),
+      trpc.glossary.list.queryOptions({ project: slug }),
     ),
     specVersion && prefetch(trpc.history.document.queryOptions({ ...ref, kind: "spec", version: specVersion })),
     planVersion && prefetch(trpc.history.document.queryOptions({ ...ref, kind: "plan", version: planVersion })),

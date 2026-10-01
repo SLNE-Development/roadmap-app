@@ -24,8 +24,10 @@ import {
   updateBoard,
   updateBoardInput,
 } from "@/lib/ops/boards";
+import { InvalidError } from "@/lib/ops/errors";
 import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } from "@/lib/ops/documents";
 import { GATE_RULES } from "@/lib/ops/gates";
+import { deleteGlossaryTerm, listGlossary, setGlossaryTerm, setGlossaryTermInput } from "@/lib/ops/glossary";
 import { listMembers } from "@/lib/ops/members";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { myWork } from "@/lib/ops/my-work";
@@ -358,6 +360,31 @@ register(
     method: "PATCH",
     path: "/projects/:project/systems/:system/fields",
     run: (db, actor, { project, system, values }) => setSystemFields(db, actor, project, system, { values }),
+  }),
+  defineTool({
+    name: "get_glossary",
+    description: "List the project's glossary terms and definitions; use these words in specs and plans.",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/glossary",
+    run: (db, actor, { project }) => listGlossary(db, actor, project),
+  }),
+  defineTool({
+    name: "set_glossary_term",
+    description: "Add or change a glossary term; delete: true removes it.",
+    input: { ...P, ...setGlossaryTermInput.shape, definition: setGlossaryTermInput.shape.definition.optional(), delete: z.boolean().optional() },
+    write: true,
+    method: "PUT",
+    path: "/projects/:project/glossary",
+    run: async (db, actor, { project, delete: remove, definition, ...input }) => {
+      if (remove) {
+        await deleteGlossaryTerm(db, actor, project, input.term);
+        return { term: input.term, deleted: true };
+      }
+      if (definition === undefined) throw new InvalidError("definition is required unless delete is true.");
+      return setGlossaryTerm(db, actor, project, { ...input, definition });
+    },
   }),
   defineTool({
     name: "move_system",

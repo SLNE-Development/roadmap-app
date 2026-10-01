@@ -64,6 +64,12 @@ describe("describeChange", () => {
     expect(text(entry("system", "gateOverride", "no spec", "Done: ok"), null)).toBe("moved a system past unmet rules: ok");
   });
 
+  it("describes glossary changes", () => {
+    expect(text(entry("glossary", "created", null, "Outbox"), null)).toBe("added glossary term “Outbox”");
+    expect(text(entry("glossary", "definition", "Queue", "Pending events"), null)).toBe("changed a glossary definition");
+    expect(text(entry("glossary", "deleted", "Outbox", null), null)).toBe("deleted glossary term “Outbox”");
+  });
+
   it("describes decisions", () => {
     expect(text(entry("adr", "created", null, "ADR 0010: Use Redis"), null)).toBe("proposed ADR-0010 Use Redis");
     expect(text(entry("adr", "status", "proposed", "accepted"), null, "ADR-0010 Use Redis")).toBe("accepted ADR-0010 Use Redis");

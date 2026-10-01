@@ -5,6 +5,7 @@ import { adrsRouter } from "./routers/adrs";
 import { boardsRouter } from "./routers/boards";
 import { fieldsRouter } from "./routers/fields";
 import { gatesRouter } from "./routers/gates";
+import { glossaryRouter } from "./routers/glossary";
 import { historyRouter } from "./routers/history";
 import { membersRouter } from "./routers/members";
 import { planningRouter } from "./routers/planning";
@@ -35,6 +36,7 @@ export const appRouter = router({
   history: historyRouter,
   prefs: prefsRouter,
   views: viewsRouter,
+  glossary: glossaryRouter,
   gates: gatesRouter,
 });
 

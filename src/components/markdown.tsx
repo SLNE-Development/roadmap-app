@@ -3,7 +3,9 @@ import ReactMarkdown from "react-markdown";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { TaskStateChip } from "@/components/chips";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TaskState } from "@/db/schema";
+import { rehypeGlossary, type GlossaryTerm } from "@/lib/glossary-match";
 import { stepNumberOf } from "@/lib/plan-steps";
 
 /** The task state of each plan step, by step number. */
@@ -18,23 +20,27 @@ export type StepStates = Map<number, { taskId: number; state: TaskState }>;
  *   and h1-h3 a hover link to their section; only specs and plans set it
  * @param props.stepStates the task state of each plan step; a heading such as
  *   "Step 2: ..." with an entry ends in a state chip. Only the plan sets it
+ * @param props.glossary the project glossary; the first whole-word occurrence of each term (outside
+ *   code, links and headings) gets a tooltip with its definition
  */
 export function Markdown({
   children,
   className,
   headingIds,
   stepStates,
+  glossary,
 }: {
   children: string;
   className?: string;
   headingIds?: boolean;
   stepStates?: StepStates;
+  glossary?: GlossaryTerm[];
 }) {
   return (
     <div className={className ? `prose-md ${className}` : "prose-md"}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={headingIds ? [rehypeSlug] : []}
+        rehypePlugins={[...(headingIds ? [rehypeSlug] : []), ...(glossary?.length ? [rehypeGlossary(glossary)] : [])]}
         skipHtml
         components={{
           h1: (props) => <SectionHeading level={1} linked={headingIds} stepStates={stepStates} {...props} />,
@@ -43,11 +49,27 @@ export function Markdown({
           // react-markdown passes the hast `node`, which must not reach the DOM.
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" />,
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          abbr: ({ node: _node, title, children }) => <GlossaryAbbr definition={title}>{children}</GlossaryAbbr>,
         }}
       >
         {children}
       </ReactMarkdown>
     </div>
+  );
+}
+
+/** A glossary term in running text: focusable, with its definition in a tooltip. */
+function GlossaryAbbr({ definition, children }: { definition?: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <abbr tabIndex={0} data-glossary="" className="cursor-help underline decoration-dotted underline-offset-2">
+          {children}
+        </abbr>
+      </TooltipTrigger>
+      <TooltipContent>{definition}</TooltipContent>
+    </Tooltip>
   );
 }
 

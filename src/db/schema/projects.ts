@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 
 /** Roles a member can have in a project, from most to least privileged. */
@@ -176,4 +176,22 @@ export const savedView = pgTable(
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
   },
   (t) => [index("saved_view_user_sort_idx").on(t.userId, t.sortOrder)],
+);
+
+/** A project glossary term with a definition and alternative spellings, highlighted in documents. */
+export const glossaryTerm = pgTable(
+  "glossary_term",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    term: text("term").notNull(),
+    definition: text("definition").notNull(),
+    aliases: text("aliases").array().notNull().default(sql`'{}'`),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    agent: text("agent"),
+    updatedAt: timestamp("updated_at", tz).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("glossary_term_project_term").on(t.projectId, sql`lower(${t.term})`)],
 );

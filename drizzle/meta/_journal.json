@@ -127,6 +127,13 @@
       "when": 1790824189210,
       "tag": "0017_column-rules",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790825262349,
+      "tag": "0018_glossary",
+      "breakpoints": true
     }
   ]
 }

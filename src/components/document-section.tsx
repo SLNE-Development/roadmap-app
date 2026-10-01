@@ -6,6 +6,7 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import { CompareSelects, CompareToggle } from "@/components/compare-picker";
 import { EmptyState } from "@/components/page";
 import { extractHeadings } from "@/lib/headings";
+import type { GlossaryTerm } from "@/lib/glossary-match";
 import type { DocumentView } from "@/lib/ops/documents";
 import { formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ function DocumentMeta({ doc }: { doc: DocumentView }) {
  * @param props.param the search parameter that selects the version
  * @param props.empty the empty state's title and sentence
  * @param props.stepStates the task state of each plan step, shown on the plan's step headings
+ * @param props.glossary the project glossary; its terms are highlighted in the body
  * @param props.aside shown above the outline in the right column from `lg`, above the document below it
  * @param props.compare the compared versions and their rendered diff, shown in place of the body
  */
@@ -42,6 +44,7 @@ export function DocumentSection({
   param,
   empty,
   stepStates,
+  glossary,
   aside,
   compare,
 }: {
@@ -50,6 +53,7 @@ export function DocumentSection({
   param: string;
   empty: { title: string; description: string };
   stepStates?: StepStates;
+  glossary?: GlossaryTerm[];
   aside?: ReactNode;
   compare?: { from: number; to: number; diff: ReactNode };
 }) {
@@ -101,7 +105,7 @@ export function DocumentSection({
         {compare ? (
           compare.diff
         ) : (
-          <Markdown headingIds stepStates={stepStates}>
+          <Markdown headingIds stepStates={stepStates} glossary={glossary}>
             {doc.body}
           </Markdown>
         )}

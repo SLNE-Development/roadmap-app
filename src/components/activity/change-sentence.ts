@@ -60,6 +60,7 @@ const ENTITY_LABEL: Record<string, string> = {
   phase: "a phase",
   planning: "planning",
   document: "a document",
+  glossary: "a glossary term",
   update: "an update",
 };
 
@@ -197,6 +198,13 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return onSystem("answered a question", "on");
     case "question:resolved":
       return onSystem(e.newValue === "true" ? "resolved a question" : "reopened a question", "on");
+
+    case "glossary:created":
+      return plain("added glossary term", quote(e.newValue));
+    case "glossary:definition":
+      return plain("changed a glossary definition");
+    case "glossary:deleted":
+      return plain("deleted glossary term", quote(e.oldValue));
 
     case "update:posted":
       return onSystem("posted an update on", "", "posted an update");
