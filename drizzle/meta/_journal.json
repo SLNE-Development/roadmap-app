@@ -183,6 +183,13 @@
       "when": 1790837736631,
       "tag": "0025_discord-webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790839057646,
+      "tag": "0026_push-subscriptions",
+      "breakpoints": true
     }
   ]
 }

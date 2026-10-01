@@ -6,7 +6,7 @@ import { encryptSecret } from "@/lib/crypto";
 import { DISCORD_EVENTS } from "@/lib/discord-events";
 import { newId } from "@/lib/id";
 import { timeZoneSchema } from "@/lib/notify-rules-schema";
-import type { JobQueue } from "@/lib/queue";
+import { addWithTimeout, type JobQueue } from "@/lib/queue";
 import { projectAccess } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, NotFoundError } from "./errors";
@@ -229,9 +229,6 @@ export async function deleteWebhook(db: Db, actor: Actor, projectSlug: string, i
   });
 }
 
-/** How long enqueueing a test message may take before it counts as failed. */
-const ENQUEUE_TIMEOUT_MS = 5_000;
-
 /**
  * Queues a test message to the webhook (`discord.test` on the deliver queue). Repeated clicks within the same minute
  * collapse into one job. Owner or higher.
@@ -244,16 +241,10 @@ export async function sendTestMessage(db: Executor, actor: Actor, projectSlug: s
   const { project } = await projectAccess(db, actor, projectSlug, "owner");
   await findWebhook(db, project.id, id);
   const minute = Math.floor(Date.now() / 60_000);
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error("enqueueing timed out")), ENQUEUE_TIMEOUT_MS);
-    });
-    await Promise.race([queue.add("discord.test", { webhookId: id }, { jobId: `discord-test-${id}-${minute}` }), timeout]);
+    await addWithTimeout(queue, "discord.test", { webhookId: id }, { jobId: `discord-test-${id}-${minute}` });
   } catch (error) {
     console.error(error);
     throw new ConflictError("Background jobs are unavailable right now, so the test message was not sent. Try again in a minute.");
-  } finally {
-    clearTimeout(timer);
   }
 }

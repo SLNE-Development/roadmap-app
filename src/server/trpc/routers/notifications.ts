@@ -5,10 +5,15 @@ import { listMentionMembers } from "@/lib/ops/mentions";
 import { listNotifications, listNotificationsInput, markAllRead, markRead, unreadCount } from "@/lib/ops/notifications";
 import { readNotifyRules } from "@/lib/ops/notify-rules";
 import { setPref } from "@/lib/ops/prefs";
+import { listDevices, sendTestPush, subscribePush, subscribePushInput, unsubscribePush } from "@/lib/ops/push";
+import { pushConfig } from "@/lib/push-config";
+import { bullQueue, QUEUE } from "@/lib/queue";
 import { protectedProcedure, router } from "../init";
 import { P } from "./shared";
 
-/** The signed-in user's inbox, and the members a mention can name. */
+const deviceId = z.object({ id: z.string().min(1).max(64) });
+
+/** The signed-in user's inbox, notification rules and push devices, and the members a mention can name. */
 export const notificationsRouter = router({
   /** The inbox, newest first; `cursor` (for infinite queries) takes the place of `before`. */
   list: protectedProcedure
@@ -45,4 +50,19 @@ export const notificationsRouter = router({
       // Web requests never wait on Valkey to finish.
     }
   }),
+
+  /** The VAPID public key browsers subscribe with; null when push is not set up. */
+  pushKey: protectedProcedure.query(() => pushConfig()?.publicKey ?? null),
+
+  /** Saves this browser's push subscription for the signed-in user. */
+  subscribe: protectedProcedure.input(subscribePushInput).mutation(({ ctx, input }) => subscribePush(ctx.db, ctx.actor, input)),
+
+  /** Removes one of the user's devices. */
+  unsubscribe: protectedProcedure.input(deviceId).mutation(({ ctx, input }) => unsubscribePush(ctx.db, ctx.actor, input.id)),
+
+  /** The user's devices, without endpoints or keys. */
+  devices: protectedProcedure.query(({ ctx }) => listDevices(ctx.db, ctx.actor)),
+
+  /** Queues a test push to one of the user's devices. */
+  testPush: protectedProcedure.input(deviceId).mutation(({ ctx, input }) => sendTestPush(ctx.db, ctx.actor, input.id, bullQueue(QUEUE.deliver))),
 });

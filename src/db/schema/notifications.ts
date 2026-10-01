@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, bigserial, boolean, index, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, index, integer, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 import { NOTIFICATION_KINDS } from "@/lib/notification-kinds";
 import { project } from "./projects";
@@ -54,6 +54,27 @@ export const notification = pgTable(
 
 /** A row of {@link notification}. */
 export type NotificationRow = typeof notification.$inferSelect;
+
+/** A browser a user turned push notifications on in; a browser endpoint belongs to one user at a time. */
+export const pushSubscription = pgTable("push_subscription", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  /** The push service URL of the browser. */
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  /** What the device is called, such as "Chrome on Windows". */
+  label: text("label").notNull(),
+  createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  lastSuccessAt: timestamp("last_success_at", tz),
+  /** Failed sends in a row. */
+  failures: integer("failures").notNull().default(0),
+});
+
+/** A row of {@link pushSubscription}. */
+export type PushSubscriptionRow = typeof pushSubscription.$inferSelect;
 
 /** A Discord webhook a project owner set up to post the project's changes into a channel. */
 export const projectWebhook = pgTable("project_webhook", {

@@ -81,3 +81,23 @@ export function bullQueue(name: QueueName, opts?: { connection?: Redis }): JobQu
     },
   };
 }
+
+/** How long a web request waits for an enqueue before giving up. */
+const ENQUEUE_TIMEOUT_MS = 5_000;
+
+/**
+ * Adds a job, giving up after 5 s so a web request never hangs while Valkey is down.
+ *
+ * @throws Error if the queue rejects the job or does not answer in time
+ */
+export async function addWithTimeout(queue: JobQueue, jobName: string, data: unknown, opts?: JobOptions): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("enqueueing timed out")), ENQUEUE_TIMEOUT_MS);
+    });
+    await Promise.race([queue.add(jobName, data, opts), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
