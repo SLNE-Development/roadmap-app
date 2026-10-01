@@ -8,7 +8,7 @@ import { HydrateClient, prefetch, trpc } from "@/trpc/server";
  * @param props.children the page content
  */
 export default async function GlobalLayout({ children }: { children: React.ReactNode }) {
-  await prefetch(trpc.account.me.queryOptions(), trpc.projects.list.queryOptions());
+  await prefetch(trpc.account.me.queryOptions(), trpc.projects.list.queryOptions(), trpc.views.list.queryOptions({}));
   return (
     <HydrateClient>
       <GlobalShell>{children}</GlobalShell>

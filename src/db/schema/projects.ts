@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 
 /** Roles a member can have in a project, from most to least privileged. */
@@ -140,4 +140,25 @@ export const customField = pgTable(
     createdAt: timestamp("created_at", tz).notNull().defaultNow(),
   },
   (t) => [unique("custom_field_project_key").on(t.projectId, t.key)],
+);
+
+/** A user's saved, pinnable view: a page path plus its filter query. Personal, so never logged in `change_log`. */
+export const savedView = pgTable(
+  "saved_view",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** The project the view belongs to; null for a global page such as the workload. */
+    projectId: text("project_id").references(() => project.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    path: text("path").notNull(),
+    /** The URL query without the leading `?`. */
+    query: text("query").notNull().default(""),
+    pinned: boolean("pinned").notNull().default(true),
+    sortOrder: integer("sort_order").notNull(),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [index("saved_view_user_sort_idx").on(t.userId, t.sortOrder)],
 );

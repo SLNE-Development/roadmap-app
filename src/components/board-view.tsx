@@ -9,6 +9,7 @@ import { FilterChip } from "@/components/filter-chip";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { PageHeader, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
+import { SaveViewButton } from "@/components/save-view-button";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ import { groupIntoLanes, LANE_KEYS, type LaneKey } from "@/lib/lanes";
 import { plural } from "@/lib/text";
 import { hasFilters, withParam, type BoardQuery } from "@/lib/url-filters";
 import { cn } from "@/lib/utils";
+import { activeChips, suggestViewName } from "@/lib/view-name";
 import { useTRPC } from "@/trpc/client";
 import { CardFieldsDialog, type CardFieldCustom } from "./board/card-fields-dialog";
 import { BoardAnnouncer, moveMessage, refusedMessage } from "./board/board-announcer";
@@ -385,6 +387,24 @@ export function BoardView({
           <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
             Clear filters
           </Button>
+        )}
+        {hasFilters(query) && (
+          <SaveViewButton
+            path={pathname}
+            query={searchParams.toString()}
+            suggestedName={suggestViewName(
+              board.name,
+              activeChips(
+                [
+                  { key: "domain", label: "Domain", options: named(domains) },
+                  { key: "phase", label: "Phase", options: named(phases) },
+                  { key: "priority", label: "Priority", options: PRIORITIES.map((p) => ({ value: p, label: p })) },
+                  { key: "owner", label: "Owner", options: ownerOptions },
+                ],
+                query,
+              ),
+            )}
+          />
         )}
         <span className="ml-auto text-[12.5px] text-muted-foreground" aria-live="polite">
           {visible.length} {visible.length === 1 ? "system" : "systems"} ·{" "}

@@ -13,6 +13,7 @@ import { questionsRouter } from "./routers/questions";
 import { structureRouter } from "./routers/structure";
 import { systemsRouter } from "./routers/systems";
 import { tasksRouter } from "./routers/tasks";
+import { viewsRouter } from "./routers/views";
 
 /**
  * The web UI's API: one router per area, each procedure a thin call into
@@ -32,6 +33,7 @@ export const appRouter = router({
   planning: planningRouter,
   history: historyRouter,
   prefs: prefsRouter,
+  views: viewsRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

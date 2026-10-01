@@ -16,6 +16,7 @@ import { ProjectMark } from "@/components/person-avatar";
 import { plural } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import { openCommandMenu } from "./command-menu";
+import { SidebarViews, type SidebarView } from "./sidebar-views";
 import { UserArea } from "./user-area";
 
 /** The signed-in user as the sidebar shows them. */
@@ -57,7 +58,17 @@ function Count({ value }: { value: number }) {
  * The persistent left navigation: logo, project switcher, search, the project's
  * sections (or the project list outside a project), settings and the account area.
  */
-export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; projects: SidebarProjectLink[]; project?: SidebarProject }) {
+export function AppSidebar({
+  actor,
+  projects,
+  project,
+  views = [],
+}: {
+  actor: SidebarActor;
+  projects: SidebarProjectLink[];
+  project?: SidebarProject;
+  views?: SidebarView[];
+}) {
   const pathname = usePathname();
   const base = project ? `/p/${project.slug}` : "";
   const is = (path: string, exact = false) => (exact ? pathname === path : pathname === path || pathname.startsWith(`${path}/`));
@@ -173,6 +184,8 @@ export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; 
           </Link>
         </div>
       )}
+
+      <SidebarViews views={views} />
 
       {others.length > 0 && (
         <div className="flex flex-col gap-0.5">

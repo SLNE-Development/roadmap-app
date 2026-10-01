@@ -9,8 +9,10 @@ import { changeItems, Timeline, updateItems, type TimelineItem } from "@/compone
 import { SegmentedLinks, withQuery } from "@/components/activity/url-tabs";
 import { FilterChip, ToggleChip } from "@/components/filter-chip";
 import { EmptyState, Page, PageHeader } from "@/components/page";
+import { SaveViewButton } from "@/components/save-view-button";
 import { Button } from "@/components/ui/button";
 import type { ColumnCategory } from "@/db/schema";
+import { activeChips, suggestViewName } from "@/lib/view-name";
 import { useTRPC } from "@/trpc/client";
 
 /** The kind filter of the activity page: only updates or only changes. */
@@ -103,6 +105,22 @@ export function ActivityView({
           options={systems.map((s) => ({ value: s.slug, label: s.title }))}
         />
         <ToggleChip label="Agents only" on={agentsOnly} onChange={(on) => go({ agents: on ? "1" : null })} />
+        {filtered && (
+          <SaveViewButton
+            path={path}
+            query={new URLSearchParams(Object.entries(query).filter((e): e is [string, string] => Boolean(e[1]))).toString()}
+            suggestedName={suggestViewName("Activity", [
+              ...activeChips(
+                [
+                  { key: "person", label: "Person", options: [] },
+                  { key: "system", label: "System", options: systems.map((s) => ({ value: s.slug, label: s.title })) },
+                ],
+                query,
+              ),
+              ...(agentsOnly ? ["Agents only"] : []),
+            ])}
+          />
+        )}
       </div>
       {items.length === 0 ? (
         <EmptyState

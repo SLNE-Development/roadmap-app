@@ -4,6 +4,7 @@ import { ChevronDown, LayoutGrid, Search, Table2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { FilterChip, type FilterOption } from "@/components/filter-chip";
+import { SaveViewButton } from "@/components/save-view-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +13,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { activeChips, suggestViewName } from "@/lib/view-name";
 import { cn } from "@/lib/utils";
 
 /** A filter chip: the query key it sets, its name and its choices. */
@@ -98,6 +100,7 @@ export function SystemsToolbar({
 
   const group = current.group ?? "domain";
   const view = current.view === "cards" ? "cards" : "table";
+  const filtered = Boolean(current.q || filters.some((f) => current[f.key]));
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -115,6 +118,13 @@ export function SystemsToolbar({
       {filters.map((f) => (
         <FilterChip key={f.key} label={f.label} options={f.options} value={current[f.key] ?? ""} onChange={(v) => update({ [f.key]: v })} />
       ))}
+      {filtered && (
+        <SaveViewButton
+          path={pathname}
+          query={new URLSearchParams(current).toString()}
+          suggestedName={suggestViewName("Systems", activeChips(filters, current))}
+        />
+      )}
       <span className="hidden flex-1 sm:block" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

@@ -13,11 +13,15 @@ import { AppShell } from "./app-shell";
  */
 export function GlobalShell({ children }: { children: React.ReactNode }) {
   const trpc = useTRPC();
-  const [{ data: me }, { data: projects }] = useSuspenseQueries({
-    queries: [trpc.account.me.queryOptions(), trpc.projects.list.queryOptions()],
+  const [{ data: me }, { data: projects }, { data: views }] = useSuspenseQueries({
+    queries: [trpc.account.me.queryOptions(), trpc.projects.list.queryOptions(), trpc.views.list.queryOptions({})],
   });
   return (
-    <AppShell actor={{ name: me.name, isAdmin: me.isAdmin }} projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}>
+    <AppShell
+      actor={{ name: me.name, isAdmin: me.isAdmin }}
+      projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}
+      views={views.filter((v) => v.pinned && v.projectId === null)}
+    >
       {children}
     </AppShell>
   );
@@ -33,12 +37,13 @@ export function GlobalShell({ children }: { children: React.ReactNode }) {
  */
 export function ProjectShell({ slug, children }: { slug: string; children: React.ReactNode }) {
   const trpc = useTRPC();
-  const [{ data: me }, { data: projects }, { data: detail }, { data: nav }] = useSuspenseQueries({
+  const [{ data: me }, { data: projects }, { data: detail }, { data: nav }, { data: views }] = useSuspenseQueries({
     queries: [
       trpc.account.me.queryOptions(),
       trpc.projects.list.queryOptions(),
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.projects.nav.queryOptions({ project: slug }),
+      trpc.views.list.queryOptions({ project: slug }),
     ],
   });
   const systems = nav.systems;
@@ -56,6 +61,7 @@ export function ProjectShell({ slug, children }: { slug: string; children: React
       projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}
       project={project}
       systems={systems.map((s) => ({ slug: s.slug, title: s.title }))}
+      views={views.filter((v) => v.pinned)}
     >
       {children}
     </AppShell>

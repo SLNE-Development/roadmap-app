@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AppSidebar, type SidebarActor, type SidebarProject, type SidebarProjectLink } from "./app-sidebar";
 import { CommandMenu, openCommandMenu } from "./command-menu";
+import type { SidebarView } from "./sidebar-views";
 
 /**
  * The signed-in frame: a sticky sidebar from 1024px up, and below that a top
@@ -16,12 +17,14 @@ export function AppShell({
   projects,
   project,
   systems,
+  views,
   children,
 }: {
   actor: SidebarActor;
   projects: SidebarProjectLink[];
   project?: SidebarProject;
   systems?: { slug: string; title: string }[];
+  views?: SidebarView[];
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -33,7 +36,7 @@ export function AppShell({
     setMenuOpen(false);
   }
 
-  const sidebar = <AppSidebar actor={actor} projects={projects} project={project} />;
+  const sidebar = <AppSidebar actor={actor} projects={projects} project={project} views={views} />;
   return (
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-62 shrink-0 border-r lg:block">{sidebar}</aside>
