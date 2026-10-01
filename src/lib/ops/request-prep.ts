@@ -5,6 +5,7 @@ import type { Db, Executor } from "@/db/types";
 import { newId } from "@/lib/id";
 import type { Actor } from "./actor";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
+import { loadPostSettings } from "./event-settings";
 import { canDevelop, eventDayAccess, requestAccess, type RequestAccess } from "./request-access";
 import { lockRequest, logRequest } from "./requests";
 
@@ -249,11 +250,13 @@ export async function removeChecklistItem(db: Db, actor: Actor, itemId: string):
   });
 }
 
-/** What the event-day page shows: the event, the checklist and the fallback scenarios; nothing else. */
+/** What the Event day tab shows: the event, the checklist and the fallback scenarios; nothing else. */
 export interface EventDayView {
   request: { id: string; title: string; startsAt: Date | null; durationMinutes: number | null; where: string; status: string };
-  checklist: { id: string; key: string | null; label: string; doneAt: Date | null }[];
+  checklist: { id: string; key: string | null; label: string; doneAt: Date | null; doneByName: string | null }[];
   fallbacks: { id: string; title: string; whatWeDo: string; whoDecides: string; playerMessage: string | null }[];
+  /** The time zone of the event settings, for filling placeholders in player messages. */
+  timeZone: string;
   /** Whether the actor may tick the checklist (edit or develop rights). */
   canTick: boolean;
 }
@@ -266,15 +269,22 @@ export interface EventDayView {
  */
 export async function eventDayView(db: Db, actor: Actor, requestId: string): Promise<EventDayView> {
   const { request, canEdit } = await eventDayAccess(db, actor, requestId);
-  const [checklist, fallbacks] = await Promise.all([
-    checklistOf(db, requestId),
+  const [checklist, fallbacks, settings] = await Promise.all([
+    db
+      .select({ item: eventChecklistItem, doneByName: user.name })
+      .from(eventChecklistItem)
+      .leftJoin(user, eq(user.id, eventChecklistItem.doneBy))
+      .where(eq(eventChecklistItem.requestId, requestId))
+      .orderBy(asc(eventChecklistItem.sortOrder)),
     db.select().from(eventFallback).where(eq(eventFallback.requestId, requestId)).orderBy(asc(eventFallback.sortOrder)),
+    loadPostSettings(db),
   ]);
   const canTick = request.status === "event_week" && (canEdit || (await canDevelop(db, actor, requestId)));
   return {
     request: { id: request.id, title: request.title, startsAt: request.startsAt, durationMinutes: request.durationMinutes, where: request.where, status: request.status },
-    checklist: checklist.map((c) => ({ id: c.id, key: c.key, label: c.label, doneAt: c.doneAt })),
+    checklist: checklist.map(({ item: c, doneByName }) => ({ id: c.id, key: c.key, label: c.label, doneAt: c.doneAt, doneByName })),
     fallbacks: fallbacks.map((f) => ({ id: f.id, title: f.title, whatWeDo: f.whatWeDo, whoDecides: f.whoDecides, playerMessage: f.playerMessage })),
+    timeZone: settings.timeZone,
     canTick,
   };
 }

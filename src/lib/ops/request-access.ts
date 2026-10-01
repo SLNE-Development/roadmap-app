@@ -147,7 +147,7 @@ export async function requestAccess(db: Executor, actor: Actor, requestId: strin
 }
 
 /**
- * Access for the event-day page. Anyone who may view the request gets their normal role; while the request is in the event
+ * Access for the Event day tab. Anyone who may view the request gets their normal role; while the request is in the event
  * week, any other provisioned user gets the `staff` role (view only, never edit). The role is for the event-day view and
  * nothing else: every other op keeps using {@link requestAccess}.
  *

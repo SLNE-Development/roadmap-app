@@ -220,7 +220,7 @@ export const requestsRouter = router({
   /** Removes a custom checklist item. */
   removeChecklistItem: protectedProcedure.input(z.object({ itemId: z.string().min(1).max(64) })).mutation(({ ctx, input }) => removeChecklistItem(ctx.db, ctx.actor, input.itemId)),
 
-  /** The event-day page: event, checklist, fallback scenarios; open to every signed-in user in the event week. */
+  /** The Event day tab: event, checklist, fallback scenarios; open to every signed-in user in the event week. */
   eventDay: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => eventDayView(ctx.db, ctx.actor, input.id)),
 
   /** The three copy prompts (announcement, reminder, team) built from the request; calls nothing. */

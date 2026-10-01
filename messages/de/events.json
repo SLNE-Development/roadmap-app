@@ -331,20 +331,32 @@
     "removeTodo": "{title} entfernen"
   },
   "eventDay": {
-    "title": "Eventtag",
-    "description": "Alles, was das Team braucht, solange das Event läuft.",
-    "where": "Wo: {where}",
-    "notLive": "Die Eventwoche hat noch nicht begonnen, daher sind Checkliste und Einchecken gesperrt.",
+    "notLive": "Die Eventwoche hat noch nicht begonnen, daher ist die Checkliste schreibgeschützt.",
+    "startsIn": "Beginnt {when}",
+    "running": "Läuft gerade",
+    "endedAgo": "Endete {when}",
     "checklist": "Checkliste",
+    "progress": "{done} von {total} erledigt",
     "readOnly": "Du kannst die Checkliste lesen, aber nicht abhaken.",
     "removeItem": "Entfernen",
+    "removeItemNamed": "„{label}“ entfernen",
     "newItem": "Neuer Checklistenpunkt",
     "addItem": "Punkt hinzufügen",
-    "wrong": "Etwas stimmt nicht",
-    "showScenarios": "Notfallszenarien anzeigen",
-    "hideScenarios": "Notfallszenarien ausblenden",
+    "emptyTitle": "Noch keine Checks",
+    "emptyText": "Der Agent der Entwickler schreibt sie aus dem Plan mit <code>/surf-roadmap:requests event-day {id}</code>, oder füge sie hier hinzu.",
+    "emptyTextReadOnly": "Der Agent der Entwickler schreibt sie aus dem Plan.",
+    "doneBy": "{name}, {when}",
+    "doneAt": "Erledigt {when}",
+    "fallbacks": "Notfallszenarien",
+    "fallbacksEmptyTitle": "Keine Notfallszenarien",
+    "fallbacksEmptyText": "Szenarien werden im Tab Fallback der Anfrage geschrieben.",
+    "whatWeDo": "Was wir tun",
     "blank": "Nicht ausgefüllt",
-    "decides": "Entscheidet: {who}"
+    "decides": "Entscheidet: {who}",
+    "playerMessage": "Nachricht für die Spieler",
+    "copy": "Nachricht kopieren",
+    "copied": "Nachricht kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen. Markiere die Nachricht und kopiere sie von Hand."
   },
   "settings": {
     "crumb": "Event-Einstellungen",
@@ -526,6 +538,7 @@
   },
   "disaster": {
     "title": "Störfallnachricht",
+    "panelTitle": "Störfall",
     "post": "Störfallnachricht posten",
     "postTitle": "Störfallnachricht posten?",
     "postBody": "Die Nachricht unten wird sofort im öffentlichen Kanal gepostet.",
@@ -536,8 +549,8 @@
     "resolvedMessage": "Entwarnung",
     "note": "Hinweis für die Spieler (optional)",
     "noteHelp": "Höchstens {max} Zeichen.",
-    "previewDisaster": "Vorschau der Störfallnachricht",
-    "previewResolved": "Vorschau der Auflösungsnachricht",
+    "preview": "Vorschau",
+    "idle": "Nichts gepostet. Poste eine Nachricht, wenn etwas nicht stimmt und die Spieler es wissen sollen.",
     "cancel": "Abbrechen",
     "resume": "Fortsetzen",
     "posted": "Die Störfallnachricht wird gepostet",
@@ -558,6 +571,8 @@
     "delete": "Nachricht löschen",
     "deleteTitle": "Störfallnachricht löschen?",
     "deleteBody": "Die Störfallnachricht wird aus dem öffentlichen Kanal entfernt. Nutze das, wenn ein Beitrag hängt.",
+    "deleteResolvedTitle": "Entwarnung löschen?",
+    "deleteResolvedBody": "Die Entwarnung wird aus dem öffentlichen Kanal entfernt. Nutze das, wenn ein Beitrag hängt.",
     "deleting": "Die Störfallnachricht wird gelöscht"
   },
   "prompts": {
@@ -593,7 +608,6 @@
   },
   "header": {
     "more": "Weitere Aktionen",
-    "eventDay": "Eventtag-Seite öffnen",
     "settings": "Event-Einstellungen",
     "viewOnly": "Nur Ansicht",
     "viewOnlyHelp": "Du kannst diese Anfrage ansehen, aber nicht ändern.",
@@ -619,7 +633,7 @@
     },
     "startWeek": {
       "title": "Eventwoche starten?",
-      "description": "Die Eventwoche beginnt. Die Eventtag-Seite öffnet sich für alle, die angemeldet sind, und das Team arbeitet mit der Checkliste.",
+      "description": "Die Eventwoche beginnt und das Team arbeitet mit der Checkliste im Tab Eventtag.",
       "confirm": "Eventwoche starten"
     },
     "reopenCancelled": {

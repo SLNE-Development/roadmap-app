@@ -331,20 +331,32 @@
     "removeTodo": "Remove {title}"
   },
   "eventDay": {
-    "title": "Event day",
-    "description": "Everything the team needs while the event runs.",
-    "where": "Where: {where}",
-    "notLive": "The event week has not started, so the checklist and check-in are closed.",
+    "notLive": "The event week has not started, so the checklist is read-only.",
+    "startsIn": "Starts {when}",
+    "running": "Running now",
+    "endedAgo": "Ended {when}",
     "checklist": "Checklist",
+    "progress": "{done} of {total} done",
     "readOnly": "You can read the checklist but not tick it.",
     "removeItem": "Remove",
+    "removeItemNamed": "Remove \"{label}\"",
     "newItem": "New checklist item",
     "addItem": "Add item",
-    "wrong": "Something is wrong",
-    "showScenarios": "Show fallback scenarios",
-    "hideScenarios": "Hide fallback scenarios",
+    "emptyTitle": "No checks yet",
+    "emptyText": "The developer's agent writes them from the plan with <code>/surf-roadmap:requests event-day {id}</code>, or add them here.",
+    "emptyTextReadOnly": "The developer's agent writes them from the plan.",
+    "doneBy": "{name}, {when}",
+    "doneAt": "Done {when}",
+    "fallbacks": "Fallback scenarios",
+    "fallbacksEmptyTitle": "No fallback scenarios",
+    "fallbacksEmptyText": "Scenarios are written on the Fallback tab of the request.",
+    "whatWeDo": "What we do",
     "blank": "Not filled in",
-    "decides": "Decides: {who}"
+    "decides": "Decides: {who}",
+    "playerMessage": "Message for players",
+    "copy": "Copy message",
+    "copied": "Message copied",
+    "copyFailed": "Copying failed. Select the message and copy it by hand."
   },
   "settings": {
     "crumb": "Event settings",
@@ -526,6 +538,7 @@
   },
   "disaster": {
     "title": "Disaster message",
+    "panelTitle": "Disaster",
     "post": "Post disaster message",
     "postTitle": "Post the disaster message?",
     "postBody": "This posts the message below to the public channel right now.",
@@ -536,8 +549,8 @@
     "resolvedMessage": "Resolved message",
     "note": "Note for the players (optional)",
     "noteHelp": "At most {max} characters.",
-    "previewDisaster": "Disaster message preview",
-    "previewResolved": "Resolved message preview",
+    "preview": "Preview",
+    "idle": "Nothing is posted. Post a message when something is wrong and the players should know.",
     "cancel": "Cancel",
     "resume": "Resume",
     "posted": "The disaster message is being posted",
@@ -558,6 +571,8 @@
     "delete": "Delete message",
     "deleteTitle": "Delete the disaster message?",
     "deleteBody": "This removes the disaster message from the public channel. Use it when a post is stuck.",
+    "deleteResolvedTitle": "Delete the resolved message?",
+    "deleteResolvedBody": "This removes the resolved message from the public channel. Use it when a post is stuck.",
     "deleting": "Deleting the disaster message"
   },
   "prompts": {
@@ -593,7 +608,6 @@
   },
   "header": {
     "more": "More actions",
-    "eventDay": "Open event-day page",
     "settings": "Event settings",
     "viewOnly": "View only",
     "viewOnlyHelp": "You can view this request but not change it.",
@@ -619,7 +633,7 @@
     },
     "startWeek": {
       "title": "Start the event week?",
-      "description": "The event week begins. The event-day page opens for everyone who is signed in, and the team works from the checklist.",
+      "description": "The event week begins and the team works from the checklist on the Event day tab.",
       "confirm": "Start event week"
     },
     "reopenCancelled": {
