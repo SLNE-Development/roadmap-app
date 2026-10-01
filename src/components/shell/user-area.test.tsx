@@ -23,7 +23,7 @@ vi.mock("@/components/ui/dropdown-menu", () => {
   };
 });
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: { configured: true } }),
+  useQuery: () => ({ data: { configured: true, discordId: "123456789012345678" } }),
   useMutation: () => ({ mutate: () => {} }),
   useQueryClient: () => ({ clear: () => {} }),
 }));
@@ -31,7 +31,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh:
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "system", resolvedTheme: "light", setTheme: () => {} }) }));
 vi.mock("@/lib/auth/client", () => ({ authClient: { signOut: async () => {} } }));
 vi.mock("@/trpc/client", () => ({
-  useTRPC: () => ({ github: { account: { queryOptions: () => ({}) } }, account: { setLocale: { mutationOptions: () => ({}) } } }),
+  useTRPC: () => ({ github: { account: { queryOptions: () => ({}) } }, account: { discordId: { queryOptions: () => ({}) }, setLocale: { mutationOptions: () => ({}) } } }),
 }));
 
 const { UserArea } = await import("./user-area");
@@ -57,6 +57,14 @@ describe("UserArea", () => {
     const html = render("de", true);
     expect(html).toContain("Admin");
     expect(html).toContain("Konten");
+  });
+
+  it("shows an admin their own Discord ID and nobody else", () => {
+    const html = render("en", true);
+    expect(html).toContain("Your Discord ID");
+    expect(html).toContain("123456789012345678");
+    expect(render("de", true)).toContain("Deine Discord-ID");
+    expect(render("en", false)).not.toContain("123456789012345678");
   });
 
   it("shows English by default", () => {

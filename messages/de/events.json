@@ -26,6 +26,8 @@
     "colProject": "Projekt",
     "noDate": "Noch kein Datum",
     "noProject": "Nicht verknüpft",
+    "waitingOnRequester": "Wartet auf Antwort",
+    "lateTodos": "{count, plural, one {# überfällige Aufgabe} other {# überfällige Aufgaben}}",
     "dialogTitle": "Neue Anfrage",
     "dialogDescription": "Lege einen Entwurf an. Brief, Datum und alles Weitere kannst du auf der Anfrageseite ergänzen.",
     "titleLabel": "Titel",
@@ -43,7 +45,8 @@
     "tabFallback": "Notfallplan",
     "tabPrep": "Vorbereitung",
     "tabEventDay": "Eventtag",
-    "tabMessages": "Nachrichten"
+    "tabMessages": "Nachrichten",
+    "somethingWrong": "Etwas schiefgelaufen?"
   },
   "statusBar": {
     "label": "Status der Anfrage",
@@ -139,6 +142,8 @@
   "questions": {
     "waiting": "Das Team wartet auf deine Antworten: {count, plural, one {# offene Frage} other {# offene Fragen}}.",
     "answerNow": "Jetzt antworten",
+    "waitingTitle": "Wartet auf dich",
+    "waitingSince": "Offen seit {when}",
     "emptyTitle": "Noch keine Fragen",
     "emptyText": "Wenn das Team mehr wissen muss, erscheinen die Fragen hier.",
     "round": "Runde {number}",

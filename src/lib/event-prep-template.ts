@@ -38,7 +38,7 @@ export const CHECKLIST_TEMPLATE = [
 ] as const;
 
 /** The offset of `timeZone` from UTC at the instant `at`, in milliseconds. */
-function zoneOffset(at: number, timeZone: string): number {
+export function zoneOffset(at: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",

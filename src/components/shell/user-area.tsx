@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, GitBranch, KeyRound, Languages, Laptop, Link2, LogOut, Monitor, Moon, Palette, ShieldCheck, Sun, Users } from "lucide-react";
+import { BellRing, Fingerprint, GitBranch, KeyRound, Languages, Laptop, Link2, LogOut, Monitor, Moon, Palette, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,7 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
   const { theme, resolvedTheme, setTheme } = useTheme();
   const trpc = useTRPC();
   const { data: github } = useQuery(trpc.github.account.queryOptions());
+  const { data: own } = useQuery({ ...trpc.account.discordId.queryOptions(), enabled: isAdmin });
   const setLocale = useMutation(
     trpc.account.setLocale.mutationOptions({
       onSuccess: () => router.refresh(),
@@ -58,6 +60,24 @@ export function UserArea({ name, isAdmin }: { name: string; isAdmin: boolean }) 
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top" className="w-56">
           <DropdownMenuLabel>{name}</DropdownMenuLabel>
+          {isAdmin && own?.discordId && (
+            <DropdownMenuItem
+              onSelect={async () => {
+                try {
+                  await navigator.clipboard.writeText(own.discordId!);
+                  toast.success(t("discordIdCopied"));
+                } catch {
+                  // Clipboard access can be refused; the id stays visible in the menu.
+                }
+              }}
+            >
+              <Fingerprint />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[11px] text-muted-foreground">{t("yourDiscordId")}</span>
+                <span className="truncate font-mono text-xs">{own.discordId}</span>
+              </span>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>

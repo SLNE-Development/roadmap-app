@@ -6,6 +6,7 @@ import "../jobs/discord";
 import "../jobs/dispatch";
 import "../jobs/push";
 import "../jobs/events-post";
+import "../jobs/events-reminders";
 import "./notifications";
 import "./discord";
 import "../github/events";

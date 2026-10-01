@@ -346,6 +346,7 @@ function CancelDialog({ requestId, open, onOpenChange }: { requestId: string; op
  */
 export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions" | "overview" | "fallback" | "prep" | "eventday" | "messages" }) {
   const t = useTranslations("events");
+  const format = useFormatter();
   const trpc = useTRPC();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [acceptOpen, setAcceptOpen] = useState(false);
@@ -365,6 +366,8 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
   const { status } = request;
   const open = openCount(rounds);
   const base = `/requests/${id}`;
+  // The oldest round that still has an open question: how long the team has been waiting.
+  const waitingSince = rounds.find((r) => r.questions.some((q) => q.answeredAt === null))?.createdAt ?? null;
 
   return (
     <Page width="medium">
@@ -417,7 +420,14 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
           </>
         }
       >
-        <StatusBar status={status} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <StatusBar status={status} />
+          {status === "event_week" && tab !== "eventday" && (
+            <Link href={`${base}?tab=eventday`} className="text-[13px] font-medium text-brand-strong hover:underline">
+              {t("page.somethingWrong")}
+            </Link>
+          )}
+        </div>
       </PageHeader>
       {canEdit && <CopyPromptsDialog requestId={id} open={promptsOpen} onOpenChange={setPromptsOpen} />}
       {(canEdit || canDevelop) && status === "accepted" && incomplete.length > 0 && (
@@ -436,7 +446,13 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
       <ProgressPanel requestId={id} />
       {canEdit && open > 0 && (
         <p role="status" className="flex flex-wrap items-center gap-3 border border-primary/40 bg-secondary px-3 py-2 text-[13px]">
-          <span className="min-w-0 flex-1 font-semibold">{t("questions.waiting", { count: open })}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{t("questions.waitingTitle")}</span>
+            <span className="block">
+              {t("questions.waiting", { count: open })}
+              {waitingSince && <> {t("questions.waitingSince", { when: format.relativeTime(waitingSince) })}</>}
+            </span>
+          </span>
           {tab !== "questions" && (
             <Button asChild size="sm" variant="outline">
               <Link href={`${base}?tab=questions`}>{t("questions.answerNow")}</Link>

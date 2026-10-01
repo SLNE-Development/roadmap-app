@@ -1,6 +1,6 @@
-import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { eventBriefVersion, eventQuestion, eventRequest, project, projectMember, requestLog, user, type EventRequestRow } from "@/db/schema";
+import { eventBriefVersion, eventQuestion, eventRequest, eventTodo, project, projectMember, requestLog, user, type EventRequestRow } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { diffDocuments, type DiffHunk } from "@/lib/diff";
 import { canTransition, isOpen, REQUEST_STATUSES, type RequestStatus } from "@/lib/event-status";
@@ -468,6 +468,8 @@ export interface RequestListItem {
   briefVersion: number;
   /** Whether questions of the team wait for an answer. */
   waitingOnRequester: boolean;
+  /** How many undone to-dos are past their due date. */
+  lateTodos: number;
 }
 
 const OPEN_STATUSES = REQUEST_STATUSES.filter(isOpen);
@@ -513,7 +515,19 @@ export async function listRequests(db: Db, actor: Actor, filter: RequestFilter =
             .where(and(inArray(eventQuestion.requestId, rows.map((r) => r.id)), isNull(eventQuestion.answeredAt)))
         ).map((r) => r.requestId),
   );
-  return rows.map((r) => ({ ...r, requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: waiting.has(r.id) }));
+  const lateIds = rows.filter((r) => r.status === "accepted" || r.status === "event_week").map((r) => r.id);
+  const late = new Map(
+    lateIds.length === 0
+      ? []
+      : (
+          await db
+            .select({ requestId: eventTodo.requestId, n: count() })
+            .from(eventTodo)
+            .where(and(inArray(eventTodo.requestId, lateIds), isNull(eventTodo.doneAt), lt(eventTodo.dueAt, new Date())))
+            .groupBy(eventTodo.requestId)
+        ).map((r) => [r.requestId, r.n] as const),
+  );
+  return rows.map((r) => ({ ...r, requesterName: r.requesterName?.trim() || "unknown", waitingOnRequester: waiting.has(r.id), lateTodos: late.get(r.id) ?? 0 }));
 }
 
 /** A request with what its page needs. */

@@ -26,6 +26,8 @@
     "colProject": "Project",
     "noDate": "No date yet",
     "noProject": "Not linked",
+    "waitingOnRequester": "Waiting on requester",
+    "lateTodos": "{count, plural, one {# late to-do} other {# late to-dos}}",
     "dialogTitle": "New request",
     "dialogDescription": "Start a draft. The brief, date and the rest can follow on the request page.",
     "titleLabel": "Title",
@@ -43,7 +45,8 @@
     "tabFallback": "Fallback",
     "tabPrep": "Prep",
     "tabEventDay": "Event day",
-    "tabMessages": "Messages"
+    "tabMessages": "Messages",
+    "somethingWrong": "Something wrong?"
   },
   "statusBar": {
     "label": "Request status",
@@ -139,6 +142,8 @@
   "questions": {
     "waiting": "The team is waiting for your answers: {count, plural, one {# open question} other {# open questions}}.",
     "answerNow": "Answer now",
+    "waitingTitle": "Waiting on you",
+    "waitingSince": "Open since {when}",
     "emptyTitle": "No questions yet",
     "emptyText": "If the team needs to know more, its questions appear here.",
     "round": "Round {number}",

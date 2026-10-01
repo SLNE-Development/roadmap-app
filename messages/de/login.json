@@ -7,6 +7,12 @@
   "continueWithDiscord": "Weiter mit Discord",
   "redirecting": "Weiterleitung …",
   "signInFailed": "Anmeldung fehlgeschlagen.",
+  "rejected": {
+    "yourId": "Deine Discord-ID",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "sendToAdmin": "Schick diese ID an einen Admin, um Zugang zu bekommen."
+  },
   "errors": {
     "notOnAllowlist": "Dieses Discord-Konto steht noch nicht auf der Zugangsliste. Bitte einen Admin, es hinzuzufügen, und versuche es dann erneut.",
     "cancelled": "Die Anmeldung mit Discord wurde abgebrochen. Versuche es erneut, wenn du so weit bist.",

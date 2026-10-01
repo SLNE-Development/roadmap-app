@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventBriefVersion, eventRequest, requestLog } from "@/db/schema";
+import { eventBriefVersion, eventQuestion, eventQuestionRound, eventRequest, eventTodo, requestLog } from "@/db/schema";
+import { newId } from "@/lib/id";
 import { createTestDb } from "@/test/db";
 import { insertUser, requestFixture } from "@/test/fixtures";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
@@ -269,6 +270,25 @@ describe("views", () => {
     const [first] = await listRequests(w.db, w.R, {});
     expect(first).toMatchObject({ id: sent.id, requesterName: "Requester", projectSlug: null, briefVersion: 1, waitingOnRequester: false });
     expect([mine.id, done.id, other.id]).toHaveLength(3);
+  });
+
+  it("flags a request that waits on its requester and counts its late to-dos", async () => {
+    const w = await world();
+    const req = await requestFixture(w.db, w.R, { status: "accepted", startsAt: FUTURE });
+    const flags = async () => (await listRequests(w.db, w.R)).find((r) => r.id === req.id)!;
+    expect(await flags()).toMatchObject({ waitingOnRequester: false, lateTodos: 0 });
+    const roundId = newId();
+    await w.db.insert(eventQuestionRound).values({ id: roundId, requestId: req.id, number: 1 });
+    await w.db.insert(eventQuestion).values({ id: newId(), roundId, requestId: req.id, position: 0, type: "text", text: "Q", config: {} });
+    const day = 86_400_000;
+    const todo = (dueAt: Date, extra: Partial<typeof eventTodo.$inferInsert> = {}) => w.db.insert(eventTodo).values({ id: newId(), requestId: req.id, title: "T", dueAt, ...extra });
+    await todo(new Date(Date.now() - day));
+    await todo(new Date(Date.now() - day));
+    await todo(new Date(Date.now() - day), { doneAt: new Date() });
+    await todo(new Date(Date.now() + day));
+    expect(await flags()).toMatchObject({ waitingOnRequester: true, lateTodos: 2 });
+    await w.db.update(eventRequest).set({ status: "done" }).where(eq(eventRequest.id, req.id));
+    expect(await flags()).toMatchObject({ lateTodos: 0 });
   });
 
   it("returns the history newest first", async () => {

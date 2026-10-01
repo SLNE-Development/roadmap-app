@@ -65,6 +65,7 @@
     "discordIdHint": "In Discord with Developer Mode on: right-click the user, Copy User ID.",
     "displayName": "Display name",
     "addAccount": "Add account",
+    "signInHint": "Ask the person to sign in once; the login page shows their Discord ID.",
     "emptyTitle": "No accounts yet",
     "emptyDescription": "Add a Discord user id above so that person can sign in.",
     "allowlistTitle": "Allowlist",

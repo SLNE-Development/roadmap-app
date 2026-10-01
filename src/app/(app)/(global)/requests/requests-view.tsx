@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { EmptyState, Page, PageHeader } from "@/components/page";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -173,7 +174,13 @@ export function RequestsView() {
                       {r.title}
                     </Link>
                   </td>
-                  <td className="px-3 py-2">{t(`status.${r.status}`)}</td>
+                  <td className="px-3 py-2">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {t(`status.${r.status}`)}
+                      {r.waitingOnRequester && <Badge variant="outline">{t("list.waitingOnRequester")}</Badge>}
+                      {r.lateTodos > 0 && <Badge variant="destructive">{t("list.lateTodos", { count: r.lateTodos })}</Badge>}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 tabular-nums">
                     {r.startsAt ? format.dateTime(r.startsAt, { dateStyle: "medium", timeStyle: "short" }) : <span className="text-muted-foreground">{t("list.noDate")}</span>}
                   </td>

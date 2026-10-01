@@ -7,6 +7,12 @@
   "continueWithDiscord": "Continue with Discord",
   "redirecting": "Redirecting…",
   "signInFailed": "Sign-in failed.",
+  "rejected": {
+    "yourId": "Your Discord ID",
+    "copy": "Copy",
+    "copied": "Copied",
+    "sendToAdmin": "Send this ID to an admin to get access."
+  },
   "errors": {
     "notOnAllowlist": "That Discord account isn’t on the allowlist yet. Ask an admin to add it, then try again.",
     "cancelled": "Discord sign-in was cancelled. Try again when you’re ready.",

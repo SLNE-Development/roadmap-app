@@ -11,6 +11,7 @@ import type { Db } from "@/db/types";
 import { recordAuthEvent } from "@/lib/ops/audit";
 import { isAllowed, linkDiscordAccount } from "@/lib/ops/users";
 import { API_KEY_RATE_LIMIT } from "./rate-limit";
+import { clearRejectedAccount, rememberRejectedAccount } from "./rejected-account";
 
 /** Message shown when a Discord account that was not provisioned tries to sign in. */
 export const NOT_PROVISIONED = "Your Discord account has not been added. Ask an admin.";
@@ -101,15 +102,18 @@ function createAuth() {
     databaseHooks: {
       session: {
         create: {
-          before: async (data) => {
+          before: async (data, ctx) => {
             const discordId = await discordIdOf(db, data.userId);
             if (!discordId || !(await isAllowed(db, discordId))) {
               await recordAuthEvent(db, { ...sessionEvent(data), kind: "sign-in-refused", discordId });
+              // The OAuth callback redirects to /login; the cookie lets that page show the person their own Discord id.
+              rememberRejectedAccount(ctx, discordId, requireEnv("BETTER_AUTH_URL").startsWith("https://"));
               throw new APIError("FORBIDDEN", { code: NOT_PROVISIONED_CODE, message: NOT_PROVISIONED });
             }
           },
-          after: async (data) => {
+          after: async (data, ctx) => {
             await recordAuthEvent(db, { ...sessionEvent(data), kind: "sign-in" });
+            clearRejectedAccount(ctx, requireEnv("BETTER_AUTH_URL").startsWith("https://"));
           },
         },
         // Fires for Better Auth's own deletes (sign-out, expiry); the sessions page deletes rows itself and records there.

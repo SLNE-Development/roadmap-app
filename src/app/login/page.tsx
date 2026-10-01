@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { CircleAlert } from "lucide-react";
+import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
 import { safeNextPath } from "@/lib/auth/next-path";
+import { REJECTED_ID_COOKIE, rejectedAccountId } from "@/lib/auth/rejected-account";
+import { RejectedAccount } from "./rejected-account";
 import { SignInButton } from "./sign-in-button";
 
 /** The public entry page. */
@@ -67,10 +70,12 @@ function Logo() {
  * @param props.searchParams carries `error` after a rejected sign-in and `next`, the page to return to
  */
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string | string[]; next?: string | string[] }> }) {
-  const [params, t] = await Promise.all([searchParams, getTranslations("login")]);
+  const [params, t, jar] = await Promise.all([searchParams, getTranslations("login"), cookies()]);
   // A repeated `error` arrives as an array; the last one is the most specific.
   const error = Array.isArray(params.error) ? params.error.at(-1) : params.error;
   const message = error ? messageKey(error) : null;
+  // Only the person whose sign-in was refused has the cookie; the id is never in the URL.
+  const rejectedId = rejectedAccountId(error, jar.get(REJECTED_ID_COOKIE)?.value);
   return (
     <main className="grid min-h-dvh grid-rows-[auto_1fr] bg-background text-foreground lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:grid-rows-none">
       <section className="relative flex flex-col justify-between gap-8 overflow-hidden bg-brand-strong px-6 py-7 text-primary-foreground sm:px-10 sm:py-10 lg:px-16 lg:py-14 dark:bg-brand-soft dark:text-foreground">
@@ -115,6 +120,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               </span>
             </div>
           )}
+          <RejectedAccount discordId={rejectedId} />
           <p className="text-[12.5px] text-muted-foreground">{t("apiKeyHint")}</p>
         </div>
       </section>

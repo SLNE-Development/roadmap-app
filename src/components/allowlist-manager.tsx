@@ -104,6 +104,7 @@ export function AllowlistManager({ accounts, selfId }: { accounts: AccountItem[]
             {t("addAccount")}
           </Button>
         </form>
+        <p className="mt-3 text-xs text-muted-foreground">{t("signInHint")}</p>
       </Panel>
 
       {accounts.length === 0 ? (

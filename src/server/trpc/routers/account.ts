@@ -1,5 +1,7 @@
 import "server-only";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { user } from "@/db/schema";
 import { LOCALES, resolveTimeZone } from "@/i18n/locale";
 import { requestClient } from "@/lib/auth/actor";
 import { getAuth } from "@/lib/auth/server";
@@ -37,6 +39,12 @@ export const accountRouter = router({
     isAdmin: ctx.actor.isAdmin,
     ...(await requestRights(ctx.db, ctx.actor)),
   })),
+
+  /** The actor's own Discord id, or null while their account has none; admins show it under their profile menu. */
+  discordId: protectedProcedure.query(async ({ ctx }) => {
+    const [row] = await ctx.db.select({ discordId: user.discordId }).from(user).where(eq(user.id, ctx.actor.userId)).limit(1);
+    return { discordId: row?.discordId ?? null };
+  }),
 
   /** What is waiting on the actor across their projects and what changed since they last marked it seen. */
   myWork: protectedProcedure.query(async ({ ctx }) => {

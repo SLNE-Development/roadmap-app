@@ -65,6 +65,7 @@
     "discordIdHint": "In Discord mit aktiviertem Entwicklermodus: Rechtsklick auf den Nutzer, Nutzer-ID kopieren.",
     "displayName": "Anzeigename",
     "addAccount": "Konto hinzufügen",
+    "signInHint": "Bitte die Person, sich einmal anzumelden; die Anmeldeseite zeigt ihre Discord-ID.",
     "emptyTitle": "Noch keine Konten",
     "emptyDescription": "Füge oben eine Discord-Nutzer-ID hinzu, damit sich diese Person anmelden kann.",
     "allowlistTitle": "Zugelassene Konten",
