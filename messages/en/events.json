@@ -94,12 +94,17 @@
   "brief": {
     "label": "Brief",
     "help": "Describe the event in Markdown. Every saved change becomes a new version.",
-    "save": "Save new version",
+    "save": "Save as version {version}",
     "saved": "Saved as version {version}",
     "unchanged": "Nothing changed, so no new version was saved.",
     "conflict": "The brief changed in the meantime. Reload to see the latest version, then merge your edits.",
     "reload": "Reload",
-    "readOnly": "The brief can no longer be edited."
+    "readOnly": "The brief can no longer be edited.",
+    "noVersion": "No version yet",
+    "currentVersion": "Version {version}",
+    "placeholder": "What is the event, who is it for, what has to happen?",
+    "emptyTitle": "No brief yet",
+    "emptyText": "Once the requester writes one, it appears here."
   },
   "versions": {
     "title": "Versions",
@@ -109,7 +114,8 @@
     "current": "current",
     "compare": "Compare with current",
     "diffTitle": "Changes from version {from} to version {to}",
-    "closeDiff": "Close comparison"
+    "closeDiff": "Close comparison",
+    "noneText": "The first save creates version 1."
   },
   "history": {
     "title": "History",
@@ -278,7 +284,7 @@
     "close": "Close"
   },
   "fallback": {
-    "help": "What do we do when something goes wrong? The three required scenarios need an answer to \"what we do\" and \"who decides\" before the event week can start.",
+    "help": "What do we do when something goes wrong? The required scenario needs an answer to “what we do” and “who decides” before the event week can start.",
     "required": "Required",
     "complete": "Complete",
     "incomplete": "Incomplete",
@@ -292,16 +298,17 @@
     "remove": "Remove scenario",
     "removed": "Scenario removed",
     "newTitle": "New scenario",
-    "add": "Add scenario"
+    "add": "Add scenario",
+    "newPlaceholder": "For example: Venue is not ready",
+    "emptyTitle": "No scenarios yet",
+    "emptyText": "Add the first thing that could go wrong and what the team does about it."
   },
   "prep": {
     "help": "Prepare the event step by step. Dates follow the event date until you set one by hand.",
     "empty": "No to-dos yet. They are created when the request is accepted.",
-    "late": "Late",
     "owner": "Owner",
     "noOwner": "No owner",
     "due": "Due",
-    "remove": "Remove",
     "newTitle": "New to-do",
     "add": "Add to-do",
     "template": {
@@ -311,7 +318,17 @@
       "rehearsal": "Rehearsal",
       "reminder": "Post the reminder",
       "recap": "Recap and thank-you"
-    }
+    },
+    "emptyTitle": "No to-dos yet",
+    "groupLate": "Late",
+    "groupWeek": "This week",
+    "groupLater": "Later",
+    "groupDone": "Done",
+    "cancel": "Cancel",
+    "save": "Save",
+    "ownerIs": "Owner: {name}",
+    "edit": "Edit {title}",
+    "removeTodo": "Remove {title}"
   },
   "eventDay": {
     "title": "Event day",

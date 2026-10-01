@@ -4,10 +4,10 @@ import { useMutation } from "@tanstack/react-query";
 import { useTimeZone, useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { DirtyBar } from "@/components/events/dirty-bar";
 import { ImageUpload } from "@/components/events/image-upload";
 import { RequestRail } from "@/components/events/request-rail";
 import { Panel } from "@/components/page";
-import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,25 +17,6 @@ import { useTRPC } from "@/trpc/client";
 
 /** The longest short description the server accepts. */
 const SUMMARY_MAX = 500;
-
-/** The footer of a card with unsaved changes: the notice with Discard and Save. Renders nothing while the card is clean. */
-function DirtyBar({ dirty, canSave, pending, onSave, onDiscard }: { dirty: boolean; canSave: boolean; pending: boolean; onSave: () => void; onDiscard: () => void }) {
-  const t = useTranslations("events.card");
-  if (!dirty) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-t bg-secondary/50 px-4 py-3 sm:px-5">
-      <span role="status" className="mr-auto text-[13px] font-medium text-fg-2">
-        {t("unsaved")}
-      </span>
-      <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={onDiscard}>
-        {t("discard")}
-      </Button>
-      <Button type="button" size="sm" disabled={!canSave || pending} onClick={onSave}>
-        {t("save")}
-      </Button>
-    </div>
-  );
-}
 
 /** The short description: plain text with a counter, saved on its own. */
 function SummaryCard({ detail }: { detail: RequestDetail }) {

@@ -4,6 +4,7 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { DirtyBar } from "@/components/events/dirty-bar";
 import { EmptyState, Panel } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -159,14 +160,15 @@ function RoundCard({ requestId, round, canAnswer }: { requestId: string; round: 
   const t = useTranslations("events.questions");
   const format = useFormatter();
   const trpc = useTRPC();
-  const [drafts, setDrafts] = useState<Record<string, Draft>>(() => {
+  const initialDrafts = () => {
     const start: Record<string, Draft> = {};
     for (const q of round.questions) {
       if (q.answeredAt) start[q.id] = { value: q.answer ?? undefined, notSure: q.notSure, touched: false, suggested: false };
       else if (q.suggested !== null && q.suggested !== undefined) start[q.id] = { value: q.suggested, notSure: false, touched: false, suggested: true };
     }
     return start;
-  });
+  };
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(initialDrafts);
   /** The hint under a multi-select question about how many to pick. */
   const hintOf = (q: QuestionView): string | null => {
     if (q.type !== "multi") return null;
@@ -176,7 +178,16 @@ function RoundCard({ requestId, round, canAnswer }: { requestId: string; round: 
     return null;
   };
   const [invalid, setInvalid] = useState<Set<string>>(new Set());
-  const save = useMutation(trpc.requests.answerQuestions.mutationOptions({ onSuccess: () => toast.success(t("saved")) }));
+  const save = useMutation(
+    trpc.requests.answerQuestions.mutationOptions({
+      // What was sent is now stored; answers typed while the save ran stay unsaved.
+      onSuccess: (_result, vars) => {
+        const sent = new Set(vars.answers.map((a) => a.questionId));
+        setDrafts((d) => Object.fromEntries(Object.entries(d).map(([id, draft]) => [id, sent.has(id) ? { ...draft, touched: false, suggested: false } : draft])));
+        toast.success(t("saved"));
+      },
+    }),
+  );
   const set = (q: QuestionView, patch: Partial<Draft>) => {
     setDrafts((d) => ({ ...d, [q.id]: { ...(d[q.id] ?? { value: undefined, notSure: false }), suggested: false, touched: true, ...patch } }));
     setInvalid((s) => new Set([...s].filter((id) => id !== q.id)));
@@ -195,55 +206,63 @@ function RoundCard({ requestId, round, canAnswer }: { requestId: string; round: 
     <Panel
       title={t("round", { number: round.number })}
       meta={t("askedBy", { name: round.author, date: format.dateTime(round.createdAt, { dateStyle: "medium", timeStyle: "short" }) })}
-      bodyClassName="gap-5 px-4 pb-4 sm:px-5"
+      bodyClassName="pb-0"
     >
-      {round.questions.map((q) => {
-        const draft = drafts[q.id];
-        const labelId = `q-${q.id}`;
-        const hint = hintOf(q);
-        return (
-          <div key={q.id} className="flex flex-col gap-2 border-t pt-4 first:border-t-0 first:pt-0">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <p id={labelId} className="font-semibold">
-                {q.text}
-              </p>
-              <span className="text-xs text-muted-foreground">{q.required ? t("required") : t("optional")}</span>
-              {q.notSure && <Badge variant="secondary">{t("notSureBadge")}</Badge>}
-              {draft?.suggested && <Badge variant="outline">{t("suggested")}</Badge>}
+      <div className="flex flex-col gap-3 px-4 pb-4 sm:px-5">
+        {round.questions.map((q) => {
+          const draft = drafts[q.id] ?? (q.answeredAt ? { value: q.answer ?? undefined, notSure: q.notSure, touched: false, suggested: false } : undefined);
+          const labelId = `q-${q.id}`;
+          const hint = hintOf(q);
+          return (
+            <div key={q.id} className="flex flex-col gap-2 border bg-background p-4">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <p id={labelId} className="font-semibold">
+                  {q.text}
+                </p>
+                <span className="text-xs text-muted-foreground">{q.required ? t("required") : t("optional")}</span>
+                {q.notSure && <Badge variant="secondary">{t("notSureBadge")}</Badge>}
+                {draft?.suggested && <Badge variant="outline">{t("suggested")}</Badge>}
+              </div>
+              {q.why && <p className="text-[13px] text-fg-2">{q.why}</p>}
+              {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+              {canAnswer ? (
+                <>
+                  <Control q={q} labelId={labelId} value={draft?.notSure ? undefined : draft?.value} disabled={false} onChange={(value) => set(q, { value, notSure: false })} />
+                  <div>
+                    <Button type="button" size="xs" variant={draft?.notSure ? "default" : "outline"} aria-pressed={draft?.notSure === true} onClick={() => set(q, { value: undefined, notSure: !draft?.notSure })}>
+                      {t("notSure")}
+                    </Button>
+                  </div>
+                  {invalid.has(q.id) && (
+                    <p role="alert" className="text-[13px] text-destructive">
+                      {t("invalid")}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-[13.5px]">
+                  {q.answeredAt === null ? <span className="text-muted-foreground">{t("unanswered")}</span> : q.notSure ? <span className="text-fg-2">{t("notSureAnswer")}</span> : <AnswerValue q={q} />}
+                </p>
+              )}
+              {q.answeredAt && (
+                <p className="text-xs text-muted-foreground">{t("answeredBy", { name: q.answeredByName ?? "", date: format.dateTime(q.answeredAt, { dateStyle: "medium", timeStyle: "short" }) })}</p>
+              )}
             </div>
-            {q.why && <p className="text-[13px] text-fg-2">{q.why}</p>}
-            {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-            {canAnswer ? (
-              <>
-                <Control q={q} labelId={labelId} value={draft?.notSure ? undefined : draft?.value} disabled={false} onChange={(value) => set(q, { value, notSure: false })} />
-                <div>
-                  <Button type="button" size="xs" variant={draft?.notSure ? "default" : "outline"} aria-pressed={draft?.notSure === true} onClick={() => set(q, { value: undefined, notSure: !draft?.notSure })}>
-                    {t("notSure")}
-                  </Button>
-                </div>
-                {invalid.has(q.id) && (
-                  <p role="alert" className="text-[13px] text-destructive">
-                    {t("invalid")}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-[13.5px]">
-                {q.answeredAt === null ? <span className="text-muted-foreground">{t("unanswered")}</span> : q.notSure ? <span className="text-fg-2">{t("notSureAnswer")}</span> : <AnswerValue q={q} />}
-              </p>
-            )}
-            {q.answeredAt && (
-              <p className="text-xs text-muted-foreground">{t("answeredBy", { name: q.answeredByName ?? "", date: format.dateTime(q.answeredAt, { dateStyle: "medium", timeStyle: "short" }) })}</p>
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
       {canAnswer && (
-        <div>
-          <Button type="button" disabled={save.isPending || pending.length === 0} onClick={submit}>
-            {t("save")}
-          </Button>
-        </div>
+        <DirtyBar
+          dirty={pending.length > 0}
+          canSave
+          pending={save.isPending}
+          saveLabel={t("save")}
+          onSave={submit}
+          onDiscard={() => {
+            setDrafts(initialDrafts());
+            setInvalid(new Set());
+          }}
+        />
       )}
     </Panel>
   );
@@ -262,10 +281,9 @@ export function QuestionForm({ requestId, canAnswer }: { requestId: string; canA
   const { data: rounds } = useSuspenseQuery(trpc.requests.rounds.queryOptions({ id: requestId }));
   if (rounds.length === 0) return <EmptyState title={t("emptyTitle")} description={t("emptyText")} />;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {rounds.map((round) => (
-        // A saved answer changes the stamps, which remounts the card with the stored state.
-        <RoundCard key={`${round.id}:${round.questions.map((q) => q.answeredAt?.getTime() ?? 0).join(",")}`} requestId={requestId} round={round} canAnswer={canAnswer} />
+        <RoundCard key={round.id} requestId={requestId} round={round} canAnswer={canAnswer} />
       ))}
     </div>
   );

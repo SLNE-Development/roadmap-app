@@ -94,12 +94,17 @@
   "brief": {
     "label": "Brief",
     "help": "Beschreibe das Event in Markdown. Jede gespeicherte Änderung wird zu einer neuen Version.",
-    "save": "Als neue Version speichern",
+    "save": "Als Version {version} speichern",
     "saved": "Als Version {version} gespeichert",
     "unchanged": "Nichts geändert, deshalb wurde keine neue Version gespeichert.",
     "conflict": "Der Brief wurde inzwischen geändert. Lade neu, um die aktuelle Version zu sehen, und übernimm dann deine Änderungen.",
     "reload": "Neu laden",
-    "readOnly": "Der Brief kann nicht mehr bearbeitet werden."
+    "readOnly": "Der Brief kann nicht mehr bearbeitet werden.",
+    "noVersion": "Noch keine Version",
+    "currentVersion": "Version {version}",
+    "placeholder": "Was ist das Event, für wen ist es, was muss passieren?",
+    "emptyTitle": "Noch kein Brief",
+    "emptyText": "Sobald die anfragende Person einen schreibt, erscheint er hier."
   },
   "versions": {
     "title": "Versionen",
@@ -109,7 +114,8 @@
     "current": "aktuell",
     "compare": "Mit aktueller vergleichen",
     "diffTitle": "Änderungen von Version {from} zu Version {to}",
-    "closeDiff": "Vergleich schließen"
+    "closeDiff": "Vergleich schließen",
+    "noneText": "Das erste Speichern legt Version 1 an."
   },
   "history": {
     "title": "Verlauf",
@@ -278,7 +284,7 @@
     "close": "Schließen"
   },
   "fallback": {
-    "help": "Was tun wir, wenn etwas schiefgeht? Für die drei Pflichtszenarien müssen „Was wir tun“ und „Wer entscheidet“ ausgefüllt sein, bevor die Eventwoche starten kann.",
+    "help": "Was tun wir, wenn etwas schiefgeht? Für das Pflichtszenario müssen „Was wir tun“ und „Wer entscheidet“ ausgefüllt sein, bevor die Eventwoche starten kann.",
     "required": "Pflicht",
     "complete": "Vollständig",
     "incomplete": "Unvollständig",
@@ -292,16 +298,17 @@
     "remove": "Szenario entfernen",
     "removed": "Szenario entfernt",
     "newTitle": "Neues Szenario",
-    "add": "Szenario hinzufügen"
+    "add": "Szenario hinzufügen",
+    "newPlaceholder": "Zum Beispiel: Veranstaltungsort nicht bereit",
+    "emptyTitle": "Noch keine Szenarien",
+    "emptyText": "Füge hinzu, was schiefgehen könnte und was das Team dann tut."
   },
   "prep": {
     "help": "Bereite das Event Schritt für Schritt vor. Die Termine folgen dem Eventdatum, bis du einen von Hand setzt.",
     "empty": "Noch keine Aufgaben. Sie entstehen, sobald die Anfrage angenommen wird.",
-    "late": "Überfällig",
     "owner": "Zuständig",
     "noOwner": "Niemand",
     "due": "Fällig",
-    "remove": "Entfernen",
     "newTitle": "Neue Aufgabe",
     "add": "Aufgabe hinzufügen",
     "template": {
@@ -311,7 +318,17 @@
       "rehearsal": "Probe",
       "reminder": "Erinnerung posten",
       "recap": "Rückblick und Dank"
-    }
+    },
+    "emptyTitle": "Noch keine Aufgaben",
+    "groupLate": "Überfällig",
+    "groupWeek": "Diese Woche",
+    "groupLater": "Später",
+    "groupDone": "Erledigt",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "ownerIs": "Zuständig: {name}",
+    "edit": "{title} bearbeiten",
+    "removeTodo": "{title} entfernen"
   },
   "eventDay": {
     "title": "Eventtag",
