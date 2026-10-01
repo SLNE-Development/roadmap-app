@@ -67,11 +67,22 @@ npm run dev
 
 In a second terminal, start the background worker: `npm run worker:dev`.
 
-Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:integration` (needs Valkey), `npm run test:plugin`, `npm run build`.
+Checks: `npm run check:worker-imports` (loads the worker's module graph under the `react-server` condition without
+starting it), `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:integration` (needs Valkey), `npm run test:plugin`, `npm run build`.
 Tests run against an in-process Postgres (PGlite) and need no Docker.
 
 Full stack in Docker: `docker compose --profile app up -d --build`.
 Set `APP_PORT`, `POSTGRES_PORT` and `VALKEY_PORT` to override default ports 3000, 5432 and 6379.
+
+### Contributing: UI copy and translations
+
+UI copy lives in `messages/<locale>/<namespace>.json` (English and German). A new namespace is registered in both
+`messages/en/index.ts` and `messages/de/index.ts`. `src/i18n/untranslated.test.ts` fails on literal UI text in
+`src/app/**` and `src/components/**`; its `PENDING_FILES` list must stay empty. Agent-facing text (tools, op errors,
+MCP/REST, Discord messages) stays English.
+
+The dev worker runs with the `react-server` condition, so server and worker code must import `use-intl/core`, never
+`next-intl`. `npm run check:worker-imports` catches a slip.
 
 ## Deploy on Coolify
 
@@ -105,6 +116,16 @@ The browser keeps one server-sent-events connection (`/api/events/<project>`) pe
 refetches what a change notice names. Coolify's Traefik doesn't buffer streams, so nothing needs configuring
 there. Behind nginx, set `proxy_buffering off` for `/api/events/`. The worker must be running for live
 updates; without it, pages still work and update on navigation.
+
+## Language, time zone and presence
+
+Each user can choose a language (English or German) and a time zone. The language applies to the UI
+and to notifications written for that user; the time zone applies to how single timestamps are shown (activity,
+notifications, release countdowns). Charts and day buckets stay in UTC. Both are user preferences (`locale`, `timeZone`). Pick the language in the account menu under Language; without a
+choice the browser's `Accept-Language` decides. The time zone follows the browser automatically once per session.
+
+Presence shows who else views a system: open pages post a heartbeat every 30 s to `/api/presence`, kept in Valkey
+with a short expiry. Presence needs Valkey; when it is down, heartbeats are dropped quietly and nothing else breaks.
 
 ## Agents: MCP and REST
 

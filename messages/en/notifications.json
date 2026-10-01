@@ -21,7 +21,10 @@
     "checksFailed": "Checks failed on {system}",
     "automationClose": "Could not close task {title}",
     "automationReview": "Could not move {title} to review",
-    "actorForAgent": "{agent} for {name}"
+    "actorForAgent": "{agent} for {name}",
+    "unknownActor": "Someone",
+    "pushTestTitle": "Test notification",
+    "pushTestBody": "Push works on this device."
   },
   "inbox": {
     "crumb": "Account",

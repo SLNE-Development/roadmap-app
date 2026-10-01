@@ -2,7 +2,9 @@ import { eq, sql } from "drizzle-orm";
 import webpush from "web-push";
 import { z } from "zod";
 import { notification, pushSubscription, type PushSubscriptionRow } from "@/db/schema";
+import { renderNotificationText } from "@/lib/notification-text";
 import { canReceive } from "@/lib/ops/notifications";
+import { getPref } from "@/lib/ops/prefs";
 import { pushConfig, type PushConfig } from "@/lib/push-config";
 import { QUEUE } from "@/lib/queue";
 import type { WorkerDeps } from "../deps";
@@ -198,7 +200,11 @@ export async function sendPushTest(deps: WorkerDeps, raw: unknown): Promise<void
   if (!subscription) return;
   // A fresh tag per test: a notification reusing a shown tag replaces it silently, without an alert.
   const tag = `test:${deps.now().getTime()}`;
-  const payload = { title: "Test notification", body: "Push works on this device.", href: "/settings/notifications", tag, id: `test-${subscriptionId}` };
+  // The test reads in the language of the device's owner, like the notifications it stands in for.
+  const locale = await getPref(deps.db, subscription.userId, "locale");
+  const title = renderNotificationText(locale, { key: "pushTestTitle" });
+  const body = renderNotificationText(locale, { key: "pushTestBody" });
+  const payload = { title, body, href: "/settings/notifications", tag, id: `test-${subscriptionId}` };
   await deliver(deps, config, subscription, payload, "normal");
 }
 

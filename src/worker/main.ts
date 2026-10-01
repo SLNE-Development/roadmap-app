@@ -2,12 +2,32 @@ import { writeFile } from "node:fs/promises";
 import { closeDb } from "@/db/client";
 import { checkEncryptionKey } from "@/lib/crypto";
 import { requireEnv, WORKER_REQUIRED_ENV } from "@/lib/env";
-import { closeValkey, getValkey } from "@/lib/valkey";
+import { closeValkey, getProducerValkey, getValkey } from "@/lib/valkey";
 import "./consumers";
 import { productionDeps } from "./deps";
 import { registeredFeedConsumers, startFeed } from "./feed";
 import { beat } from "./heartbeat";
 import { registeredJobs, startWorkers } from "./jobs";
+
+const PRODUCER_READY_MS = 5000;
+
+/**
+ * Waits up to 5 s for the fail-fast producer client to connect: it has no offline queue, so a command sent
+ * before it is ready is rejected ("Stream isn't writeable"). Never throws; a Valkey outage just means a late start.
+ */
+async function waitForProducer(): Promise<void> {
+  const client = getProducerValkey();
+  if (client.status === "ready") return;
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      client.off("ready", done);
+      resolve();
+    };
+    const timer = setTimeout(done, PRODUCER_READY_MS);
+    client.once("ready", done);
+  });
+}
 
 /** Entry point of the worker process. */
 async function main(): Promise<void> {
@@ -15,6 +35,7 @@ async function main(): Promise<void> {
   checkEncryptionKey();
   const deps = productionDeps();
   const stop = await startWorkers(deps, getValkey());
+  await waitForProducer();
   const stopFeed = startFeed(deps);
 
   const jobs = registeredJobs();

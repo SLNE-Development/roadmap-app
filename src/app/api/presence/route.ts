@@ -11,6 +11,9 @@ import { realtimeChannel } from "@/lib/realtime/keys";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const ERROR_LOG_INTERVAL_MS = 60_000;
+let lastErrorLog = 0;
+
 const bodySchema = z.object({ project: slugSchema, system: slugSchema, leaving: z.boolean().optional() });
 
 /**
@@ -35,8 +38,12 @@ export async function POST(request: Request): Promise<Response> {
     if (changed) await valkeyBus().publish(realtimeChannel(projectId), { keys: ["presence"] }).catch(() => {});
   } catch (error) {
     if (error instanceof NotFoundError) return Response.json({ error: error.message }, { status: 404 });
-    // Valkey being down must not fail the heartbeat.
-    console.error(error);
+    // Valkey being down must not fail the heartbeat; every open page beats every 30 s, so log once a minute.
+    const now = Date.now();
+    if (now - lastErrorLog >= ERROR_LOG_INTERVAL_MS) {
+      lastErrorLog = now;
+      console.error(error);
+    }
   }
   return new Response(null, { status: 204 });
 }

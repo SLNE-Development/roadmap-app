@@ -9,6 +9,7 @@ import { notify } from "@/lib/ops/notifications";
 import { subscribePush } from "@/lib/ops/push";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
+import { setPref } from "@/lib/ops/prefs";
 import { testDeps } from "../deps";
 import { registeredJobs } from "../jobs";
 import { sendPush, sendPushTest } from "./push";
@@ -269,6 +270,15 @@ describe("push.test", () => {
 
     expect(payloadOf()).toMatchObject({ title: "Test notification", body: "Push works on this device.", href: "/settings/notifications" });
     expect((await subscriptionOf(subscriptionId)).lastSuccessAt).toEqual(NOW);
+  });
+
+  it("sends the test notification in the owner's language", async () => {
+    await setPref(db, editor, "locale", "de");
+    const subscriptionId = await subscribe();
+
+    await sendPushTest(testDeps(db, { now: () => NOW }), { subscriptionId });
+
+    expect(payloadOf()).toMatchObject({ title: "Testbenachrichtigung", body: "Push funktioniert auf diesem Gerät." });
   });
 
   it("registers both jobs on the deliver queue", () => {

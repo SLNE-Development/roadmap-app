@@ -16,14 +16,20 @@ function event(entity: string, projectId: string): ChangeEvent {
 
 describe("invalidationKeys", () => {
   it("maps a task event to its sorted routers", () => {
-    expect(invalidationKeys([event("task", "p1")])).toEqual(new Map([["p1", ["history", "insight", "projects", "systems"]]]));
+    expect(invalidationKeys([event("task", "p1")])).toEqual(new Map([["p1", ["gates", "history", "insight", "projects", "systems"]]]));
   });
 
   it("unions keys per project", () => {
     const result = invalidationKeys([event("task", "p1"), event("adr", "p1"), event("member", "p2")]);
     expect(result.size).toBe(2);
-    expect(result.get("p1")).toEqual(["adrs", "history", "insight", "projects", "systems"]);
+    expect(result.get("p1")).toEqual(["adrs", "gates", "history", "insight", "projects", "systems"]);
     expect(result.get("p2")).toEqual(["members", "projects"]);
+  });
+
+  it("refreshes the rule chips (gates) on entities that feed gate rules", () => {
+    for (const name of ["task", "check", "question", "adr", "document", "update", "system", "board", "column"]) {
+      expect(INVALIDATION_KEYS[name], name).toContain("gates");
+    }
   });
 
   it("falls back for an unknown entity", () => {

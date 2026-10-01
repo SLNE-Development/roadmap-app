@@ -21,7 +21,10 @@
     "checksFailed": "Checks fehlgeschlagen bei {system}",
     "automationClose": "Aufgabe {title} konnte nicht geschlossen werden",
     "automationReview": "{title} konnte nicht in Review verschoben werden",
-    "actorForAgent": "{agent} für {name}"
+    "actorForAgent": "{agent} für {name}",
+    "unknownActor": "Jemand",
+    "pushTestTitle": "Testbenachrichtigung",
+    "pushTestBody": "Push funktioniert auf diesem Gerät."
   },
   "inbox": {
     "crumb": "Konto",
@@ -46,7 +49,7 @@
     "labelUnread": "Benachrichtigungen, {count} ungelesen",
     "unreadCount": "{count} ungelesen",
     "allRead": "Alles gelesen",
-    "loading": "Wird geladen…",
+    "loading": "Wird geladen …",
     "empty": "Noch nichts. Erwähnungen und Änderungen an deiner Arbeit erscheinen hier.",
     "markAllRead": "Alle als gelesen markieren",
     "seeAll": "Alle anzeigen"

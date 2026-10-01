@@ -23,7 +23,7 @@ describe("handleRealtime", () => {
     await bus.subscribe("project:p1", (m) => p1.push(m));
     await bus.subscribe("project:p2", (m) => p2.push(m));
     await handleRealtime([event("task", "p1"), event("adr", "p1"), event("member", "p2")], deps(bus));
-    expect(p1).toEqual([{ keys: ["adrs", "history", "insight", "projects", "systems"] }]);
+    expect(p1).toEqual([{ keys: ["adrs", "gates", "history", "insight", "projects", "systems"] }]);
     expect(p2).toEqual([{ keys: ["members", "projects"] }]);
     expect(Object.keys(p1[0])).toEqual(["keys"]);
   });

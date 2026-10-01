@@ -147,8 +147,26 @@ describe("createEventStream while joining", () => {
     expect(hub.size("project:p1")).toBe(1);
     controller.abort();
     expect((await reader.read()).done).toBe(true);
+    expect(hub.size("project:p1")).toBe(0);
     release();
-    await vi.waitFor(() => expect(hub.size("project:p1")).toBe(0));
+  });
+
+  it("pings while the join waits for a Valkey that is down", async () => {
+    vi.useFakeTimers();
+    try {
+      const hub = createHub({ publish: async () => {}, subscribe: () => new Promise(() => {}) });
+      const controller = new AbortController();
+      const reader = createEventStream({ hub, channel: "project:p1", signal: controller.signal, stillAllowed: async () => true }).getReader();
+      await vi.advanceTimersByTimeAsync(25_000);
+      const chunk = await reader.read();
+      expect(decoder.decode(chunk.value)).toBe(": ping\n\n");
+      controller.abort();
+      expect((await reader.read()).done).toBe(true);
+      expect(hub.size("project:p1")).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

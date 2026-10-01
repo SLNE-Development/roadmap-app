@@ -57,22 +57,7 @@ export function createEventStream(opts: EventStreamOptions): ReadableStream<Uint
       signal.addEventListener("abort", close, { once: true });
       if (signal.aborted) return close();
 
-      try {
-        leave = await hub.join(channel, (message) => {
-          // Only the router names go out, never anything else a bus message might carry.
-          const { keys } = message as { keys?: unknown };
-          if (!Array.isArray(keys) || !keys.every((key) => typeof key === "string")) return;
-          send(`data: ${JSON.stringify({ keys })}\n\n`);
-        });
-      } catch (error) {
-        console.error("realtime join failed", error);
-        closed = true;
-        controller.error(error);
-        return;
-      }
-      if (closed) return leave();
-
-      send("retry: 5000\n\nevent: ready\ndata: {}\n\n");
+      // Pings start before the join: while Valkey is down the join waits, and proxies must not time the stream out.
       let beats = 0;
       heartbeat.timer = setInterval(() => {
         send(": ping\n\n");
@@ -89,6 +74,29 @@ export function createEventStream(opts: EventStreamOptions): ReadableStream<Uint
             close();
           });
       }, heartbeatMs);
+
+      try {
+        leave = await hub.join(
+          channel,
+          (message) => {
+            // Only the router names go out, never anything else a bus message might carry.
+            const { keys } = message as { keys?: unknown };
+            if (!Array.isArray(keys) || !keys.every((key) => typeof key === "string")) return;
+            send(`data: ${JSON.stringify({ keys })}\n\n`);
+          },
+          signal,
+        );
+      } catch (error) {
+        if (closed) return;
+        console.error("realtime join failed", error);
+        closed = true;
+        clearInterval(heartbeat.timer);
+        controller.error(error);
+        return;
+      }
+      if (closed) return leave();
+
+      send("retry: 5000\n\nevent: ready\ndata: {}\n\n");
     },
     cancel() {
       close();

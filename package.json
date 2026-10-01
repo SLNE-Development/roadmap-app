@@ -16,6 +16,7 @@
     "test:plugin": "node --test \"plugin/**/*.test.mjs\"",
     "db:generate": "drizzle-kit generate",
     "build:worker": "node scripts/build-worker.mjs",
+    "check:worker-imports": "tsx --conditions=react-server -e \"import('./src/worker/consumers/index.ts')\"",
     "worker:dev": "tsx watch --conditions=react-server --env-file=.env src/worker/main.ts",
     "db:seed": "tsx --env-file=.env scripts/seed-demo.ts"
   },
