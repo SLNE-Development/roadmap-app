@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_DETAILS_TEMPLATE, DEFAULT_DISASTER_TEMPLATE, DEFAULT_RESOLVED_TEMPLATE } from "./event-templates";
-import { buildDetailsEmbed, buildDisasterEmbed, buildResolvedEmbed, GERMAN, plannedParts, type PlanSettings } from "./event-messages";
+import { buildDetailsEmbed, buildDisasterEmbed, buildResolvedEmbed, eventPayload, GERMAN, plannedParts, type PlanSettings } from "./event-messages";
 import { textLength } from "./discord-limits";
 
 const ROLE = "123456789012345678";
@@ -109,5 +109,56 @@ describe("plannedParts", () => {
 describe("GERMAN", () => {
   it("holds the test marker", () => {
     expect(GERMAN.testMarker).toBe("Testnachricht (nur für das Team)");
+  });
+});
+
+describe("eventPayload", () => {
+  const base = { ...request, brief: "# Piratenfest\n\nKommt vorbei und segelt mit uns.\n\nZweiter Absatz." };
+
+  it("takes the first paragraph after the heading and ends with the German docs line", () => {
+    const p = eventPayload(base);
+    expect(p.description).toBe("Kommt vorbei und segelt mit uns.\n\nInfos: https://example.com/infos");
+    expect(p.name).toBe("Piratenfest");
+    expect(p.location).toBe("Hafenwelt");
+  });
+
+  it("keeps the description within 1000 characters, docs line included", () => {
+    const url = "https://example.com/" + "a".repeat(470);
+    const p = eventPayload({ ...base, brief: "x".repeat(2000), eventDocsUrl: url });
+    expect(textLength(p.description)).toBeLessThanOrEqual(1000);
+    expect(p.description.endsWith(`Infos: ${url}`)).toBe(true);
+    expect(textLength(eventPayload({ ...base, brief: "y".repeat(2000) }).description)).toBeLessThanOrEqual(1000);
+    expect(eventPayload({ ...base, brief: "y".repeat(2000) }).description).toContain("…");
+  });
+
+  it("omits the docs line without a docs url", () => {
+    expect(eventPayload({ ...base, eventDocsUrl: null }).description).toBe("Kommt vorbei und segelt mit uns.");
+  });
+
+  it("cuts a 120-character title to 100 with an ellipsis", () => {
+    const p = eventPayload({ ...base, title: "t".repeat(120) });
+    expect(textLength(p.name)).toBe(100);
+    expect(p.name.endsWith("…")).toBe(true);
+  });
+
+  it("ends after the duration, two hours by default, and falls back for the location", () => {
+    expect(eventPayload(base).endsAt.toISOString()).toBe("2026-10-17T17:30:00.000Z");
+    const p = eventPayload({ ...base, durationMinutes: null, where: "" });
+    expect(p.endsAt.toISOString()).toBe("2026-10-17T18:00:00.000Z");
+    expect(p.location).toBe("Auf dem Server");
+  });
+
+  it("passes the banner through", () => {
+    expect(eventPayload(base, "data:image/png;base64,AA").imageDataUri).toBe("data:image/png;base64,AA");
+    expect("imageDataUri" in eventPayload(base)).toBe(false);
+  });
+});
+
+describe("the event link", () => {
+  it("is its own last message while the embed url stays the docs url", () => {
+    const parts = plannedParts(post({ text: "Hallo" }), request, settings, { discordEventUrl: "https://discord.com/events/1/2" });
+    expect(parts.at(-1)).toMatchObject({ kind: "event-link", content: "https://discord.com/events/1/2" });
+    expect(buildDetailsEmbed(request, settings).url).toBe("https://example.com/infos");
+    expect(JSON.stringify(buildDetailsEmbed(request, settings))).not.toContain("discord.com/events");
   });
 });

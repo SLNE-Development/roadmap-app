@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eventPost, eventRequest, eventSettings, eventTodo, eventUpload, requestLog } from "@/db/schema";
 import { GERMAN } from "@/lib/event-messages";
 import * as secrets from "@/lib/event-secrets";
-import * as events from "./events-post";
+import * as events from "./events-discord-event";
 import { setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
 import { deletePost, editPost, postDisaster, resolveDisaster, resumePost, savePostDraft, startPost, testSend } from "@/lib/ops/request-posts";
 import { draftPost, longText, postWorld, PUBLIC_TOKEN, PUBLIC_URL, ROLE_ID, stubEncryptionKey, TEAM_TOKEN } from "@/test/post-fixtures";

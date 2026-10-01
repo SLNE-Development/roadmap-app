@@ -202,6 +202,14 @@
     "deleted": "Project deleted",
     "deletedHelp": "The project built for this request no longer exists."
   },
+  "discordEvent": {
+    "created": "Discord event created for {date}.",
+    "open": "Open event",
+    "noToken": "No Discord event: bot token not set.",
+    "noGuild": "No Discord event: server ID not set.",
+    "notYet": "No Discord event yet. It is created with the announcement.",
+    "noDocs": "Add an event docs link: the Discord event description needs it."
+  },
   "briefBanner": {
     "title": "Brief changed since spec v{version}",
     "changes": "{count, plural, one {# brief version} other {# brief versions}} since the spec was written.",
@@ -305,6 +313,13 @@
     "staffWebhookHelp": "Receives test sends only.",
     "botToken": "Bot token",
     "botTokenHelp": "Creates the scheduled Discord event.",
+    "botStatus": "Bot token: {status} (last checked {date})",
+    "botStatusUnknown": "Bot token: not used yet",
+    "botStatusValue": {
+      "ok": "ok",
+      "denied": "denied",
+      "missing-permissions": "missing permissions"
+    },
     "secret": {
       "set": "Set",
       "notSet": "Not set",

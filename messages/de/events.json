@@ -202,6 +202,14 @@
     "deleted": "Projekt gelöscht",
     "deletedHelp": "Das für diese Anfrage gebaute Projekt gibt es nicht mehr."
   },
+  "discordEvent": {
+    "created": "Discord-Event angelegt für {date}.",
+    "open": "Event öffnen",
+    "noToken": "Kein Discord-Event: Bot-Token nicht gesetzt.",
+    "noGuild": "Kein Discord-Event: Server-ID nicht gesetzt.",
+    "notYet": "Noch kein Discord-Event. Es wird mit der Ankündigung angelegt.",
+    "noDocs": "Event-Docs-Link ergänzen: Die Beschreibung des Discord-Events braucht ihn."
+  },
   "briefBanner": {
     "title": "Briefing geändert seit Spec v{version}",
     "changes": "{count, plural, one {# Briefing-Version} other {# Briefing-Versionen}} seit dem Schreiben der Spec.",
@@ -305,6 +313,13 @@
     "staffWebhookHelp": "Empfängt nur Testsendungen.",
     "botToken": "Bot-Token",
     "botTokenHelp": "Legt das geplante Discord-Event an.",
+    "botStatus": "Bot-Token: {status} (zuletzt geprüft {date})",
+    "botStatusUnknown": "Bot-Token: noch nicht benutzt",
+    "botStatusValue": {
+      "ok": "in Ordnung",
+      "denied": "abgelehnt",
+      "missing-permissions": "fehlende Berechtigungen"
+    },
     "secret": {
       "set": "Gesetzt",
       "notSet": "Nicht gesetzt",

@@ -1,4 +1,5 @@
 import type { EventRequestRow, EventSettingsRow } from "@/db/schema";
+import type { ScheduledEventBody } from "./discord-bot";
 import { messageProblems, splitText, textLength, LIMITS, type Embed } from "./discord-limits";
 import { fillPlaceholders, placeholderValues, PLACEHOLDERS, type Placeholder } from "./event-placeholders";
 
@@ -51,6 +52,9 @@ export const GERMAN = {
   /** The reply under a resolved disaster message. */
   backOnline: (event: string): string => `${event} ist wieder online.`,
 } as const;
+
+/** The location of a Discord event without a `where`. */
+const GERMAN_SERVER = "Auf dem Server";
 
 const NO_NOTE: readonly Placeholder[] = PLACEHOLDERS.filter((p) => p !== "note");
 
@@ -128,4 +132,46 @@ export function plannedParts(post: PlanPost, request: PlanRequest, settings: Pla
     if (problems.length > 0) throw new Error(`Message part ${i + 1} does not fit Discord: ${problems.join("; ")}.`);
   });
   return parts;
+}
+
+/** What the Discord event of a request is built from: the request's fields and its brief. */
+export type PayloadRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl"> & { brief: string };
+
+const EVENT_NAME_MAX = 100;
+const EVENT_DESCRIPTION_MAX = 1000;
+const EVENT_BRIEF_MAX = 700;
+const DEFAULT_DURATION_MINUTES = 120;
+
+/** `text` cut to `max` code points, ending with `…` when it was cut. */
+function cut(text: string, max: number): string {
+  const chars = Array.from(text);
+  return chars.length <= max ? text : `${chars.slice(0, max - 1).join("").trimEnd()}…`;
+}
+
+/** The first paragraph of a brief that is more than a heading; empty for an empty brief. */
+function firstParagraph(brief: string): string {
+  const paragraphs = brief.replace(/\r\n/g, "\n").split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p !== "");
+  return paragraphs.find((p) => !/^#{1,6}\s/.test(p)) ?? paragraphs[0]?.replace(/^#{1,6}\s+/, "") ?? "";
+}
+
+/**
+ * The Discord scheduled event of a request. The description is the brief's first paragraph (at most 700 characters) and,
+ * when the request has an event docs url, a final German `Infos:` line with it; the whole stays within Discord's 1,000. A
+ * request without a start has no event: the caller checks `startsAt` first.
+ *
+ * @throws Error when the request has no start
+ */
+export function eventPayload(request: PayloadRequest, imageDataUri?: string): ScheduledEventBody {
+  if (!request.startsAt) throw new Error("A request without a start date has no Discord event.");
+  const infos = request.eventDocsUrl ? `Infos: ${request.eventDocsUrl}` : "";
+  const room = EVENT_DESCRIPTION_MAX - (infos ? textLength(infos) + 2 : 0);
+  const lead = cut(firstParagraph(request.brief), Math.min(EVENT_BRIEF_MAX, room));
+  return {
+    name: cut(request.title, EVENT_NAME_MAX),
+    description: [lead, infos].filter((part) => part !== "").join("\n\n"),
+    startsAt: request.startsAt,
+    endsAt: new Date(request.startsAt.getTime() + (request.durationMinutes ?? DEFAULT_DURATION_MINUTES) * 60_000),
+    location: request.where.trim() || GERMAN_SERVER,
+    ...(imageDataUri ? { imageDataUri } : {}),
+  };
 }

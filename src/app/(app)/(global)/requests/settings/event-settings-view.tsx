@@ -110,6 +110,13 @@ export function EventSettingsView() {
           <SecretField label={ts("teamWebhook")} help={ts("teamWebhookHelp")} state={settings.secrets.teamWebhook} editable={me.isAdmin} pending={saveSecrets.isPending} onSave={secret("teamWebhook")} />
           <SecretField label={ts("staffWebhook")} help={ts("staffWebhookHelp")} state={settings.secrets.staffWebhook} editable={me.isAdmin} pending={saveSecrets.isPending} onSave={secret("staffWebhook")} />
           <SecretField label={ts("botToken")} help={ts("botTokenHelp")} state={settings.secrets.botToken} editable={me.isAdmin} pending={saveSecrets.isPending} onSave={secret("botToken")} />
+          {settings.secrets.botToken.set && (
+            <p role="status" className="text-[13px] text-fg-2">
+              {settings.botStatus
+                ? ts("botStatus", { status: ts(`botStatusValue.${settings.botStatus}`), date: settings.botCheckedAt ? format.dateTime(settings.botCheckedAt, { dateStyle: "medium", timeStyle: "short" }) : "" })
+                : ts("botStatusUnknown")}
+            </p>
+          )}
         </FieldGroup>
       </Panel>
       <form

@@ -73,7 +73,7 @@ export const requestsRouter = router({
   /** Changes the title, date, duration, place, docs link or requester. */
   update: protectedProcedure
     .input(z.object({ ...R, ...updateRequestInput.shape }))
-    .mutation(({ ctx, input: { id, ...patch } }) => updateRequest(ctx.db, ctx.actor, id, patch)),
+    .mutation(({ ctx, input: { id, ...patch } }) => updateRequest(ctx.db, ctx.actor, id, patch, bullQueue(QUEUE.deliver))),
 
   /** Saves the brief as the next version. */
   saveBrief: protectedProcedure
@@ -103,7 +103,7 @@ export const requestsRouter = router({
   /** Cancels an accepted request with a reason. */
   cancel: protectedProcedure
     .input(z.object({ ...R, reason: z.string() }))
-    .mutation(({ ctx, input }) => cancelRequest(ctx.db, ctx.actor, input.id, input.reason)),
+    .mutation(({ ctx, input }) => cancelRequest(ctx.db, ctx.actor, input.id, input.reason, bullQueue(QUEUE.deliver))),
 
   /** Marks an event-week request as done. */
   markDone: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => markDone(ctx.db, ctx.actor, input.id)),

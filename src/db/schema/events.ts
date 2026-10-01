@@ -269,6 +269,12 @@ export const eventCheckin = pgTable(
   (t) => [primaryKey({ columns: [t.requestId, t.userId] })],
 );
 
+/** What Discord said to the bot token last. */
+export const BOT_STATUSES = ["ok", "denied", "missing-permissions"] as const;
+
+/** One of {@link BOT_STATUSES}. */
+export type BotStatus = (typeof BOT_STATUSES)[number];
+
 /**
  * The event settings: one row with the id `default`, created on first read. The `*Enc` columns hold encrypted webhook
  * URLs and the bot token (written by admins only, decrypted only by the worker); the `*Hint` columns the last four
@@ -284,6 +290,9 @@ export const eventSettings = pgTable("event_settings", {
   staffWebhookHint: text("staff_webhook_hint"),
   botTokenEnc: text("bot_token_enc"),
   botTokenHint: text("bot_token_hint"),
+  /** What Discord last said to the bot token: `ok`, `denied` or `missing-permissions`; null until a call was made. */
+  botStatus: text("bot_status", { enum: BOT_STATUSES }),
+  botCheckedAt: timestamp("bot_checked_at", tz),
   postAs: text("post_as").notNull().default("Event-Team"),
   pingRoleId: text("ping_role_id"),
   guildId: text("guild_id"),

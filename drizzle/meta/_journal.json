@@ -267,6 +267,13 @@
       "when": 1790870974364,
       "tag": "0037_event-post-resolve",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790872616014,
+      "tag": "0038_event-bot-status",
+      "breakpoints": true
     }
   ]
 }

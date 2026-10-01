@@ -12,6 +12,7 @@ import { readUploadForWorker } from "@/lib/ops/uploads";
 import { QUEUE } from "@/lib/queue";
 import type { WorkerDeps } from "../deps";
 import { registerJob } from "../jobs";
+import { DiscordEventRetry, ensureDiscordEvent } from "./events-discord-event";
 
 /** How long the lock of one post lives at most; a part takes at most 10 s and a post has a handful. */
 const LOCK_SECONDS = 300;
@@ -27,17 +28,6 @@ const jobData = z.object({
   /** Re-queues behind a held lock so far. */
   busy: z.number().int().min(0).optional(),
 });
-
-/**
- * Makes sure the request has its Discord scheduled event before the first send of an announcement. Task 13 fills this in
- * with the bot-token client; until then there is no event and the card is the details embed.
- *
- * @returns the Discord event id, or null while there is none
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the stub ignores its arguments until Task 13
-export async function ensureDiscordEvent(_deps: WorkerDeps, _request: EventRequestRow): Promise<string | null> {
-  return null;
-}
 
 const EXTENSION: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
 
@@ -77,11 +67,11 @@ async function update(db: Db, post: EventPostRow, set: Partial<typeof eventPost.
 }
 
 /** Marks the post posted, ticks its to-do for the starter and logs it, in one transaction. */
-async function finish(db: Db, post: EventPostRow, now: Date): Promise<void> {
+async function finish(db: Db, post: EventPostRow, now: Date, note: string | null): Promise<void> {
   await db.transaction(async (tx) => {
     await tx
       .update(eventPost)
-      .set({ status: "posted", postedAt: now, lastError: null, updatedAt: now })
+      .set({ status: "posted", postedAt: now, lastError: note, updatedAt: now })
       .where(and(eq(eventPost.id, post.id), eq(eventPost.attempt, post.attempt)));
     const templateKey = POST_TODO_KEY[post.kind];
     if (templateKey) {
@@ -95,7 +85,7 @@ async function finish(db: Db, post: EventPostRow, now: Date): Promise<void> {
 }
 
 /** Sends every part without a message id, in order, storing each id the moment Discord answers. */
-async function sendParts(deps: WorkerDeps, post: EventPostRow, settings: PostSettings, url: string, retry: number): Promise<void> {
+async function sendParts(deps: WorkerDeps, post: EventPostRow, settings: PostSettings, url: string, retry: number, note: string | null): Promise<void> {
   const target = POST_TARGET[post.kind];
   const parts = post.parts.map((p) => ({ ...p }));
   for (let i = 0; i < parts.length; i++) {
@@ -133,7 +123,7 @@ async function sendParts(deps: WorkerDeps, post: EventPostRow, settings: PostSet
     await update(deps.db, post, { status: "partial", lastError: `Sending part ${i + 1} of the ${post.kind} post failed: ${result.error.message}` });
     throw result.error;
   }
-  await finish(deps.db, post, deps.now());
+  await finish(deps.db, post, deps.now(), note);
 }
 
 /**
@@ -175,9 +165,29 @@ async function runPost(deps: WorkerDeps, postId: string, attempt: number, retry:
   }
   const post: EventPostRow = { ...loaded, status: "sending" };
   if (loaded.status !== "sending") await update(deps.db, loaded, { status: "sending" });
-  // Task 13 uses the id to make the card an event link; without the bot token the card is the details embed.
-  if (post.kind === "announcement" && secrets.botToken && !request.discordEventId && post.parts.every((p) => p.messageId === null)) await ensureDiscordEvent(deps, request);
-  await sendParts(deps, post, settings, url, retry);
+  // The first send of an announcement makes sure the Discord event exists; its link replaces the details card as the last message.
+  let note: string | null = null;
+  if (post.kind === "announcement" && secrets.botToken && post.parts.every((p) => p.messageId === null)) {
+    try {
+      const event = await ensureDiscordEvent(deps, request, settings, secrets, (message) => (note = message));
+      const last = post.parts.at(-1);
+      if (event && last?.kind === "embed" && !post.embed) {
+        post.parts = [...post.parts.slice(0, -1), { kind: "event-link", content: event.url, messageId: null, sentAt: null }];
+        await update(deps.db, post, { parts: post.parts });
+      }
+    } catch (error) {
+      if (!(error instanceof DiscordEventRetry)) throw error;
+      const n = retry + 1;
+      if (n <= MAX_RETRIES) {
+        await update(deps.db, post, { lastError: "Discord is rate-limiting the bot token; sending goes on shortly." });
+        await deps.queue("deliver").add("events.post", { postId: post.id, attempt: post.attempt, retry: n }, { jobId: `event-post-${post.id}-${post.attempt}-r${n}`, delayMs: error.delayMs, attempts: 5, backoffMs: 5000 });
+        return;
+      }
+      // The event never blocks the announcement: past the cap it goes out with the details card.
+      note = "Discord event could not be created (rate limited)";
+    }
+  }
+  await sendParts(deps, post, settings, url, retry, note);
 }
 
 /**

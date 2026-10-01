@@ -254,6 +254,32 @@ function LinkCard({ detail }: { detail: RequestDetail }) {
   );
 }
 
+/** The status line of the request's Discord event: its link, or why there is none and what would help. */
+function DiscordEventLine({ detail }: { detail: RequestDetail }) {
+  const t = useTranslations("events.discordEvent");
+  const format = useFormatter();
+  const { request, discordEvent } = detail;
+  if (request.status !== "accepted" && request.status !== "event_week" && discordEvent.url === null) return null;
+  const when = request.startsAt ? format.dateTime(request.startsAt, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+  return (
+    <div role="status" className="flex flex-col gap-1 border bg-card px-4 py-3 text-[13.5px]">
+      <p>
+        {discordEvent.url ? (
+          <>
+            {t("created", { date: when })}{" "}
+            <a href={discordEvent.url} target="_blank" rel="noreferrer" className="text-brand-strong hover:underline">
+              {t("open")}
+            </a>
+          </>
+        ) : (
+          t(discordEvent.reason === "no-token" ? "noToken" : discordEvent.reason === "no-guild" ? "noGuild" : "notYet")
+        )}
+      </p>
+      {discordEvent.reason !== "no-token" && discordEvent.reason !== "no-guild" && !request.eventDocsUrl && <p className="text-[13px] text-destructive">{t("noDocs")}</p>}
+    </div>
+  );
+}
+
 /** The build progress of the linked project; renders nothing while the request has no project. */
 function ProgressPanel({ requestId }: { requestId: string }) {
   const trpc = useTRPC();
@@ -398,6 +424,7 @@ export function RequestView({ id, tab }: { id: string; tab: "brief" | "questions
       )}
       {!canEdit && <p className="border bg-secondary px-3 py-2 text-[13px] text-fg-2">{t("page.readOnly")}</p>}
       <LinkCard detail={detail} />
+      <DiscordEventLine detail={detail} />
       <ProgressPanel requestId={id} />
       {canEdit && open > 0 && (
         <p role="status" className="flex flex-wrap items-center gap-3 border border-primary/40 bg-secondary px-3 py-2 text-[13px]">

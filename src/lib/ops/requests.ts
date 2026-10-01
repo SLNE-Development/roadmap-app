@@ -5,9 +5,11 @@ import type { Db, Executor, Tx } from "@/db/types";
 import { diffDocuments, type DiffHunk } from "@/lib/diff";
 import { canTransition, isOpen, REQUEST_STATUSES, type RequestStatus } from "@/lib/event-status";
 import { newId } from "@/lib/id";
+import { addWithTimeout, type JobQueue } from "@/lib/queue";
 import { logChange } from "./log";
 import { authorFields, type Actor, type AuthorFields } from "./actor";
 import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
+import { botConfigured, discordEventState, type DiscordEventState } from "./event-settings";
 import { briefAudienceIds, developerIds, notifyRequest } from "./request-notify";
 import { canAcceptRequests, canDevelop, eventFlags, requestAccess, type RequestAccess, type RequestRole } from "./request-access";
 import { ensurePrepTodos, fallbackReady, redateTodos, seedRequestDefaults } from "./request-setup";
@@ -100,6 +102,22 @@ export async function onDateChanged(tx: Tx, actor: Actor, request: EventRequestR
   await logChange(tx, actor, { projectId: request.projectId, entity: "project", entityId: request.projectId, field: "deadline", oldValue: stamp(current.deadline), newValue: stamp(end) });
 }
 
+/**
+ * Queues the job that brings the request's Discord event in line (`update`) or removes it (`delete`), once the change is
+ * committed. Only a request with a stored event id on a server with a bot token and guild id has one; a minute's changes
+ * share one job. A queue that is down never fails the change that was already saved: the event is brought in line by the
+ * next change.
+ */
+async function queueDiscordEventSync(db: Db, queue: JobQueue | undefined, request: Pick<EventRequestRow, "id" | "discordEventId">, action: "update" | "delete"): Promise<void> {
+  if (!queue || !request.discordEventId || !(await botConfigured(db))) return;
+  const minute = Math.floor(Date.now() / 60_000);
+  try {
+    await addWithTimeout(queue, "events.discord-event", { requestId: request.id, action }, { jobId: `event-dev-${request.id}-${action}-${minute}`, attempts: 3, backoffMs: 10_000 });
+  } catch (error) {
+    console.error(`could not queue the Discord event ${action} of request ${request.id}: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
+}
+
 /** Locks the request row for the rest of the transaction so concurrent writes queue up. */
 export async function lockRequest(tx: Tx, requestId: string): Promise<EventRequestRow> {
   const [row] = await tx.select().from(eventRequest).where(eq(eventRequest.id, requestId)).for("update").limit(1);
@@ -171,12 +189,15 @@ export async function createRequest(db: Db, actor: Actor, raw: unknown): Promise
 /**
  * Changes fields of a request and logs one row per changed field. Requesters edit their open requests, managers and admins
  * every request (also closed ones); only managers change the requester. A past date is refused once the request is submitted.
+ * A changed title, date, duration, place or docs link queues one `events.discord-event` update when the request has a Discord
+ * event, after the change is committed; without a `queue` nothing is queued.
  *
  * @throws ForbiddenError, ConflictError (closed request), InvalidError
  */
-export async function updateRequest(db: Db, actor: Actor, requestId: string, raw: unknown): Promise<EventRequestRow> {
+export async function updateRequest(db: Db, actor: Actor, requestId: string, raw: unknown, queue?: JobQueue): Promise<EventRequestRow> {
   const input = updateRequestInput.parse(raw);
-  return db.transaction(async (tx) => {
+  let onEvent = false;
+  const saved = await db.transaction(async (tx) => {
     await lockRequest(tx, requestId);
     const { request, flags } = await editAccess(tx, actor, requestId);
     const manager = flags.isAdmin || flags.isEventManager;
@@ -213,9 +234,15 @@ export async function updateRequest(db: Db, actor: Actor, requestId: string, raw
     if (changes.some((c) => c.field === "startsAt" || c.field === "durationMinutes")) {
       await onDateChanged(tx, actor, updated, { startsAt: request.startsAt, durationMinutes: request.durationMinutes });
     }
+    onEvent = changes.some((c) => EVENT_FIELDS.includes(c.field));
     return updated;
   });
+  if (onEvent) await queueDiscordEventSync(db, queue, saved, "update");
+  return saved;
 }
+
+/** The request fields the Discord event shows. */
+const EVENT_FIELDS = ["title", "startsAt", "durationMinutes", "where", "eventDocsUrl"];
 
 /** The statuses in which the brief can be edited. */
 const BRIEF_EDITABLE: readonly RequestStatus[] = ["draft", "submitted", "accepted", "event_week"];
@@ -380,10 +407,15 @@ export function withdrawRequest(db: Db, actor: Actor, requestId: string): Promis
   return transition(db, actor, requestId, (tx) => editAccess(tx, actor, requestId), (tx, request) => moveTo(tx, actor, request, "withdrawn"));
 }
 
-/** Cancels an accepted or event-week request; managers, admins and developers only. The reason is stored as the log's new value. */
-export async function cancelRequest(db: Db, actor: Actor, requestId: string, rawReason: unknown): Promise<EventRequestRow> {
+/**
+ * Cancels an accepted or event-week request; managers, admins and developers only. The reason is stored as the log's new
+ * value. A request with a Discord event queues `events.discord-event` to delete it once the cancel is committed.
+ */
+export async function cancelRequest(db: Db, actor: Actor, requestId: string, rawReason: unknown, queue?: JobQueue): Promise<EventRequestRow> {
   const reason = reasonSchema.parse(rawReason);
-  return transition(db, actor, requestId, (tx) => manageOrDevelop(tx, actor, requestId), (tx, request) => moveTo(tx, actor, request, "cancelled", {}, reason));
+  const cancelled = await transition(db, actor, requestId, (tx) => manageOrDevelop(tx, actor, requestId), (tx, request) => moveTo(tx, actor, request, "cancelled", {}, reason));
+  await queueDiscordEventSync(db, queue, cancelled, "delete");
+  return cancelled;
 }
 
 /**
@@ -503,6 +535,8 @@ export interface RequestDetail {
   /** Whether the actor may open the linked project (a member or an admin). */
   projectOpen: boolean;
   role: RequestRole;
+  /** Where the request's Discord event stands. */
+  discordEvent: DiscordEventState;
 }
 
 /**
@@ -534,6 +568,7 @@ export async function getRequest(db: Db, actor: Actor, requestId: string): Promi
     canDevelop: await canDevelop(db, actor, requestId),
     projectOpen: linked !== undefined && (membership !== undefined || flags.isAdmin),
     role,
+    discordEvent: await discordEventState(db, request),
   };
 }
 

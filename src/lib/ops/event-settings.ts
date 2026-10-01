@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { eventSettings, eventUpload, type EventSettingsRow } from "@/db/schema";
+import { eventSettings, eventUpload, type BotStatus, type EventRequestRow, type EventSettingsRow } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { encryptSecret } from "@/lib/crypto";
+import { scheduledEventUrl } from "@/lib/discord-bot";
 import { fillPlaceholders, placeholderValues, PLACEHOLDERS, type Placeholder } from "@/lib/event-placeholders";
 import { DEFAULT_EVENT_TIME_ZONE } from "@/lib/event-prep-template";
 import { detailsTemplateSchema, embedTemplateSchema, type DetailsTemplate, type EmbedTemplate } from "@/lib/event-templates";
@@ -37,6 +38,9 @@ export interface EventSettingsView {
   resolvedTemplate: EmbedTemplate;
   detailsTemplate: DetailsTemplate;
   updatedAt: Date;
+  /** What Discord last said to the bot token, and when; null until the first call. */
+  botStatus: BotStatus | null;
+  botCheckedAt: Date | null;
   secrets: { publicWebhook: SecretState; teamWebhook: SecretState; staffWebhook: SecretState; botToken: SecretState };
 }
 
@@ -127,6 +131,30 @@ export async function loadPostSettings(db: Executor): Promise<PostSettings> {
   };
 }
 
+/**
+ * Whether Discord events can be kept in sync: a bot token and a guild id are both set. Reads only whether the token is
+ * stored, never the token.
+ */
+export async function botConfigured(db: Executor): Promise<boolean> {
+  const [row] = await db.select({ token: eventSettings.botTokenEnc, guildId: eventSettings.guildId }).from(eventSettings).where(eq(eventSettings.id, SETTINGS_ID)).limit(1);
+  return row?.token != null && row.guildId != null;
+}
+
+/** Where the Discord event of a request stands, for its page: the link once it exists, else why there is none. */
+export interface DiscordEventState {
+  url: string | null;
+  reason: "created" | "no-token" | "no-guild" | "not-yet";
+}
+
+/** Reads the state of a request's Discord event; reads only whether a token is stored, never the token. */
+export async function discordEventState(db: Executor, request: Pick<EventRequestRow, "discordEventId">): Promise<DiscordEventState> {
+  const [row] = await db.select({ token: eventSettings.botTokenEnc, guildId: eventSettings.guildId }).from(eventSettings).where(eq(eventSettings.id, SETTINGS_ID)).limit(1);
+  if (request.discordEventId && row?.guildId) return { url: scheduledEventUrl(row.guildId, request.discordEventId), reason: "created" };
+  if (row?.token == null) return { url: null, reason: "no-token" };
+  if (row.guildId == null) return { url: null, reason: "no-guild" };
+  return { url: null, reason: "not-yet" };
+}
+
 /** Whether the actor holds an event role (manager, developer) or is an admin. */
 async function requireReader(db: Executor, actor: Actor): Promise<void> {
   const flags = await eventFlags(db, actor);
@@ -159,6 +187,8 @@ export async function getEventSettings(db: Db, actor: Actor): Promise<EventSetti
     resolvedTemplate: r.resolvedTemplate,
     detailsTemplate: r.detailsTemplate,
     updatedAt: r.updatedAt,
+    botStatus: r.botStatus,
+    botCheckedAt: r.botCheckedAt,
     secrets: {
       publicWebhook: state(r.publicWebhookEnc, r.publicWebhookHint),
       teamWebhook: state(r.teamWebhookEnc, r.teamWebhookHint),
