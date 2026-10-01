@@ -27,6 +27,7 @@ clarifying questions.
 | Asking for or receiving review | `surf-roadmap:requesting-code-review`, `surf-roadmap:receiving-code-review` |
 | Isolated workspace | `surf-roadmap:using-git-worktrees` |
 | Work on a branch is complete | `surf-roadmap:finishing-a-development-branch` |
+| A system belongs to an event request, or its brief changed | `surf-roadmap:event-requests` |
 | A decision that needs a human was made | `surf-roadmap:new-adr` |
 | Something cannot be decided now | `surf-roadmap:open-question` |
 | Any gamemode or product work: status, updates, blockers | `surf-roadmap:track-work` |

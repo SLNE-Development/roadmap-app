@@ -54,7 +54,7 @@ behave as usual.
 | `execute-plan` | superpowers `executing-plans` |
 | `subagent-driven-development`, `dispatching-parallel-agents`, `using-git-worktrees`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `requesting-code-review`, `receiving-code-review`, `finishing-a-development-branch`, `writing-skills` | the superpowers skills of the same name |
 | `new-adr` | surf-claude `new-adr` |
-| `open-question`, `track-work` | — |
+| `open-question`, `track-work`, `event-requests` | — |
 
 The forked skills are adapted from superpowers 6.4.1 by Jesse Vincent, MIT
 licensed; see `LICENSES/superpowers-MIT.txt`.
@@ -62,4 +62,4 @@ licensed; see `LICENSES/superpowers-MIT.txt`.
 ## Commands
 
 `/surf-roadmap:plan <idea>`, `/surf-roadmap:status`, `/surf-roadmap:next`,
-`/surf-roadmap:setup`.
+`/surf-roadmap:setup`, `/surf-roadmap:requests [update <request-id> | list | <request-id>]`.

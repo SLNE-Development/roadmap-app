@@ -11,6 +11,7 @@ import { AttentionList } from "@/components/overview/attention-list";
 import { CustomizeDialog } from "@/components/overview/customize-dialog";
 import { EmptyState, Page, PageHeader, Panel, ProgressBar } from "@/components/page";
 import { PersonAvatar } from "@/components/person-avatar";
+import { BriefBanner } from "@/components/projects/brief-banner";
 import { Button } from "@/components/ui/button";
 import type { ColumnCategory } from "@/db/schema";
 import { resolvePanels, type PanelId } from "@/lib/overview-panels";
@@ -284,6 +285,8 @@ export function OverviewView({ slug }: { slug: string }) {
       >
         {chips}
       </PageHeader>
+
+      <BriefBanner project={slug} canEdit={canEdit} />
 
       {wide && <Fragment key="status">{panelNodes.status}</Fragment>}
 

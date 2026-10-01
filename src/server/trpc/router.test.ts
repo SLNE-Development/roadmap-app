@@ -326,6 +326,8 @@ describe("appRouter", () => {
       expect(await caller(db, requester).requests.progress({ id: request.id })).toEqual({ total: 0, done: 0, doing: 0, blocked: 0, todo: 0, percent: 0, archived: false });
       await expect(caller(db, stranger).requests.progress({ id: request.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
       expect(await caller(db, developer).requests.forProject({ project: "party" })).toMatchObject({ id: request.id, canView: true });
+      expect(await caller(db, developer).requests.briefStatus({ project: "party" })).toMatchObject({ requestId: request.id, state: "current" });
+      expect(await caller(db, developer).requests.briefStatus({ id: request.id })).toMatchObject({ requestId: request.id, state: "current" });
       expect(await caller(db, requester).requests.get({ id: request.id })).toMatchObject({ canAccept: false, projectOpen: false });
       expect(await caller(db, developer).requests.get({ id: request.id })).toMatchObject({ canAccept: true, projectOpen: true });
     });

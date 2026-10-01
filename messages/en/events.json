@@ -192,5 +192,24 @@
     "open": "Open project {name}",
     "deleted": "Project deleted",
     "deletedHelp": "The project built for this request no longer exists."
+  },
+  "briefBanner": {
+    "title": "Brief changed since spec v{version}",
+    "changes": "{count, plural, one {# brief version} other {# brief versions}} since the spec was written.",
+    "notApplied": "This system was linked to an existing spec; the brief was not applied to it.",
+    "show": "Show changes",
+    "hide": "Hide changes",
+    "diffTitle": "Changes from brief version {from} to version {to}",
+    "update": "Update from brief"
+  },
+  "updateFromBrief": {
+    "title": "Update from brief",
+    "description": "Paste this into your own agent. It reads the brief changes and updates the spec, plan and tasks.",
+    "commandLabel": "Command",
+    "explain": "The app runs nothing itself: your agent compares the changed brief with the spec, then adds or changes steps and tasks without touching finished work.",
+    "copy": "Copy command",
+    "copied": "Command copied",
+    "copyFailed": "Copying failed. Select the command and copy it by hand.",
+    "close": "Close"
   }
 }

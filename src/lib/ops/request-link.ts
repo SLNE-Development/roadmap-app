@@ -11,7 +11,7 @@ import { ConflictError, ForbiddenError, InvalidError, isUniqueViolation } from "
 import { logChange } from "./log";
 import { findSystem, lockProject, type SystemRow } from "./lookup";
 import { insertProject, listProjects } from "./projects";
-import { canAcceptRequests, eventFlags, requestAccess, requestViewableBy } from "./request-access";
+import { canAcceptRequests, canViewRequest, eventFlags, requestAccess, requestViewableBy } from "./request-access";
 import { notifyRequest } from "./request-notify";
 import { eventEnd, lockRequest, logRequest, moveTo } from "./requests";
 import { insertDomain, insertPhase } from "./structure";
@@ -253,4 +253,67 @@ export async function requestOfProject(db: Executor, actor: Actor, projectSlug: 
     .orderBy(asc(eventRequest.acceptedAt), asc(eventRequest.id))
     .limit(1);
   return row ?? null;
+}
+
+/** Whether a request's spec still matches its brief. */
+export interface BriefStatus {
+  requestId: string;
+  /** The request title, only when the actor may view the request. */
+  requestTitle: string | null;
+  /** The slug of the request's system, for showing the banner on that system's page only. */
+  systemSlug: string | null;
+  briefVersion: number;
+  /** The spec version the latest basis was recorded for; null while no basis exists. */
+  specVersion: number | null;
+  basisBriefVersion: number | null;
+  /** `changed`: the brief moved on since the spec's basis; `not_applied`: no basis (linked to an existing system); else `current`. */
+  state: "current" | "changed" | "not_applied";
+  /** The number of brief versions since the basis; 0 unless `changed`. */
+  changeCount: number;
+}
+
+/** Builds the status of a request row for an actor who may see its project. */
+async function statusOf(db: Executor, request: typeof eventRequest.$inferSelect, viewable: boolean): Promise<BriefStatus> {
+  const basis = await getSpecBasis(db, request.id);
+  const [linked] = request.systemId ? await db.select({ slug: system.slug }).from(system).where(eq(system.id, request.systemId)) : [];
+  const changed = basis !== null && basis.briefVersion < request.briefVersion;
+  return {
+    requestId: request.id,
+    requestTitle: viewable ? request.title : null,
+    systemSlug: linked?.slug ?? null,
+    briefVersion: request.briefVersion,
+    specVersion: basis?.specVersion ?? null,
+    basisBriefVersion: basis?.briefVersion ?? null,
+    state: basis === null ? "not_applied" : changed ? "changed" : "current",
+    changeCount: changed ? request.briefVersion - basis.briefVersion : 0,
+  };
+}
+
+/**
+ * The brief status of the request linked to a project, for every member of the project; the title is hidden from those who
+ * may not view the request.
+ *
+ * @returns null when the project has no request
+ * @throws NotFoundError when the actor may not see the project
+ */
+export async function briefStatusForProject(db: Executor, actor: Actor, projectSlug: string): Promise<BriefStatus | null> {
+  const { project: found } = await projectAccess(db, actor, projectSlug, "viewer");
+  const [request] = await db.select().from(eventRequest).where(eq(eventRequest.projectId, found.id)).orderBy(asc(eventRequest.acceptedAt), asc(eventRequest.id)).limit(1);
+  if (!request) return null;
+  return statusOf(db, request, await canViewRequest(db, actor.userId, request.id));
+}
+
+/**
+ * The brief status of a request the actor may view.
+ *
+ * @throws NotFoundError when the actor may not view the request
+ */
+export async function briefStatusForRequest(db: Executor, actor: Actor, requestId: string): Promise<BriefStatus> {
+  const { request } = await requestAccess(db, actor, requestId, "view");
+  return statusOf(db, request, true);
+}
+
+/** The brief status by project slug or by request id; null when the project has no request. */
+export function briefStatus(db: Executor, actor: Actor, by: { projectSlug: string } | { requestId: string }): Promise<BriefStatus | null> {
+  return "projectSlug" in by ? briefStatusForProject(db, actor, by.projectSlug) : briefStatusForRequest(db, actor, by.requestId);
 }

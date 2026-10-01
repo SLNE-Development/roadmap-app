@@ -192,5 +192,24 @@
     "open": "Projekt {name} öffnen",
     "deleted": "Projekt gelöscht",
     "deletedHelp": "Das für diese Anfrage gebaute Projekt gibt es nicht mehr."
+  },
+  "briefBanner": {
+    "title": "Briefing geändert seit Spec v{version}",
+    "changes": "{count, plural, one {# Briefing-Version} other {# Briefing-Versionen}} seit dem Schreiben der Spec.",
+    "notApplied": "Dieses System wurde mit einer bestehenden Spec verknüpft; das Briefing wurde nicht darauf angewendet.",
+    "show": "Änderungen anzeigen",
+    "hide": "Änderungen ausblenden",
+    "diffTitle": "Änderungen von Briefing-Version {from} zu Version {to}",
+    "update": "Aus Briefing aktualisieren"
+  },
+  "updateFromBrief": {
+    "title": "Aus Briefing aktualisieren",
+    "description": "Füge das in deinen eigenen Agenten ein. Er liest die Änderungen am Briefing und aktualisiert Spec, Plan und Aufgaben.",
+    "commandLabel": "Befehl",
+    "explain": "Die App führt selbst nichts aus: Dein Agent vergleicht das geänderte Briefing mit der Spec und ergänzt oder ändert dann Schritte und Aufgaben, ohne erledigte Arbeit anzufassen.",
+    "copy": "Befehl kopieren",
+    "copied": "Befehl kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen. Markiere den Befehl und kopiere ihn von Hand.",
+    "close": "Schließen"
   }
 }

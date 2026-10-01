@@ -3,7 +3,7 @@ import { z } from "zod";
 import { askRoundInput } from "@/lib/event-questions";
 import { REQUEST_STATUSES } from "@/lib/event-status";
 import { dbInt } from "@/lib/ops/params";
-import { acceptInput, linkableProjects, acceptRequest, requestOfProject, requestProgress } from "@/lib/ops/request-link";
+import { acceptInput, acceptRequest, briefStatus, linkableProjects, requestOfProject, requestProgress } from "@/lib/ops/request-link";
 import { answerQuestions, answerQuestionsInput, askRound, listRounds } from "@/lib/ops/request-questions";
 import {
   cancelRequest,
@@ -112,6 +112,11 @@ export const requestsRouter = router({
 
   /** The request a project was built for, with whether the actor may open it. */
   forProject: protectedProcedure.input(z.object({ project: z.string().min(1).max(64) })).query(({ ctx, input }) => requestOfProject(ctx.db, ctx.actor, input.project)),
+
+  /** Whether the spec of a request's system still matches its brief, by project or by request; null without a request. */
+  briefStatus: protectedProcedure
+    .input(z.union([z.object({ project: z.string().min(1).max(64) }), z.object(R)]))
+    .query(({ ctx, input }) => briefStatus(ctx.db, ctx.actor, "project" in input ? { projectSlug: input.project } : { requestId: input.id })),
 
   /** Sets or clears the banner image of a request. */
   setBanner: protectedProcedure.input(setBannerInput).mutation(({ ctx, input }) => setBanner(ctx.db, ctx.actor, input)),

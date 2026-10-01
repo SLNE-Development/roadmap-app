@@ -21,6 +21,7 @@ import { ReopenAreaDialog } from "@/components/planning/reopen-area-dialog";
 import { PlanningRounds } from "@/components/planning-rounds";
 import { PresenceStack } from "@/components/presence/presence-stack";
 import { usePresenceHeartbeat } from "@/components/presence/use-presence-heartbeat";
+import { BriefBanner } from "@/components/projects/brief-banner";
 import { SystemNotes } from "@/components/system-editor";
 import { ActivityFeed } from "@/components/system/activity-feed";
 import type { SystemControlsData } from "@/components/system/controls";
@@ -259,6 +260,8 @@ export function SystemView({
           pending={restore.isPending}
         />
       )}
+
+      {!archived && <BriefBanner project={slug} system={systemSlug} canEdit={canEdit} />}
 
       <SystemTabs base={base} current={tab} meta={meta} />
 

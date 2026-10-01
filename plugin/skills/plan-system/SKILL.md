@@ -94,6 +94,16 @@ When an answer is a decision that meets the ADR criteria, say so, and run
 `surf-roadmap:new-adr` for it (create it proposed, show it, accept it once the
 user confirms). Link the system with `systems: [slug]`.
 
+### Event systems: moderation requirements
+
+When `get_request` shows that the system belongs to an event request, add a **moderation
+requirements** area. The interview must cover it before planning completes: staff roles and
+how many, chat rules, what is punished and how, banned items and behaviour, who is on call
+during the event, and how staff reach each other. Ask the requester through `ask_requester`
+(`number` for the staff count, `multi` for the roles, `text` for rules and the rest). The
+answers land in the spec under the heading "Moderation", so the team prompt can read them
+from `get_request`.
+
 ## Step 2 — The gate
 
 Call `get_planning`. Continue asking while `gaps` lists anything except the missing
