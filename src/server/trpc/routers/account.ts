@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { LOCALES, resolveTimeZone } from "@/i18n/locale";
 import { requestClient } from "@/lib/auth/actor";
 import { getAuth } from "@/lib/auth/server";
 import { slugSchema } from "@/lib/ops/access";
@@ -7,6 +8,7 @@ import type { Actor } from "@/lib/ops/actor";
 import { recordAuthEvent, type AuthEventInput } from "@/lib/ops/audit";
 import { InvalidError } from "@/lib/ops/errors";
 import { endOtherSessions, endSession, listSessions } from "@/lib/ops/sessions";
+import { setPref } from "@/lib/ops/prefs";
 import { myWork, myWorkSeenAt, markMyWorkSeen } from "@/lib/ops/my-work";
 import { createApiKeyInput, listApiKeys, revokeApiKey, rotateApiKey } from "@/lib/ops/api-keys";
 import { addAllowedAccount, addAllowedAccountInput, listAllowedAccounts, listUsers, removeAllowedAccount, setAdmin } from "@/lib/ops/users";
@@ -97,6 +99,17 @@ export const accountRouter = router({
     const result = await endOtherSessions(ctx.db, ctx.actor, ctx.sessionId);
     if (result.ended > 0) await audit(ctx, { kind: "session-ended", detail: `${plural(result.ended, "other session")} signed out` });
     return result;
+  }),
+
+  /** Sets the actor's UI language. */
+  setLocale: protectedProcedure
+    .input(z.object({ locale: z.enum(LOCALES) }))
+    .mutation(({ ctx, input }) => setPref(ctx.db, ctx.actor, "locale", input.locale)),
+
+  /** Sets the time zone the actor's times are shown in; unknown zones are refused. */
+  setTimeZone: protectedProcedure.input(z.object({ timeZone: z.string().min(1).max(64) })).mutation(({ ctx, input }) => {
+    if (resolveTimeZone(input.timeZone) !== input.timeZone) throw new InvalidError("Unknown time zone.");
+    return setPref(ctx.db, ctx.actor, "timeZone", input.timeZone);
   }),
 
   /** The provisioned Discord accounts. Admin only. */

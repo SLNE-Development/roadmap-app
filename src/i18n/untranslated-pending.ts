@@ -100,7 +100,6 @@ export const PENDING_FILES: string[] = [
   "src/components/shell/command-menu.tsx",
   "src/components/shell/shortcuts-dialog.tsx",
   "src/components/shell/sidebar-views.tsx",
-  "src/components/shell/user-area.tsx",
   "src/components/status-screens.tsx",
   "src/components/structure-manager.tsx",
   "src/components/system-card.tsx",

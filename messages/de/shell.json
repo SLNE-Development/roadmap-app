@@ -1,0 +1,19 @@
+{
+  "roleAdmin": "Admin",
+  "roleAccount": "Konto",
+  "notificationSettings": "Benachrichtigungseinstellungen",
+  "apiKeys": "API-Schlüssel",
+  "connections": "Verbindungen",
+  "sessions": "Sitzungen",
+  "adminSection": "Admin",
+  "accounts": "Konten",
+  "githubApp": "GitHub-App",
+  "audit": "Audit",
+  "theme": "Design",
+  "themeSystem": "System",
+  "themeLight": "Hell",
+  "themeDark": "Dunkel",
+  "language": "Sprache",
+  "signOut": "Abmelden",
+  "toggleTheme": "Zwischen hellem und dunklem Design wechseln"
+}

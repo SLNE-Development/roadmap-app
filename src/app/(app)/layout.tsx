@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ClockProvider } from "@/components/clock";
+import { TimeZoneSync } from "@/components/shell/time-zone-sync";
 import { requireActor } from "@/lib/auth/actor";
 
 /** Every signed-in page reads live data. */
@@ -25,5 +26,10 @@ function requestTime(): number {
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireActor();
-  return <ClockProvider serverNow={requestTime()}>{children}</ClockProvider>;
+  return (
+    <ClockProvider serverNow={requestTime()}>
+      <TimeZoneSync />
+      {children}
+    </ClockProvider>
+  );
 }
