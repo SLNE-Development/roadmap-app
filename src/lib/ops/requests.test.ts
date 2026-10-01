@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { eventBriefVersion, eventChecklistItem, eventFallback, eventQuestion, eventQuestionRound, eventRequest, eventSettings, eventTodo, requestLog } from "@/db/schema";
+import { eventBriefVersion, eventChecklistItem, eventFallback, eventPost, eventQuestion, eventQuestionRound, eventRequest, eventSettings, eventTodo, requestLog } from "@/db/schema";
 import { newId } from "@/lib/id";
 import { memoryQueue } from "@/lib/queue";
 import { createTestDb } from "@/test/db";
@@ -226,6 +226,18 @@ describe("transitions", () => {
     await expect(markDone(w.db, w.M, req.id)).rejects.toThrow("A accepted request cannot become done.");
     await w.setStatus(req.id, "event_week");
     expect((await markDone(w.db, w.M, req.id)).status).toBe("done");
+  });
+
+  it("leaves every post of the request untouched when it is marked done", async () => {
+    const w = await world();
+    const req = await requestFixture(w.db, w.R, { status: "event_week" });
+    const kinds = ["team", "announcement", "reminder"] as const;
+    for (const [i, kind] of kinds.entries()) {
+      await w.db.insert(eventPost).values({ id: newId(), requestId: req.id, kind, status: i === 0 ? "draft" : "posted", text: `text ${kind}`, createdBy: w.M.userId });
+    }
+    const before = await w.db.select().from(eventPost).where(eq(eventPost.requestId, req.id)).orderBy(eventPost.id);
+    await markDone(w.db, w.M, req.id);
+    expect(await w.db.select().from(eventPost).where(eq(eventPost.requestId, req.id)).orderBy(eventPost.id)).toEqual(before);
   });
 });
 

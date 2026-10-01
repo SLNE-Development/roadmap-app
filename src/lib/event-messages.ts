@@ -46,14 +46,13 @@ export interface PlanPost {
 /** What the builders read from the settings. */
 export type PlanSettings = Pick<EventSettingsRow, "pingRoleId" | "timeZone" | "rulebookUrl" | "detailsTemplate" | "disasterTemplate" | "resolvedTemplate">;
 
-type PlanRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl" | "bannerUploadId" | "summary">;
+/** What the builders read from the request. */
+export type PlanRequest = Pick<EventRequestRow, "title" | "startsAt" | "durationMinutes" | "where" | "eventDocsUrl" | "bannerUploadId" | "summary">;
 
 /** Fixed phrases the app writes into Discord; German because the players read them. */
 export const GERMAN = {
   testMarker: "Testnachricht (nur für das Team)",
   resumed: "Dieser Beitrag wird fortgesetzt.",
-  /** The reply under a resolved disaster message. */
-  backOnline: (event: string): string => `${event} ist wieder online.`,
 } as const;
 
 /** The location of a Discord event without a `where`. */
@@ -79,13 +78,16 @@ export function buildDetailsEmbed(request: PlanRequest, settings: Pick<PlanSetti
   };
 }
 
-/** The embed of the disaster message from the settings' template; the generic image is shown as thumbnail. */
-export function buildDisasterEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "disasterTemplate">): Embed {
+/** The embed of the disaster message from the settings' template; the generic image is shown as thumbnail. `{note}` is filled here; a template without it gets the note after a blank line. */
+export function buildDisasterEmbed(request: PlanRequest, settings: Pick<PlanSettings, "timeZone" | "rulebookUrl" | "disasterTemplate">, note: string | null): Embed {
   const t = settings.disasterTemplate;
-  const values = placeholderValues(request, settings);
+  const values = placeholderValues(request, settings, note ?? "");
+  const filled = fillPlaceholders(t.text, values, { allow: PLACEHOLDERS, mode: "discord" }).trimEnd();
   return {
-    title: fillPlaceholders(t.title, values, { allow: NO_NOTE, mode: "text" }),
-    description: fillPlaceholders(t.text, values, { allow: NO_NOTE, mode: "discord" }),
+    title: fillPlaceholders(t.title, values, { allow: PLACEHOLDERS, mode: "text" }),
+    description: note && !t.text.includes("{note}") ? `${filled}
+
+${note}` : filled,
     color: t.color,
     imageUploadId: t.imageUploadId,
     imageAs: "thumbnail",
@@ -135,7 +137,7 @@ export function plannedParts(post: PlanPost, request: PlanRequest, settings: Pla
   const chunks = splitText(text, LIMITS.content, LIMITS.content - textLength(mention));
   const parts: PostPart[] = chunks.map((c, i) => unsent({ kind: "text", content: i === 0 ? mention + c : c }));
   if (post.kind === "disaster" || post.kind === "resolved") {
-    const embed = post.embed ?? (post.kind === "disaster" ? buildDisasterEmbed(request, settings) : buildResolvedEmbed(request, settings, post.note));
+    const embed = post.embed ?? (post.kind === "disaster" ? buildDisasterEmbed(request, settings, post.note) : buildResolvedEmbed(request, settings, post.note));
     parts.push(unsent({ kind: "embed", content: "", embed, uploadId: embed.imageUploadId }));
   } else if (post.embed) {
     parts.push(unsent({ kind: "embed", content: "", embed: post.embed, uploadId: post.embed.imageUploadId }));

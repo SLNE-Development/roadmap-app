@@ -246,7 +246,7 @@ describe("events.post", () => {
   it("sends a disaster only in the event week", async () => {
     const w = await postWorld({ status: "event_week" });
     const deps = testDeps(w.db);
-    await postDisaster(w.db, w.manager, w.request.id, deps.queue("deliver"));
+    await postDisaster(w.db, w.manager, w.request.id, {}, deps.queue("deliver"));
     await w.db.update(eventRequest).set({ status: "accepted" }).where(eq(eventRequest.id, w.request.id));
     const calls = stubFetch([]);
     const [row] = await w.db.select().from(eventPost).where(eq(eventPost.kind, "disaster"));
@@ -501,6 +501,23 @@ describe("events.delete", () => {
     expect(row.parts.every((p) => p.messageId === null)).toBe(true);
   });
 
+  it("keeps the text as a new draft of the same kind, once, also when the job is replayed", async () => {
+    const s = await posted();
+    await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
+    const job = s.deps.queues.deliver.jobs.filter((j) => j.jobName === "events.delete").at(-1)!;
+    stubFetch([ok("m1"), ok("m2"), ok("m3")]);
+    await runJob("deliver", "events.delete", job.data, s.deps);
+    stubFetch([]);
+    await runJob("deliver", "events.delete", job.data, s.deps);
+    const rows = await s.db.select().from(eventPost).where(eq(eventPost.kind, "announcement"));
+    expect(rows.map((p) => p.status).sort()).toEqual(["deleted", "draft"]);
+    const old = rows.find((p) => p.status === "deleted")!;
+    const draft = rows.find((p) => p.status === "draft")!;
+    expect(draft).toMatchObject({ text: old.text, pingRole: old.pingRole, embed: old.embed, parts: [], createdBy: old.createdBy });
+    expect(draft.pingRole).toBe(true);
+    expect(await s.db.select().from(requestLog).where(eq(requestLog.newValue, "announcement kept as draft"))).toHaveLength(1);
+  });
+
   it("an old delete job does nothing after a newer Edit took over the post", async () => {
     const s = await posted();
     await deletePost(s.db, s.manager, s.request.id, "announcement", s.deps.queue("deliver"));
@@ -605,22 +622,22 @@ describe("disaster and resolve", () => {
     const deps = testDeps(w.db);
     const run = (name: string, data: unknown) => runJob("deliver", name, data, deps);
     const postedDisaster = async () => {
-      await postDisaster(w.db, w.manager, w.request.id, deps.queue("deliver"));
+      await postDisaster(w.db, w.manager, w.request.id, {}, deps.queue("deliver"));
       const [row] = await w.db.select().from(eventPost).where(eq(eventPost.kind, "disaster"));
       stubFetch([ok("d1")]);
       await run("events.post", { postId: row.id, attempt: row.attempt });
       return row.id;
     };
     const row = async (id: string) => (await w.db.select().from(eventPost).where(eq(eventPost.id, id)))[0];
-    const resolveJob = () => deps.queues.deliver.jobs.filter((j) => j.jobName === "events.resolve").at(-1)!;
-    return { ...w, deps, run, postedDisaster, row, resolveJob };
+    const lastPost = () => deps.queues.deliver.jobs.filter((j) => j.jobName === "events.post").at(-1)!;
+    return { ...w, deps, run, postedDisaster, row, lastPost };
   }
 
   it("posts one embed from the template with every placeholder filled, no content and no ping", async () => {
     const s = await disasterWorld();
     await updateEventSettings(s.db, s.manager, { rulebookUrl: "https://example.com/regeln", disasterTemplate: { title: "{event} pausiert", text: "{date} {time} {duration} {where} {docs} {rules} [{note}]", color: "#c23636", imageUploadId: null } });
     await s.db.update(eventRequest).set({ eventDocsUrl: "https://example.com/docs" }).where(eq(eventRequest.id, s.request.id));
-    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
+    await postDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
     const [row] = await s.db.select().from(eventPost);
     expect(row).toMatchObject({ kind: "disaster", status: "sending", pingRole: false });
     const calls = stubFetch([ok("d1")]);
@@ -636,7 +653,7 @@ describe("disaster and resolve", () => {
     expect(embed.description).toContain("https://example.com/regeln");
     expect(embed.description).toContain("1 Stunde 30 Minuten");
     expect(embed.description).toMatch(/<t:\d+:t>/);
-    expect(embed.description).toContain("[{note}]");
+    expect(embed.description).toContain("[]");
     expect(embed.description).not.toMatch(/\{(date|time|duration|where|docs|rules|event)\}/);
     expect((await s.row(row.id)).status).toBe("posted");
   });
@@ -648,7 +665,7 @@ describe("disaster and resolve", () => {
     await s.db.insert(eventUpload).values({ id: "upd", requestId: null, uploaderId: s.manager.userId, purpose: "template", originalName: "d.png", mime: "image/png", bytes: 3, storageKey: "0123abcd-dddd.png" });
     await writeFile(path.join(dir, "0123abcd-dddd.png"), new Uint8Array([137, 80, 78]));
     await updateEventSettings(s.db, s.manager, { disasterTemplate: { title: "Pause", text: "Text", color: "#c23636", imageUploadId: "upd" } });
-    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
+    await postDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
     const [row] = await s.db.select().from(eventPost);
     const calls = stubFetch([ok("d1")]);
     await s.run("events.post", { postId: row.id, attempt: row.attempt });
@@ -656,28 +673,40 @@ describe("disaster and resolve", () => {
     expect((calls[0].body.embeds as { thumbnail: { url: string } }[])[0].thumbnail.url).toBe("attachment://image.png");
   });
 
-  it("resolves: patches the disaster message with the note, then posts the German back-online message, stores its id", async () => {
+  it("posts the disaster note inside the embed", async () => {
+    const s = await disasterWorld();
+    await postDisaster(s.db, s.manager, s.request.id, { note: "Der Server startet neu." }, s.deps.queue("deliver"));
+    const [row] = await s.db.select().from(eventPost);
+    const calls = stubFetch([ok("d1")]);
+    await s.run("events.post", { postId: row.id, attempt: row.attempt });
+    expect((calls[0].body.embeds as { description: string }[])[0].description).toContain("Der Server startet neu.");
+    expect((calls[0].body.embeds as { description: string }[])[0].description).not.toContain("{note}");
+  });
+
+  it("resolves as a new message: the disaster message is neither patched nor deleted, and no back-online text follows", async () => {
     const s = await disasterWorld();
     const id = await s.postedDisaster();
     await resolveDisaster(s.db, s.manager, s.request.id, { note: "Der Server ist neu gestartet." }, s.deps.queue("deliver"));
-    const calls = stubFetch([ok("d1"), ok("r1")]);
-    await s.run("events.resolve", s.resolveJob().data);
-    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
-    expect(calls[0].url).toBe(`${PUBLIC_URL}/messages/d1`);
+    const job = s.lastPost();
+    const calls = stubFetch([ok("r1")]);
+    await s.run("events.post", job.data);
+    expect(calls.map((c) => c.method)).toEqual(["POST"]);
+    expect(calls[0].url).toBe(`${PUBLIC_URL}?wait=true`);
+    expect(calls[0].body.content).toBeUndefined();
+    expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
     const embed = (calls[0].body.embeds as { title: string; description: string }[])[0];
     expect(embed.title).toBe("Das Event ist nun wieder online");
     expect(embed.description).toContain("Der Server ist neu gestartet.");
-    expect(calls[0].body.allowed_mentions).toEqual({ parse: [] });
-    expect(calls[1].url).toBe(`${PUBLIC_URL}?wait=true`);
-    expect(calls[1].body).toMatchObject({ content: GERMAN.backOnline("Fixture event"), allowed_mentions: { parse: [] } });
-    expect(calls[1].body.message_reference).toBeUndefined();
-    const row = await s.row(id);
-    expect(row.status).toBe("posted");
-    expect(row.resolvedAt).not.toBeNull();
-    expect(row.parts.map((p) => p.messageId)).toEqual(["d1", "r1"]);
+    const disaster = await s.row(id);
+    expect(disaster.status).toBe("posted");
+    expect(disaster.resolvedAt).not.toBeNull();
+    expect(disaster.parts.map((p) => p.messageId)).toEqual(["d1"]);
+    const resolved = await s.row((job.data as { postId: string }).postId);
+    expect(resolved).toMatchObject({ kind: "resolved", status: "posted" });
+    expect(resolved.parts.map((p) => p.messageId)).toEqual(["r1"]);
     await expect(resolveDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"))).rejects.toThrow(/posted disaster/i);
-    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
-    expect(await s.db.select().from(eventPost)).toHaveLength(2);
+    await postDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
+    expect(await s.db.select().from(eventPost)).toHaveLength(3);
   });
 
   it("does not let a deleted disaster block a new one", async () => {
@@ -687,7 +716,7 @@ describe("disaster and resolve", () => {
     stubFetch([ok("d1")]);
     await s.run("events.delete", s.deps.queues.deliver.jobs.filter((j) => j.jobName === "events.delete").at(-1)!.data);
     expect((await s.row(id)).status).toBe("deleted");
-    await postDisaster(s.db, s.manager, s.request.id, s.deps.queue("deliver"));
+    await postDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
     expect((await s.db.select().from(eventPost)).map((p) => p.status).sort()).toEqual(["deleted", "sending"]);
   });
 
@@ -695,35 +724,36 @@ describe("disaster and resolve", () => {
     const s = await disasterWorld();
     await s.postedDisaster();
     await resolveDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
-    const calls = stubFetch([ok("d1"), ok("r1")]);
-    await s.run("events.resolve", s.resolveJob().data);
+    const calls = stubFetch([ok("r1")]);
+    await s.run("events.post", s.lastPost().data);
     expect((calls[0].body.embeds as { description: string }[])[0].description).toBe("Fixture event läuft wieder.");
   });
 
-  it("posts the resolved embed as a new message when the disaster message is gone", async () => {
+  it("resumes a resolved message that stopped halfway like any post, without a second resolved message", async () => {
     const s = await disasterWorld();
-    const id = await s.postedDisaster();
-    await resolveDisaster(s.db, s.manager, s.request.id, { note: "ok" }, s.deps.queue("deliver"));
-    const calls = stubFetch([status(404), ok("d2"), ok("r1")]);
-    await s.run("events.resolve", s.resolveJob().data);
-    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST", "POST"]);
-    expect((calls[1].body.embeds as { title: string }[])[0].title).toBe("Das Event ist nun wieder online");
-    expect((await s.row(id)).parts.map((p) => p.messageId)).toEqual(["d2", "r1"]);
+    await s.postedDisaster();
+    await resolveDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
+    const resolvedId = (s.lastPost().data as { postId: string }).postId;
+    stubFetch([status(500)]);
+    await expect(s.run("events.post", s.lastPost().data)).rejects.toThrow();
+    expect((await s.row(resolvedId)).status).toBe("partial");
+    await resumePost(s.db, s.manager, s.request.id, "resolved", s.deps.queue("deliver"));
+    const calls = stubFetch([ok("r1")]);
+    await s.run("events.post", s.lastPost().data);
+    expect(calls.map((c) => c.method)).toEqual(["POST"]);
+    expect(await s.db.select().from(eventPost).where(eq(eventPost.kind, "resolved"))).toHaveLength(1);
+    expect((await s.row(resolvedId)).parts.map((p) => p.messageId)).toEqual(["r1"]);
   });
 
-  it("retries after a failed reply without posting a second resolved message", async () => {
+  it("deletes a resolved message without keeping a draft", async () => {
     const s = await disasterWorld();
-    const id = await s.postedDisaster();
+    await s.postedDisaster();
     await resolveDisaster(s.db, s.manager, s.request.id, {}, s.deps.queue("deliver"));
-    stubFetch([ok("d1"), status(500)]);
-    await expect(s.run("events.resolve", s.resolveJob().data)).rejects.toThrow();
-    expect((await s.row(id)).status).toBe("partial");
-    await resumePost(s.db, s.manager, s.request.id, "disaster", s.deps.queue("deliver"));
-    const calls = stubFetch([ok("d1"), ok("r1")]);
-    await s.run("events.resolve", s.resolveJob().data);
-    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
-    const row = await s.row(id);
-    expect(row.resolvedAt).not.toBeNull();
-    expect(row.parts.map((p) => p.messageId)).toEqual(["d1", "r1"]);
+    stubFetch([ok("r1")]);
+    await s.run("events.post", s.lastPost().data);
+    await deletePost(s.db, s.manager, s.request.id, "resolved", s.deps.queue("deliver"));
+    stubFetch([ok("r1")]);
+    await s.run("events.delete", s.deps.queues.deliver.jobs.filter((j) => j.jobName === "events.delete").at(-1)!.data);
+    expect((await s.db.select().from(eventPost)).map((p) => `${p.kind}:${p.status}`).sort()).toEqual(["disaster:posted", "resolved:deleted"]);
   });
 });

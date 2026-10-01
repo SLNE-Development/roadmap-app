@@ -18,10 +18,6 @@ const long = (paragraphs: number) => ["# Piratenfest", ...Array.from({ length: p
 const none = { discordEventUrl: null };
 
 describe("buildDetailsEmbed", () => {
-  it("writes the back-online reply in German", () => {
-    expect(GERMAN.backOnline("Piratenfest")).toBe("Piratenfest ist wieder online.");
-  });
-
   it("fills the template lines and links the event docs", () => {
     const e = buildDetailsEmbed(request, settings);
     expect(e.title).toBe("Piratenfest");
@@ -52,16 +48,23 @@ describe("buildDetailsEmbed", () => {
 });
 
 describe("disaster and resolved embeds", () => {
-  it("fill the templates, the note only in the resolved one", () => {
-    expect(buildDisasterEmbed(request, settings).description).toContain("Piratenfest ist gerade nicht erreichbar");
+  it("fill the templates and the note", () => {
+    expect(buildDisasterEmbed(request, settings, null).description).toBe("Piratenfest ist gerade nicht erreichbar. Wir arbeiten an einer Lösung und melden uns hier, sobald es weitergeht.");
     const resolved = buildResolvedEmbed(request, settings, "Alles gut.");
     expect(resolved.description).toBe("Piratenfest läuft wieder. Alles gut.");
     expect(resolved.title).toBe("Das Event ist nun wieder online");
   });
 
+  it("fills {note} in the disaster template, or appends the note after a blank line when the template has none", () => {
+    expect(buildDisasterEmbed(request, settings, "Wir starten neu.").description).toBe("Piratenfest ist gerade nicht erreichbar. Wir arbeiten an einer Lösung und melden uns hier, sobald es weitergeht.\n\n" + "Wir starten neu.");
+    const without = { ...settings, disasterTemplate: { ...DEFAULT_DISASTER_TEMPLATE, text: "{event} pausiert." } };
+    expect(buildDisasterEmbed(request, without, "Grund: Update").description).toBe("Piratenfest pausiert.\n\nGrund: Update");
+    expect(buildDisasterEmbed(request, without, null).description).toBe("Piratenfest pausiert.");
+  });
+
   it("carry the disaster template image as a thumbnail", () => {
     const withImage = { ...settings, disasterTemplate: { ...DEFAULT_DISASTER_TEMPLATE, imageUploadId: "img1" } };
-    for (const e of [buildDisasterEmbed(request, withImage), buildResolvedEmbed(request, withImage, null)]) {
+    for (const e of [buildDisasterEmbed(request, withImage, null), buildResolvedEmbed(request, withImage, null)]) {
       expect(e.imageUploadId).toBe("img1");
       expect(e.imageAs).toBe("thumbnail");
     }

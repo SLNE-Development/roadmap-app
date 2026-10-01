@@ -5,10 +5,11 @@ import { eventPost, eventRequest, eventTodo, requestLog, type EventPostRow, type
 import type { Db } from "@/db/types";
 import { deleteMessage, editMessage, sendMessage, toDiscordEmbed, type DiscordBody, type Webhook, type WebhookFile, type WebhookResult } from "@/lib/discord-webhook";
 import { loadEventSecrets, loadWebhook } from "@/lib/event-secrets";
-import { buildResolvedEmbed, discordEventUrl, GERMAN, keepsMention, mayPing, plannedParts, POST_KINDS, POST_TARGET, POST_TODO_KEY, type PostPart } from "@/lib/event-messages";
+import { discordEventUrl, GERMAN, keepsMention, mayPing, plannedParts, POST_KINDS, POST_TARGET, POST_TODO_KEY, type PostPart } from "@/lib/event-messages";
 import { loadPostSettings, type PostSettings } from "@/lib/ops/event-settings";
 import { LOCK_SECONDS, POSTING_STATUSES, testResultKey } from "@/lib/ops/request-posts";
 import { readUploadForWorker } from "@/lib/ops/uploads";
+import { newId } from "@/lib/id";
 import { QUEUE } from "@/lib/queue";
 import type { WorkerDeps } from "../deps";
 import { registerJob } from "../jobs";
@@ -194,7 +195,7 @@ async function runPost(deps: WorkerDeps, postId: string, attempt: number, retry:
   if (!loaded || loaded.attempt !== attempt || !["sending", "partial"].includes(loaded.status)) return;
   const [request] = await deps.db.select().from(eventRequest).where(eq(eventRequest.id, loaded.requestId)).limit(1);
   if (!request) return;
-  if (!(await requestAllows(deps.db, loaded, request, loaded.kind === "disaster" ? ["event_week"] : POSTING_STATUSES))) return;
+  if (!(await requestAllows(deps.db, loaded, request, loaded.kind === "disaster" || loaded.kind === "resolved" ? ["event_week"] : POSTING_STATUSES))) return;
   const settings = await loadPostSettings(deps.db);
   const secrets = await loadEventSecrets(deps.db);
   const target = POST_TARGET[loaded.kind];
@@ -246,7 +247,7 @@ export async function sendPost(deps: WorkerDeps, raw: unknown): Promise<void> {
   await withLock(deps, postId, attempt, busy, (n) => deps.queue("deliver").add("events.post", { postId, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 }), () => runPost(deps, postId, attempt, retry));
 }
 
-/** What the edit, delete and resolve jobs share: the post as this run owns it, where it posts, and how a 429 re-queues it. */
+/** What the edit and delete jobs share: the post as this run owns it, where it posts, and how a 429 re-queues it. */
 interface Run {
   deps: WorkerDeps;
   post: EventPostRow;
@@ -335,7 +336,7 @@ function canonical(value: unknown): string {
 const cardChanged = (stored: PostPart, want: PostPart): boolean =>
   stored.kind !== want.kind || stored.content !== want.content || canonical(stored.embed ?? null) !== canonical(want.embed ?? null) || (stored.uploadId ?? null) !== (want.uploadId ?? null);
 
-/** What an edit, delete or resolve run needs, loaded after the guard; null (after a visible error) when it cannot run. `statuses` are the request statuses the job may run in; null (delete) means any. */
+/** What an edit or delete run needs, loaded after the guard; null (after a visible error) when it cannot run. `statuses` are the request statuses the job may run in; null (delete) means any. */
 async function prepare(deps: WorkerDeps, loaded: EventPostRow, job: { name: string; data: (n: number) => Record<string, unknown>; id: string; statuses: readonly string[] | null }, retry: number): Promise<{ run: Run; request: EventRequestRow } | null> {
   const [request] = await deps.db.select().from(eventRequest).where(eq(eventRequest.id, loaded.requestId)).limit(1);
   if (!request) return null;
@@ -462,6 +463,15 @@ async function runDelete(deps: WorkerDeps, postId: string, attempt: number, retr
   await deps.db.transaction(async (tx) => {
     owned(await tx.update(eventPost).set({ status: "deleted", lastError: null, updatedAt: deps.now() }).where(and(eq(eventPost.id, postId), eq(eventPost.attempt, run.post.attempt))).returning({ id: eventPost.id }));
     await tx.insert(requestLog).values({ requestId: run.post.requestId, field: "post", oldValue: "sending", newValue: `${run.post.kind} deleted`, authorUserId: run.post.postedBy });
+    // The text is kept: a new draft of the same kind, unless the kind already has another live post.
+    const { kind } = run.post;
+    if (kind === "team" || kind === "announcement" || kind === "reminder") {
+      const [other] = await tx.select({ id: eventPost.id }).from(eventPost).where(and(eq(eventPost.requestId, run.post.requestId), eq(eventPost.kind, kind), ne(eventPost.status, "deleted"))).limit(1);
+      if (!other) {
+        await tx.insert(eventPost).values({ id: newId(), requestId: run.post.requestId, kind, status: "draft", text: run.post.text, embed: run.post.embed, pingRole: run.post.pingRole, createdBy: run.post.createdBy });
+        await tx.insert(requestLog).values({ requestId: run.post.requestId, field: "post", oldValue: null, newValue: `${kind} kept as draft`, authorUserId: run.post.postedBy });
+      }
+    }
   });
 }
 
@@ -476,48 +486,6 @@ export async function deletePostMessages(deps: WorkerDeps, raw: unknown): Promis
   const base = `event-delete-${postId}-${attempt}${retry > 0 ? `-r${retry}` : ""}`;
   const requeue = (n: number) => deps.queue("deliver").add("events.delete", { postId, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 });
   await withLock(deps, postId, attempt, busy, requeue, () => runDelete(deps, postId, attempt, retry));
-}
-
-const resolveData = z.object({ postId: z.string().min(1), attempt: z.number().int().min(0), retry: z.number().int().min(0).optional(), busy: z.number().int().min(0).optional() });
-
-/** Turns the disaster message into the resolved one and follows it with the back-online message. */
-async function runResolve(deps: WorkerDeps, postId: string, attempt: number, retry: number): Promise<void> {
-  const [loaded] = await deps.db.select().from(eventPost).where(eq(eventPost.id, postId)).limit(1);
-  if (!loaded || loaded.attempt !== attempt || !["sending", "partial"].includes(loaded.status) || loaded.kind !== "disaster" || loaded.note === null || loaded.resolvedAt !== null) return;
-  const ctx = await prepare(deps, loaded, { name: "events.resolve", data: (n) => ({ postId, attempt, retry: n }), id: `event-resolve-${postId}-${attempt}`, statuses: ["event_week"] }, retry);
-  if (!ctx) return;
-  const { run, request } = ctx;
-  const { post, settings } = run;
-  const parts = post.parts.map((p) => ({ ...p }));
-  const embed = buildResolvedEmbed(request, settings, post.note === "" ? null : post.note);
-  const resolved: PostPart = { kind: "embed", content: "", embed, uploadId: embed.imageUploadId, messageId: parts[0]?.messageId ?? null, sentAt: parts[0]?.sentAt ?? null };
-  const messageId = await patchOrResend(run, parts[0] ?? resolved, resolved, "resolved message");
-  parts[0] = { ...resolved, messageId, sentAt: resolved.sentAt ?? deps.now().toISOString() };
-  await saveParts(deps, post, parts);
-  if (!parts[1]?.messageId) {
-    const content = GERMAN.backOnline(request.title);
-    const body: DiscordBody = { content, username: settings.postAs, allowed_mentions: { parse: [] } };
-    const replyId = await settle(run, await sendMessage(run.hook, body), "back-online message");
-    parts[1] = { kind: "text", content, messageId: replyId, sentAt: deps.now().toISOString() };
-  }
-  const now = deps.now();
-  await deps.db.transaction(async (tx) => {
-    owned(await tx.update(eventPost).set({ parts, status: "posted", resolvedAt: now, lastError: null, updatedAt: now }).where(and(eq(eventPost.id, postId), eq(eventPost.attempt, post.attempt))).returning({ id: eventPost.id }));
-    await tx.insert(requestLog).values({ requestId: post.requestId, field: "post", oldValue: "sending", newValue: "disaster resolved", authorUserId: post.postedBy });
-  });
-}
-
-/**
- * Resolves a posted disaster message: patches it to the resolved template and posts the German back-online message after it (a webhook cannot reply). A disaster
- * message a human deleted is replaced by a new resolved message. Nothing pings.
- *
- * @throws Error on a 5xx or a network error, an 11th 429 in a row, or an 11th held lock in a row
- */
-export async function resolveDisasterMessage(deps: WorkerDeps, raw: unknown): Promise<void> {
-  const { postId, attempt, retry = 0, busy = 0 } = resolveData.parse(raw);
-  const base = `event-resolve-${postId}-${attempt}${retry > 0 ? `-r${retry}` : ""}`;
-  const requeue = (n: number) => deps.queue("deliver").add("events.resolve", { postId, attempt, retry, busy: n }, { jobId: `${base}-b${n}`, delayMs: BUSY_DELAY_MS, attempts: 5, backoffMs: 5000 });
-  await withLock(deps, postId, attempt, busy, requeue, () => runResolve(deps, postId, attempt, retry));
 }
 
 const testData = z.object({ requestId: z.string().min(1), kind: z.enum(POST_KINDS), userId: z.string().min(1) });
@@ -565,5 +533,4 @@ export async function sendTest(deps: WorkerDeps, raw: unknown): Promise<void> {
 registerJob(QUEUE.deliver, "events.post", (data, deps) => sendPost(deps, data));
 registerJob(QUEUE.deliver, "events.edit", (data, deps) => editPostMessages(deps, data));
 registerJob(QUEUE.deliver, "events.delete", (data, deps) => deletePostMessages(deps, data));
-registerJob(QUEUE.deliver, "events.resolve", (data, deps) => resolveDisasterMessage(deps, data));
 registerJob(QUEUE.deliver, "events.test", (data, deps) => sendTest(deps, data));

@@ -266,7 +266,7 @@ const SAMPLE_NOTE = "Der Server wurde neu gestartet.";
 
 /**
  * Renders a template with a sample event and the saved time zone and rulebook link, for the editor preview. `{note}`
- * is filled only in the resolved template. Nothing is sent anywhere.
+ * is filled in the disaster and resolved templates. Nothing is sent anywhere.
  *
  * @throws ForbiddenError without an event role, InvalidError for a template of the wrong shape
  */
@@ -275,7 +275,7 @@ export async function previewTemplate(db: Db, actor: Actor, raw: unknown): Promi
   const input = parse(previewTemplateInput, raw);
   const settings = await ensureSettings(db);
   const values = placeholderValues(SAMPLE_REQUEST, settings, SAMPLE_NOTE);
-  const allow: readonly Placeholder[] = input.kind === "resolved" ? PLACEHOLDERS : PLACEHOLDERS.filter((p) => p !== "note");
+  const allow: readonly Placeholder[] = input.kind === "details" ? PLACEHOLDERS.filter((p) => p !== "note") : PLACEHOLDERS;
   const fill = (text: string, mode: FillMode) => fillPlaceholders(text, values, { allow, mode });
   if (input.kind === "details") return { kind: "details", lines: input.template.lines.map((line) => fill(line, "discord")), color: input.template.color, footer: fill(input.template.footer, "text") };
   const { title, text, color, imageUploadId } = input.template;

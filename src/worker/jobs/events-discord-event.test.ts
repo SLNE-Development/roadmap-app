@@ -367,8 +367,8 @@ describe("who may reach the bot client", () => {
     expect(body("runPost")).toContain("ensureDiscordEvent(");
   });
 
-  it("the test send, edit, delete and resolve code never mention the event module or the bot token", () => {
-    for (const name of ["sendTest", "runEdit", "runDelete", "runResolve", "prepare", "settle", "partBody"]) {
+  it("the test send, edit and delete code never mention the event module or the bot token", () => {
+    for (const name of ["sendTest", "runEdit", "runDelete", "prepare", "settle", "partBody"]) {
       expect(body(name), name).not.toMatch(/ensureDiscordEvent|discord-bot|botToken/);
     }
     expect(body("sendTest")).not.toContain("loadEventSecrets");

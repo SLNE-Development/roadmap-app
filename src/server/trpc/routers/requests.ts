@@ -44,7 +44,7 @@ import {
   withdrawRequest,
 } from "@/lib/ops/requests";
 import { getEventSettings, previewTemplate, setEventSecrets, updateEventSettings } from "@/lib/ops/event-settings";
-import { deletePost, disasterView, editPost, editPostInput, listPosts, postDisaster, previewPost, resolveDisaster, resolveDisasterInput, resumePost, savePostDraft, savePostDraftInput, startPost, testResult, testSend } from "@/lib/ops/request-posts";
+import { deletePost, disasterView, editPost, editPostInput, listPosts, postDisaster, postDisasterInput, previewPost, resolveDisaster, resolveDisasterInput, resumePost, savePostDraft, savePostDraftInput, startPost, testResult, testSend } from "@/lib/ops/request-posts";
 import { getPrompts, savePasteBack, savePasteBackInput } from "@/lib/ops/request-prompts";
 import { deleteUpload, setBanner, setBannerInput } from "@/lib/ops/uploads";
 import { bullQueue, QUEUE } from "@/lib/queue";
@@ -251,13 +251,15 @@ export const requestsRouter = router({
     /** The outcome of the last test send, while it is kept (60 s). */
     testResult: protectedProcedure.input(z.object(POST)).query(({ ctx, input }) => testResult(ctx.kv, ctx.db, ctx.actor, input.id, input.kind)),
 
-    /** The disaster panel: the post state and the previews of both messages. */
-    disasterState: protectedProcedure.input(z.object({ ...R, note: z.string().max(500).optional() })).query(({ ctx, input }) => disasterView(ctx.db, ctx.actor, input.id, input.note ?? "")),
+    /** The disaster panel: the post state and the templates the client previews with. */
+    disasterState: protectedProcedure.input(z.object(R)).query(({ ctx, input }) => disasterView(ctx.db, ctx.actor, input.id)),
 
-    /** Posts the disaster message (event week only); never pings. */
-    disaster: protectedProcedure.input(z.object(R)).mutation(({ ctx, input }) => postDisaster(ctx.db, ctx.actor, input.id, bullQueue(QUEUE.deliver))),
+    /** Posts the disaster message with an optional note (event week only); never pings. */
+    disaster: protectedProcedure
+      .input(z.object({ ...R, ...postDisasterInput.shape }))
+      .mutation(({ ctx, input: { id, ...rest } }) => postDisaster(ctx.db, ctx.actor, id, rest, bullQueue(QUEUE.deliver))),
 
-    /** Resolves the posted disaster message with an optional note. */
+    /** Resolves the posted disaster message with an optional note: a new resolved message is posted. */
     resolve: protectedProcedure
       .input(z.object({ ...R, ...resolveDisasterInput.shape }))
       .mutation(({ ctx, input: { id, ...rest } }) => resolveDisaster(ctx.db, ctx.actor, id, rest, bullQueue(QUEUE.deliver))),

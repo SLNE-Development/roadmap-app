@@ -3,8 +3,9 @@ import { z } from "zod";
 import { eventPost, eventUpload, user, type EventPostRow, type PostStatus } from "@/db/schema";
 import type { Db, Executor, Tx } from "@/db/types";
 import { countEmbedChars, LIMITS, textLength, type Embed } from "@/lib/discord-limits";
-import { buildDisasterEmbed, buildResolvedEmbed, discordEventUrl, keepsMention, MAX_POST_TEXT, plannedParts, POST_DUE_OFFSET_DAYS, POST_KINDS, POST_TARGET, type PostKind, type PostPart } from "@/lib/event-messages";
+import { discordEventUrl, keepsMention, MAX_POST_TEXT, plannedParts, POST_DUE_OFFSET_DAYS, POST_KINDS, POST_TARGET, type PlanRequest, type PostKind, type PostPart } from "@/lib/event-messages";
 import { dueFor } from "@/lib/event-prep-template";
+import type { EmbedTemplate } from "@/lib/event-templates";
 import type { Kv } from "@/lib/kv";
 import { addWithTimeout, type JobQueue } from "@/lib/queue";
 import { newId } from "@/lib/id";
@@ -165,7 +166,7 @@ const restoreStatus = (post: EventPostRow): PostStatus => (post.status === "send
 
 /** The job a click queues, and where the post goes back to when the queue is down. */
 interface Queued {
-  name: "events.post" | "events.edit" | "events.delete" | "events.resolve";
+  name: "events.post" | "events.edit" | "events.delete";
   data: Record<string, unknown>;
   jobId: string;
   postId: string;
@@ -255,11 +256,7 @@ export async function resumePost(db: Db, actor: Actor, requestId: string, kind: 
     if (post.parts.some((p) => p.deleted)) throw new ConflictError("This post is half deleted. Delete it again to finish.");
     const settings = await loadPostSettings(tx);
     checkReady(request, kind, settings);
-    // A disaster that is being resolved goes on with the resolve job, an edited post with the edit job: each rebuilds its own plan.
-    if (kind === "disaster" && post.note !== null) {
-      const attempt = await beginJob(tx, actor, post, { postedBy: actor.userId }, `${kind} resumed`);
-      return { ...sendJob(post.id, attempt), name: "events.resolve" as const, data: { postId: post.id, attempt }, jobId: `event-resolve-${post.id}-${attempt}`, restore: { status: restoreStatus(post), error: "The resolve could not be queued. Try again." } };
-    }
+    // An edited post goes on with the edit job, which rebuilds its own plan.
     if (post.editVersion > 0) {
       const attempt = await beginJob(tx, actor, post, { postedBy: actor.userId }, `${kind} resumed`);
       return editJob(post.id, attempt, post.editVersion, restoreStatus(post));
@@ -387,14 +384,19 @@ export async function testResult(kv: Kv, db: Db, actor: Actor, requestId: string
   }
 }
 
+/** Input of {@link postDisaster}. */
+export const postDisasterInput = z.strictObject({ note: z.string().max(1500).optional() });
+
 /**
- * Posts the disaster message: the settings' template filled for this event, one embed, to the public webhook, never with a
+ * Posts the disaster message: the settings' template filled for this event (with the optional Markdown note), one embed, to the public webhook, never with a
  * ping. A disaster that failed without sending anything is replaced.
  *
  * @throws NotFoundError for a request the actor cannot see, ForbiddenError without edit access
  * @throws ConflictError outside the event week, without the public webhook, or while another disaster message is not resolved
+ * @throws InvalidError for a note over 1,500 characters
  */
-export async function postDisaster(db: Db, actor: Actor, requestId: string, queue: JobQueue): Promise<void> {
+export async function postDisaster(db: Db, actor: Actor, requestId: string, raw: unknown, queue: JobQueue): Promise<void> {
+  const input = parse(postDisasterInput, raw);
   const job = await db.transaction(async (tx) => {
     await requestAccess(tx, actor, requestId, "edit");
     const request = await lockRequest(tx, requestId);
@@ -407,7 +409,7 @@ export async function postDisaster(db: Db, actor: Actor, requestId: string, queu
     }
     // A disaster that never reached Discord (failed, or a stray draft) is replaced by this one.
     for (const old of live) if (old.resolvedAt === null && old.parts.every((p) => p.messageId === null)) await tx.update(eventPost).set({ status: "deleted", updatedAt: new Date() }).where(eq(eventPost.id, old.id));
-    const base = { kind: "disaster" as const, text: "", embed: null, pingRole: false, note: null };
+    const base = { kind: "disaster" as const, text: "", embed: null, pingRole: false, note: input.note?.trim() || null };
     const parts = plan(base, request, settings);
     const id = newId();
     await tx.insert(eventPost).values({ id, requestId, ...base, parts, status: "sending", attempt: 1, postedBy: actor.userId, createdBy: actor.userId });
@@ -418,27 +420,33 @@ export async function postDisaster(db: Db, actor: Actor, requestId: string, queu
 }
 
 /** Input of {@link resolveDisaster}. */
-export const resolveDisasterInput = z.strictObject({ note: z.string().max(500).optional() });
+export const resolveDisasterInput = z.strictObject({ note: z.string().max(1500).optional() });
 
 /**
- * Resolves the posted disaster message: queues `events.resolve`, which turns the message into the resolved template (with
- * the note) and posts a short German back-online message after it. Never pings.
+ * Resolves the posted disaster message: marks it resolved and creates a new `resolved` post (the resolved template with the
+ * note as its one embed), which `events.post` sends. The disaster message itself stays as it was. Never pings.
  *
  * @throws NotFoundError for a request the actor cannot see, ForbiddenError without edit access
  * @throws ConflictError without a posted, unresolved disaster message, or without the public webhook
- * @throws InvalidError for a note over 500 characters
+ * @throws InvalidError for a note over 1,500 characters
  */
 export async function resolveDisaster(db: Db, actor: Actor, requestId: string, raw: unknown, queue: JobQueue): Promise<void> {
   const input = parse(resolveDisasterInput, raw);
   const job = await db.transaction(async (tx) => {
     await requestAccess(tx, actor, requestId, "edit");
-    await lockRequest(tx, requestId);
+    const request = await lockRequest(tx, requestId);
     const post = await livePost(tx, requestId, "disaster");
-    if (!post || post.status !== "posted" || post.resolvedAt !== null || post.note !== null) throw new ConflictError("There is no posted disaster message to resolve.");
+    if (!post || post.status !== "posted" || post.resolvedAt !== null) throw new ConflictError("There is no posted disaster message to resolve.");
     const settings = await loadPostSettings(tx);
     if (!settings.hooks.public) throw new ConflictError("The public webhook is not set. An admin sets it in Event settings.");
-    const attempt = await beginJob(tx, actor, post, { note: input.note?.trim() ?? "" }, "disaster resolving");
-    return { name: "events.resolve" as const, data: { postId: post.id, attempt }, jobId: `event-resolve-${post.id}-${attempt}`, postId: post.id, attempt, restore: { status: post.status, error: "The resolve could not be queued. Try again.", set: { note: null } } };
+    const now = new Date();
+    const base = { kind: "resolved" as const, text: "", embed: null, pingRole: false, note: input.note?.trim() || null };
+    const parts = plan(base, request, settings);
+    const id = newId();
+    await tx.update(eventPost).set({ resolvedAt: now, updatedAt: now }).where(eq(eventPost.id, post.id));
+    await tx.insert(eventPost).values({ id, requestId, ...base, parts, status: "sending", attempt: 1, postedBy: actor.userId, createdBy: actor.userId });
+    await logRequest(tx, actor, { requestId, field: "post", newValue: "resolved sending" });
+    return sendJob(id, 1);
   });
   await enqueue(db, queue, job);
 }
@@ -450,37 +458,39 @@ export interface DisasterView {
   /** Whether the public webhook is set. */
   hookSet: boolean;
   /** The newest disaster post, if any. */
-  post: { id: string; status: EventPostRow["status"]; resolvedAt: Date | null; resolving: boolean; lastError: string | null; partsCount: number; sentCount: number; stale: boolean } | null;
-  /** The embed a new disaster message would carry. */
-  disasterEmbed: Embed;
-  /** The embed the resolved message would carry with `note` filled. */
-  resolvedEmbed: Embed;
+  post: { id: string; status: EventPostRow["status"]; resolvedAt: Date | null; lastError: string | null; partsCount: number; sentCount: number; stale: boolean } | null;
+  /** The newest resolved message created after that disaster post, if any. */
+  resolved: { id: string; status: EventPostRow["status"]; lastError: string | null; partsCount: number; sentCount: number; stale: boolean } | null;
+  /** The templates the client fills (with `{note}`) for its previews; `imageUploadId` is the generic disaster image. */
+  template: { disaster: EmbedTemplate; resolved: EmbedTemplate; imageUploadId: string | null };
+  /** What the builders read from the request, so the client can fill the templates. */
+  request: PlanRequest;
+  timeZone: string;
+  rulebookUrl: string | null;
 }
 
 /**
- * The state of the disaster panel and the previews of both messages, for the event-day views. Sends nothing.
+ * The state of the disaster panel and what the client needs to preview both messages itself. Sends nothing.
  *
  * @throws NotFoundError for a request the actor may not see
  */
-export async function disasterView(db: Db, actor: Actor, requestId: string, note: string): Promise<DisasterView> {
+export async function disasterView(db: Db, actor: Actor, requestId: string): Promise<DisasterView> {
   const { request, canEdit } = await eventDayAccess(db, actor, requestId);
   const settings = await loadPostSettings(db);
   const post = await livePost(db, requestId, "disaster");
+  const newestResolved = post === undefined ? undefined : await livePost(db, requestId, "resolved");
+  const resolved = post !== undefined && newestResolved !== undefined && newestResolved.createdAt.getTime() >= post.createdAt.getTime() ? newestResolved : undefined;
+  const progress = (p: EventPostRow) => ({ id: p.id, status: p.status, lastError: p.lastError, partsCount: p.parts.length, sentCount: p.parts.filter((x) => x.messageId !== null).length, stale: isStaleSending(p) });
+  const { title, startsAt, durationMinutes, where, eventDocsUrl, bannerUploadId, summary } = request;
   return {
     canAct: canEdit && request.status === "event_week",
     hookSet: settings.hooks.public,
-    post: post === undefined ? null : {
-      id: post.id,
-      status: post.status,
-      resolvedAt: post.resolvedAt,
-      resolving: post.note !== null && post.resolvedAt === null,
-      lastError: post.lastError,
-      partsCount: post.parts.length,
-      sentCount: post.parts.filter((p) => p.messageId !== null).length,
-      stale: isStaleSending(post),
-    },
-    disasterEmbed: buildDisasterEmbed(request, settings),
-    resolvedEmbed: buildResolvedEmbed(request, settings, note.trim() === "" ? null : note.trim()),
+    post: post === undefined ? null : { ...progress(post), resolvedAt: post.resolvedAt },
+    resolved: resolved === undefined ? null : progress(resolved),
+    template: { disaster: settings.disasterTemplate, resolved: settings.resolvedTemplate, imageUploadId: settings.disasterTemplate.imageUploadId },
+    request: { title, startsAt, durationMinutes, where, eventDocsUrl, bannerUploadId, summary },
+    timeZone: settings.timeZone,
+    rulebookUrl: settings.rulebookUrl,
   };
 }
 

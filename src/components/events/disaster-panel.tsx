@@ -1,8 +1,8 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useDeferredValue, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,10 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import type { Embed } from "@/lib/discord-limits";
+import { buildDisasterEmbed, buildResolvedEmbed } from "@/lib/event-messages";
 import { useTRPC } from "@/trpc/client";
 
-const MAX_NOTE = 500;
+const MAX_NOTE = 1500;
 
 /** A card as Discord shows it: the colour bar, title, text and image. */
 function EmbedPreview({ embed, label }: { embed: Embed; label: string }) {
@@ -41,20 +42,27 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
   const [postOpen, setPostOpen] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [note, setNote] = useState("");
-  const settled = useDeferredValue(note);
+  const [postNote, setPostNote] = useState("");
+  const [resolveNote, setResolveNote] = useState("");
   const { data: view } = useQuery({
-    ...trpc.requests.posts.disasterState.queryOptions({ id: requestId, note: settled }),
-    refetchInterval: (query) => (query.state.data?.post && ["sending", "partial"].includes(query.state.data.post.status) ? 3000 : false),
+    ...trpc.requests.posts.disasterState.queryOptions({ id: requestId }),
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return [data?.post?.status, data?.resolved?.status].some((status) => status === "sending" || status === "partial") ? 3000 : false;
+    },
   });
   const post = useMutation(trpc.requests.posts.disaster.mutationOptions({ onSuccess: () => toast.success(t("posted")) }));
   const resolve = useMutation(trpc.requests.posts.resolve.mutationOptions({ onSuccess: () => toast.success(t("resolving")) }));
   const remove = useMutation(trpc.requests.posts.delete.mutationOptions({ onSuccess: () => toast.success(t("deleting")) }));
   const resume = useMutation(trpc.requests.posts.resume.mutationOptions({ onSuccess: () => toast.success(t("resumed")) }));
-  if (!view) return null;
+  if (!view) return <div aria-hidden className="h-5 w-48 animate-pulse rounded bg-secondary" />;
   const live = view.post;
-  const open = live !== null && live.resolvedAt === null && ["sending", "partial", "posted"].includes(live.status) && !live.resolving;
-  const resolving = live !== null && live.resolving;
+  const open = live !== null && live.resolvedAt === null && ["sending", "partial", "posted"].includes(live.status);
+  const resolved = view.resolved;
+  const resolvedStalled = resolved !== null && (resolved.status === "partial" || resolved.status === "failed" || resolved.stale);
+  const resolvedDeletable = resolved !== null && resolved.sentCount > 0 && (["posted", "partial", "failed"].includes(resolved.status) || resolved.stale);
+  const settings = { timeZone: view.timeZone, rulebookUrl: view.rulebookUrl, disasterTemplate: { ...view.template.disaster, imageUploadId: view.template.imageUploadId }, resolvedTemplate: view.template.resolved };
   const stalled = live !== null && (live.status === "partial" || live.status === "failed" || live.stale);
   let reason: string | null = null;
   if (!view.canAct) reason = t("reasonRights");
@@ -76,7 +84,7 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {!open && !resolving && (
+        {!open && (
           <Button type="button" variant="destructive" disabled={busy || reason !== null} aria-describedby={reason ? `${id}-reason` : undefined} onClick={() => setPostOpen(true)}>
             {t("post")}
           </Button>
@@ -102,6 +110,28 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
           {reason}
         </p>
       )}
+      {resolved && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[13px]">{t("resolvedMessage")}</span>
+          <Badge variant={resolved.status === "partial" || resolved.status === "failed" ? "destructive" : "outline"}>{t(`status.${resolved.status}`)}</Badge>
+          {resolved.status !== "posted" && resolved.partsCount > 0 && <span className="text-[12.5px] text-muted-foreground">{t("sentOf", { sent: resolved.sentCount, total: resolved.partsCount })}</span>}
+          {resolvedStalled && view.canAct && (
+            <Button type="button" size="sm" disabled={busy} onClick={() => resume.mutate({ id: requestId, kind: "resolved" })}>
+              {t("resume")}
+            </Button>
+          )}
+          {resolvedDeletable && view.canAct && (
+            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => remove.mutate({ id: requestId, kind: "resolved" })}>
+              {t("delete")}
+            </Button>
+          )}
+        </div>
+      )}
+      {resolved?.lastError && (
+        <p role="alert" className="text-[13px] text-destructive">
+          {resolved.lastError}
+        </p>
+      )}
       <p className="text-[12.5px] text-muted-foreground">{t("noPing")}</p>
 
       <Dialog open={postOpen} onOpenChange={setPostOpen}>
@@ -112,7 +142,12 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
               {t("postBody")} {t("noPing")}
             </DialogDescription>
           </DialogHeader>
-          <EmbedPreview embed={view.disasterEmbed} label={t("previewDisaster")} />
+          <Field>
+            <FieldLabel htmlFor={`${id}-post-note`}>{t("note")}</FieldLabel>
+            <Textarea id={`${id}-post-note`} value={postNote} maxLength={MAX_NOTE} className="min-h-20" onChange={(e) => setPostNote(e.target.value)} />
+            <p className="text-[12.5px] text-muted-foreground">{t("noteHelp", { max: MAX_NOTE })}</p>
+          </Field>
+          <EmbedPreview embed={buildDisasterEmbed(view.request, settings, postNote.trim() === "" ? null : postNote.trim())} label={t("previewDisaster")} />
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
@@ -125,7 +160,8 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
               disabled={post.isPending}
               onClick={() => {
                 setPostOpen(false);
-                post.mutate({ id: requestId });
+                post.mutate({ id: requestId, note: postNote.trim() === "" ? undefined : postNote });
+                setPostNote("");
               }}
             >
               {t("post")}
@@ -171,10 +207,10 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
           </DialogHeader>
           <Field>
             <FieldLabel htmlFor={`${id}-note`}>{t("note")}</FieldLabel>
-            <Textarea id={`${id}-note`} value={note} maxLength={MAX_NOTE} className="min-h-20" onChange={(e) => setNote(e.target.value)} />
+            <Textarea id={`${id}-note`} value={resolveNote} maxLength={MAX_NOTE} className="min-h-20" onChange={(e) => setResolveNote(e.target.value)} />
             <p className="text-[12.5px] text-muted-foreground">{t("noteHelp", { max: MAX_NOTE })}</p>
           </Field>
-          <EmbedPreview embed={view.resolvedEmbed} label={t("previewResolved")} />
+          <EmbedPreview embed={buildResolvedEmbed(view.request, settings, resolveNote.trim() === "" ? null : resolveNote.trim())} label={t("previewResolved")} />
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
@@ -186,8 +222,8 @@ export function DisasterPanel({ requestId }: { requestId: string }) {
               disabled={resolve.isPending}
               onClick={() => {
                 setResolveOpen(false);
-                resolve.mutate({ id: requestId, note: note.trim() === "" ? undefined : note });
-                setNote("");
+                resolve.mutate({ id: requestId, note: resolveNote.trim() === "" ? undefined : resolveNote });
+                setResolveNote("");
               }}
             >
               {t("resolve")}

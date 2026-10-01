@@ -202,10 +202,11 @@ describe("setEventSecrets", () => {
 });
 
 describe("previewTemplate", () => {
-  it("renders a template with a sample request, the note only where allowed", async () => {
+  it("renders a template with a sample request, the note outside the details card", async () => {
     const { db, developer } = await world();
     const disaster = await previewTemplate(db, developer, { kind: "disaster", template: { title: "{event}", text: "{event} {note}", color: "#c23636", imageUploadId: null } });
-    expect(disaster).toMatchObject({ kind: "embed", title: "Piratenfest", text: "Piratenfest {note}" });
+    expect(disaster).toMatchObject({ kind: "embed", title: "Piratenfest", text: expect.stringMatching(/^Piratenfest .+/) });
+    expect((disaster as { text: string }).text).not.toContain("{note}");
     const resolved = await previewTemplate(db, developer, { kind: "resolved", template: { title: "x", text: "{event}: {note}", color: "#1a7048", imageUploadId: null } });
     expect(resolved).toMatchObject({ kind: "embed", text: expect.stringMatching(/^Piratenfest: .+/) });
     const details = await previewTemplate(db, developer, { kind: "details", template: { lines: ["Datum: {date}", "Ort: {where}"], color: "#112233", footer: "Hi" } });
