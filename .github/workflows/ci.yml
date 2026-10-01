@@ -28,3 +28,4 @@ jobs:
           VALKEY_URL: redis://localhost:6379
       - run: npm run test:plugin
       - run: npm run build
+      - run: npm run build:worker

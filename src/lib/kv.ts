@@ -1,5 +1,5 @@
 import type Redis from "ioredis";
-import { getValkey } from "./valkey";
+import { getProducerValkey } from "./valkey";
 
 /** Small key-value store with TTLs; Valkey in production, in memory in unit tests. */
 export interface Kv {
@@ -24,10 +24,14 @@ function unwrap(res: [Error | null, unknown][] | null): unknown[] {
   });
 }
 
-/** Kv backed by Valkey; every key is stored as `prefix + key`. */
+/**
+ * Kv backed by Valkey; every key is stored as `prefix + key`, by default `roadmap:kv:` so keys cannot collide
+ * with BullMQ's `roadmap:<queue>:<jobId>`. Uses the fail-fast producer client by default, so calls reject
+ * quickly while Valkey is down.
+ */
 export function valkeyKv(opts: { client?: Redis; prefix?: string } = {}): Kv {
-  const prefix = opts.prefix ?? "roadmap:";
-  const client = () => opts.client ?? getValkey();
+  const prefix = opts.prefix ?? "roadmap:kv:";
+  const client = () => opts.client ?? getProducerValkey();
   return {
     async get(key) {
       return client().get(prefix + key);

@@ -4,7 +4,7 @@ import { requireEnv, WORKER_REQUIRED_ENV } from "@/lib/env";
 import { closeValkey, getValkey } from "@/lib/valkey";
 import "./consumers";
 import { productionDeps } from "./deps";
-import { startFeed } from "./feed";
+import { registeredFeedConsumers, startFeed } from "./feed";
 import { beat } from "./heartbeat";
 import { registeredJobs, startWorkers } from "./jobs";
 
@@ -17,7 +17,7 @@ async function main(): Promise<void> {
 
   const jobs = registeredJobs();
   const queues = [...new Set(jobs.map((job) => job.queue))];
-  const consumers = jobs.map((job) => `${job.queue}/${job.jobName}`);
+  const consumers = registeredFeedConsumers().map((c) => c.name);
   console.log(`worker started: queues=${queues.join(",")} consumers=${consumers.join(",")}`);
 
   const tick = () => beat(deps, writeFile).catch((error: unknown) => console.warn("heartbeat failed", error));

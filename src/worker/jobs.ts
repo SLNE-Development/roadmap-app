@@ -1,6 +1,6 @@
 import { Queue, Worker } from "bullmq";
 import type Redis from "ioredis";
-import { QUEUE, type QueueName } from "@/lib/queue";
+import { DEFAULT_JOB_OPTIONS, QUEUE, type QueueName } from "@/lib/queue";
 import type { WorkerDeps } from "./deps";
 
 export type JobHandler = (data: unknown, deps: WorkerDeps) => Promise<void>;
@@ -62,16 +62,20 @@ export async function startWorkers(deps: WorkerDeps, connection: Redis): Promise
       throw new Error(`Repeatable ${key(r.queue, r.jobName)} has no registered handler`);
     }
   }
-  const workers = [...new Set(registeredJobs().map((job) => job.queue))].map(
-    (queue) =>
-      new Worker(queue, (job) => runJob(queue, job.name, job.data, deps), {
-        connection,
-        prefix: "roadmap",
-        concurrency: queue === QUEUE.deliver ? 5 : 1,
-      }),
-  );
+  const workers = [...new Set(registeredJobs().map((job) => job.queue))].map((queue) => {
+    const worker = new Worker(queue, (job) => runJob(queue, job.name, job.data, deps), {
+      connection,
+      prefix: "roadmap",
+      concurrency: queue === QUEUE.deliver ? 5 : 1,
+      removeOnComplete: { count: 1000 },
+      removeOnFail: { count: 5000 },
+    });
+    worker.on("failed", (job, error) => console.error(`job ${queue}/${job?.name} (${job?.id}) failed`, error));
+    worker.on("error", (error) => console.error(`worker ${queue} error`, error));
+    return worker;
+  });
   for (const r of repeatables) {
-    const queue = new Queue(r.queue, { connection, prefix: "roadmap" });
+    const queue = new Queue(r.queue, { connection, prefix: "roadmap", defaultJobOptions: DEFAULT_JOB_OPTIONS });
     try {
       await queue.upsertJobScheduler(
         `${r.queue}-${r.jobName}`,

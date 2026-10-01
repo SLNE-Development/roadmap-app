@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { getDb } from "@/db/client";
 import { valkeyKv } from "@/lib/kv";
-import { registerBuiltinMetrics, renderMetrics } from "@/lib/metrics";
+import { registerBuiltinMetricsOnce, renderMetrics } from "@/lib/metrics";
 import { bullQueueRaw } from "@/lib/queue";
 import { pingValkey } from "@/lib/valkey";
 
@@ -30,20 +30,15 @@ export async function handleMetrics(
   return new Response(await render(), { headers: { "content-type": "text/plain; version=0.0.4" } });
 }
 
-let registered = false;
-
 /** Prometheus scrape endpoint; registers the built-in metrics on the first authorised request. */
 export async function GET(request: Request): Promise<Response> {
   return handleMetrics(request, { METRICS_TOKEN: process.env.METRICS_TOKEN }, async () => {
-    if (!registered) {
-      registered = true;
-      registerBuiltinMetrics({
-        db: getDb(),
-        kv: valkeyKv(),
-        queueCounts: (q) => bullQueueRaw(q).getJobCounts("waiting", "active", "delayed", "failed"),
-        pingValkey,
-      });
-    }
+    registerBuiltinMetricsOnce({
+      db: getDb(),
+      kv: valkeyKv(),
+      queueCounts: (q) => bullQueueRaw(q).getJobCounts("waiting", "active", "delayed", "failed"),
+      pingValkey,
+    });
     return renderMetrics();
   });
 }

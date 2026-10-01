@@ -2,12 +2,14 @@ import Redis from "ioredis";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { testValkeyUrl, uniquePrefix } from "@/test/valkey";
 import { valkeyBus } from "./bus";
+import { closeValkey } from "./valkey";
 
 const client = new Redis(testValkeyUrl(), { maxRetriesPerRequest: null });
 const bus = valkeyBus({ client, prefix: uniquePrefix() });
 
 afterAll(async () => {
   await client.quit();
+  await closeValkey();
 });
 
 describe("valkeyBus", () => {
@@ -34,5 +36,14 @@ describe("valkeyBus", () => {
     }, { timeout: 1000 });
     unsubA();
     unsubB();
+  });
+
+  it("subscribes and receives through the default clients", async () => {
+    const defaultBus = valkeyBus({ prefix: uniquePrefix() });
+    const handler = vi.fn();
+    const unsubscribe = await defaultBus.subscribe("project:p3", handler);
+    await defaultBus.publish("project:p3", { n: 3 });
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledWith({ n: 3 }), { timeout: 1000 });
+    unsubscribe();
   });
 });

@@ -68,6 +68,9 @@ export async function runFeedTick(
 
   const results: { consumer: string; delivered: number; error?: string }[] = [];
   for (const consumer of list) {
+    // Re-check and extend the lease before each consumer, so a slow tick cannot outlive it.
+    if ((await deps.kv.get(LOCK_KEY)) !== holder) return results;
+    await deps.kv.set(LOCK_KEY, holder, leaseSeconds);
     const { db } = deps;
     let [cursorRow] = await db.select().from(feedCursor).where(eq(feedCursor.name, consumer.name));
     if (!cursorRow) {

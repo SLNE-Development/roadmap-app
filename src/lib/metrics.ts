@@ -23,7 +23,10 @@ export async function workerAlive(kv: Kv, now: Date): Promise<boolean> {
   return !Number.isNaN(at) && now.getTime() - at < HEARTBEAT_MAX_AGE_MS;
 }
 
-const registry: Metric[] = [];
+const globalForMetrics = globalThis as unknown as { roadmapMetrics?: Metric[]; roadmapMetricsRegistered?: boolean };
+
+/** Registry on `globalThis`, so separate route-module instances and dev HMR share it. */
+const registry: Metric[] = (globalForMetrics.roadmapMetrics ??= []);
 
 /**
  * Adds a metric to the process-wide registry served by `/api/metrics`.
@@ -111,11 +114,24 @@ export function registerBuiltinMetrics(
     return samples;
   });
   gauge("roadmap_feed_lag", "Change log entries a feed consumer has not yet processed.", async () => {
-    const [{ max }] = await deps.db.select({ max: sql<number>`coalesce(max(${changeLog.id}), 0)::int` }).from(changeLog);
+    const [{ max }] = await deps.db.select({ max: sql<number>`coalesce(max(${changeLog.id}), 0)::float8` }).from(changeLog);
     const cursors = await deps.db.select().from(feedCursor);
     return cursors.map((c) => ({ labels: { consumer: c.name }, value: Math.max(0, max - c.lastId) }));
   });
   gauge("roadmap_feed_cursor", "Last change log id processed by a feed consumer.", async () =>
     (await deps.db.select().from(feedCursor)).map((c) => ({ labels: { consumer: c.name }, value: c.lastId })),
   );
+}
+
+/**
+ * Registers the built-in metrics once per process; the flag is set only after registration succeeds.
+ * `register` is injectable for tests.
+ */
+export function registerBuiltinMetricsOnce(
+  deps: Parameters<typeof registerBuiltinMetrics>[0],
+  register?: (metric: Metric) => void,
+): void {
+  if (globalForMetrics.roadmapMetricsRegistered) return;
+  registerBuiltinMetrics(deps, register);
+  globalForMetrics.roadmapMetricsRegistered = true;
 }

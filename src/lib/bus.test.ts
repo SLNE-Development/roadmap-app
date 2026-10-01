@@ -37,4 +37,18 @@ describe("memoryBus", () => {
     expect(a).toHaveBeenCalledOnce();
     expect(b).toHaveBeenCalledOnce();
   });
+
+  it("keeps delivering to later handlers when one throws", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bus = memoryBus();
+    const second = vi.fn();
+    await bus.subscribe("project:p1", () => {
+      throw new Error("boom");
+    });
+    await bus.subscribe("project:p1", second);
+    await bus.publish("project:p1", { keys: [] });
+    expect(second).toHaveBeenCalledOnce();
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
 });

@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { changeLog, feedSeen } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { memoryKv } from "@/lib/kv";
@@ -7,7 +7,7 @@ import { logChange } from "@/lib/ops/log";
 import { createProjectFixture } from "@/test/fixtures";
 import { createTestDb } from "@/test/db";
 import { testDeps } from "./deps";
-import { runFeedTick, type FeedConsumer } from "./feed";
+import { runFeedTick, startFeed, type FeedConsumer } from "./feed";
 import "./feed-prune";
 import { runJob } from "./jobs";
 
@@ -173,6 +173,21 @@ describe("change feed", () => {
     await addChange(db, owner, projectId, "b");
     expect(await runFeedTick(deps, [consumer], { holder: "h2" })).not.toBeNull();
     expect(got).toHaveLength(2);
+  });
+
+  it("startFeed survives a rejected tick and delivers on a later one", async () => {
+    const { db, owner, projectId } = await setup();
+    await addChange(db, owner, projectId, "a");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const kv = memoryKv();
+    const realGet = kv.get;
+    kv.get = vi.fn().mockRejectedValueOnce(new Error("valkey timeout")).mockImplementation(realGet);
+    const { got, consumer } = recorder({ fromStart: true });
+    const stop = startFeed(testDeps(db, { kv }), [consumer], { intervalMs: 10 });
+    await vi.waitFor(() => expect(got.length).toBeGreaterThan(0), { timeout: 2000 });
+    await stop();
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
   });
 
   it("feed-prune removes old seen rows", async () => {

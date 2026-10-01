@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import type Redis from "ioredis";
-import { getValkey } from "./valkey";
+import { getProducerValkey } from "./valkey";
 
 /** Names of the BullMQ queues. */
 export const QUEUE = { feed: "feed", deliver: "deliver", github: "github", maintenance: "maintenance" } as const;
@@ -55,12 +55,15 @@ export function memoryQueue(): MemoryQueue {
 
 const queues = new Map<QueueName, Queue>();
 
-/** Returns the cached BullMQ queue for `name`, creating it on first use. */
+/**
+ * Returns the cached BullMQ queue for `name`, creating it on first use. Its connection defaults to the
+ * fail-fast producer client, so `add` rejects quickly while Valkey is down.
+ */
 export function bullQueueRaw(name: QueueName, opts?: { connection?: Redis }): Queue {
   let queue = queues.get(name);
   if (!queue) {
     queue = new Queue(name, {
-      connection: opts?.connection ?? getValkey(),
+      connection: opts?.connection ?? getProducerValkey(),
       prefix: "roadmap",
       defaultJobOptions: DEFAULT_JOB_OPTIONS,
     });
