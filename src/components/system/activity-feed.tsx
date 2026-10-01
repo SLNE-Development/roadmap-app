@@ -1,6 +1,9 @@
 import { GitCommitHorizontal, History } from "lucide-react";
 import Link from "next/link";
 import { documentCompare } from "@/components/activity/change-sentence";
+import { foldActivity } from "@/components/activity/fold";
+import { FoldedRow } from "@/components/activity/folded-row";
+import type { TimelineItem } from "@/components/activity/timeline";
 import { STATE_LABEL } from "@/components/chips";
 import { useNow } from "@/components/clock";
 import { Markdown } from "@/components/markdown";
@@ -21,6 +24,16 @@ export interface ActivityNames {
 
 /** One entry of the merged feed. */
 type FeedItem = { kind: "update"; at: Date; update: UpdateItem } | { kind: "change"; at: Date; change: HistoryEntry };
+
+/** The item as folding sees it: who, when and which kind. The sentence is rendered from the original, not from this. */
+function foldable(item: FeedItem): TimelineItem {
+  if (item.kind === "update") {
+    const u = item.update;
+    return { kind: "update", key: `u-${u.id}`, createdAt: u.createdAt.toISOString(), authorName: u.authorName, agent: u.agent, systemSlug: "", systemTitle: "", taskTitle: null, summary: "", nextStep: null, commitHash: null, commitUrl: null };
+  }
+  const c = item.change;
+  return { kind: "change", key: `c-${c.id}`, createdAt: c.createdAt.toISOString(), authorName: c.authorName, agent: c.agent, sentence: { verb: "", target: null, targetIsSystem: false }, systemSlug: null, toCategory: null };
+}
 
 /** Drops a "Board / " prefix both values share, so a move within a board names only the columns. */
 function columnNames(from: string | null, to: string | null): [string, string] {
@@ -195,6 +208,7 @@ export function ActivityFeed({ updates, changes, names, base }: { updates: Updat
   if (items.length === 0) {
     return <EmptyState icon={<History />} title="No activity yet" description="Updates from agents and every change to this system show up here." />;
   }
+  const byKey = new Map(items.map((i) => [i.kind === "update" ? `u-${i.update.id}` : `c-${i.change.id}`, i]));
   const days: { label: string; items: FeedItem[] }[] = [];
   for (const item of items) {
     const label = dayLabel(item.at.toISOString(), now);
@@ -207,11 +221,25 @@ export function ActivityFeed({ updates, changes, names, base }: { updates: Updat
         <section key={d.label} className="flex flex-col gap-2">
           <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{d.label}</h2>
           <ol className="flex flex-col gap-2">
-            {d.items.map((item) => (
-              <li key={item.kind === "update" ? `u-${item.update.id}` : `c-${item.change.id}`}>
-                {item.kind === "update" ? <UpdateEntry update={item.update} /> : <ChangeEntry change={item.change} names={names} base={base} />}
-              </li>
-            ))}
+            {foldActivity(d.items.map(foldable)).map((entry) => {
+              if (entry.kind === "fold") {
+                return (
+                  <li key={entry.key}>
+                    <ol className="flex flex-col border bg-card">
+                      <FoldedRow group={entry}>
+                        {entry.items.map((c) => (
+                          <li key={c.key} className="border-b last:border-b-0">
+                            <ChangeEntry change={(byKey.get(c.key) as Extract<FeedItem, { kind: "change" }>).change} names={names} base={base} />
+                          </li>
+                        ))}
+                      </FoldedRow>
+                    </ol>
+                  </li>
+                );
+              }
+              const item = byKey.get(entry.key)!;
+              return <li key={entry.key}>{item.kind === "update" ? <UpdateEntry update={item.update} /> : <ChangeEntry change={item.change} names={names} base={base} />}</li>;
+            })}
           </ol>
         </section>
       ))}

@@ -9,6 +9,8 @@ import type { ColumnCategory } from "@/db/schema";
 import { dayLabel, formatDate, formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { describeChange, documentCompare, type ChangeFacts, type ChangeSentence } from "./change-sentence";
+import { foldActivity } from "./fold";
+import { FoldedRow } from "./folded-row";
 
 /** Who made a timeline entry: the person and, when one acted for them, the agent. */
 export interface TimelineAuthor {
@@ -37,6 +39,8 @@ export interface ChangeTimelineItem extends TimelineAuthor {
   createdAt: string;
   sentence: ChangeSentence;
   systemSlug: string | null;
+  /** Title of the system the change belongs to, when known. */
+  systemTitle?: string | null;
   toCategory: ColumnCategory | null;
   /** The versions a spec or plan entry can be compared across. */
   compare?: { tab: "spec" | "plan"; from: number; to: number } | null;
@@ -102,6 +106,7 @@ export function changeItems(
         agent: e.agent,
         sentence,
         systemSlug: system?.slug ?? null,
+        systemTitle: system?.title ?? null,
         toCategory,
         compare: documentCompare(e),
       };
@@ -234,9 +239,17 @@ export function Timeline({ items, projectSlug, hideSystem = false }: { items: Ti
         <section key={day.label} className="flex flex-col gap-2">
           <h2 title="Days in UTC" className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">{day.label}</h2>
           <ol className="flex flex-col border bg-card">
-            {day.items.map((item) => (
-              <TimelineRow key={item.key} item={item} projectSlug={projectSlug} hideSystem={hideSystem} />
-            ))}
+            {foldActivity(day.items).map((entry) =>
+              entry.kind === "fold" ? (
+                <FoldedRow key={entry.key} group={entry}>
+                  {entry.items.map((item) => (
+                    <TimelineRow key={item.key} item={item} projectSlug={projectSlug} hideSystem={hideSystem} />
+                  ))}
+                </FoldedRow>
+              ) : (
+                <TimelineRow key={entry.key} item={entry} projectSlug={projectSlug} hideSystem={hideSystem} />
+              ),
+            )}
           </ol>
         </section>
       ))}
