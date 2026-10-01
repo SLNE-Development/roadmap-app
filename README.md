@@ -213,6 +213,44 @@ Owners can turn on three rules per repository (all off by default):
 
 Changes are made as the PR author when they linked their GitHub login and can edit the project, otherwise as the owner who linked the repository; with neither, the rule is skipped.
 
+## Event requests
+
+An event planner with no developer skills files a **request**: a brief written in Markdown, a date, a banner image, answers to the team's questions, a fallback plan and prep to-dos. A developer accepts it into a project (new or existing) and the planner follows the build progress. The same page posts the event's Discord messages. Open **Requests** in the sidebar. The full guide is [`docs/event-requests.md`](docs/event-requests.md).
+
+Status flow: `draft` → `submitted` → `accepted` → `event_week` → `done`. A request can also be `withdrawn` (while it is a draft or submitted) or `cancelled` (once accepted). The requester can recall a submitted request to a draft until it is accepted.
+
+### Roles
+
+An admin sets two flags per account on the **Accounts** page of the Admin section (column **Event roles**):
+
+- **Event manager**: sees every request, creates requests (also for someone else), edits them, posts the messages and edits the event settings.
+- **Event developer**: sees submitted requests, asks questions and accepts requests into projects.
+
+Admins have both. The requester of a request always sees and edits their own while it is open. Members of a request's linked project see it once it is submitted.
+
+### Event settings
+
+Event managers and admins open **Requests** → **Event settings** (`/requests/settings`); users without an event role get a not-found page. Managers edit the post-as name, ping role id, Discord server id, time zone, rulebook link, style guides, examples and the details, disaster and resolved templates. The **webhook URLs and the bot token are admin-only**: managers see only whether each is set and its last four characters. They are encrypted with `ENCRYPTION_KEY` and are never shown again, in the UI, the API or logs.
+
+### Nothing posts automatically
+
+Every Discord message is a click on a button (**Post now**, **Edit**, **Delete messages**, **Send to staff channel**, **Post disaster message**, **Resolve**). Reminders are notifications only: an hourly worker job tells people that a message or to-do is due, that a request is waiting on someone, or that a submitted request has not been picked up. It never posts, never changes a status and never calls Discord. The app also never calls Claude: the **Copy prompts** dialog only gives you a text to paste into your own assistant.
+
+### Discord setup
+
+1. In your Discord server create **three webhooks** (Channel settings → Integrations → Webhooks): one for the **public announcements** channel, one for the **team** channel, one for a **staff test** channel.
+2. Turn on Developer Mode (User settings → Advanced), right-click the role an announcement may ping and choose **Copy role ID**. Right-click the server and copy the server ID if you want real Discord events.
+3. Optional, for real Discord scheduled events: create a bot in the Discord developer portal and invite it to the server with the **Manage Events** and **Create Events** permissions. The app uses the REST API only: no gateway connection and no intents.
+4. An admin pastes the three webhook URLs and the bot token in **Event settings** → **Webhooks and bot**; a manager enters the ping role id and the server id under **Channels**.
+
+Discord limits a message to 2,000 characters. Longer texts are split at paragraph breaks into several messages; the details card (date, time, duration, place, links) is always its own last message. Editing a split post updates every part and never pings. A post pings the role once, on its first message, and only if you tick the ping box. Test sends go to the staff channel only, never ping and never create a Discord event. If Discord cannot create the scheduled event, the announcement still posts with the details card and the post shows a note.
+
+If a post stalls, check the channel, then press **Resume**. A crash between Discord answering and the database write can repeat one message; webhooks cannot de-duplicate, so the app cannot prevent that.
+
+### Uploads volume
+
+Banner and message images are stored in `EVENT_UPLOADS_DIR` (default `/data/uploads`), which both compose files mount from the named volume `roadmap-uploads` into `app` and `worker`. Files are publish-once, so the volume needs no backup. The Dockerfile creates the directory for the `node` user; if you replace the volume with a bind mount, run `chown 1000:1000` on the host directory. Both processes check at start that the directory is writable.
+
 ## The surf-roadmap plugin
 
 ```

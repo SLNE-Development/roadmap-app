@@ -63,3 +63,5 @@ licensed; see `LICENSES/superpowers-MIT.txt`.
 
 `/surf-roadmap:plan <idea>`, `/surf-roadmap:status`, `/surf-roadmap:next`,
 `/surf-roadmap:setup`, `/surf-roadmap:requests [update <request-id> | list | <request-id>]`.
+
+`/surf-roadmap:requests <request-id>` develops an accepted event request (first time); `update <request-id>` brings its system in line after the planner changed the brief. There is no list tool, so without an id the command asks for it (the last part of the request's URL). It uses `get_request` and `ask_requester`; see the `event-requests` skill and [`docs/event-requests.md`](../docs/event-requests.md).
