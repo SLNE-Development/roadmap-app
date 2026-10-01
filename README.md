@@ -150,7 +150,7 @@ Connect GitHub so pull requests and checks show up on tasks and systems. Reposit
 
 1. An admin opens the account menu, then **GitHub App** under the Admin section, clicks **Create GitHub App** and confirms on GitHub. Then **Install on an account or org** and pick the repositories.
 2. Project owners link repositories under project **Settings** → **GitHub**. People link their own GitHub login under account menu → **Connections**.
-3. Repositories outside the app can be added by hand: add a webhook with the URL and secret shown in the dialog.
+3. Repositories outside the app can be added by hand: add a webhook with the URL and secret shown in the panel.
 
 The app requests read-only permissions: Metadata, Contents, Pull requests and Checks.
 
@@ -158,7 +158,7 @@ The app requests read-only permissions: Metadata, Contents, Pull requests and Ch
 
 ### Referencing tasks from pull requests
 
-- `roadmap#<id>` in a pull request title links the task. When the project enables it, the task is closed on merge.
+- `roadmap#<id>` in a pull request title links the task. When the repository's Close tasks rule is on, the task is closed on merge.
 - `roadmap:<system-slug>` in the body links the pull request to the system. The body only links and never closes anything.
 - Never use a bare `#<id>`: GitHub reads it as an issue, not a task.
 

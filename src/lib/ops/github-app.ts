@@ -2,12 +2,12 @@ import { randomBytes } from "node:crypto";
 import { and, count, desc, eq, gt, inArray, isNull, max } from "drizzle-orm";
 import { z } from "zod";
 import { githubApp, githubDelivery, githubInstallation, githubInstallRequest, githubRepo, user } from "@/db/schema";
-import type { Db } from "@/db/types";
+import type { Db, Executor } from "@/db/types";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { GitHubApi } from "@/lib/github/api";
 import { buildManifest } from "@/lib/github/manifest";
-import { installationManageUrl, installUrl, manifestActionUrl } from "@/lib/github/urls";
+import { installationManageUrl, installUrl, isPublicOrigin, manifestActionUrl, unreachableOriginMessage } from "@/lib/github/urls";
 import { newId } from "@/lib/id";
 import type { Kv } from "@/lib/kv";
 import { siteUrl } from "@/lib/site";
@@ -89,6 +89,31 @@ function safeReturnTo(raw: string | null | undefined): string {
 }
 
 /**
+ * Moves the linked repositories among `repos` (matched by full name, case-insensitively) onto the installation: access
+ * `ok`, App mode, its GitHub id and visibility. A repo linked by hand moves to the App, which now covers it, so its
+ * webhook secret is cleared. Repos nobody linked are skipped.
+ */
+export async function adoptRepos(
+  tx: Executor,
+  installationId: number,
+  repos: { id: number; fullName: string; private?: boolean }[],
+): Promise<void> {
+  for (const repo of repos) {
+    await tx
+      .update(githubRepo)
+      .set({
+        access: "ok",
+        mode: "app",
+        installationId,
+        githubRepoId: repo.id,
+        ...(repo.private !== undefined && { private: repo.private }),
+        webhookSecretEnc: null,
+      })
+      .where(eq(githubRepo.fullNameKey, repo.fullName.toLowerCase()));
+  }
+}
+
+/**
  * Stores the App's credentials, encrypting the secrets. Replaces the existing row but keeps its link policy.
  * Not written to `change_log`, which is per project.
  *
@@ -112,6 +137,9 @@ export async function saveAppCredentials(db: Db, actor: Actor, raw: z.input<type
     clientSecretEnc: encryptSecret(c.clientSecret),
     privateKeyEnc: encryptSecret(c.privateKey),
     webhookSecretEnc: encryptSecret(c.webhookSecret),
+    // A new App has no rotation to wait out.
+    previousWebhookSecretEnc: null,
+    previousSecretExpiresAt: null,
     updatedAt: new Date(),
   };
   await db
@@ -185,7 +213,7 @@ export const startManifestInput = z.object({
  * hands back to {@link completeManifest}.
  *
  * @throws ForbiddenError unless the actor is an admin
- * @throws InvalidError when the organization is not a valid login
+ * @throws InvalidError when the organization is not a valid login or the site is not reachable from GitHub
  */
 export async function startManifest(
   db: Db,
@@ -195,6 +223,7 @@ export async function startManifest(
 ): Promise<{ action: string; manifest: string; state: string }> {
   requireAdmin(actor, "Only admins can create the GitHub App.");
   const { org, name } = startManifestInput.parse(raw);
+  if (!isPublicOrigin(siteUrl())) throw new InvalidError(unreachableOriginMessage(siteUrl()));
   const state = newState();
   const action = manifestActionUrl(org || null, state);
   await kv.set(`gh:manifest:${state}`, actor.userId, STATE_TTL);
@@ -304,10 +333,14 @@ export async function recordInstallation(
       ...(repos && { repoCount: repos.length }),
       updatedAt: new Date(),
     };
-    await db
-      .insert(githubInstallation)
-      .values({ id: info.id, ...values, installedByUserId: userId })
-      .onConflictDoUpdate({ target: githubInstallation.id, set: values });
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(githubInstallation)
+        .values({ id: info.id, ...values, installedByUserId: userId })
+        .onConflictDoUpdate({ target: githubInstallation.id, set: values });
+      // A reinstall brings back the repos that were linked before it.
+      if (repos && !info.suspended) await adoptRepos(tx, info.id, repos);
+    });
     if (repos) await kv.set(`gh:repos:${info.id}`, JSON.stringify(repos), REPO_CACHE_TTL);
     else await kv.del(`gh:repos:${info.id}`);
     return returnTo;

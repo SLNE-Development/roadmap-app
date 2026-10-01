@@ -5,7 +5,7 @@ import type { Db } from "@/db/types";
 import { fakeGitHubApi } from "@/lib/github/fake";
 import { createSystem } from "@/lib/ops/systems";
 import { createTestDb } from "@/test/db";
-import { createProjectFixture } from "@/test/fixtures";
+import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { testDeps } from "../deps";
 import { aggregateChecks } from "./checks";
 import { handleGitHubEvent } from "./events";
@@ -48,7 +48,8 @@ async function setup(checksWarning: boolean, mode: "app" | "webhook" = "app") {
   const db = await createTestDb();
   const p = await createProjectFixture(db, "p");
   const sys = await createSystem(db, p.owner, "p", { slug: "search-index", title: "Search index" });
-  await db.update(system).set({ ownerUserId: p.owner.userId }).where(eq(system.id, sys.id));
+  const sysOwner = await addMemberFixture(db, p.owner, "p", "editor", "Sam");
+  await db.update(system).set({ ownerUserId: sysOwner.userId }).where(eq(system.id, sys.id));
   await db.insert(githubInstallation).values({ id: 7, accountLogin: "Org", accountType: "Organization", repositorySelection: "all" });
   await db.insert(githubRepo).values({
     id: "r1",
@@ -76,21 +77,38 @@ async function setup(checksWarning: boolean, mode: "app" | "webhook" = "app") {
     state: "open",
     checks: "pending",
   });
-  return { db };
+  return { db, p, sysOwner };
 }
 
 describe("check_suite events", () => {
   it("stores a failure and warns the system owner", async () => {
-    const { db } = await setup(true);
+    const { db, sysOwner } = await setup(true);
     api.seed.suites["Org/App@abc"] = [done("failure")];
     expect((await deliver(db, "app", "abc")).status).toBe("done");
     const [row] = await db.select().from(codeLink);
     expect(row.checks).toBe("failure");
     const rows = await db.select().from(notification).where(eq(notification.kind, "checks.failed"));
     expect(rows).toHaveLength(1);
-    expect(rows[0].sourceKey).toBe("checks-failed:r1:abc");
+    expect(rows[0]).toMatchObject({ sourceKey: "checks-failed:r1:abc", userId: sysOwner.userId, actorName: "GitHub for Owner" });
     await deliver(db, "app", "abc");
     expect(await db.select().from(notification).where(eq(notification.kind, "checks.failed"))).toHaveLength(1);
+  });
+
+  it("ignores a repository whose access was lost", async () => {
+    const { db } = await setup(true);
+    await db.update(githubRepo).set({ access: "lost" });
+    api.seed.suites["Org/App@abc"] = [done("failure")];
+    expect(await deliver(db, "app", "abc")).toEqual({ status: "ignored", detail: "repository access lost" });
+    expect((await db.select().from(codeLink))[0].checks).toBe("pending");
+  });
+
+  it("does not warn the owner who is the acting user", async () => {
+    const { db, p } = await setup(true);
+    await db.update(system).set({ ownerUserId: p.owner.userId });
+    api.seed.suites["Org/App@abc"] = [done("failure")];
+    await deliver(db, "app", "abc");
+    expect((await db.select().from(codeLink))[0].checks).toBe("failure");
+    expect(await db.select().from(notification).where(eq(notification.kind, "checks.failed"))).toEqual([]);
   });
 
   it("stays quiet when the warning is off", async () => {

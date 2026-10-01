@@ -39,7 +39,7 @@ async function setup() {
   await createSystem(db, q.owner, "q", { slug: "other", title: "Other" });
   const { id: q1 } = await addTask(db, q.owner, "q", "other", { title: "Secret" });
   await db.insert(githubRepo).values({ id: "r1", projectId: p.projectId, fullName: "Org/App", fullNameKey: "org/app", mode: "app", githubRepoId: 42 });
-  return { db, p, systemId: system.id, t1, t2, q1 };
+  return { db, p, q, systemId: system.id, t1, t2, q1 };
 }
 
 function pullRequest(action: string, title: string, body: string, extra: Record<string, unknown> = {}) {
@@ -86,6 +86,33 @@ describe("pull_request events", () => {
     expect(outcome).toEqual({ status: "done", detail: "no roadmap references" });
     expect(await links(db)).toEqual([]);
     expect(outcome.detail).not.toContain(String(q1));
+  });
+
+  it("ignores an app delivery for a repository linked by hand", async () => {
+    const { db, t1 } = await setup();
+    await db.update(githubRepo).set({ mode: "webhook", webhookSecretEnc: "x" }).where(eq(githubRepo.id, "r1"));
+    expect(await deliver(db, "pull_request", pullRequest("opened", `roadmap#${t1}`, ""))).toEqual({ status: "ignored", detail: "linked by hand" });
+    expect(await deliver(db, "push", { repository, commits: [{ id: "c1", message: `roadmap#${t1}`, url: "https://github.com/Org/App/commit/c1" }] })).toEqual({
+      status: "ignored",
+      detail: "linked by hand",
+    });
+    expect(await links(db)).toEqual([]);
+  });
+
+  it("ignores a roadmap:<slug> reference to another project's system", async () => {
+    const { db, q } = await setup();
+    await createSystem(db, q.owner, "q", { slug: "billing", title: "Billing" });
+    const outcome = await deliver(db, "pull_request", pullRequest("opened", "feat", "roadmap:billing"));
+    expect(outcome).toEqual({ status: "done", detail: "no roadmap references" });
+    expect(await links(db)).toEqual([]);
+  });
+
+  it("stores only GitHub URLs on code links", async () => {
+    const { db, t1 } = await setup();
+    await deliver(db, "pull_request", pullRequest("opened", `roadmap#${t1}`, "", { html_url: "https://evil.example/pull/419" }));
+    await deliver(db, "push", { repository, commits: [{ id: "c1", message: `roadmap#${t1}`, url: "javascript:alert(1)" }] });
+    const rows = await links(db);
+    expect(rows.map((r) => r.url).sort()).toEqual(["https://github.com/Org/App/commit/c1", "https://github.com/Org/App/pull/419"]);
   });
 
   it("deletes the links of references removed by an edit", async () => {

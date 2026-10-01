@@ -61,6 +61,16 @@ const HANDLED_ACTIONS = new Set(["opened", "reopened", "edited", "synchronize", 
 const MAX_COMMITS = 100;
 const MAX_TITLE = 200;
 const NOT_LINKED: DeliveryOutcome = { status: "ignored", detail: "repository not linked" };
+const LINKED_BY_HAND: DeliveryOutcome = { status: "ignored", detail: "linked by hand" };
+const GITHUB_URL = "https://github.com/";
+
+/** Returns the App deliveries' own repos: a repo linked by hand (webhook mode) is handled by its manual webhook only. */
+export function handBlocked(job: GitHubEventJob, repo: GitHubRepoRow): DeliveryOutcome | null {
+  return job.source === "app" && repo.mode !== "app" ? LINKED_BY_HAND : null;
+}
+
+/** Returns `url` when it points to GitHub, else `fallback`; only GitHub URLs are stored on code links. */
+const githubUrl = (url: string | undefined, fallback: string): string => (url?.startsWith(GITHUB_URL) ? url : fallback);
 
 /**
  * Finds the linked repository of a delivery: the job's repo for a manual webhook, else the repo with the
@@ -117,6 +127,8 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
   if (!pr || !HANDLED_ACTIONS.has(action)) return { status: "ignored", detail: `pull_request.${action || "?"}` };
   const repo = await findRepo(deps.db, job, payload.repository);
   if (!repo) return NOT_LINKED;
+  const blocked = handBlocked(job, repo);
+  if (blocked) return blocked;
 
   const state = pr.merged ? "merged" : pr.state === "closed" ? "closed" : "open";
   const resetChecks = repo.mode === "app" && (action === "opened" || action === "synchronize");
@@ -140,7 +152,7 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
         number: pr.number,
         sha: pr.head?.sha ?? null,
         title: pr.title.slice(0, MAX_TITLE),
-        url: pr.html_url,
+        url: githubUrl(pr.html_url, `${GITHUB_URL}${repo.fullName}/pull/${pr.number}`),
         state,
         ...(resetChecks && { checks: "pending" as const }),
         closes: target.closes,
@@ -176,6 +188,8 @@ onGitHubEvent("push", async (job, deps) => {
   if (payload.deleted === true) return { status: "ignored", detail: "branch deleted" };
   const repo = await findRepo(deps.db, job, payload.repository);
   if (!repo) return NOT_LINKED;
+  const blocked = handBlocked(job, repo);
+  if (blocked) return blocked;
   const actor = await automationActor(deps.db, repo, payload.sender?.id ?? null);
 
   const tasks = new Set<number>();
@@ -192,7 +206,7 @@ onGitHubEvent("push", async (job, deps) => {
           number: null,
           sha: commit.id,
           title: commit.message.split("\n", 1)[0].slice(0, MAX_TITLE),
-          url: commit.url,
+          url: githubUrl(commit.url, `${GITHUB_URL}${repo.fullName}/commit/${commit.id}`),
           state: "merged",
           closes: false,
           authorLogin: commit.author?.username ?? null,

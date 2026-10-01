@@ -2,9 +2,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { codeLink, project, system } from "@/db/schema";
 import type { CheckSuiteInfo } from "@/lib/github/api";
 import { logChange } from "@/lib/ops/log";
-import { notify } from "@/lib/ops/notifications";
+import { actorLabel, notify } from "@/lib/ops/notifications";
 import { onGitHubEvent } from "./events";
-import { findRepo, type RepositoryPayload } from "./pulls";
+import { findRepo, handBlocked, type RepositoryPayload } from "./pulls";
 import { automationActor } from "./rules";
 
 /** The parts of a `check_suite` payload the handler reads. */
@@ -31,6 +31,9 @@ onGitHubEvent("check_suite", async (job, deps, api) => {
   if (job.source === "repo") return { status: "ignored", detail: "manual webhook has no checks" };
   const repo = await findRepo(deps.db, job, payload.repository);
   if (!repo) return { status: "ignored", detail: "repository not linked" };
+  const blocked = handBlocked(job, repo);
+  if (blocked) return blocked;
+  if (repo.access === "lost") return { status: "ignored", detail: "repository access lost" };
   const sha = payload.check_suite?.head_sha;
   if (repo.mode !== "app" || repo.installationId === null || !sha) return { status: "ignored", detail: "no checks to track" };
   const links = await deps.db
@@ -64,7 +67,8 @@ onGitHubEvent("check_suite", async (job, deps, api) => {
         .where(inArray(system.id, changed.map((l) => l.systemId)));
       const [{ slug: projectSlug }] = await tx.select({ slug: project.slug }).from(project).where(eq(project.id, repo.projectId));
       for (const s of systems) {
-        if (!s.ownerUserId) continue;
+        // Never notify yourself.
+        if (!s.ownerUserId || s.ownerUserId === actor?.userId) continue;
         await notify(tx, {
           userId: s.ownerUserId,
           projectId: repo.projectId,
@@ -72,6 +76,7 @@ onGitHubEvent("check_suite", async (job, deps, api) => {
           entity: "system",
           entityId: s.id,
           title: `Checks failed on ${s.title}`,
+          actorName: actor ? actorLabel(actor.name, actor.agent) : null,
           body: changed.find((l) => l.systemId === s.id)?.title,
           href: `/p/${projectSlug}/systems/${s.slug}`,
           sourceKey: `checks-failed:${repo.id}:${sha}`,

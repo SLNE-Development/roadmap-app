@@ -1,13 +1,20 @@
+import { randomInt } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { allowedAccount, system as systemTable, user, type ProjectRole } from "@/db/schema";
 import type { Db } from "@/db/types";
-import { newId } from "@/lib/id";
 import type { Actor } from "@/lib/ops/actor";
 import { setMember } from "@/lib/ops/members";
 import { createProject } from "@/lib/ops/projects";
 
 /** Counter making fixture names, emails and Discord ids unique within a test. */
 let seq = 0;
+
+const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+/** Returns an id shaped like Better Auth's user ids: 32 mixed-case alphanumerics, never a UUID. */
+function authUserId(): string {
+  return Array.from({ length: 32 }, () => ID_ALPHABET[randomInt(ID_ALPHABET.length)]).join("");
+}
 
 /**
  * Inserts a provisioned user (a `user` row plus its `allowedAccount`) and returns them as an actor.
@@ -20,7 +27,7 @@ export async function insertUser(
   opts: { name?: string; isAdmin?: boolean; discordId?: string } = {},
 ): Promise<Actor> {
   seq += 1;
-  const id = newId();
+  const id = authUserId();
   const name = opts.name ?? `User ${seq}`;
   const discordId = opts.discordId ?? String(100000000000000000n + BigInt(seq));
   await db.insert(user).values({ id, name, email: `u${seq}-${id}@example.test`, discordId, isAdmin: opts.isAdmin ?? false });

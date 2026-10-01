@@ -54,6 +54,22 @@ describe("installation events", () => {
     expect(await kv.get("gh:repos:11")).toBeNull();
   });
 
+  it("adopts the linked repos when the App is installed again with a new installation id", async () => {
+    const { db, deps, projectId } = await setup();
+    await deliver(db, deps, "installation", { action: "created", installation });
+    await db.insert(githubRepo).values({ id: "r1", projectId, fullName: "Org/a", fullNameKey: "org/a", mode: "app", installationId: 11, githubRepoId: 1 });
+    await deliver(db, deps, "installation", { action: "deleted", installation });
+    expect((await db.select().from(githubRepo))[0].access).toBe("lost");
+
+    const again = { ...installation, id: 12 };
+    await deliver(db, deps, "installation", {
+      action: "created",
+      installation: again,
+      repositories: [{ id: 1, full_name: "Org/A", private: true }, { id: 2, full_name: "Org/unlinked" }],
+    });
+    expect(await db.select().from(githubRepo)).toMatchObject([{ access: "ok", installationId: 12, githubRepoId: 1, mode: "app", private: true }]);
+  });
+
   it("marks a suspended installation suspended", async () => {
     const { db, deps } = await setup();
     await deliver(db, deps, "installation", { action: "created", installation });

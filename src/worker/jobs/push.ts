@@ -180,6 +180,7 @@ export async function sendPush(deps: WorkerDeps, raw: unknown): Promise<void> {
   if (subscription.userId !== row.userId) return;
   if (!(await canReceive(deps.db, row.userId, row.projectId))) return;
   const payload = { title: row.title, body: row.body, href: row.href, tag: `${row.kind}:${row.entityId}`, id: row.id };
+  // Kinds ending in "blocked" (automation.blocked) are urgent too.
   const urgency = row.kind === "mention" || row.kind.endsWith("blocked") ? "high" : "normal";
   await deliver(deps, config, subscription, payload, urgency);
 }

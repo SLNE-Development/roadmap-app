@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { githubApp, githubDelivery, githubRepo } from "@/db/schema";
@@ -115,6 +115,29 @@ describe("handleWebhook", () => {
     expect(queue.jobs).toHaveLength(0);
   });
 
+  it("refuses a known repo's delivery with a wrong secret, no header or a sha1 header without writing", async () => {
+    const { db, queue, repoId } = await setup();
+    const deps = { db, queue, now: () => NOW };
+    const target = { source: "repo", repoId } as const;
+    const sha1 = `sha1=${createHmac("sha1", "repo-secret").update(repoPayload()).digest("hex")}`;
+    for (const request of [hook({ secret: "nope" }), hook({ signature: null }), hook({ secret: "repo-secret", signature: sha1 })]) {
+      const res = await handleWebhook(deps, request, target);
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "Invalid signature." });
+    }
+    expect(await db.select().from(githubDelivery)).toHaveLength(0);
+    expect(queue.jobs).toHaveLength(0);
+  });
+
+  it("answers 401 on the manual route for a repo in app mode", async () => {
+    const { db, queue, repoId } = await setup();
+    await db.update(githubRepo).set({ mode: "app" }).where(eq(githubRepo.id, repoId));
+    const res = await handleWebhook({ db, queue, now: () => NOW }, hook({ secret: "repo-secret" }), { source: "repo", repoId });
+    expect(res.status).toBe(401);
+    expect(await db.select().from(githubDelivery)).toHaveLength(0);
+    expect(queue.jobs).toHaveLength(0);
+  });
+
   it("accepts the previous secret until it expires", async () => {
     const { db, queue } = await setup();
     await db
@@ -185,6 +208,40 @@ describe("handleWebhook", () => {
     const res = await handleWebhook({ db, queue, now: () => NOW }, request, app);
     expect(res.status).toBe(413);
     expect(request.bodyUsed).toBe(false);
+  });
+
+  it("stops reading a streamed body at 5 MB", async () => {
+    const { db, queue } = await setup();
+    let pulled = 0;
+    const chunk = new Uint8Array(1024 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        if (pulled > 50) controller.close();
+        else controller.enqueue(chunk);
+      },
+    });
+    const request = new Request("http://localhost/api/github/app", {
+      method: "POST",
+      headers: { "x-github-event": "pull_request", "x-github-delivery": randomUUID() },
+      body,
+      duplex: "half",
+    } as RequestInit);
+    const res = await handleWebhook({ db, queue, now: () => NOW }, request, app);
+    expect(res.status).toBe(413);
+    expect(pulled).toBeLessThan(15);
+  });
+
+  it("verifies the signature over the raw bytes", async () => {
+    const { db, queue } = await setup();
+    const bytes = Buffer.from(JSON.stringify({ action: "opened", repository: { full_name: "Org/Repo" }, note: "café" }), "utf8");
+    const headers = {
+      "x-github-event": "pull_request",
+      "x-github-delivery": randomUUID(),
+      "x-hub-signature-256": signBody("whsec", bytes),
+    };
+    const res = await handleWebhook({ db, queue, now: () => NOW }, new Request("http://localhost/api/github/app", { method: "POST", headers, body: bytes }), app);
+    expect(res.status).toBe(202);
   });
 
   it("answers 404 when no app is configured", async () => {

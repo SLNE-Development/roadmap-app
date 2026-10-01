@@ -68,12 +68,15 @@ async function copy(text: string): Promise<void> {
  */
 export function GitHubAdminView({
   defaultName,
+  unreachable,
   urls,
   created,
   requested,
   error,
 }: {
   defaultName: string;
+  /** Why the App cannot be created from this site (GitHub cannot reach it), or null when it can. */
+  unreachable: string | null;
   urls: AppUrls;
   created: boolean;
   requested: boolean;
@@ -102,7 +105,7 @@ export function GitHubAdminView({
           description="Connect a GitHub App so projects can link repositories and follow pull requests, commits and checks."
         />
         <div className="grid gap-5 lg:grid-cols-2">
-          <CreateAppCard defaultName={defaultName} />
+          <CreateAppCard defaultName={defaultName} unreachable={unreachable} />
           <ExistingAppCard urls={urls} />
         </div>
       </Page>
@@ -112,7 +115,7 @@ export function GitHubAdminView({
 }
 
 /** Creates the App on GitHub from a manifest: GitHub asks to confirm and redirects back with the credentials. */
-function CreateAppCard({ defaultName }: { defaultName: string }) {
+function CreateAppCard({ defaultName, unreachable }: { defaultName: string; unreachable: string | null }) {
   const trpc = useTRPC();
   const start = useMutation(trpc.github.startManifest.mutationOptions());
   const [org, setOrg] = useState("");
@@ -159,8 +162,9 @@ function CreateAppCard({ defaultName }: { defaultName: string }) {
           </Label>
           <Input id="gh-name" maxLength={34} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
+        {unreachable && <p className="text-[12.5px] leading-normal text-fg-2">{unreachable}</p>}
         <div>
-          <Button type="submit" disabled={start.isPending}>
+          <Button type="submit" disabled={start.isPending || unreachable !== null}>
             Create on GitHub ↗
           </Button>
         </div>

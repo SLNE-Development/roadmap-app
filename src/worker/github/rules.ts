@@ -5,7 +5,7 @@ import type { GitHubApi } from "@/lib/github/api";
 import type { GitHubEventJob } from "@/lib/github/webhook";
 import { withAgent, type Actor } from "@/lib/ops/actor";
 import { ConflictError, OpError } from "@/lib/ops/errors";
-import { notify } from "@/lib/ops/notifications";
+import { actorLabel, notify } from "@/lib/ops/notifications";
 import { moveSystem } from "@/lib/ops/systems";
 import { updateTask } from "@/lib/ops/tasks";
 import { loadActor } from "@/lib/ops/users";
@@ -59,11 +59,21 @@ async function slugOf(db: Executor, projectId: string): Promise<string> {
 const noteOf = (error: OpError) => error.message.slice(0, MAX_NOTE);
 
 /** Sets the open tasks the pull request closes to done; returns the notes. */
-async function closeOnMerge(deps: WorkerDeps, repo: GitHubRepoRow, authorId: number | null, links: PullRequestLink[]): Promise<string[]> {
+async function closeOnMerge(
+  deps: WorkerDeps,
+  repo: GitHubRepoRow,
+  pr: { number: number },
+  authorId: number | null,
+  links: PullRequestLink[],
+): Promise<string[]> {
   const ids = [...new Set(links.filter((l) => l.closes && l.taskId !== null).map((l) => l.taskId as number))];
   if (ids.length === 0) return [];
-  const rows = await deps.db.select({ id: task.id, state: task.state }).from(task).where(inArray(task.id, ids));
-  const todo = rows.filter((t) => t.state !== "done").map((t) => t.id);
+  const rows = await deps.db
+    .select({ id: task.id, state: task.state, title: task.title, ownerUserId: task.ownerUserId, systemId: task.systemId })
+    .from(task)
+    .where(inArray(task.id, ids));
+  const open = new Map(rows.filter((t) => t.state !== "done").map((t) => [t.id, t]));
+  const todo = [...open.keys()];
   if (todo.length === 0) return [];
   const actor = await automationActor(deps.db, repo, authorId);
   if (!actor) return [NO_ACTOR_NOTE];
@@ -75,6 +85,26 @@ async function closeOnMerge(deps: WorkerDeps, repo: GitHubRepoRow, authorId: num
     } catch (error) {
       if (!(error instanceof OpError)) throw error;
       notes.push(`task ${id} not closed: ${noteOf(error)}`);
+      const row = open.get(id);
+      if (!row) continue;
+      const [owner] = await deps.db
+        .select({ slug: system.slug, ownerUserId: system.ownerUserId })
+        .from(system)
+        .where(eq(system.id, row.systemId));
+      const recipient = row.ownerUserId ?? owner?.ownerUserId;
+      if (recipient) {
+        await notify(deps.db, {
+          userId: recipient,
+          projectId: repo.projectId,
+          kind: "automation.blocked",
+          entity: "system",
+          entityId: row.systemId,
+          title: `Could not close task ${row.title}`,
+          body: error.message,
+          href: `/p/${await slugOf(deps.db, repo.projectId)}/systems/${owner.slug}`,
+          sourceKey: `automation-blocked:${repo.id}:${pr.number}:task-${id}`,
+        });
+      }
     }
   }
   return notes;
@@ -140,7 +170,13 @@ async function reviewOnOpen(deps: WorkerDeps, repo: GitHubRepoRow, pr: { number:
 }
 
 /** Tells the owners of the linked tasks, else of the linked systems, that the pull request was merged. */
-async function notifyMerged(deps: WorkerDeps, repo: GitHubRepoRow, pr: { number: number; title: string }, links: PullRequestLink[]): Promise<void> {
+async function notifyMerged(
+  deps: WorkerDeps,
+  repo: GitHubRepoRow,
+  pr: { number: number; title: string },
+  actor: Actor | null,
+  links: PullRequestLink[],
+): Promise<void> {
   const taskIds = links.flatMap((l) => (l.taskId === null ? [] : [l.taskId]));
   const systemIds = [...new Set(links.map((l) => l.systemId))];
   const systems = await deps.db
@@ -156,6 +192,8 @@ async function notifyMerged(deps: WorkerDeps, repo: GitHubRepoRow, pr: { number:
   const recipients = new Map<string, string>();
   for (const t of taskOwners) if (t.ownerUserId && !recipients.has(t.ownerUserId)) recipients.set(t.ownerUserId, t.systemId);
   if (recipients.size === 0) for (const s of systems) if (s.ownerUserId && !recipients.has(s.ownerUserId)) recipients.set(s.ownerUserId, s.id);
+  // Never notify yourself: the person the merge is attributed to already knows.
+  if (actor) recipients.delete(actor.userId);
   if (recipients.size === 0) return;
   const projectSlug = await slugOf(deps.db, repo.projectId);
   for (const [userId, systemId] of recipients) {
@@ -168,6 +206,7 @@ async function notifyMerged(deps: WorkerDeps, repo: GitHubRepoRow, pr: { number:
       entity: "system",
       entityId: systemId,
       title: `PR #${pr.number} merged: ${pr.title}`,
+      actorName: actor ? actorLabel(actor.name, actor.agent) : null,
       href: `/p/${projectSlug}/systems/${target.slug}`,
       sourceKey: `pr-merged:${repo.id}:${pr.number}`,
     });
@@ -192,8 +231,8 @@ export async function runPullRequestRules(job: GitHubEventJob, deps: WorkerDeps,
   const authorId = typeof pr.user?.id === "number" ? pr.user.id : null;
   const notes: string[] = [];
   if (payload.action === "closed" && pr.merged) {
-    if (repo.rules.closeOnMerge) notes.push(...(await closeOnMerge(deps, repo, authorId, links)));
-    await notifyMerged(deps, repo, pr, links);
+    if (repo.rules.closeOnMerge) notes.push(...(await closeOnMerge(deps, repo, pr, authorId, links)));
+    await notifyMerged(deps, repo, pr, await automationActor(deps.db, repo, authorId), links);
   }
   if ((payload.action === "opened" || payload.action === "ready_for_review") && !pr.draft && repo.rules.reviewOnOpen) {
     notes.push(...(await reviewOnOpen(deps, repo, pr, authorId, links)));

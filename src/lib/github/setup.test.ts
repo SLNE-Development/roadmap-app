@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { githubInstallation, githubInstallRequest } from "@/db/schema";
+import { githubInstallation, githubInstallRequest, githubRepo } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { memoryKv, type Kv } from "@/lib/kv";
 import type { Actor } from "@/lib/ops/actor";
 import { recordInstallation, saveAppCredentials, startInstall } from "@/lib/ops/github-app";
 import { createTestDb } from "@/test/db";
-import { insertUser } from "@/test/fixtures";
+import { createProjectFixture, insertUser } from "@/test/fixtures";
 import { fakeGitHubApi } from "./fake";
 
 const appInput = {
@@ -55,6 +55,25 @@ describe("recordInstallation", () => {
     expect(rows[0]).toMatchObject({ id: 5, accountLogin: "SLNE-Development", accountType: "Organization", repositorySelection: "selected", status: "active", installedByUserId: admin.userId });
     expect(rows[0].repoCount).toBe(2);
     expect(JSON.parse((await kv.get("gh:repos:5")) ?? "null")).toHaveLength(2);
+  });
+
+  it("adopts the repos linked before a reinstall", async () => {
+    const { db, kv, admin, api } = await setup();
+    const { projectId } = await createProjectFixture(db);
+    await db.insert(githubInstallation).values({ id: 4, accountLogin: "SLNE-Development", accountType: "Organization", repositorySelection: "all", status: "removed" });
+    await db.insert(githubRepo).values({
+      id: "r1",
+      projectId,
+      fullName: "SLNE-Development/surf",
+      fullNameKey: "slne-development/surf",
+      mode: "app",
+      installationId: 4,
+      githubRepoId: 11,
+      access: "lost",
+    });
+    await recordInstallation(db, kv, api, admin.userId, { installationId: 5, setupAction: "install", state: null });
+    const [repo] = await db.select().from(githubRepo);
+    expect(repo).toMatchObject({ access: "ok", installationId: 5, githubRepoId: 11, private: true, mode: "app", webhookSecretEnc: null });
   });
 
   it("keeps the repo count when GitHub cannot list the repos", async () => {

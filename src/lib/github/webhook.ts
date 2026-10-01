@@ -48,6 +48,25 @@ async function secretsFor(db: Db, target: WebhookTarget, now: Date): Promise<str
   return [decryptSecret(repo.webhookSecretEnc)];
 }
 
+/** Reads the request body as raw bytes, or returns null as soon as it grows past the limit; nothing more is buffered after that. */
+async function readBody(request: Request): Promise<Buffer | null> {
+  if (!request.body) return Buffer.alloc(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
 /** Returns `payload.repository.full_name`, or null when the payload has none. */
 function repositoryName(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null) return null;
@@ -69,8 +88,8 @@ export async function handleWebhook(
 ): Promise<Response> {
   const { db } = deps;
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return tooLarge();
-  const body = await request.text();
-  if (Buffer.byteLength(body) > MAX_BODY_BYTES) return tooLarge();
+  const body = await readBody(request);
+  if (!body) return tooLarge();
 
   const now = deps.now();
   const secrets = await secretsFor(db, target, now);
@@ -93,7 +112,7 @@ export async function handleWebhook(
 
   let payload: unknown;
   try {
-    payload = JSON.parse(body);
+    payload = JSON.parse(new TextDecoder().decode(body));
   } catch {
     return json({ error: "The payload is not valid JSON." }, 400);
   }

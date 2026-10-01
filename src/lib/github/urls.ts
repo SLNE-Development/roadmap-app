@@ -26,3 +26,22 @@ export function installationManageUrl(i: { id: number; accountLogin: string; acc
     ? `https://github.com/organizations/${i.accountLogin}/settings/installations/${i.id}`
     : `https://github.com/settings/installations/${i.id}`;
 }
+
+/**
+ * Whether GitHub can reach the URL from the internet: false for localhost and `*.localhost`, `*.local`, loopback
+ * (127.0.0.0/8, ::1), 0.0.0.0 and the private or link-local IPv4 ranges (10/8, 172.16/12, 192.168/16, 169.254/16).
+ */
+export function isPublicOrigin(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return false;
+  if (host === "::1" || host === "0.0.0.0") return false;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!v4) return true;
+  const [a, b] = [Number(v4[1]), Number(v4[2])];
+  return !(a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254));
+}
+
+/** The message shown when the App cannot be created because GitHub cannot reach the site. */
+export function unreachableOriginMessage(url: URL): string {
+  return `GitHub can't reach ${url.origin}. Set BETTER_AUTH_URL to a public URL (for example a tunnel) to create the app here, or use an existing app.`;
+}

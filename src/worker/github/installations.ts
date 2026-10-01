@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { githubInstallation, githubRepo } from "@/db/schema";
+import { adoptRepos } from "@/lib/ops/github-app";
 import { onGitHubEvent } from "./events";
 
 /** The parts of `payload.installation` the handlers read. */
@@ -25,10 +26,12 @@ const STATUS_OF: Record<string, "active" | "suspended" | "removed"> = {
   deleted: "removed",
 };
 
+const toRepos = (repos: RepoPayload[]) => repos.map((r) => ({ id: r.id, fullName: r.full_name, private: r.private }));
+
 const selectionOf = (value: unknown): "all" | "selected" => (value === "all" ? "all" : "selected");
 
 onGitHubEvent("installation", async (job, deps) => {
-  const payload = job.payload as { action?: string; installation?: InstallationPayload };
+  const payload = job.payload as { action?: string; installation?: InstallationPayload; repositories?: RepoPayload[] };
   const status = STATUS_OF[payload.action ?? ""];
   const installation = payload.installation;
   if (!status || !installation) return { status: "ignored", detail: `installation.${payload.action ?? "?"}` };
@@ -47,6 +50,8 @@ onGitHubEvent("installation", async (job, deps) => {
       .values({ id: installation.id, accountLogin: "", accountType: "User", ...account, ...values })
       .onConflictDoUpdate({ target: githubInstallation.id, set: { ...account, ...values } });
     if (status === "removed") await tx.update(githubRepo).set({ access: "lost" }).where(eq(githubRepo.installationId, installation.id));
+    // A reinstall brings back the repos that were linked before it.
+    if (status === "active" && payload.repositories) await adoptRepos(tx, installation.id, toRepos(payload.repositories));
   });
   await deps.kv.del(`gh:repos:${installation.id}`);
   return { status: "done" };
@@ -80,20 +85,7 @@ onGitHubEvent("installation_repositories", async (job, deps) => {
         .set({ access: "lost" })
         .where(inArray(githubRepo.githubRepoId, removed.map((r) => r.id)));
     }
-    // A repo linked by hand moves to the App, which now covers it; its webhook secret is no longer needed.
-    for (const repo of added) {
-      await tx
-        .update(githubRepo)
-        .set({
-          access: "ok",
-          mode: "app",
-          installationId: installation.id,
-          githubRepoId: repo.id,
-          ...(repo.private !== undefined && { private: repo.private }),
-          webhookSecretEnc: null,
-        })
-        .where(eq(githubRepo.fullNameKey, repo.full_name.toLowerCase()));
-    }
+    await adoptRepos(tx, installation.id, toRepos(added));
   });
   await deps.kv.del(`gh:repos:${installation.id}`);
   return { status: "done" };

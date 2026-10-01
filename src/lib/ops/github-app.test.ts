@@ -52,6 +52,18 @@ describe("github app credentials", () => {
     expect(row.privateKeyEnc).not.toContain("PRIVATE KEY");
   });
 
+  it("clears the previous webhook secret when the credentials are saved again", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    await saveAppCredentials(db, admin, input);
+    await rotateWebhookSecret(db, fakeGitHubApi(), admin, new Date());
+    expect((await loadAppConfig(db))?.previousWebhookSecret).not.toBeNull();
+    await saveAppCredentials(db, admin, { ...input, appId: 43 });
+    const [row] = await db.select().from(githubApp);
+    expect(row.previousWebhookSecretEnc).toBeNull();
+    expect(row.previousSecretExpiresAt).toBeNull();
+  });
+
   it("returns null without a row", async () => {
     expect(await loadAppConfig(await createTestDb())).toBeNull();
   });
@@ -116,6 +128,17 @@ describe("github app setup", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it("refuses to start the manifest flow when GitHub cannot reach the site", async () => {
+    vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3001");
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const kv = memoryKv();
+    await expect(startManifest(db, kv, admin, {})).rejects.toThrow(
+      "GitHub can't reach http://localhost:3001. Set BETTER_AUTH_URL to a public URL (for example a tunnel) to create the app here, or use an existing app.",
+    );
+    await expect(startManifest(db, kv, admin, {})).rejects.toMatchObject({ name: "InvalidError" });
   });
 
   it("refuses to start the manifest flow for a non-admin", async () => {

@@ -143,6 +143,39 @@ describe("close on merge", () => {
   });
 });
 
+describe("close on merge failures and merge notices", () => {
+  it("tells the task owner when the task cannot be closed", async () => {
+    const { db, p, systemId, t1 } = await setup();
+    await db.update(system).set({ planningCompletedAt: null, planningConfirmation: null }).where(eq(system.id, systemId));
+    const outcome = await deliver(db, merged(`feat [roadmap#${t1}]`));
+    expect(outcome.detail).toContain(`task ${t1} not closed`);
+    const rows = await notices(db, "automation.blocked");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ userId: p.owner.userId, sourceKey: `automation-blocked:r1:419:task-${t1}` });
+    await deliver(db, merged(`feat [roadmap#${t1}]`));
+    expect(await notices(db, "automation.blocked")).toHaveLength(1);
+  });
+
+  it("falls back to the system owner when the task has no owner", async () => {
+    const { db, p, systemId, t1 } = await setup();
+    await db.update(task).set({ ownerUserId: null }).where(eq(task.id, t1));
+    await db.update(system).set({ planningCompletedAt: null, planningConfirmation: null }).where(eq(system.id, systemId));
+    await deliver(db, merged(`feat [roadmap#${t1}]`));
+    expect(await notices(db, "automation.blocked")).toMatchObject([{ userId: p.owner.userId }]);
+  });
+
+  it("names the author in the merge notice and never notifies the author", async () => {
+    const { db, p, editor, t1 } = await setup({ closeOnMerge: false });
+    await deliver(db, merged(`feat [roadmap#${t1}]`));
+    expect(await notices(db, "pr.merged")).toMatchObject([{ userId: p.owner.userId, actorName: "GitHub for Edith" }]);
+
+    await db.update(task).set({ ownerUserId: editor.userId }).where(eq(task.id, t1));
+    await db.delete(notification);
+    await deliver(db, merged(`feat [roadmap#${t1}]`));
+    expect(await notices(db, "pr.merged")).toEqual([]);
+  });
+});
+
 describe("review on open", () => {
   const openPr = (extra: Record<string, unknown> = {}) => pullRequest("opened", "feat roadmap:search-index", extra);
 
