@@ -40,9 +40,9 @@ export async function createProjectFixture(db: Db, slug = "demo"): Promise<{ own
   return { owner, slug, projectId: row.id };
 }
 
-/** Creates a provisioned user and adds them to the project with `role`. */
-export async function addMemberFixture(db: Db, owner: Actor, slug: string, role: ProjectRole): Promise<Actor> {
-  const member = await insertUser(db, { name: `${role} member` });
+/** Creates a provisioned user (named `<role> member` unless `name` is given) and adds them to the project with `role`. */
+export async function addMemberFixture(db: Db, owner: Actor, slug: string, role: ProjectRole, name?: string): Promise<Actor> {
+  const member = await insertUser(db, { name: name ?? `${role} member` });
   await setMember(db, owner, slug, { userId: member.userId, role });
   return member;
 }
