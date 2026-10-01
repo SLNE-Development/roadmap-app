@@ -1,13 +1,29 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { changeLog, release, system } from "@/db/schema";
+import { boardColumn, changeLog, release, releaseNote, system } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { ConflictError, ForbiddenError, NotFoundError } from "./errors";
 import { getProgress } from "./insight";
-import { createRelease, deleteRelease, freezeRelease, unfreezeRelease, updateRelease } from "./releases";
+import { acceptAdr, createAdr } from "./adrs";
+import { setColumnRules } from "./boards";
+import { addQuestion } from "./questions";
+import {
+  createRelease,
+  deleteRelease,
+  freezeRelease,
+  getRelease,
+  getReleaseNote,
+  listReleases,
+  releaseRisk,
+  shipRelease,
+  unfreezeRelease,
+  updateRelease,
+  writeReleaseNote,
+} from "./releases";
 import { createSystem, listSystems, updateSystem, updateSystems } from "./systems";
 import { addTask } from "./tasks";
+import { postUpdate } from "./updates";
 
 /** A project with an editor, and the systems `a`, `b` and `c`. */
 async function setup() {
@@ -128,5 +144,123 @@ describe("getProgress release filter", () => {
     expect((await getProgress(db, owner, slug, { release: "1-0" })).totals.scope).toBe(1);
     expect((await getProgress(db, owner, slug, {})).totals.scope).toBe(3);
     await expect(getProgress(db, owner, slug, { release: "nope" })).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+/** Moves the systems into their board's Done column without the planning and gate checks. */
+async function markDone(db: Awaited<ReturnType<typeof setup>>["db"], slugs: string[]) {
+  const [done] = await db.select().from(boardColumn).where(eq(boardColumn.category, "done"));
+  for (const s of slugs) await db.update(system).set({ columnId: done.id }).where(eq(system.slug, s));
+}
+
+describe("releaseRisk", () => {
+  const range = { status: "range", paceLow: 1, paceHigh: 2, earliest: "2026-10-20", latest: "2026-10-29" } as const;
+
+  it("compares the projected range with the target", () => {
+    expect(releaseRisk("planned", "2026-10-24", range)).toBe("at-risk");
+    expect(releaseRisk("planned", "2026-10-29", range)).toBe("on-track");
+    expect(releaseRisk("planned", "2026-10-19", range)).toBe("late");
+    expect(releaseRisk("planned", null, range)).toBe("unknown");
+    expect(releaseRisk("frozen", "2026-10-24", { status: "none", reason: "no-pace" })).toBe("unknown");
+    expect(releaseRisk("shipped", "2026-10-01", range)).toBe("on-track");
+  });
+});
+
+describe("getRelease and listReleases", () => {
+  it("reports systems, counts, estimates, open questions and unmet gates", async () => {
+    const { db, owner, slug } = await setup();
+    await createRelease(db, owner, slug, { slug: "1-0", name: "1.0", targetDate: "2026-12-01" });
+    await createRelease(db, owner, slug, { slug: "0-9", name: "0.9" });
+    await updateSystem(db, owner, slug, "a", { release: "1-0" });
+    await updateSystem(db, owner, slug, "b", { release: "1-0" });
+    await addTask(db, owner, slug, "a", { title: "one", estimate: "M" });
+    await addTask(db, owner, slug, "b", { title: "two" });
+    await addQuestion(db, owner, slug, { title: "Which?", system: "b" });
+    await setColumnRules(db, owner, slug, "development", { column: "Done", rules: [{ rule: "all-tasks-done" }] });
+    await markDone(db, ["a"]);
+    const detail = await getRelease(db, owner, slug, "1-0");
+    expect(detail.systems.map((s) => [s.slug, s.category, s.tasksTotal, s.gatesUnmet])).toEqual([
+      ["a", "done", 1, 1],
+      ["b", "planning", 1, 1],
+    ]);
+    expect(detail.counts).toMatchObject({ done: 1, planning: 1, todo: 0 });
+    expect(detail.estimates).toMatchObject({ tasks: 2, points: 3, unestimated: 1 });
+    expect(detail.openQuestions.map((q) => [q.title, q.systemSlug])).toEqual([["Which?", "b"]]);
+    expect(detail.risk).toBe("unknown");
+    expect(detail.latestNote).toBeNull();
+    const list = await listReleases(db, owner, slug);
+    expect(list.map((r) => [r.slug, r.systemCount, r.doneCount])).toEqual([
+      ["1-0", 2, 1],
+      ["0-9", 0, 0],
+    ]);
+  });
+});
+
+describe("shipRelease", () => {
+  /** A release holding a (done, summary, accepted ADR), b (done, update) and c (not done). */
+  async function shippable() {
+    const ctx = await setup();
+    const { db, owner, slug } = ctx;
+    await createRelease(db, owner, slug, { slug: "1-0", name: "1.0" });
+    for (const s of ["a", "b", "c"]) await updateSystem(db, owner, slug, s, { release: "1-0" });
+    await updateSystem(db, owner, slug, "a", { summary: "Find anything." });
+    await postUpdate(db, owner, slug, "b", { summary: "Exports landed\nwith detail" });
+    const { number } = await createAdr(db, owner, slug, { title: "Use SSE", context: "c", decision: "d", alternatives: "a", consequences: "x", systems: ["a", "b"] });
+    await acceptAdr(db, owner, slug, number);
+    await markDone(db, ["a", "b"]);
+    return ctx;
+  }
+
+  it("blocks while systems are unfinished", async () => {
+    const { db, owner, slug } = await shippable();
+    const attempt = shipRelease(db, owner, slug, "1-0", {});
+    await expect(attempt).rejects.toBeInstanceOf(ConflictError);
+    await expect(attempt).rejects.toThrow("1 of 3 systems aren't done: C. Ship with unfinished: unassign to move them out.");
+  });
+
+  it("unassigns unfinished systems, logs them and writes note version 1", async () => {
+    const { db, owner, slug } = await shippable();
+    const row = await shipRelease(db, owner, slug, "1-0", { unfinished: "unassign" });
+    expect(row.status).toBe("shipped");
+    expect(row.shippedAt).not.toBeNull();
+    const [c] = await db.select().from(system).where(eq(system.slug, "c"));
+    expect(c.releaseId).toBeNull();
+    const [entry] = await db.select().from(changeLog).where(and(eq(changeLog.entity, "system"), eq(changeLog.field, "release"), eq(changeLog.systemId, c.id), isNull(changeLog.newValue)));
+    expect([entry.oldValue, entry.newValue]).toEqual(["1.0", null]);
+    const note = await getReleaseNote(db, owner, slug, "1-0");
+    expect(note.version).toBe(1);
+    const [y, m, d] = (row.shippedAt as Date).toISOString().slice(0, 10).split("-").map(Number);
+    const label = `${d} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m - 1]} ${y}`;
+    expect(note.body).toBe(
+      `# 1.0\n\nShipped ${label}.\n\n## Shipped\n\n- **A**: Find anything.\n- **B**: Exports landed\n\n## Decisions\n\n- ADR-0001 Use SSE\n\n## Not shipped\n\n- C`,
+    );
+    await expect(shipRelease(db, owner, slug, "1-0", {})).rejects.toBeInstanceOf(ConflictError);
+    expect((await getRelease(db, owner, slug, "1-0")).risk).toBe("on-track");
+  });
+
+  it("needs an owner", async () => {
+    const { db, editor, slug } = await shippable();
+    await expect(shipRelease(db, editor, slug, "1-0", { unfinished: "unassign" })).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe("release notes", () => {
+  it("versions writes and reads a given version", async () => {
+    const { db, owner, editor, slug } = await setup();
+    await createRelease(db, owner, slug, { slug: "1-0", name: "1.0" });
+    await shipRelease(db, owner, slug, "1-0", {});
+    expect(await writeReleaseNote(db, editor, slug, "1-0", "second")).toEqual({ version: 2 });
+    expect(await writeReleaseNote(db, editor, slug, "1-0", "third")).toEqual({ version: 3 });
+    expect((await getReleaseNote(db, owner, slug, "1-0", 2)).body).toBe("second");
+    expect((await getReleaseNote(db, owner, slug, "1-0")).version).toBe(3);
+    await expect(getReleaseNote(db, owner, slug, "1-0", 9)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("gives concurrent writes distinct versions", async () => {
+    const { db, owner, slug } = await setup();
+    await createRelease(db, owner, slug, { slug: "1-0", name: "1.0" });
+    const results = await Promise.all([writeReleaseNote(db, owner, slug, "1-0", "x"), writeReleaseNote(db, owner, slug, "1-0", "y")]);
+    expect(results.map((r) => r.version).sort()).toEqual([1, 2]);
+    expect(await db.select().from(releaseNote)).toHaveLength(2);
   });
 });
