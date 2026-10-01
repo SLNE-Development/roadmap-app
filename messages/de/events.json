@@ -485,5 +485,10 @@
     "loading": "Prompts werden geladen…",
     "close": "Schließen",
     "button": "Prompts kopieren"
+  },
+  "discordPreview": {
+    "label": "Vorschau der Discord-Nachricht",
+    "mention": "Event",
+    "eventCard": "Discord-Event"
   }
 }

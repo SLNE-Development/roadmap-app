@@ -27,5 +27,26 @@
   "archive": "Archivieren",
   "restore": "Wiederherstellen",
   "rename": "Umbenennen",
-  "sectionLink": "Link zum Abschnitt {title}"
+  "sectionLink": "Link zum Abschnitt {title}",
+  "markdownEditor": {
+    "viewLabel": "Editoransicht",
+    "toolbarLabel": "Formatierung",
+    "write": "Schreiben",
+    "preview": "Vorschau",
+    "split": "Geteilt",
+    "previewEmpty": "Noch nichts zur Vorschau.",
+    "counter": "{count} / {max}",
+    "heading": "Überschrift",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "strikethrough": "Durchgestrichen",
+    "code": "Code im Text",
+    "link": "Link",
+    "quote": "Zitat",
+    "bulletList": "Aufzählung",
+    "numberedList": "Nummerierte Liste",
+    "taskList": "Aufgabenliste",
+    "codeBlock": "Codeblock",
+    "rule": "Trennlinie"
+  }
 }

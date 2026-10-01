@@ -19,9 +19,6 @@
     "created": "{title} erstellt"
   },
   "editor": {
-    "viewLabel": "Editor-Ansicht",
-    "write": "Schreiben",
-    "preview": "Vorschau",
     "bodyLabel": "Seiteninhalt (Markdown)",
     "saveAs": "Als v{version} speichern",
     "saved": "Als v{version} gespeichert"

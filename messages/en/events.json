@@ -485,5 +485,10 @@
     "loading": "Loading prompts…",
     "close": "Close",
     "button": "Copy prompts"
+  },
+  "discordPreview": {
+    "label": "Discord message preview",
+    "mention": "Event",
+    "eventCard": "Discord event"
   }
 }

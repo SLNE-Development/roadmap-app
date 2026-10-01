@@ -27,5 +27,26 @@
   "archive": "Archive",
   "restore": "Restore",
   "rename": "Rename",
-  "sectionLink": "Link to section {title}"
+  "sectionLink": "Link to section {title}",
+  "markdownEditor": {
+    "viewLabel": "Editor view",
+    "toolbarLabel": "Formatting",
+    "write": "Write",
+    "preview": "Preview",
+    "split": "Split",
+    "previewEmpty": "Nothing to preview yet.",
+    "counter": "{count} / {max}",
+    "heading": "Heading",
+    "bold": "Bold",
+    "italic": "Italic",
+    "strikethrough": "Strikethrough",
+    "code": "Inline code",
+    "link": "Link",
+    "quote": "Quote",
+    "bulletList": "Bulleted list",
+    "numberedList": "Numbered list",
+    "taskList": "Task list",
+    "codeBlock": "Code block",
+    "rule": "Horizontal rule"
+  }
 }

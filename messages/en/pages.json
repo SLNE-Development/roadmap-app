@@ -19,9 +19,6 @@
     "created": "Created {title}"
   },
   "editor": {
-    "viewLabel": "Editor view",
-    "write": "Write",
-    "preview": "Preview",
     "bodyLabel": "Page body (markdown)",
     "saveAs": "Save as v{version}",
     "saved": "Saved as v{version}"
