@@ -1,12 +1,15 @@
 import "server-only";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Db } from "@/db/types";
 import { withAgent, type Actor } from "@/lib/ops/actor";
 import { notifyRecorder, type CallRecord } from "@/lib/ops/agent-runs";
+import { projectBrief } from "@/lib/ops/brief";
 import { messageOf, statusOf } from "@/lib/ops/errors";
+import { listProjects } from "@/lib/ops/projects";
 import { TOOLS } from "@/lib/tools/definitions";
 import { inputSchema, runTool } from "@/lib/tools/registry";
+import { MCP_PROMPTS } from "./prompts";
 
 /** Rules the server gives every connecting agent. */
 export const MCP_INSTRUCTIONS = [
@@ -76,6 +79,23 @@ export function createMcpServer(db: Db, actor: Actor, opts: { apiKeyId?: string;
         return result;
       },
     );
+  }
+  server.registerResource(
+    "project-brief",
+    new ResourceTemplate("roadmap://project/{slug}/brief", {
+      list: async () => ({
+        resources: (await listProjects(db, actor)).map((p) => ({ uri: `roadmap://project/${p.slug}/brief`, name: `${p.name} brief`, mimeType: "text/markdown" })),
+      }),
+    }),
+    { description: "A short markdown brief of a project: phases, active and blocked systems, open questions.", mimeType: "text/markdown" },
+    async (uri, { slug }) => ({
+      contents: [{ uri: uri.href, mimeType: "text/markdown", text: await projectBrief(db, actor, String(slug)) }],
+    }),
+  );
+  for (const prompt of MCP_PROMPTS) {
+    server.registerPrompt(prompt.name, { description: prompt.description, argsSchema: prompt.args }, (args) => ({
+      messages: [{ role: "user", content: { type: "text", text: prompt.text({ project: String(args.project), system: typeof args.system === "string" ? args.system : undefined }) } }],
+    }));
   }
   return server;
 }

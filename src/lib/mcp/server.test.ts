@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
 import type { CallRecord } from "@/lib/ops/agent-runs";
-import { TOOLS } from "@/lib/tools/definitions";
+import { TOOL_NAMES, TOOLS } from "@/lib/tools/definitions";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
+import { MCP_PROMPTS } from "./prompts";
 import { createMcpServer } from "./server";
 
 /** Connects an in-memory MCP client to a server acting as `actor`, reporting calls to `recordCall`. */
@@ -109,5 +110,34 @@ describe("MCP server", () => {
       ["list_systems", "mcp", true, 200, "key-1", "Claude Code"],
       ["list_systems", "mcp", false, 404, "key-1", "Claude Code"],
     ]);
+  });
+
+  it("serves the project brief as a resource for the actor's projects only", async () => {
+    const db = await createTestDb();
+    const { owner } = await createProjectFixture(db);
+    await createProjectFixture(db, "other");
+    const client = await connect(db, owner);
+    const { resourceTemplates } = await client.listResourceTemplates();
+    expect(resourceTemplates.map((t) => t.uriTemplate)).toContain("roadmap://project/{slug}/brief");
+    const { resources } = await client.listResources();
+    expect(resources).toEqual([expect.objectContaining({ uri: "roadmap://project/demo/brief", name: "DEMO brief", mimeType: "text/markdown" })]);
+    const read = await client.readResource({ uri: "roadmap://project/demo/brief" });
+    expect((read.contents[0] as { text: string }).text.startsWith("# DEMO (demo)")).toBe(true);
+    await expect(client.readResource({ uri: "roadmap://project/other/brief" })).rejects.toThrow();
+  });
+
+  it("offers the next, status and plan prompts, which only name registered tools", async () => {
+    const db = await createTestDb();
+    const { owner } = await createProjectFixture(db);
+    const client = await connect(db, owner);
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => p.name).sort()).toEqual(["next", "plan", "status"]);
+    const plan = await client.getPrompt({ name: "plan", arguments: { project: "demo", system: "search" } });
+    expect((plan.messages[0].content as { text: string }).text).toContain("add_planning_round");
+    for (const prompt of MCP_PROMPTS) {
+      const text = prompt.text({ project: "demo", system: "search" });
+      for (const name of text.match(/[a-z]+(?:_[a-z]+)+/g) ?? []) expect(TOOL_NAMES, `${prompt.name} names ${name}`).toContain(name);
+    }
+    expect(MCP_PROMPTS.find((p) => p.name === "plan")!.text({ project: "demo" }).length).toBeLessThanOrEqual(1500);
   });
 });
