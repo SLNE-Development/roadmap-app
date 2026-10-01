@@ -195,7 +195,9 @@ export async function sendPushTest(deps: WorkerDeps, raw: unknown): Promise<void
   if (!config) return;
   const [subscription] = await deps.db.select().from(pushSubscription).where(eq(pushSubscription.id, subscriptionId));
   if (!subscription) return;
-  const payload = { title: "Test notification", body: "Push works on this device.", href: "/settings/notifications", tag: "test", id: `test-${subscriptionId}` };
+  // A fresh tag per test: a notification reusing a shown tag replaces it silently, without an alert.
+  const tag = `test:${deps.now().getTime()}`;
+  const payload = { title: "Test notification", body: "Push works on this device.", href: "/settings/notifications", tag, id: `test-${subscriptionId}` };
   await deliver(deps, config, subscription, payload, "normal");
 }
 
