@@ -16,7 +16,7 @@ const SPEC_TOOLS = [
   "list_systems", "get_system", "create_system", "update_system", "move_system",
   "get_planning", "add_planning_round", "answer_planning_items", "complete_planning", "reopen_planning",
   "get_document", "write_spec", "write_plan",
-  "add_task", "update_task", "set_task_checks",
+  "add_task", "update_task", "set_task_checks", "move_task",
   "post_update", "list_updates",
   "list_adrs", "get_adr", "create_adr", "update_adr", "accept_adr", "supersede_adr",
   "list_questions", "add_question", "answer_question",

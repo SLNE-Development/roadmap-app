@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Check, Gauge, ListChecks, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, Check, Gauge, GripVertical, ListChecks, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound, X } from "lucide-react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { MoveTaskDialog } from "@/components/move-task-dialog";
 import { ProgressBar } from "@/components/page";
 import {
   AlertDialog,
@@ -208,17 +209,37 @@ function Checklist({ task, canEdit }: { task: TaskItem; canEdit: boolean }) {
   );
 }
 
-/** One task row: state box (a menu for editors), plan step, title, owner and state label. */
+/** What a row needs to be reordered: arrow availability and the drag-and-drop state and handlers. */
+interface RowOrder {
+  canUp: boolean;
+  canDown: boolean;
+  onShift: (delta: -1 | 1) => void;
+  dragging: boolean;
+  over: boolean;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+}
+
+/** One task row: drag handle and state box (a menu) for editors, plan step, title, owner and state label. */
 function TaskRow({
   task,
+  projectSlug,
+  systemSlug,
   members,
   canEdit,
   planningComplete,
+  order,
 }: {
   task: TaskItem;
+  projectSlug: string;
+  systemSlug: string;
   members: { userId: string; name: string }[];
   canEdit: boolean;
   planningComplete: boolean;
+  order: RowOrder;
 }) {
   const trpc = useTRPC();
   const update = useMutation(trpc.tasks.update.mutationOptions());
@@ -231,6 +252,7 @@ function TaskRow({
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [checksOpen, setChecksOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const checksDone = task.checks.filter((c) => c.done).length;
   // The drafts are prefilled when a dialog opens, from the event handler.
   const openBlock = () => {
@@ -246,8 +268,26 @@ function TaskRow({
   const label = STATE_LABEL[task.state];
 
   return (
-    <li className="flex flex-col border-t px-4 sm:px-[18px]" aria-busy={pending}>
+    <li
+      className={cn("flex flex-col border-t px-4 sm:px-[18px]", order.dragging && "opacity-50", order.over && "bg-muted")}
+      aria-busy={pending}
+      onDragOver={order.onDragOver}
+      onDragLeave={order.onDragLeave}
+      onDrop={order.onDrop}
+    >
       <div className="flex min-h-12 items-center gap-3 py-2 lg:min-h-0 lg:py-2.5">
+        {canEdit && (
+          <span
+            draggable
+            aria-hidden
+            title="Drag to reorder"
+            onDragStart={order.onDragStart}
+            onDragEnd={order.onDragEnd}
+            className="-mr-1 flex size-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+          >
+            <GripVertical className="size-4" />
+          </span>
+        )}
         {canEdit ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild disabled={pending}>
@@ -346,6 +386,19 @@ function TaskRow({
                 <StickyNote />
                 Notes
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={!order.canUp} onSelect={() => order.onShift(-1)}>
+                <ArrowUp />
+                Move up
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!order.canDown} onSelect={() => order.onShift(1)}>
+                <ArrowDown />
+                Move down
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setMoveOpen(true)}>
+                <ArrowRightLeft />
+                Move to system…
+              </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
                 <TrashIcon />
                 Delete task
@@ -431,6 +484,7 @@ function TaskRow({
         saving={update.isPending}
         onSave={canEdit ? () => update.mutate({ id: task.id, patch: { notes } }, { onSuccess: () => setNotesOpen(false) }) : undefined}
       />
+      {canEdit && <MoveTaskDialog open={moveOpen} onOpenChange={setMoveOpen} projectSlug={projectSlug} systemSlug={systemSlug} task={task} />}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -451,7 +505,7 @@ function TaskRow({
 
 /**
  * The Tasks panel: progress, the tasks with a square state box each (a state,
- * owner and delete menu for editors), and an inline add field. With many
+ * owner, order, move and delete menu and a drag handle for editors), and an inline add field. With many
  * tasks, done ones start hidden. While planning is open, doing and done are disabled.
  *
  * @param props.category the system's column category, which colours the progress bar
@@ -475,13 +529,32 @@ export function TaskList({
 }) {
   const trpc = useTRPC();
   const add = useMutation(trpc.tasks.add.mutationOptions());
+  const reorder = useMutation(trpc.tasks.reorder.mutationOptions());
   const pending = add.isPending;
   const [title, setTitle] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const { done, points, pointsDone, unestimated } = rollup(tasks);
   const collapsible = tasks.length > COLLAPSE_AT && done > 0;
   const [showDone, setShowDone] = useState(!collapsible);
-  const visible = showDone ? tasks : tasks.filter((t) => t.state !== "done");
+  const [ordering, startOrdering] = useTransition();
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const [ordered, setOrder] = useOptimistic(tasks, (state, ids: number[]) =>
+    ids.flatMap((id) => state.find((t) => t.id === id) ?? []),
+  );
+  const visible = showDone ? ordered : ordered.filter((t) => t.state !== "done");
+
+  /** Puts a task where the target task is and persists it; a refusal restores the order and shows why. */
+  const place = (id: number, targetId: number) => {
+    if (!canEdit || ordering || id === targetId) return;
+    const ids = ordered.map((t) => t.id).filter((x) => x !== id);
+    ids.splice(ordered.findIndex((t) => t.id === targetId), 0, id);
+    startOrdering(async () => {
+      setOrder(ids);
+      // A refusal is toasted by the mutation cache; the rows fall back once the transition ends.
+      await reorder.mutateAsync({ project: projectSlug, system: systemSlug, orderedIds: ids }).catch(() => undefined);
+    });
+  };
 
   return (
     <section className="flex flex-col border bg-card">
@@ -519,8 +592,50 @@ export function TaskList({
         </p>
       )}
       <ul className="flex flex-col">
-        {visible.map((t) => (
-          <TaskRow key={t.id} task={t} members={members} canEdit={canEdit} planningComplete={planningComplete} />
+        {visible.map((t, i) => (
+          <TaskRow
+            key={t.id}
+            task={t}
+            projectSlug={projectSlug}
+            systemSlug={systemSlug}
+            members={members}
+            canEdit={canEdit}
+            planningComplete={planningComplete}
+            order={{
+              canUp: i > 0 && !ordering,
+              canDown: i < visible.length - 1 && !ordering,
+              onShift: (delta) => place(t.id, visible[i + delta].id),
+              dragging: dragging === t.id,
+              over: dragOver === t.id && dragging !== t.id,
+              onDragStart: (e) => {
+                const row = e.currentTarget.closest("li");
+                if (row) e.dataTransfer.setDragImage(row, 0, 0);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", String(t.id));
+                setDragging(t.id);
+              },
+              onDragEnd: () => {
+                setDragging(null);
+                setDragOver(null);
+              },
+              onDragOver: (e) => {
+                if (!canEdit || dragging === null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOver !== t.id) setDragOver(t.id);
+              },
+              onDragLeave: (e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver((v) => (v === t.id ? null : v));
+              },
+              onDrop: (e) => {
+                e.preventDefault();
+                const from = dragging;
+                setDragging(null);
+                setDragOver(null);
+                if (from !== null) place(from, t.id);
+              },
+            }}
+          />
         ))}
         {tasks.length === 0 && (
           <li className="border-t px-4 py-6 text-center text-[13px] text-fg-2 sm:px-[18px]">

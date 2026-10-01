@@ -4,6 +4,7 @@ import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
 import { withAgent } from "./actor";
 import { getDocument, writePlan, writeSpec } from "./documents";
 import { createSystem, getSystem } from "./systems";
+import { moveTask } from "./tasks";
 
 describe("specs", () => {
   it("appends versions and returns the latest or a given one", async () => {
@@ -64,6 +65,20 @@ describe("plans", () => {
       [2, "API", "MVP"],
       [3, "UI", "MVP"],
     ]);
+  });
+
+  it("creates a new task for a step whose task moved to another system", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    await createSystem(db, owner, slug, { slug: "a", title: "A" });
+    await createSystem(db, owner, slug, { slug: "b", title: "B" });
+    const steps = [1, 2, 3].map((step) => ({ step, title: `Step ${step}` }));
+    const first = await writePlan(db, owner, slug, "a", { body: "## Plan", steps });
+    await moveTask(db, owner, first.createdTasks[1], { system: "b" });
+    const second = await writePlan(db, owner, slug, "a", { body: "## Plan v2", steps });
+    expect(second.createdTasks).toHaveLength(1);
+    expect(second.renamedTasks).toEqual([]);
+    expect((await getSystem(db, owner, slug, "b")).tasks[0].title).toBe("Step 2");
   });
 
   it("rejects duplicate step numbers", async () => {

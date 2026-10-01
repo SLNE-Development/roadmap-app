@@ -3,10 +3,11 @@ import { createTestDb } from "@/test/db";
 import { addMemberFixture, completePlanningFixture, createProjectFixture, insertUser } from "@/test/fixtures";
 import { listActivity } from "./activity";
 import { withAgent } from "./actor";
-import { writeSpec } from "./documents";
+import { writePlan, writeSpec } from "./documents";
 import { addPlanningRound, answerPlanningItems } from "./planning";
 import { createSystem, getSystem, listSystems, updateSystem } from "./systems";
-import { addTask, deleteTask, updateTask } from "./tasks";
+import { addTask, deleteTask, moveTask, reorderTasks, updateTask } from "./tasks";
+import { listUpdates, postUpdate } from "./updates";
 
 describe("tasks", () => {
   it("adds tasks at the end with the system's priority", async () => {
@@ -196,5 +197,71 @@ describe("notes and blocked reason", () => {
     const entry = (await listActivity(db, owner, slug)).find((h) => h.entity === "task" && h.field === "notes");
     expect(entry?.newValue).toHaveLength(201);
     expect(entry?.newValue?.endsWith("…")).toBe(true);
+  });
+});
+
+describe("reorder and move", () => {
+  async function setup() {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const a = await createSystem(db, owner, slug, { slug: "a", title: "A" });
+    const b = await createSystem(db, owner, slug, { slug: "b", title: "B" });
+    const { createdTasks } = await writePlan(db, owner, slug, "a", {
+      body: "## Plan",
+      steps: [1, 2, 3].map((step) => ({ step, title: `T${step}` })),
+    });
+    const [t1, t2, t3] = createdTasks;
+    return { db, owner, slug, a, b, t1, t2, t3 };
+  }
+
+  it("reorders the tasks of a system and logs one entry", async () => {
+    const { db, owner, slug, a, t1, t2, t3 } = await setup();
+    await reorderTasks(db, owner, slug, "a", { orderedIds: [t3, t1, t2] });
+    expect((await getSystem(db, owner, slug, "a")).tasks.map((t) => t.id)).toEqual([t3, t1, t2]);
+    const entries = (await listActivity(db, owner, slug)).filter((h) => h.entity === "task" && h.field === "position");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ entityId: a.id, newValue: "reordered" });
+  });
+
+  it("rejects lists that are not a permutation of the system's tasks", async () => {
+    const { db, owner, slug, t1, t2 } = await setup();
+    await expect(reorderTasks(db, owner, slug, "a", { orderedIds: [t1, t2] })).rejects.toMatchObject({ status: 400 });
+    await expect(reorderTasks(db, owner, slug, "a", { orderedIds: [t1, t1, t2] })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("moves a task to another system, resetting its plan step and logging both systems", async () => {
+    const { db, owner, slug, t2 } = await setup();
+    await moveTask(db, owner, t2, { system: "b" });
+    const b = await getSystem(db, owner, slug, "b");
+    expect(b.tasks.map((t) => [t.id, t.title, t.planStep])).toEqual([[t2, "T2", null]]);
+    expect((await getSystem(db, owner, slug, "a")).tasks.map((t) => t.id)).not.toContain(t2);
+    const moved = (await listActivity(db, owner, slug)).filter((h) => h.entity === "task" && h.field === "moved");
+    expect(moved).toHaveLength(2);
+    expect(moved.map((h) => [h.oldValue, h.newValue])).toEqual([["a", "b"], ["a", "b"]]);
+  });
+
+  it("refuses to move a doing task into a system still in planning", async () => {
+    const { db, owner, a, t1 } = await setup();
+    await completePlanningFixture(db, a.id);
+    await updateTask(db, owner, t1, { state: "doing" });
+    await expect(moveTask(db, owner, t1, { system: "b" })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("System b is still in planning."),
+    });
+  });
+
+  it("does not move into a system of another project, or to the same system", async () => {
+    const { db, owner, t1 } = await setup();
+    const other = await createProjectFixture(db, "other");
+    await createSystem(db, other.owner, other.slug, { slug: "x", title: "X" });
+    await expect(moveTask(db, owner, t1, { system: "x" })).rejects.toMatchObject({ status: 404, message: "Unknown system x." });
+    await expect(moveTask(db, owner, t1, { system: "a" })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("keeps progress updates pointing at the moved task", async () => {
+    const { db, owner, slug, t2 } = await setup();
+    await postUpdate(db, owner, slug, "a", { summary: "did it", taskId: t2 });
+    await moveTask(db, owner, t2, { system: "b" });
+    expect((await listUpdates(db, owner, slug, { system: "a" }))[0].taskId).toBe(t2);
   });
 });

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { listBlockedTasks } from "@/lib/ops/blocked";
 import { addCheck, addCheckInput, deleteCheck, updateCheck, updateCheckInput } from "@/lib/ops/checks";
 import { dbInt, entityId } from "@/lib/ops/params";
-import { addTask, addTaskInput, deleteTask, updateTask, updateTaskInput } from "@/lib/ops/tasks";
+import { addTask, addTaskInput, deleteTask, moveTask, moveTaskInput, reorderTasks, reorderTasksInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { protectedProcedure, router } from "../init";
 import { P, S } from "./shared";
 
@@ -30,6 +30,16 @@ export const tasksRouter = router({
 
   /** Deletes a task. */
   delete: protectedProcedure.input(z.object(TASK)).mutation(({ ctx, input }) => deleteTask(ctx.db, ctx.actor, input.id)),
+
+  /** Puts a system's tasks into a new order. */
+  reorder: protectedProcedure
+    .input(z.object({ ...S, ...reorderTasksInput.shape }))
+    .mutation(({ ctx, input }) => reorderTasks(ctx.db, ctx.actor, input.project, input.system, { orderedIds: input.orderedIds })),
+
+  /** Moves a task to another system of its project. */
+  move: protectedProcedure
+    .input(z.object({ ...TASK, to: moveTaskInput }))
+    .mutation(({ ctx, input }) => moveTask(ctx.db, ctx.actor, input.id, input.to)),
 
   /** Checklist items inside a task. */
   checks: router({

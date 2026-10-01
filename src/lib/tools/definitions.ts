@@ -56,7 +56,7 @@ import {
   updateSystemInput,
 } from "@/lib/ops/systems";
 import { setTaskChecks, setTaskChecksInput } from "@/lib/ops/checks";
-import { addTask, addTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
+import { addTask, addTaskInput, moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
 
@@ -395,6 +395,15 @@ register(
     method: "PATCH",
     path: "/tasks/:id",
     run: (db, actor, { id, ...patch }) => updateTask(db, actor, id, patch),
+  }),
+  defineTool({
+    name: "move_task",
+    description: "Move a task to another system of the same project; it keeps its state, owner and checklist.",
+    input: { id: intParam("Task id."), ...moveTaskInput.shape },
+    write: true,
+    method: "POST",
+    path: "/tasks/:id/move",
+    run: (db, actor, { id, ...rest }) => moveTask(db, actor, id, rest),
   }),
   defineTool({
     name: "set_task_checks",
