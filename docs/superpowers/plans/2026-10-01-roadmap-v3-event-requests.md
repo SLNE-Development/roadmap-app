@@ -718,7 +718,7 @@
 - Part 9 (realtime, German UI) is still to come: it must add the `requests` router to its channel map and move the English UI literals of these pages into message files, while Discord post texts stay German literals in `src/lib/event-messages.ts` and `src/lib/event-prompts.ts` (they are content, not interface).
 - The tool-list budget is the one global limit this plan can break: Task 6 states the measure-first rule and caps any raise.
 
-## Open points (decisions to confirm; the plan picked the stated default)
+## Open points (confirmed by the user on 2026-10-01: all stated defaults apply)
 
 1. **"Update from brief" button:** the app cannot run an agent, so the button shows a copyable `/surf-roadmap:requests update <id>` instruction instead of running anything (Task 8).
 2. **Who can create requests:** event managers and admins create (the decisions list "creates requests" under event manager); the requester defaults to the creator and a manager may name another user. Users without a flag can only be requesters of requests a manager made for them.
