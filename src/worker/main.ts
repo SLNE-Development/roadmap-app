@@ -38,8 +38,9 @@ async function main(): Promise<void> {
   await checkUploadsDir(uploads);
   checkEncryptionKey();
   const deps = productionDeps();
-  const stop = await startWorkers(deps, getValkey());
+  // Jobs that waited while the worker was down run at once; they need the producer client for their Kv locks.
   await waitForProducer();
+  const stop = await startWorkers(deps, getValkey());
   const stopFeed = startFeed(deps);
 
   const jobs = registeredJobs();
