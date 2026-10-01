@@ -5,7 +5,12 @@ import { withAgent, type Actor } from "@/lib/ops/actor";
 /** HTTP methods REST routes use. */
 export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
-/** One operation, exposed both as an MCP tool and as a REST route. */
+/** What a tool call knows about its transport: the API key it came with, if any. */
+export interface ToolContext {
+  apiKeyId: string | null;
+}
+
+/** One operation, exposed as an MCP tool and as a REST route, or only as a REST route. */
 export interface ToolDef {
   name: string;
   description: string;
@@ -13,18 +18,20 @@ export interface ToolDef {
   write: boolean;
   method: HttpMethod;
   path: string;
-  run(db: Db, actor: Actor, input: Record<string, unknown>): Promise<unknown>;
+  /** Where the tool is offered: everywhere (the default) or only over REST. */
+  surface?: "all" | "rest";
+  run(db: Db, actor: Actor, input: Record<string, unknown>, ctx?: ToolContext): Promise<unknown>;
 }
 
 /** Typed form of {@link ToolDef} used while defining a tool. */
 interface TypedToolDef<S extends z.ZodRawShape> extends Omit<ToolDef, "input" | "run"> {
   input: S;
-  run(db: Db, actor: Actor, input: z.infer<z.ZodObject<S>>): Promise<unknown>;
+  run(db: Db, actor: Actor, input: z.infer<z.ZodObject<S>>, ctx?: ToolContext): Promise<unknown>;
 }
 
 /** Declares a tool whose `run` receives input typed from its zod shape. */
 export function defineTool<S extends z.ZodRawShape>(def: TypedToolDef<S>): ToolDef {
-  return { ...def, run: (db, actor, input) => def.run(db, actor, input as z.infer<z.ZodObject<S>>) };
+  return { ...def, run: (db, actor, input, ctx) => def.run(db, actor, input as z.infer<z.ZodObject<S>>, ctx) };
 }
 
 /** Optional agent name accepted by every write tool. */
@@ -39,14 +46,21 @@ export function inputSchema(def: ToolDef): z.ZodObject<z.ZodRawShape> {
 
 /**
  * Validates `raw` and runs the tool. Write tools act through the given agent,
- * or `defaultAgent` when the input names none.
+ * or `defaultAgent` when the input names none. `ctx` carries the call's API key.
  *
  * @throws z.ZodError for invalid input, and whatever the op throws
  */
-export async function runTool(db: Db, actor: Actor, def: ToolDef, raw: unknown, defaultAgent?: string): Promise<unknown> {
+export async function runTool(
+  db: Db,
+  actor: Actor,
+  def: ToolDef,
+  raw: unknown,
+  defaultAgent?: string,
+  ctx: ToolContext = { apiKeyId: null },
+): Promise<unknown> {
   const { agent, ...input } = inputSchema(def).parse(raw ?? {}) as Record<string, unknown>;
   const who = def.write ? withAgent(actor, (agent as string | undefined) ?? defaultAgent) : actor;
-  return def.run(db, who, input);
+  return def.run(db, who, input, ctx);
 }
 
 /** Every registered tool; filled by `definitions.ts`. */

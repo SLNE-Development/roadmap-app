@@ -22,12 +22,12 @@ export async function requireActor(): Promise<Actor> {
 }
 
 /**
- * Returns the actor owning the API key in the request's bearer header, or `null`
- * when the key is missing, invalid, expired, disabled, or its owner is no longer provisioned.
+ * Returns the actor owning the API key in the request's bearer header and the key's id,
+ * or `null` when the key is missing, invalid, expired, disabled, or its owner is no longer provisioned.
  *
  * @throws ApiKeyRateLimitedError when the key is valid but over its rate limit
  */
-export async function bearerActor(request: Request): Promise<Actor | null> {
+export async function bearerAuth(request: Request): Promise<{ actor: Actor; apiKeyId: string } | null> {
   const key = bearerToken(request.headers.get("authorization"));
   if (!key) return null;
   const result = await getAuth().api.verifyApiKey({ body: { key } });
@@ -36,5 +36,15 @@ export async function bearerActor(request: Request): Promise<Actor | null> {
     if (limited) throw limited;
     return null;
   }
-  return loadActor(getDb(), result.key.referenceId);
+  const actor = await loadActor(getDb(), result.key.referenceId);
+  return actor ? { actor, apiKeyId: result.key.id } : null;
+}
+
+/**
+ * Returns the actor owning the API key in the request's bearer header, or `null`; see {@link bearerAuth}.
+ *
+ * @throws ApiKeyRateLimitedError when the key is valid but over its rate limit
+ */
+export async function bearerActor(request: Request): Promise<Actor | null> {
+  return (await bearerAuth(request))?.actor ?? null;
 }

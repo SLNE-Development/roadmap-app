@@ -3,3 +3,4 @@ export * from "./projects";
 export * from "./content";
 export * from "./planning";
 export * from "./platform";
+export * from "./agents";

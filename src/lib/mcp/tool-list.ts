@@ -9,9 +9,9 @@ import { MCP_INSTRUCTIONS } from "./server";
  */
 export const TOOL_LIST_BUDGET_BYTES = 37888;
 
-/** The tools as MCP `tools/list` serialises them: name, description and JSON input schema. */
+/** The tools as MCP `tools/list` serialises them (REST-only tools left out): name, description and JSON input schema. */
 export function toolListPayload(): { name: string; description: string; inputSchema: unknown }[] {
-  return TOOLS.map((def) => ({
+  return TOOLS.filter((def) => def.surface !== "rest").map((def) => ({
     name: def.name,
     description: def.description,
     inputSchema: z.toJSONSchema(inputSchema(def), { io: "input", unrepresentable: "any" }),

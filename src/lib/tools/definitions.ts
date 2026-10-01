@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DOCUMENT_KINDS, QUESTION_PRIORITIES } from "@/db/schema";
 import { slugSchema } from "@/lib/ops/access";
 import { listActivity } from "@/lib/ops/activity";
+import { recordUsage, recordUsageInput, startRun, startRunInput } from "@/lib/ops/agent-runs";
 import {
   acceptAdr,
   adrFilter,
@@ -84,7 +85,7 @@ import { setSystemArchived } from "@/lib/ops/archive";
 import { moveTask, moveTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
 import { BRIEF, briefActivity, briefAdrs, briefOverview } from "./brief";
-import { defineTool, register, registeredTools, type ToolDef } from "./registry";
+import { defineTool, register, registeredTools, type ToolContext, type ToolDef } from "./registry";
 
 /** The project a tool acts in. */
 const P = { project: slugSchema };
@@ -111,6 +112,16 @@ const intParam = (what: string) => positiveInt(MAX_INT).describe(what);
 
 /** An optional result limit accepted as a number or a numeric string. */
 const limit = positiveInt(500).optional();
+
+/**
+ * Returns the API key a call came with.
+ *
+ * @throws InvalidError when the call has none
+ */
+function apiKeyOf(ctx: ToolContext | undefined): string {
+  if (!ctx?.apiKeyId) throw new InvalidError("Agent runs need a call made with an API key.");
+  return ctx.apiKeyId;
+}
 
 register(
   defineTool({
@@ -753,6 +764,27 @@ register(
       const rows = await listActivity(db, actor, project, filter);
       return brief === false ? rows : briefActivity(rows);
     },
+  }),
+
+  defineTool({
+    name: "start_agent_run",
+    description: "Start an agent run for this key that its next calls join; a known clientSessionId returns that run.",
+    input: startRunInput.shape,
+    write: false,
+    method: "POST",
+    path: "/agent-runs",
+    surface: "rest",
+    run: (db, actor, input, ctx) => startRun(db, actor, apiKeyOf(ctx), input),
+  }),
+  defineTool({
+    name: "report_agent_usage",
+    description: "Set the token totals of the run with this clientSessionId, replacing earlier totals.",
+    input: recordUsageInput.shape,
+    write: false,
+    method: "POST",
+    path: "/agent-runs/usage",
+    surface: "rest",
+    run: (db, actor, input, ctx) => recordUsage(db, actor, apiKeyOf(ctx), input),
   }),
 );
 

@@ -1,22 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { Db } from "@/db/types";
 import { ApiKeyRateLimitedError } from "@/lib/auth/rate-limit";
 import type { Actor } from "@/lib/ops/actor";
+import type { CallRecord } from "@/lib/ops/agent-runs";
 import { writeSpec } from "@/lib/ops/documents";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
 import { coerceQuery, handleRest } from "./rest";
 
-/** Sends a REST request through the handler as `actor` (or unauthenticated). */
-async function send(db: Db, actor: Actor | null, method: string, path: string, body?: unknown) {
+/** Resolves every request to `actor` through API key `key-1`. */
+const auth = (actor: Actor) => async () => ({ actor, apiKeyId: "key-1" });
+
+/** Sends a REST request through the handler as `actor` (or unauthenticated), reporting calls to `recordCall`. */
+async function send(db: Db, actor: Actor | null, method: string, path: string, body?: unknown, recordCall?: (r: CallRecord) => void) {
   const request = new Request(`http://test/api/v1${path}`, {
     method,
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const segments = new URL(request.url).pathname.replace(/^\/api\/v1\//, "").split("/");
-  const response = await handleRest(request, segments, { db, resolveActor: async () => actor });
+  const response = await handleRest(request, segments, { db, resolveAuth: actor ? auth(actor) : async () => null, recordCall });
   return { status: response.status, json: await response.json() };
 }
 
@@ -49,7 +53,7 @@ describe("REST", () => {
     const request = new Request("http://test/api/v1/projects", { method: "GET" });
     const response = await handleRest(request, ["projects"], {
       db,
-      resolveActor: async () => {
+      resolveAuth: async () => {
         throw new Error("db down");
       },
     });
@@ -112,12 +116,12 @@ describe("REST", () => {
     const { owner, slug } = await createProjectFixture(db);
     for (const raw of ["{not json", "[1,2]", "null", '"text"']) {
       const request = new Request(`http://test/api/v1/projects/${slug}/systems`, { method: "POST", body: raw });
-      const response = await handleRest(request, ["projects", slug, "systems"], { db, resolveActor: async () => owner });
+      const response = await handleRest(request, ["projects", slug, "systems"], { db, resolveAuth: auth(owner) });
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual({ error: "Request body must be a JSON object." });
     }
     const blank = new Request(`http://test/api/v1/projects/${slug}/systems`, { method: "POST", body: "  " });
-    const response = await handleRest(blank, ["projects", slug, "systems"], { db, resolveActor: async () => owner });
+    const response = await handleRest(blank, ["projects", slug, "systems"], { db, resolveAuth: auth(owner) });
     expect(response.status).toBe(400);
     expect((await response.json()).error).not.toContain("JSON object");
   });
@@ -153,7 +157,7 @@ describe("REST", () => {
     const request = new Request("http://test/api/v1/projects", { method: "GET" });
     const response = await handleRest(request, ["projects"], {
       db,
-      resolveActor: async () => {
+      resolveAuth: async () => {
         throw new ApiKeyRateLimitedError(42);
       },
     });
@@ -162,5 +166,53 @@ describe("REST", () => {
     expect(await response.json()).toEqual({
       error: "API key rate limit exceeded: at most 600 requests per minute. Retry in 42 s.",
     });
+  });
+});
+
+describe("REST call recording", () => {
+  it("reports each call to the recorder", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const records: CallRecord[] = [];
+    expect((await send(db, owner, "GET", `/projects/${slug}/systems`, undefined, (r) => records.push(r))).status).toBe(200);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ apiKeyId: "key-1", userId: owner.userId, tool: "list_systems", transport: "rest", ok: true, status: 200, error: null });
+    expect(records[0].input).toEqual({ project: slug });
+    expect(typeof records[0].durationMs).toBe("number");
+  });
+
+  it("records a failing call with its status", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const records: CallRecord[] = [];
+    expect((await send(db, owner, "POST", `/projects/${slug}/systems`, { title: "no slug" }, (r) => records.push(r))).status).toBe(400);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ tool: "create_system", ok: false, status: 400 });
+    expect(records[0].error).toBeTruthy();
+  });
+
+  it("answers unchanged when the recorder throws", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await send(db, owner, "GET", `/projects/${slug}/systems`, undefined, () => {
+      throw new Error("recorder down");
+    });
+    expect(result).toEqual({ status: 200, json: [] });
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("starts runs only with a key and does not record the run tools", async () => {
+    const db = await createTestDb();
+    const { owner } = await createProjectFixture(db);
+    const records: CallRecord[] = [];
+    expect((await send(db, null, "POST", "/agent-runs", { title: "Fix" })).status).toBe(401);
+    const started = await send(db, owner, "POST", "/agent-runs", { title: "Fix", clientSessionId: "sess-1" }, (r) => records.push(r));
+    expect(started.status).toBe(200);
+    expect(typeof started.json.runId).toBe("string");
+    const usage = { clientSessionId: "sess-1", inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4 };
+    expect((await send(db, owner, "POST", "/agent-runs/usage", usage, (r) => records.push(r))).status).toBe(200);
+    expect(records).toEqual([]);
   });
 });

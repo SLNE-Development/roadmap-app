@@ -3,15 +3,16 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import type { Db } from "@/db/types";
 import type { Actor } from "@/lib/ops/actor";
-import { TOOL_NAMES } from "@/lib/tools/definitions";
+import type { CallRecord } from "@/lib/ops/agent-runs";
+import { TOOLS } from "@/lib/tools/definitions";
 import { createTestDb } from "@/test/db";
 import { createProjectFixture } from "@/test/fixtures";
 import { createMcpServer } from "./server";
 
-/** Connects an in-memory MCP client to a server acting as `actor`. */
-async function connect(db: Db, actor: Actor): Promise<Client> {
+/** Connects an in-memory MCP client to a server acting as `actor`, reporting calls to `recordCall`. */
+async function connect(db: Db, actor: Actor, recordCall?: (r: CallRecord) => void): Promise<Client> {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  await createMcpServer(db, actor).connect(serverSide);
+  await createMcpServer(db, actor, { apiKeyId: "key-1", recordCall }).connect(serverSide);
   const client = new Client({ name: "test", version: "1.0.0" });
   await client.connect(clientSide);
   return client;
@@ -30,7 +31,8 @@ describe("MCP server", () => {
     const { owner } = await createProjectFixture(db);
     const client = await connect(db, owner);
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
+    expect(tools.map((t) => t.name).sort()).toEqual(TOOLS.filter((t) => t.surface !== "rest").map((t) => t.name).sort());
+    expect(tools.map((t) => t.name)).not.toContain("start_agent_run");
     expect(client.getInstructions()).toContain("surf-roadmap:plan-system");
   });
 
@@ -94,5 +96,18 @@ describe("MCP server", () => {
     expect(missing.isError).toBe(true);
     expect(missing.text).toContain("expected number, received undefined");
     expect(missing.text).not.toContain("NaN");
+  });
+
+  it("reports tool calls to the recorder", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const records: CallRecord[] = [];
+    const client = await connect(db, owner, (r) => records.push(r));
+    await call(client, "list_systems", { project: slug });
+    await call(client, "list_systems", { project: "nope" });
+    expect(records.map((r) => [r.tool, r.transport, r.ok, r.status, r.apiKeyId, r.agent])).toEqual([
+      ["list_systems", "mcp", true, 200, "key-1", "Claude Code"],
+      ["list_systems", "mcp", false, 404, "key-1", "Claude Code"],
+    ]);
   });
 });

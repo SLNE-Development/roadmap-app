@@ -98,7 +98,7 @@ describe("get_system brief", () => {
     await createX(db, owner, slug);
     await writeSpec(db, owner, slug, "x", { body: "# Spec body" });
     const request = new Request(`http://test/api/v1/projects/${slug}/systems/x?brief=false`);
-    const response = await handleRest(request, ["projects", slug, "systems", "x"], { db, resolveActor: async () => owner });
+    const response = await handleRest(request, ["projects", slug, "systems", "x"], { db, resolveAuth: async () => ({ actor: owner, apiKeyId: "key-1" }) });
     expect(((await response.json()) as { spec: { body: string } }).spec.body).toBe("# Spec body");
   });
 });

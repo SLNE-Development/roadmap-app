@@ -25,6 +25,7 @@ const SPEC_TOOLS = [
   "list_adrs", "get_adr", "create_adr", "update_adr", "accept_adr", "supersede_adr",
   "list_questions", "add_question", "answer_question", "answer_questions", "set_question_priority",
   "list_activity",
+  "start_agent_run", "report_agent_usage",
 ];
 
 describe("tool registry", () => {

@@ -2,7 +2,8 @@ import "server-only";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Db } from "@/db/types";
-import type { Actor } from "@/lib/ops/actor";
+import { withAgent, type Actor } from "@/lib/ops/actor";
+import { notifyRecorder, type CallRecord } from "@/lib/ops/agent-runs";
 import { messageOf, statusOf } from "@/lib/ops/errors";
 import { TOOLS } from "@/lib/tools/definitions";
 import { inputSchema, runTool } from "@/lib/tools/registry";
@@ -29,17 +30,51 @@ async function toResult(fn: () => Promise<unknown>): Promise<CallToolResult> {
   }
 }
 
+/** The agent name write tools default to. */
+const DEFAULT_AGENT = "Claude Code";
+
 /**
- * Builds an MCP server exposing every registered tool, acting as `actor`.
- * Write tools default to the agent name "Claude Code".
+ * Builds an MCP server exposing every registered tool except REST-only ones, acting as `actor`.
+ * Write tools default to the agent name "Claude Code". With `opts.apiKeyId`, every
+ * tool call goes to `opts.recordCall`; a failing recorder never changes the result.
  */
-export function createMcpServer(db: Db, actor: Actor): McpServer {
+export function createMcpServer(db: Db, actor: Actor, opts: { apiKeyId?: string; recordCall?: (r: CallRecord) => void } = {}): McpServer {
   const server = new McpServer({ name: "surf-roadmap", version: "1.0.0" }, { instructions: MCP_INSTRUCTIONS });
+  const apiKeyId = opts.apiKeyId ?? null;
   for (const def of TOOLS) {
+    if (def.surface === "rest") continue;
     server.registerTool(
       def.name,
       { description: def.description, inputSchema: inputSchema(def).shape, annotations: { readOnlyHint: !def.write } },
-      (args: Record<string, unknown>) => toResult(() => runTool(db, actor, def, args, "Claude Code")),
+      async (args: Record<string, unknown>) => {
+        const at = new Date();
+        const started = performance.now();
+        let failure: unknown = null;
+        const result = await toResult(async () => {
+          try {
+            return await runTool(db, actor, def, args, DEFAULT_AGENT, { apiKeyId });
+          } catch (error) {
+            failure = error;
+            throw error;
+          }
+        });
+        if (apiKeyId) {
+          notifyRecorder(opts.recordCall, {
+            apiKeyId,
+            userId: actor.userId,
+            agent: withAgent(actor, typeof args?.agent === "string" ? args.agent : DEFAULT_AGENT).agent ?? null,
+            tool: def.name,
+            transport: "mcp",
+            input: args ?? {},
+            ok: failure === null,
+            status: failure === null ? 200 : statusOf(failure),
+            error: failure === null ? null : messageOf(failure),
+            durationMs: performance.now() - started,
+            at,
+          });
+        }
+        return result;
+      },
     );
   }
   return server;
