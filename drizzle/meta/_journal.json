@@ -99,6 +99,13 @@
       "when": 1790818265540,
       "tag": "0013_adr-tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790820388894,
+      "tag": "0014_board-card-fields",
+      "breakpoints": true
     }
   ]
 }

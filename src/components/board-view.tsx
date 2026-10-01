@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ArrowRightLeft, Ban, ChevronDown, ChevronRight, ChevronsLeft, Ellipsis, List, Lock, PieChart, Plus, Rows3, Search, SquareKanban } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { FilterChip } from "@/components/filter-chip";
 import { NewSystemDialog } from "@/components/new-system-dialog";
 import { PageHeader, ProgressBar } from "@/components/page";
@@ -22,11 +22,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PRIORITIES, type ColumnCategory } from "@/db/schema";
 import type { BoardCardView } from "@/lib/board-card";
+import type { CardField } from "@/lib/card-fields";
 import { focusReady, moveKey, moveTargets } from "@/lib/board-moves";
 import { groupIntoLanes, LANE_KEYS, type LaneKey } from "@/lib/lanes";
+import { plural } from "@/lib/text";
 import { hasFilters, withParam, type BoardQuery } from "@/lib/url-filters";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
+import { CardFieldsDialog, type CardFieldCustom } from "./board/card-fields-dialog";
 import { BoardAnnouncer, moveMessage, refusedMessage } from "./board/board-announcer";
 import { usePointerDrag } from "./board/use-pointer-drag";
 import { CATEGORY_CLASS, CategoryDot, PriorityTag } from "./chips";
@@ -74,6 +77,9 @@ export function BoardView({
   phases,
   columns,
   cards,
+  cardFields,
+  customFields,
+  gatesLanded,
   query,
 }: {
   projectSlug: string;
@@ -87,9 +93,14 @@ export function BoardView({
   phases: NamedOption[];
   columns: BoardColumnView[];
   cards: BoardCardView[];
+  /** Fields the cards show, in order. */
+  cardFields: CardField[];
+  customFields: CardFieldCustom[];
+  gatesLanded: boolean;
   query: BoardQuery;
 }) {
   const [newSystemOpen, setNewSystemOpen] = useState(false);
+  const [cardFieldsOpen, setCardFieldsOpen] = useState(false);
   const trpc = useTRPC();
   const moveSystem = useMutation(trpc.systems.move.mutationOptions());
   const [announce, setAnnounce] = useState("");
@@ -110,6 +121,8 @@ export function BoardView({
   );
 
   const domainName = useMemo(() => new Map(domains.map((d) => [d.id, d.name])), [domains]);
+  const phaseName = useMemo(() => new Map(phases.map((p) => [p.id, p.name])), [phases]);
+  const customName = useMemo(() => new Map(customFields.map((f) => [f.key, f.name])), [customFields]);
   const categoryOf = useMemo(() => new Map(columns.map((c) => [c.id, c.category])), [columns]);
 
   /**
@@ -245,6 +258,9 @@ export function BoardView({
       category={col.category}
       columnName={col.name}
       domain={c.domainId ? (domainName.get(c.domainId) ?? null) : null}
+      phase={c.phaseId ? (phaseName.get(c.phaseId) ?? null) : null}
+      fields={cardFields}
+      customName={customName}
       projectSlug={projectSlug}
       columns={columns}
       canEdit={canEdit}
@@ -335,8 +351,20 @@ export function BoardView({
                   <DropdownMenuItem asChild>
                     <Link href={`/p/${projectSlug}/settings/boards`}>New board</Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setCardFieldsOpen(true)}>Card fields…</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+            {canOwn && (
+              <CardFieldsDialog
+                projectSlug={projectSlug}
+                boardSlug={board.slug}
+                fields={cardFields}
+                customFields={customFields}
+                gatesLanded={gatesLanded}
+                open={cardFieldsOpen}
+                onOpenChange={setCardFieldsOpen}
+              />
             )}
           </>
         }
@@ -542,6 +570,9 @@ function SystemCard({
   category,
   columnName,
   domain,
+  phase,
+  fields,
+  customName,
   projectSlug,
   columns,
   canEdit,
@@ -558,6 +589,11 @@ function SystemCard({
   category: ColumnCategory;
   columnName: string;
   domain: string | null;
+  phase: string | null;
+  /** The fields to show, in order. */
+  fields: CardField[];
+  /** Names of the custom fields by key. */
+  customName: Map<string, string>;
   projectSlug: string;
   columns: BoardColumnView[];
   canEdit: boolean;
@@ -572,6 +608,71 @@ function SystemCard({
   onMove: (columnId: string) => void;
 }) {
   const router = useRouter();
+  const chip = "bg-secondary px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-fg-2";
+  /** The markup of one card field, or null when the card has nothing to show for it. */
+  const cardField = (field: CardField): React.ReactNode => {
+    switch (field) {
+      case "owner":
+        return card.ownerName ? (
+          <span title={card.ownerName} className="ml-auto flex">
+            <PersonAvatar name={card.ownerName} size="sm" className="ring-2 ring-card" />
+            <span className="sr-only">Owner: {card.ownerName}</span>
+          </span>
+        ) : null;
+      case "tasks":
+        return category === "planning" ? (
+          <span className="flex min-w-0 flex-1 basis-32 items-center gap-1.5 text-[11.5px] text-cat-planning">
+            <PieChart className="size-[13px]" aria-hidden />
+            {card.planningRounds === 0 ? "Interview not started" : `Planning: ${card.planningAreasCovered} of 4 areas`}
+          </span>
+        ) : card.tasksTotal > 0 ? (
+          <span className="flex min-w-0 flex-1 basis-32 items-center gap-2">
+            <ProgressBar value={card.tasksDone} total={card.tasksTotal} colorClass={CATEGORY_CLASS[category]} />
+            <span className="font-mono text-[11.5px] text-muted-foreground">
+              {card.tasksDone}/{card.tasksTotal}
+            </span>
+          </span>
+        ) : (
+          <span className="flex-1 basis-32 text-[11.5px] text-muted-foreground">No tasks</span>
+        );
+      case "blocked":
+        return category === "blocked" && card.latestSummary ? (
+          <p className="flex w-full items-start gap-1.5 bg-cat-blocked-soft px-2 py-1.5 text-xs leading-[1.4] text-cat-blocked">
+            <Ban className="mt-px size-[13px] shrink-0" aria-hidden />
+            <span className="line-clamp-3">{card.latestSummary}</span>
+          </p>
+        ) : null;
+      case "phase":
+        return phase ? <span className={chip}>{phase}</span> : null;
+      case "domain":
+      case "priority":
+      case "gates":
+        return null;
+      case "questions":
+        return card.openQuestions > 0 ? (
+          <span className={chip} title={plural(card.openQuestions, "open question")}>
+            ? {card.openQuestions}
+          </span>
+        ) : null;
+      case "estimate":
+        return card.points - card.pointsDone > 0 ? <span className={chip}>{card.points - card.pointsDone} pts</span> : null;
+      case "dependencies":
+        return card.blockedBy.length > 0 ? (
+          <span className={chip} title={card.blockedBy.join(", ")}>
+            Waiting on {card.blockedBy.length}
+          </span>
+        ) : null;
+      default: {
+        const key = field.slice("custom:".length);
+        const value = card.fields[key];
+        return value ? (
+          <span className={chip}>
+            {customName.get(key) ?? key}: {value}
+          </span>
+        ) : null;
+      }
+    }
+  };
   return (
     <article
       tabIndex={0}
@@ -607,8 +708,8 @@ function SystemCard({
       )}
     >
       <div className="flex items-center gap-1.5">
-        <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">{domain ?? "No domain"}</span>
-        <PriorityTag priority={card.priority} />
+        <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">{fields.includes("domain") && (domain ?? "No domain")}</span>
+        {fields.includes("priority") && <PriorityTag priority={card.priority} />}
         {canEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -636,34 +737,11 @@ function SystemCard({
       >
         {card.title}
       </Link>
-      {category === "blocked" && card.latestSummary && (
-        <p className="flex items-start gap-1.5 bg-cat-blocked-soft px-2 py-1.5 text-xs leading-[1.4] text-cat-blocked">
-          <Ban className="mt-px size-[13px] shrink-0" aria-hidden />
-          <span className="line-clamp-3">{card.latestSummary}</span>
-        </p>
-      )}
-      <div className="flex items-center gap-2">
-        {category === "planning" ? (
-          <span className="flex flex-1 items-center gap-1.5 text-[11.5px] text-cat-planning">
-            <PieChart className="size-[13px]" aria-hidden />
-            {card.planningRounds === 0 ? "Interview not started" : `Planning: ${card.planningAreasCovered} of 4 areas`}
-          </span>
-        ) : card.tasksTotal > 0 ? (
-          <>
-            <ProgressBar value={card.tasksDone} total={card.tasksTotal} colorClass={CATEGORY_CLASS[category]} />
-            <span className="font-mono text-[11.5px] text-muted-foreground">
-              {card.tasksDone}/{card.tasksTotal}
-            </span>
-          </>
-        ) : (
-          <span className="flex-1 text-[11.5px] text-muted-foreground">No tasks</span>
-        )}
-        {card.ownerName && (
-          <span title={card.ownerName} className="flex">
-            <PersonAvatar name={card.ownerName} size="sm" className="ring-2 ring-card" />
-            <span className="sr-only">Owner: {card.ownerName}</span>
-          </span>
-        )}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 empty:hidden">
+        {fields.map((field) => {
+          const part = cardField(field);
+          return part ? <Fragment key={field}>{part}</Fragment> : null;
+        })}
       </div>
     </article>
   );

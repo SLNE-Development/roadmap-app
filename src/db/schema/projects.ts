@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { tz, user } from "./auth";
 
@@ -52,6 +53,8 @@ export const board = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     sortOrder: integer("sort_order").notNull(),
+    /** Fields cards show, in order: built-in names or `custom:<key>`. */
+    cardFields: jsonb("card_fields").$type<string[]>().notNull().default(sql`'["domain","priority","blocked","tasks","owner"]'::jsonb`),
   },
   (t) => [unique("board_project_slug").on(t.projectId, t.slug)],
 );

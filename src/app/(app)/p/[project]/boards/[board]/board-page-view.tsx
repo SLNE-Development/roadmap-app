@@ -3,6 +3,7 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { BoardView } from "@/components/board-view";
 import { Page } from "@/components/page";
+import { normalizeCardFields } from "@/lib/card-fields";
 import type { BoardQuery } from "@/lib/url-filters";
 import { useTRPC } from "@/trpc/client";
 
@@ -16,7 +17,7 @@ import { useTRPC } from "@/trpc/client";
  */
 export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardSlug: string; query: BoardQuery }) {
   const trpc = useTRPC();
-  const [{ data: detail }, { data: systems }, { data: members }, { data: domains }, { data: phases }, { data: latest }] = useSuspenseQueries({
+  const [{ data: detail }, { data: systems }, { data: members }, { data: domains }, { data: phases }, { data: latest }, { data: customFields }] = useSuspenseQueries({
     queries: [
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.systems.list.queryOptions({ project: slug, filter: { board: boardSlug } }),
@@ -24,6 +25,7 @@ export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardS
       trpc.structure.domains.queryOptions({ project: slug }),
       trpc.structure.phases.queryOptions({ project: slug }),
       trpc.systems.latestUpdates.queryOptions({ project: slug }),
+      trpc.fields.list.queryOptions({ project: slug }),
     ],
   });
   const board = detail.boards.find((b) => b.slug === boardSlug);
@@ -59,8 +61,16 @@ export function BoardPageView({ slug, boardSlug, query }: { slug: string; boardS
           planningRounds: s.planningRounds,
           tasksDone: s.tasksDone,
           tasksTotal: s.tasksTotal,
+          openQuestions: s.openQuestions,
+          points: s.points,
+          pointsDone: s.pointsDone,
+          blockedBy: s.blockedBy,
+          fields: s.fields,
           latestSummary: latest.get(s.id)?.summary ?? null,
         }))}
+        cardFields={normalizeCardFields(board.cardFields, customFields.map((f) => f.key))}
+        customFields={customFields.map((f) => ({ key: f.key, name: f.name }))}
+        gatesLanded={systems.some((s) => "gateStatus" in s)}
         query={query}
       />
     </Page>

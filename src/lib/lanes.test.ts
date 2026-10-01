@@ -16,6 +16,11 @@ function card(slug: string, over: Partial<BoardCardView>): BoardCardView {
     planningRounds: 0,
     tasksDone: 0,
     tasksTotal: 0,
+    openQuestions: 0,
+    points: 0,
+    pointsDone: 0,
+    blockedBy: [],
+    fields: {},
     latestSummary: null,
     ...over,
   };

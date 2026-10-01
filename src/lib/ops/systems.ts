@@ -11,6 +11,7 @@ import {
   planningItem,
   planningRound,
   PRIORITIES,
+  question,
   system,
   task,
   taskCheck,
@@ -99,6 +100,8 @@ export interface SystemListItem {
   points: number;
   pointsDone: number;
   unestimated: number;
+  /** Unresolved questions about the system. */
+  openQuestions: number;
   /** Slugs of the systems this one depends on. */
   dependsOn: string[];
   /** Slugs of the dependencies that are not in a done column yet. */
@@ -307,6 +310,13 @@ export async function listSystems(
     .groupBy(planningRound.systemId);
   const planningBySystem = new Map(planning.map((p) => [p.systemId, p]));
 
+  const questionCounts = await db
+    .select({ systemId: question.systemId, open: count() })
+    .from(question)
+    .where(and(eq(question.projectId, project.id), eq(question.resolved, false), isNotNull(question.systemId)))
+    .groupBy(question.systemId);
+  const openQuestions = new Map(questionCounts.map((q) => [q.systemId, q.open]));
+
   const dependencies = await dependencyMapsOf(db, project.id);
   const fieldValues = await fieldValuesByKey(db, project.id);
 
@@ -321,6 +331,7 @@ export async function listSystems(
     points: rollups.get(r.id)?.points ?? 0,
     pointsDone: rollups.get(r.id)?.pointsDone ?? 0,
     unestimated: rollups.get(r.id)?.unestimated ?? 0,
+    openQuestions: openQuestions.get(r.id) ?? 0,
     dependsOn: dependencies.dependsOn.get(r.id) ?? [],
     blockedBy: dependencies.blockedBy.get(r.id) ?? [],
     fields: fieldValues.get(r.id) ?? {},

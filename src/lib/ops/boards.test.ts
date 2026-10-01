@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { changeLog, system, type ColumnCategory } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture } from "@/test/fixtures";
-import { columnRuleViolation, createBoard, listBoards, setBoardColumns, updateBoard } from "./boards";
+import { columnRuleViolation, createBoard, listBoards, setBoardCardFields, setBoardColumns, updateBoard } from "./boards";
 import { findBoard } from "./lookup";
 
 describe("columnRuleViolation", () => {
@@ -182,5 +182,24 @@ describe("setBoardColumns", () => {
     await Promise.allSettled([replace("First"), replace("Second")]);
     const after = await findBoard(db, projectId, "development");
     expect(after.columns.filter((c) => c.category === "planning")).toHaveLength(1);
+  });
+});
+
+describe("setBoardCardFields", () => {
+  it("lets an owner choose the fields, logs one change and refuses editors and unknown values", async () => {
+    const db = await createTestDb();
+    const { owner, slug, projectId } = await createProjectFixture(db);
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    expect((await listBoards(db, owner, slug))[0].cardFields).toEqual(["domain", "priority", "blocked", "tasks", "owner"]);
+    await expect(setBoardCardFields(db, owner, slug, "development", { fields: ["phase", "questions"] })).resolves.toEqual(["phase", "questions"]);
+    expect((await listBoards(db, editor, slug))[0].cardFields).toEqual(["phase", "questions"]);
+    await expect(setBoardCardFields(db, editor, slug, "development", { fields: ["owner"] })).rejects.toMatchObject({ status: 403 });
+    await expect(setBoardCardFields(db, owner, slug, "development", { fields: ["nope"] })).rejects.toMatchObject({
+      status: 400,
+      message: "Unknown card field nope.",
+    });
+    const rows = await db.select().from(changeLog).where(and(eq(changeLog.projectId, projectId), eq(changeLog.field, "cardFields")));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ entity: "board", oldValue: "domain,priority,blocked,tasks,owner", newValue: "phase,questions" });
   });
 });

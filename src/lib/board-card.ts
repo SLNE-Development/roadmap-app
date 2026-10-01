@@ -16,6 +16,15 @@ export interface BoardCardView {
   planningRounds: number;
   tasksDone: number;
   tasksTotal: number;
+  /** Unresolved questions about the system. */
+  openQuestions: number;
+  /** Estimate points of all tasks and of the done ones. */
+  points: number;
+  pointsDone: number;
+  /** Slugs of the dependencies that are not done yet. */
+  blockedBy: string[];
+  /** Custom field values by field key. */
+  fields: Record<string, string>;
   /** Summary of the system's newest update; shown as the reason while it is blocked. */
   latestSummary: string | null;
 }

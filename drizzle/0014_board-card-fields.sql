@@ -1,0 +1,1 @@
+ALTER TABLE "board" ADD COLUMN "card_fields" jsonb DEFAULT '["domain","priority","blocked","tasks","owner"]'::jsonb NOT NULL;

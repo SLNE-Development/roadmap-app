@@ -5,6 +5,8 @@ import { addMemberFixture, completePlanningFixture, createProjectFixture, insert
 import { createBoard } from "./boards";
 import { statusOf } from "./errors";
 import { addPlanningRound, answerPlanningItems } from "./planning";
+import { addQuestion, setQuestionResolved } from "./questions";
+import { addTask, updateTask } from "./tasks";
 import { createDomain } from "./structure";
 import { createSystem, getSystem, listSystems, moveSystem, updateSystem } from "./systems";
 
@@ -95,6 +97,27 @@ describe("listSystems", () => {
       ["fresh", 0, 0],
       ["busy", 2, 2],
     ]);
+  });
+
+  it("counts open questions and estimate points per system", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const created = await createSystem(db, owner, slug, { slug: "busy", title: "Busy" });
+    await completePlanningFixture(db, created.id);
+    await createSystem(db, owner, slug, { slug: "quiet", title: "Quiet" });
+    await addQuestion(db, owner, slug, { title: "One?", system: "busy" });
+    await addQuestion(db, owner, slug, { title: "Two?", system: "busy" });
+    const resolved = await addQuestion(db, owner, slug, { title: "Three?", system: "busy" });
+    await setQuestionResolved(db, owner, slug, resolved.id, true);
+    await addQuestion(db, owner, slug, { title: "Elsewhere?", system: "quiet" });
+    await addTask(db, owner, slug, "busy", { title: "m", estimate: "M" });
+    const l = await addTask(db, owner, slug, "busy", { title: "l", estimate: "L" });
+    const s = await addTask(db, owner, slug, "busy", { title: "s", estimate: "S" });
+    await updateTask(db, owner, l.id, { state: "done" });
+    await updateTask(db, owner, s.id, { state: "doing" });
+    const [busy, quiet] = await listSystems(db, owner, slug);
+    expect(busy).toMatchObject({ slug: "busy", openQuestions: 2, points: 12, pointsDone: 8 });
+    expect(quiet).toMatchObject({ slug: "quiet", openQuestions: 1 });
   });
 });
 

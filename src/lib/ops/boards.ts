@@ -2,10 +2,12 @@ import { and, count, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { board, boardColumn, COLUMN_CATEGORIES, system, type ColumnCategory } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
+import { normalizeCardFields } from "@/lib/card-fields";
 import { newId } from "@/lib/id";
 import { projectAccess, slugSchema } from "./access";
 import type { Actor } from "./actor";
 import { ConflictError, InvalidError, isUniqueViolation } from "./errors";
+import { fieldsOf } from "./fields";
 import { logChange } from "./log";
 import { findBoard, loadBoards, lockProject, type BoardWithColumns } from "./lookup";
 
@@ -70,6 +72,9 @@ export const columnInput = z.object({
 
 /** Input of {@link setBoardColumns}: the complete new column list, in order. */
 export const setColumnsInput = z.object({ columns: z.array(columnInput).min(2).max(20) });
+
+/** Input of {@link setBoardCardFields}: the fields cards show, in order. */
+export const cardFieldsInput = z.object({ fields: z.array(z.string().min(1).max(80)).max(8) });
 
 /** Lists the project's boards with their columns. */
 export async function listBoards(db: Executor, actor: Actor, projectSlug: string): Promise<BoardWithColumns[]> {
@@ -214,5 +219,41 @@ export async function setBoardColumns(
       newValue: columns.map((c) => c.name).join(" → "),
     });
     return findBoard(tx, project.id, boardSlug);
+  });
+}
+
+/**
+ * Sets the fields the board's cards show, in order. Owner only.
+ *
+ * @throws InvalidError if a value is not a built-in field or a custom field key of the project
+ */
+export async function setBoardCardFields(
+  db: Db,
+  actor: Actor,
+  projectSlug: string,
+  boardSlug: string,
+  raw: z.input<typeof cardFieldsInput>,
+): Promise<string[]> {
+  const { fields } = cardFieldsInput.parse(raw);
+  return db.transaction(async (tx) => {
+    const { project } = await projectAccess(tx, actor, projectSlug, "owner");
+    const current = await findBoard(tx, project.id, boardSlug, true);
+    const keys = (await fieldsOf(tx, project.id)).map((f) => f.key);
+    const kept = new Set<string>(normalizeCardFields(fields, keys));
+    const unknown = fields.find((f) => !kept.has(f));
+    if (unknown !== undefined) throw new InvalidError(`Unknown card field ${unknown}.`);
+    const next = normalizeCardFields(fields, keys);
+    if (next.join(",") !== current.cardFields.join(",")) {
+      await tx.update(board).set({ cardFields: next }).where(eq(board.id, current.id));
+      await logChange(tx, actor, {
+        projectId: project.id,
+        entity: "board",
+        entityId: current.id,
+        field: "cardFields",
+        oldValue: current.cardFields.join(","),
+        newValue: next.join(","),
+      });
+    }
+    return next;
   });
 }

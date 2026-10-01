@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { createBoard, createBoardInput, setBoardColumns, setColumnsInput, updateBoard, updateBoardInput } from "@/lib/ops/boards";
+import { cardFieldsInput, createBoard, createBoardInput, setBoardCardFields, setBoardColumns, setColumnsInput, updateBoard, updateBoardInput } from "@/lib/ops/boards";
 import { protectedProcedure, router } from "../init";
 import { B, P } from "./shared";
 
@@ -20,4 +20,9 @@ export const boardsRouter = router({
   setColumns: protectedProcedure
     .input(z.object({ ...B, ...setColumnsInput.shape }))
     .mutation(async ({ ctx, input }) => void (await setBoardColumns(ctx.db, ctx.actor, input.project, input.board, { columns: input.columns }))),
+
+  /** Sets the fields the board's cards show. Owner only. */
+  setCardFields: protectedProcedure
+    .input(z.object({ ...B, ...cardFieldsInput.shape }))
+    .mutation(async ({ ctx, input }) => setBoardCardFields(ctx.db, ctx.actor, input.project, input.board, { fields: input.fields })),
 });
