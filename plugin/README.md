@@ -62,6 +62,6 @@ licensed; see `LICENSES/superpowers-MIT.txt`.
 ## Commands
 
 `/surf-roadmap:plan <idea>`, `/surf-roadmap:status`, `/surf-roadmap:next`,
-`/surf-roadmap:setup`, `/surf-roadmap:requests [update|event-day] <request-id>`.
+`/surf-roadmap:setup`, `/surf-roadmap:requests [update|event-day|messages] <request-id>`.
 
 `/surf-roadmap:requests <request-id>` develops an accepted event request (first time); `update <request-id>` brings its system in line after the planner changed the brief. There is no list tool, so without an id the command asks for it (the last part of the request's URL). `event-day <request-id>` writes the event-day checklist with `set_event_checklist`. `messages <request-id>` writes the team, announcement and reminder drafts and the short description with `write_event_messages` (drafts only; posting stays in the app). It uses `get_request`, `ask_requester`, `set_event_checklist` and `write_event_messages`; see the `event-requests` skill and [`docs/event-requests.md`](../docs/event-requests.md).

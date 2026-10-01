@@ -42,7 +42,7 @@ app turns an accepted request into a project and system; you build it with the d
      the basis and clears the banner),
    - `write_plan` with all steps: existing steps keep their numbers, new steps get new numbers,
    - `update_tasks` and `add_tasks` to change or add tasks for changed or new steps.
-   Tasks of steps the brief dropped stay as they are and are reported in step 4.
+   Tasks of steps the brief dropped stay as they are and are reported in step 5.
    Questions the change opens go to the requester with `ask_requester`.
 4. **Event-day checklist** (`event-day <request-id>`, or after the plan is written): write 5-12
    concrete checks for the day of the event from the spec, the plan and the fallback scenarios.
