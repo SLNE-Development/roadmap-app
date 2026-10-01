@@ -65,7 +65,7 @@ export async function listMembers(db: Executor, actor: Actor, slug: string): Pro
 export async function setMember(db: Db, actor: Actor, slug: string, raw: z.input<typeof setMemberInput>): Promise<void> {
   const input = setMemberInput.parse(raw);
   await db.transaction(async (tx) => {
-    const { project } = await projectAccess(tx, actor, slug, "owner");
+    const { project } = await projectAccess(tx, actor, slug, "owner", { allowArchived: true });
     await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("no key update");
     const target = await loadActor(tx, input.userId);
     if (!target) throw new NotFoundError(`Unknown user ${input.userId}.`);
@@ -98,7 +98,7 @@ export async function setMember(db: Db, actor: Actor, slug: string, raw: z.input
  */
 export async function removeMember(db: Db, actor: Actor, slug: string, userId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const { project } = await projectAccess(tx, actor, slug, "owner");
+    const { project } = await projectAccess(tx, actor, slug, "owner", { allowArchived: true });
     await tx.select({ id: projectTable.id }).from(projectTable).where(eq(projectTable.id, project.id)).for("no key update");
     const [current] = await tx
       .select({ role: projectMember.role, name: user.name })

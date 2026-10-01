@@ -44,6 +44,15 @@ describe("archive", () => {
     expect((await listSystems(db, owner, slug, { archived: "include" })).map((s) => s.slug).sort()).toEqual(["other", "s"]);
   });
 
+  it("still lists the systems when every one is archived", async () => {
+    const { db, owner, slug } = await setup();
+    await setSystemArchived(db, owner, slug, "s", true);
+    await setSystemArchived(db, owner, slug, "other", true);
+    expect(await listSystems(db, owner, slug)).toEqual([]);
+    expect((await listSystems(db, owner, slug, { archived: "include" })).map((s) => s.slug).sort()).toEqual(["other", "s"]);
+    expect((await listSystems(db, owner, slug, { archived: "only" })).map((s) => s.slug).sort()).toEqual(["other", "s"]);
+  });
+
   it("refuses writes to an archived system on every path, while reads still work", async () => {
     const { db, owner, slug, taskId } = await setup();
     await setSystemArchived(db, owner, slug, "s", true);

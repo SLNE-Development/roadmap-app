@@ -79,6 +79,7 @@ export function SystemsTable({
             {g.items.map((s) => (
               <div role="row" key={s.id} style={template} className={`${GRID} relative border-b px-4 py-2.5 text-[13.5px] last:border-b-0 hover:bg-muted/50`}>
                 <span role="cell" className="flex min-w-0 flex-col gap-0.5">
+                  {s.archivedAt && <span className="w-fit bg-muted px-1.5 py-0.5 text-[11.5px] font-semibold text-muted-foreground">Archived</span>}
                   <Link
                     href={`/p/${projectSlug}/systems/${s.slug}`}
                     className="truncate font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50"

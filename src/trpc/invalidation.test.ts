@@ -28,6 +28,10 @@ describe("INVALIDATES", () => {
     expect(affectedRouters([["tasks", "update"]])).toContain("structure");
   });
 
+  it("refetches the planning gate after question mutations", () => {
+    expect(affectedRouters([["questions", "setPriority"]])).toContain("planning");
+  });
+
   it("scopes a board mutation to the planning gaps too", () => {
     expect(affectedRouters([["boards", "update"]])).toContain("planning");
   });

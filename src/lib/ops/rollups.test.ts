@@ -63,7 +63,7 @@ describe("rollups with the database", () => {
   it("groups by phase with null for systems without one", async () => {
     const { db, projectId, phaseA } = await setup();
     const groups = await groupRollups(db, projectId, "phase");
-    expect([...groups.keys()]).toEqual([null, phaseA.id].sort());
+    expect(new Set(groups.keys())).toEqual(new Set([null, phaseA.id]));
     expect(groups.get(phaseA.id)).toEqual({ tasks: 4, done: 2, points: 12, pointsDone: 4, unestimated: 1 });
     expect(groups.get(null)).toEqual({ tasks: 2, done: 1, points: 8, pointsDone: 8, unestimated: 1 });
   });

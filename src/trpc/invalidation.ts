@@ -9,7 +9,7 @@ export const INVALIDATES: Record<string, readonly string[]> = {
   systems: ["systems", "planning", "history", "projects", "boards", "questions", "adrs", "structure", "tasks"],
   planning: ["planning", "systems", "history", "projects"],
   adrs: ["adrs", "systems", "history", "projects"],
-  questions: ["questions", "systems", "history", "projects"],
+  questions: ["questions", "systems", "planning", "history", "projects"],
   boards: ["boards", "systems", "planning", "projects", "history"],
   fields: ["fields", "systems", "projects", "history"],
   structure: ["structure", "systems", "projects", "history"],

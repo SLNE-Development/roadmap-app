@@ -90,7 +90,10 @@ export function OverviewView({ slug }: { slug: string }) {
   });
   const planning = systems.filter((s) => s.columnCategory === "planning");
   // The list puts blocking questions first; they need attention at any age.
-  const attentionQuestions = questions.filter((q) => q.priority === "blocking" || isStale(q.createdAt, now));
+  // `systems` leaves archived systems out, so their questions drop out too.
+  const attentionQuestions = questions.filter(
+    (q) => (q.priority === "blocking" || isStale(q.createdAt, now)) && (q.systemSlug === null || systems.some((s) => s.slug === q.systemSlug)),
+  );
   const data = { detail, systems, phases, adrs, attentionQuestions, updates, latest, activity, planning, gaps, blockedTasks };
   const { project } = data.detail;
   const canEdit = data.detail.role !== "viewer" && !project.archivedAt;

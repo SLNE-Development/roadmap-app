@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, createProjectFixture, insertUser } from "@/test/fixtures";
+import { archiveProject } from "./archive";
 import { isMember, listMembers, removeMember, setMember } from "./members";
 import { removeAllowedAccount } from "./users";
 
@@ -24,6 +25,17 @@ describe("members", () => {
     expect(joined).toBeInstanceOf(Date);
     await setMember(db, owner, slug, { userId: editor.userId, role: "viewer" });
     expect((await listMembers(db, owner, slug)).find((m) => m.userId === editor.userId)?.joinedAt).toEqual(joined);
+  });
+
+  it("lets an owner change and remove members of an archived project", async () => {
+    const db = await createTestDb();
+    const { owner, slug } = await createProjectFixture(db);
+    const editor = await addMemberFixture(db, owner, slug, "editor");
+    await archiveProject(db, owner, slug);
+    await setMember(db, owner, slug, { userId: editor.userId, role: "viewer" });
+    expect((await listMembers(db, owner, slug)).find((m) => m.userId === editor.userId)?.role).toBe("viewer");
+    await removeMember(db, owner, slug, editor.userId);
+    expect((await listMembers(db, owner, slug)).map((m) => m.userId)).toEqual([owner.userId]);
   });
 
   it("only lets owners manage members", async () => {

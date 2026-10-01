@@ -173,7 +173,7 @@ export async function reorderCustomFields(db: Db, actor: Actor, projectSlug: str
       .select()
       .from(customField)
       .where(eq(customField.projectId, project.id))
-      .orderBy(asc(customField.sortOrder), asc(customField.id))
+      .orderBy(asc(customField.id))
       .for("update");
     const seen = new Set<string>();
     for (const key of orderedKeys) {
@@ -247,7 +247,7 @@ export async function setSystemFields(
     const { project } = await projectAccess(tx, actor, projectSlug, "editor");
     const current = await findSystem(tx, project.id, systemSlug, true);
     // Share-lock the definitions so a concurrent option removal cannot miss a value written here.
-    const fields = await tx.select().from(customField).where(eq(customField.projectId, project.id)).for("share");
+    const fields = await tx.select().from(customField).where(eq(customField.projectId, project.id)).orderBy(asc(customField.id)).for("share");
     const stored = await tx.select().from(systemFieldValue).where(eq(systemFieldValue.systemId, current.id));
     for (const [key, value] of Object.entries(values)) {
       const field = fields.find((f) => f.key === key);

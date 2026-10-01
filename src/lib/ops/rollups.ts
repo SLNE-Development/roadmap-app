@@ -8,9 +8,7 @@ import type { Actor } from "./actor";
 export { ESTIMATE_POINTS, rollup, type Rollup };
 
 /** SQL expression turning `task.estimate` into its points. */
-const POINTS = sql.raw(
-  `case ${task.estimate.name} ${TASK_ESTIMATES.map((e) => `when '${e}' then ${ESTIMATE_POINTS[e]}`).join(" ")} else 0 end`,
-);
+const POINTS = sql`case ${task.estimate} ${sql.raw(TASK_ESTIMATES.map((e) => `when '${e}' then ${ESTIMATE_POINTS[e]}`).join(" "))} else 0 end`;
 
 /** The aggregate columns shared by the rollup queries. */
 const AGGREGATES = {

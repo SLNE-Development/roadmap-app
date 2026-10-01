@@ -38,7 +38,7 @@ export function SystemsView({
       queries: [
         trpc.projects.get.queryOptions({ project: slug }),
         trpc.systems.list.queryOptions({ project: slug, filter }),
-        trpc.systems.list.queryOptions({ project: slug }),
+        trpc.systems.list.queryOptions({ project: slug, filter: { archived: "include" } }),
         trpc.structure.domains.queryOptions({ project: slug }),
         trpc.structure.phases.queryOptions({ project: slug }),
         trpc.members.list.queryOptions({ project: slug }),
