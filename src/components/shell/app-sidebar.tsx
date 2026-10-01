@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ChevronsUpDown, CircleHelp, KanbanSquare, LayoutGrid, List, Map as MapIcon, Scale, Search, SlidersHorizontal } from "lucide-react";
+import { Activity, ChevronsUpDown, CircleHelp, KanbanSquare, LayoutGrid, List, Map as MapIcon, Scale, Search, SlidersHorizontal, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -166,6 +166,10 @@ export function AppSidebar({ actor, projects, project }: { actor: SidebarActor; 
             <LayoutGrid className="size-4 opacity-90" aria-hidden />
             <span className="flex-1">Projects</span>
             <Count value={projects.length} />
+          </Link>
+          <Link href="/workload" aria-current={is("/workload") ? "page" : undefined} className={rowClass(is("/workload"))}>
+            <Users className="size-4 opacity-90" aria-hidden />
+            <span className="flex-1">Workload</span>
           </Link>
         </div>
       )}
