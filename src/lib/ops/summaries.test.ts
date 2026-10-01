@@ -76,7 +76,7 @@ describe("projectNav", () => {
     const nav = await projectNav(db, owner, slug);
     expect(nav.systems.map((s) => s.title)).toEqual(["Beta", "Alpha"]);
     expect(nav.systems[0].boardSlug).toBe("development");
-    expect(nav).toMatchObject({ adrCount: 1, openQuestionCount: 1, memberCount: 2 });
+    expect(nav).toMatchObject({ adrCount: 1, pageCount: 0, openQuestionCount: 1, memberCount: 2 });
   });
 
   it("lists systems in board order", async () => {

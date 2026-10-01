@@ -61,6 +61,7 @@ const ENTITY_LABEL: Record<string, string> = {
   planning: "planning",
   document: "a document",
   glossary: "a glossary term",
+  page: "a page",
   update: "an update",
 };
 
@@ -205,6 +206,15 @@ export function describeChange(e: ChangeFacts, ctx: ChangeContext = {}): ChangeS
       return plain("changed a glossary definition");
     case "glossary:deleted":
       return plain("deleted glossary term", quote(e.oldValue));
+
+    case "page:created":
+      return plain("created page", quote(e.newValue));
+    case "page:title":
+      return plain("renamed a page", null, { from: e.oldValue ?? "", to: e.newValue ?? "" });
+    case "page:version":
+      return plain("wrote a new version of a page", null, { to: e.newValue ?? "" });
+    case "page:deleted":
+      return plain("deleted page", quote(e.oldValue));
 
     case "update:posted":
       return onSystem("posted an update on", "", "posted an update");

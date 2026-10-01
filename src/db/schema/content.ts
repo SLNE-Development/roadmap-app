@@ -163,6 +163,39 @@ export const systemDocument = pgTable(
   (t) => [unique("system_document_version").on(t.systemId, t.kind, t.version)],
 );
 
+/** Pages of a project that belong to no system, such as onboarding, conventions and architecture. */
+export const projectPage = pgTable(
+  "project_page",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    sortOrder: integer("sort_order").notNull(),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [unique("project_page_project_slug").on(t.projectId, t.slug)],
+);
+
+/** Append-only versions of a project page. */
+export const pageVersion = pgTable(
+  "page_version",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => projectPage.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    body: text("body").notNull(),
+    authorUserId: text("author_user_id").references(() => user.id, { onDelete: "set null" }),
+    agent: text("agent"),
+    createdAt: timestamp("created_at", tz).notNull().defaultNow(),
+  },
+  (t) => [unique("page_version_page_version").on(t.pageId, t.version)],
+);
+
 /** Architecture decision records, numbered per project and immutable once accepted. */
 export const adr = pgTable(
   "adr",

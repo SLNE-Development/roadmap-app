@@ -64,6 +64,13 @@ describe("describeChange", () => {
     expect(text(entry("system", "gateOverride", "no spec", "Done: ok"), null)).toBe("moved a system past unmet rules: ok");
   });
 
+  it("describes page changes", () => {
+    expect(text(entry("page", "created", null, "Onboarding"), null)).toBe("created page “Onboarding”");
+    expect(text(entry("page", "title", "Intro", "Onboarding"), null)).toBe("renamed a page Intro → Onboarding");
+    expect(text(entry("page", "version", null, "v3"), null)).toBe("wrote a new version of a page v3");
+    expect(text(entry("page", "deleted", "Onboarding", null), null)).toBe("deleted page “Onboarding”");
+  });
+
   it("describes glossary changes", () => {
     expect(text(entry("glossary", "created", null, "Outbox"), null)).toBe("added glossary term “Outbox”");
     expect(text(entry("glossary", "definition", "Queue", "Pending events"), null)).toBe("changed a glossary definition");

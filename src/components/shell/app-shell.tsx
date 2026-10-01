@@ -19,6 +19,7 @@ export function AppShell({
   projects,
   project,
   systems,
+  pages,
   views,
   children,
 }: {
@@ -26,6 +27,7 @@ export function AppShell({
   projects: SidebarProjectLink[];
   project?: SidebarProject;
   systems?: { slug: string; title: string }[];
+  pages?: { slug: string; title: string }[];
   views?: SidebarView[];
   children: React.ReactNode;
 }) {
@@ -69,6 +71,7 @@ export function AppShell({
           projects,
           project: project && { slug: project.slug, name: project.name, boards: project.boards },
           systems,
+          pages,
         }}
         onShowShortcuts={showHelp}
       />

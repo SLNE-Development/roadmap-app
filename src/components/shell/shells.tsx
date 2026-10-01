@@ -37,13 +37,14 @@ export function GlobalShell({ children }: { children: React.ReactNode }) {
  */
 export function ProjectShell({ slug, children }: { slug: string; children: React.ReactNode }) {
   const trpc = useTRPC();
-  const [{ data: me }, { data: projects }, { data: detail }, { data: nav }, { data: views }] = useSuspenseQueries({
+  const [{ data: me }, { data: projects }, { data: detail }, { data: nav }, { data: views }, { data: pages }] = useSuspenseQueries({
     queries: [
       trpc.account.me.queryOptions(),
       trpc.projects.list.queryOptions(),
       trpc.projects.get.queryOptions({ project: slug }),
       trpc.projects.nav.queryOptions({ project: slug }),
       trpc.views.list.queryOptions({ project: slug }),
+      trpc.pages.list.queryOptions({ project: slug }),
     ],
   });
   const systems = nav.systems;
@@ -53,7 +54,7 @@ export function ProjectShell({ slug, children }: { slug: string; children: React
     role: detail.role,
     memberCount: nav.memberCount,
     boards: detail.boards.map((b) => ({ slug: b.slug, name: b.name, count: systems.filter((s) => s.boardSlug === b.slug).length })),
-    counts: { systems: systems.length, adrs: nav.adrCount, openQuestions: nav.openQuestionCount },
+    counts: { systems: systems.length, adrs: nav.adrCount, pages: nav.pageCount, openQuestions: nav.openQuestionCount },
   };
   return (
     <AppShell
@@ -61,6 +62,7 @@ export function ProjectShell({ slug, children }: { slug: string; children: React
       projects={projects.map((p) => ({ slug: p.slug, name: p.name }))}
       project={project}
       systems={systems.map((s) => ({ slug: s.slug, title: s.title }))}
+      pages={pages.map((p) => ({ slug: p.slug, title: p.title }))}
       views={views}
     >
       {children}

@@ -8,6 +8,7 @@ import { gatesRouter } from "./routers/gates";
 import { glossaryRouter } from "./routers/glossary";
 import { historyRouter } from "./routers/history";
 import { membersRouter } from "./routers/members";
+import { pagesRouter } from "./routers/pages";
 import { planningRouter } from "./routers/planning";
 import { prefsRouter } from "./routers/prefs";
 import { projectsRouter } from "./routers/projects";
@@ -38,6 +39,7 @@ export const appRouter = router({
   views: viewsRouter,
   glossary: glossaryRouter,
   gates: gatesRouter,
+  pages: pagesRouter,
 });
 
 /** The router's type, the only thing the client imports from the server. */

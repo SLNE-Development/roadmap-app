@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, CircleHelp, FolderKanban, KanbanSquare, KeyRound, LayoutGrid, List, Map as MapIcon, Keyboard, Moon, Scale, SlidersHorizontal, Users } from "lucide-react";
+import { Activity, BookOpen, CircleHelp, FolderKanban, KanbanSquare, KeyRound, LayoutGrid, List, Map as MapIcon, Keyboard, Moon, Scale, SlidersHorizontal, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -21,6 +21,7 @@ export interface CommandMenuData {
   projects: { slug: string; name: string }[];
   project?: { slug: string; name: string; boards: { slug: string; name: string }[] };
   systems?: { slug: string; title: string }[];
+  pages?: { slug: string; title: string }[];
 }
 
 /**
@@ -58,6 +59,7 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
     { href: `${base}/systems`, label: "Systems", icon: List, key: "s" },
     { href: `${base}/roadmap`, label: "Roadmap", icon: MapIcon, key: "r" },
     { href: `${base}/adrs`, label: "Decisions", icon: Scale, key: "d" },
+    { href: `${base}/pages`, label: "Pages", icon: BookOpen },
     { href: `${base}/questions`, label: "Questions", icon: CircleHelp, key: "q" },
     { href: `${base}/activity`, label: "Activity", icon: Activity, key: "a" },
     { href: `${base}/settings`, label: "Project settings", icon: SlidersHorizontal },
@@ -94,6 +96,15 @@ export function CommandMenu({ data, onShowShortcuts }: { data: CommandMenuData; 
             {data.systems.map((s) => (
               <CommandItem key={s.slug} value={`system ${s.title} ${s.slug}`} onSelect={() => go(`${base}/systems/${s.slug}`)}>
                 <List /> {s.title}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {data.pages && data.pages.length > 0 && (
+          <CommandGroup heading="Pages">
+            {data.pages.map((p) => (
+              <CommandItem key={p.slug} value={`page ${p.title} ${p.slug}`} onSelect={() => go(`${base}/pages/${p.slug}`)}>
+                <BookOpen /> {p.title}
               </CommandItem>
             ))}
           </CommandGroup>

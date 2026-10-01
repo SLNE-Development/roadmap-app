@@ -17,6 +17,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
     trpc.projects.get.queryOptions({ project: slug }),
     trpc.projects.nav.queryOptions({ project: slug }),
     trpc.views.list.queryOptions({ project: slug }),
+    trpc.pages.list.queryOptions({ project: slug }),
   );
   return (
     <HydrateClient>

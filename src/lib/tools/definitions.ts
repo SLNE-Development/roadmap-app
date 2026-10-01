@@ -29,6 +29,7 @@ import { getDocument, writePlan, writePlanInput, writeSpec, writeSpecInput } fro
 import { GATE_RULES } from "@/lib/ops/gates";
 import { deleteGlossaryTerm, listGlossary, setGlossaryTerm, setGlossaryTermInput } from "@/lib/ops/glossary";
 import { listMembers } from "@/lib/ops/members";
+import { getPage, listPages, writePage, writePageInput } from "@/lib/ops/pages";
 import { getSystemOverview } from "@/lib/ops/overview";
 import { myWork } from "@/lib/ops/my-work";
 import { MAX_INT } from "@/lib/ops/params";
@@ -385,6 +386,38 @@ register(
       if (definition === undefined) throw new InvalidError("definition is required unless delete is true.");
       return setGlossaryTerm(db, actor, project, { ...input, definition });
     },
+  }),
+  defineTool({
+    name: "list_pages",
+    description: "List the project's pages (onboarding, conventions, architecture) with their latest version.",
+    input: P,
+    write: false,
+    method: "GET",
+    path: "/projects/:project/pages",
+    run: (db, actor, { project }) => listPages(db, actor, project),
+  }),
+  defineTool({
+    name: "get_page",
+    description: "Get a project page, a given version, or only its diff since a version.",
+    input: {
+      ...P,
+      page: slugSchema.describe("Page slug within the project."),
+      version: positiveInt(MAX_INT).optional(),
+      since: positiveInt(MAX_INT).optional().describe("Return only the changes since this version, as a unified diff, instead of the body."),
+    },
+    write: false,
+    method: "GET",
+    path: "/projects/:project/pages/:page",
+    run: (db, actor, i) => (i.since === undefined ? getPage(db, actor, i.project, i.page, i.version) : getPage(db, actor, i.project, i.page, i.version, i.since)),
+  }),
+  defineTool({
+    name: "write_page",
+    description: "Create a project page or write its next version (markdown); title is required for a new page.",
+    input: { ...P, ...writePageInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/projects/:project/pages/:page",
+    run: (db, actor, { project, ...input }) => writePage(db, actor, project, input),
   }),
   defineTool({
     name: "move_system",

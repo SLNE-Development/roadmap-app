@@ -19,7 +19,7 @@ import { VersionPicker } from "./version-picker";
 const PREVIEW_CHARS = 900;
 
 /** "v2 · Aiko Tanaka via claude-code · 12 Sep" for a document version. */
-function DocumentMeta({ doc }: { doc: DocumentView }) {
+function DocumentMeta({ doc }: { doc: Omit<DocumentView, "kind"> }) {
   return (
     <span className="text-[12.5px] text-muted-foreground">
       v{doc.version} · <AuthorText name={doc.authorName} agent={doc.agent} /> · {formatDate(doc.createdAt.toISOString())}
@@ -49,7 +49,7 @@ export function DocumentSection({
   compare,
 }: {
   title: string;
-  doc: DocumentView | null;
+  doc: Omit<DocumentView, "kind"> | null;
   param: string;
   empty: { title: string; description: string };
   stepStates?: StepStates;

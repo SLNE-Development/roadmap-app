@@ -1,5 +1,5 @@
 import { and, asc, count, eq, inArray, isNull, max, or } from "drizzle-orm";
-import { adr, allowedAccount, board, boardColumn, changeLog, projectMember, question, system, user, type ColumnCategory } from "@/db/schema";
+import { adr, allowedAccount, board, boardColumn, changeLog, projectMember, projectPage, question, system, user, type ColumnCategory } from "@/db/schema";
 import type { Executor } from "@/db/types";
 import { projectHealth, type ProjectHealth } from "@/lib/health";
 import { projectAccess } from "./access";
@@ -96,20 +96,21 @@ export async function projectSummaries(db: Executor, projectIds: string[], now: 
 export interface ProjectNav {
   systems: { slug: string; title: string; boardSlug: string }[];
   adrCount: number;
+  pageCount: number;
   openQuestionCount: number;
   memberCount: number;
 }
 
 /**
  * Returns a project's systems (slug, title, board) in board order, leaving out archived ones, and the
- * sidebar's ADR, open-question and member counts, with light queries instead
+ * sidebar's ADR, page, open-question and member counts, with light queries instead
  * of the full system listing.
  *
  * @throws NotFoundError if the actor cannot see the project
  */
 export async function projectNav(db: Executor, actor: Actor, slug: string): Promise<ProjectNav> {
   const { project } = await projectAccess(db, actor, slug, "viewer");
-  const [systems, [adrs], [questions], [members]] = await Promise.all([
+  const [systems, [adrs], [questions], [members], [pages]] = await Promise.all([
     db
       .select({ slug: system.slug, title: system.title, boardSlug: board.slug })
       .from(system)
@@ -127,6 +128,7 @@ export async function projectNav(db: Executor, actor: Actor, slug: string): Prom
       .innerJoin(user, eq(user.id, projectMember.userId))
       .innerJoin(allowedAccount, eq(allowedAccount.discordId, user.discordId))
       .where(eq(projectMember.projectId, project.id)),
+    db.select({ n: count() }).from(projectPage).where(eq(projectPage.projectId, project.id)),
   ]);
-  return { systems, adrCount: adrs.n, openQuestionCount: questions.n, memberCount: members.n };
+  return { systems, adrCount: adrs.n, pageCount: pages.n, openQuestionCount: questions.n, memberCount: members.n };
 }
