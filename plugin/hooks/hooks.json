@@ -1,9 +1,14 @@
 {
-  "description": "surf-roadmap: project context at session start; blocks superpowers skills and file-based specs, plans and ADRs in linked repositories.",
+  "description": "surf-roadmap: project context and run naming at session start, token usage on stop; blocks superpowers skills and file-based specs, plans and ADRs in linked repositories.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs\"", "timeout": 10 }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/stop.mjs\"", "timeout": 5 }]
       }
     ],
     "PreToolUse": [

@@ -1,4 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** File at a repository's root that links it to a roadmap project. */
@@ -32,10 +34,17 @@ export const BLOCKED_DOC_DIRS = [
   ["docs/adr/", "create_adr"],
 ];
 
-/** Reads the hook's JSON input from stdin; returns null for empty or malformed input or a non-object. */
-export async function readInput() {
+/** Reads the hook's JSON input from stdin; returns null for empty, malformed or non-object input, or when stdin stays open past `timeoutMs`. */
+export async function readInput(timeoutMs = 3000) {
   let data = "";
-  for await (const chunk of process.stdin) data += chunk;
+  let timer;
+  const read = (async () => {
+    for await (const chunk of process.stdin) data += chunk;
+    return true;
+  })();
+  const finished = await Promise.race([read, new Promise((resolve) => (timer = setTimeout(resolve, timeoutMs, false)))]);
+  clearTimeout(timer);
+  if (!finished) return null;
   try {
     const value = JSON.parse(data);
     return value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -116,4 +125,80 @@ export function sessionContext(link, who) {
 /** Returns the JSON a PreToolUse hook prints to deny the call with `reason`. */
 export function denyJson(reason) {
   return JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } });
+}
+
+/** Runs git in `cwd` and returns its trimmed stdout, or null on any failure. */
+function git(cwd, args) {
+  try {
+    const out = execFileSync("git", ["-C", cwd, ...args], { timeout: 1000, stdio: ["ignore", "pipe", "ignore"], encoding: "utf8" }).trim();
+    return out || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the `owner/name` of a git remote URL, or null when it has no such shape. */
+function repoFromRemote(url) {
+  const match = /([^/:\s]+)\/([^/:\s]+?)(?:\.git)?\/*$/.exec(url ?? "");
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
+/** Returns the origin repository as `owner/name` and the current branch of `cwd`; each is null when unknown. */
+export function gitInfo(cwd) {
+  const branch = git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  return { repo: repoFromRemote(git(cwd, ["remote", "get-url", "origin"])), branch: branch === "HEAD" ? null : branch };
+}
+
+/**
+ * Sums the token usage of a Claude Code transcript (JSONL). A streamed message
+ * repeats under one `message.id`, so each id counts once, with its last usage.
+ * Returns null when the file is missing, unreadable or bigger than `maxBytes`.
+ */
+export async function sumTranscriptUsage(path, maxBytes = 50 * 1024 * 1024) {
+  const byId = new Map();
+  let anonymous = 0;
+  try {
+    if (typeof path !== "string" || statSync(path).size > maxBytes) return null;
+    const lines = createInterface({ input: createReadStream(path, { encoding: "utf8" }), crlfDelay: Infinity });
+    for await (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const entry = JSON.parse(line);
+        const usage = entry?.type === "assistant" ? entry.message?.usage : null;
+        if (!usage || typeof usage !== "object") continue;
+        byId.set(typeof entry.message.id === "string" ? entry.message.id : `anonymous-${anonymous++}`, usage);
+      } catch {
+        // Skip malformed lines.
+      }
+    }
+  } catch {
+    return null;
+  }
+  const total = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  const count = (value) => (Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
+  for (const usage of byId.values()) {
+    total.inputTokens += count(usage.input_tokens);
+    total.outputTokens += count(usage.output_tokens);
+    total.cacheReadTokens += count(usage.cache_read_input_tokens);
+    total.cacheWriteTokens += count(usage.cache_creation_input_tokens);
+  }
+  return total;
+}
+
+/** POSTs `body` as JSON to the roadmap REST API; resolves false on any failure and never throws. */
+export async function postJson(path, body, timeoutMs) {
+  const url = process.env.ROADMAP_URL;
+  const key = process.env.ROADMAP_API_KEY;
+  if (!url || !key) return false;
+  try {
+    const response = await fetch(`${url.replace(/\/+$/, "")}/api/v1${path}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

@@ -1,11 +1,12 @@
 import { strict as assert } from "node:assert";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { docPathDecision, findLinkedRoot, REPLACEMENTS, sessionContext, skillDecision } from "./lib.mjs";
+import { docPathDecision, findLinkedRoot, gitInfo, REPLACEMENTS, sessionContext, skillDecision, sumTranscriptUsage } from "./lib.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 
@@ -108,4 +109,121 @@ test("session-start reports an invalid link file", () => {
   const out = run("session-start.mjs", JSON.stringify({ cwd: root }));
   assert.equal(out.status, 0);
   assert.match(JSON.parse(out.stdout).hookSpecificOutput.additionalContext, /surf-roadmap\.json is invalid/);
+});
+
+/** Writes a transcript JSONL with `lines` (strings or objects) and returns its path. */
+function transcript(lines) {
+  const file = join(mkdtempSync(join(tmpdir(), "transcript-")), "session.jsonl");
+  writeFileSync(file, lines.map((l) => (typeof l === "string" ? l : JSON.stringify(l))).join("\n") + "\n");
+  return file;
+}
+
+const assistant = (id, usage) => ({ type: "assistant", message: { id, usage } });
+const USAGE_LINES = [
+  { type: "user", message: { content: "hi" } },
+  assistant("m1", { input_tokens: 10, output_tokens: 5 }),
+  assistant("m1", { input_tokens: 12, output_tokens: 6 }),
+  assistant("m2", { input_tokens: 3, output_tokens: 1, cache_read_input_tokens: 100 }),
+];
+const USAGE_TOTAL = { inputTokens: 15, outputTokens: 7, cacheReadTokens: 100, cacheWriteTokens: 0 };
+
+/** Starts a local HTTP server that records requests; `whoami` answers the whoami call. */
+async function fakeRoadmap() {
+  const requests = [];
+  const server = createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      requests.push({ method: req.method, url: req.url, body });
+      res.setHeader("content-type", "application/json");
+      res.end(req.url === "/api/v1/whoami" ? '{"name":"Ammo"}' : "{}");
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return { requests, url: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
+}
+
+/** Runs a hook script asynchronously with the given environment overrides. */
+function runAsync(script, stdin, env) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [join(here, script)], { env: { ...process.env, ...env } });
+    let stdout = "";
+    child.stdout.on("data", (c) => (stdout += c));
+    child.on("close", (status) => resolve({ status, stdout }));
+    child.stdin.end(stdin);
+  });
+}
+
+test("sumTranscriptUsage counts each message id once", async () => {
+  assert.deepEqual(await sumTranscriptUsage(transcript(USAGE_LINES)), USAGE_TOTAL);
+});
+
+test("sumTranscriptUsage skips malformed lines and gives null for missing or huge files", async () => {
+  const withGarbage = transcript([USAGE_LINES[0], USAGE_LINES[1], "{ garbage", USAGE_LINES[2], USAGE_LINES[3]]);
+  assert.deepEqual(await sumTranscriptUsage(withGarbage), USAGE_TOTAL);
+  assert.equal(await sumTranscriptUsage(join(tmpdir(), "surf-roadmap-missing.jsonl")), null);
+  assert.equal(await sumTranscriptUsage(withGarbage, 10), null);
+  assert.equal(await sumTranscriptUsage(undefined), null);
+});
+
+test("stop exits 0 without output when stdin never closes", async () => {
+  const started = Date.now();
+  const child = spawn(process.execPath, [join(here, "stop.mjs")], { stdio: ["pipe", "pipe", "ignore"] });
+  let stdout = "";
+  child.stdout.on("data", (c) => (stdout += c));
+  const status = await new Promise((resolve) => child.on("close", resolve));
+  assert.deepEqual({ status, stdout }, { status: 0, stdout: "" });
+  assert.ok(Date.now() - started < 5000);
+});
+
+test("gitInfo gives nulls outside a git repository", () => {
+  assert.deepEqual(gitInfo(mkdtempSync(join(tmpdir(), "plain-"))), { repo: null, branch: null });
+});
+
+test("stop never blocks or prints on a missing, malformed or unreachable setup", () => {
+  const root = linkedRepo();
+  const env = { ...process.env, ROADMAP_URL: "http://127.0.0.1:9", ROADMAP_API_KEY: "key" };
+  const inputs = [
+    "not json",
+    JSON.stringify({ cwd: root, session_id: "s1", transcript_path: join(root, "missing.jsonl") }),
+    JSON.stringify({ cwd: root, session_id: "s1", transcript_path: transcript(USAGE_LINES) }),
+  ];
+  for (const input of inputs) {
+    const started = Date.now();
+    const result = spawnSync(process.execPath, [join(here, "stop.mjs")], { input, encoding: "utf8", env, timeout: 5000 });
+    assert.deepEqual({ status: result.status, stdout: result.stdout }, { status: 0, stdout: "" }, input);
+    assert.ok(Date.now() - started < 5000);
+  }
+});
+
+test("stop reports usage in a linked repo and sends nothing elsewhere", async () => {
+  const roadmap = await fakeRoadmap();
+  try {
+    const env = { ROADMAP_URL: roadmap.url, ROADMAP_API_KEY: "key" };
+    const file = transcript(USAGE_LINES);
+    const plain = await runAsync("stop.mjs", JSON.stringify({ cwd: mkdtempSync(join(tmpdir(), "plain-")), session_id: "s1", transcript_path: file }), env);
+    assert.deepEqual(plain, { status: 0, stdout: "" });
+    assert.equal(roadmap.requests.length, 0);
+    const linked = await runAsync("stop.mjs", JSON.stringify({ cwd: linkedRepo(), session_id: "s1", transcript_path: file }), env);
+    assert.deepEqual(linked, { status: 0, stdout: "" });
+    assert.equal(roadmap.requests.length, 1);
+    assert.equal(roadmap.requests[0].url, "/api/v1/agent-runs/usage");
+    assert.deepEqual(JSON.parse(roadmap.requests[0].body), { clientSessionId: "s1", ...USAGE_TOTAL });
+  } finally {
+    roadmap.close();
+  }
+});
+
+test("session-start names the agent run in a linked repo", async () => {
+  const roadmap = await fakeRoadmap();
+  try {
+    const out = await runAsync("session-start.mjs", JSON.stringify({ cwd: linkedRepo(), session_id: "sess-42" }), { ROADMAP_URL: roadmap.url, ROADMAP_API_KEY: "key" });
+    assert.equal(out.status, 0);
+    assert.match(JSON.parse(out.stdout).hookSpecificOutput.additionalContext, /Signed in to the roadmap as Ammo/);
+    const post = roadmap.requests.find((r) => r.method === "POST" && r.url === "/api/v1/agent-runs");
+    assert.ok(post, "no POST /api/v1/agent-runs");
+    assert.equal(JSON.parse(post.body).clientSessionId, "sess-42");
+  } finally {
+    roadmap.close();
+  }
 });
