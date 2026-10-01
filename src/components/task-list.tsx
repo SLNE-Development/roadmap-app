@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Check, Gauge, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound } from "lucide-react";
+import { Check, Gauge, ListChecks, Lock, Minus, Plus, StickyNote, TrashIcon, UserRound, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ProgressBar } from "@/components/page";
@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -147,6 +148,66 @@ function TextDialog({
   );
 }
 
+/** The expanded checklist under a task row: a checkbox and remove button per item, and an add field for editors. */
+function Checklist({ task, canEdit }: { task: TaskItem; canEdit: boolean }) {
+  const trpc = useTRPC();
+  const add = useMutation(trpc.tasks.checks.add.mutationOptions());
+  const update = useMutation(trpc.tasks.checks.update.mutationOptions());
+  const remove = useMutation(trpc.tasks.checks.delete.mutationOptions());
+  const [title, setTitle] = useState("");
+  const pending = add.isPending;
+  return (
+    <div className="flex flex-col pb-1 pl-9 sm:pl-[68px]">
+      <ul aria-label={`Checklist of ${task.title}`} className="flex flex-col">
+        {task.checks.map((c) => (
+          <li key={c.id} className="flex min-h-9 items-center gap-3 py-1 lg:min-h-0">
+            <Checkbox
+              aria-label={c.title}
+              checked={c.done}
+              disabled={!canEdit || update.isPending}
+              onCheckedChange={(v) => update.mutate({ id: c.id, patch: { done: v === true } })}
+            />
+            <span className={cn("min-w-0 flex-1 text-sm lg:text-[13px]", c.done && "text-muted-foreground line-through")}>{c.title}</span>
+            {canEdit && (
+              <button
+                type="button"
+                aria-label={`Remove ${c.title}`}
+                disabled={remove.isPending}
+                onClick={() => remove.mutate({ id: c.id })}
+                className="flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <X aria-hidden className="size-4" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {canEdit && (
+        <form
+          aria-busy={pending}
+          className="flex min-h-9 items-center gap-3 py-1 text-muted-foreground focus-within:text-foreground lg:min-h-0"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (pending || !title.trim()) return;
+            add.mutate({ taskId: task.id, check: { title: title.trim() } }, { onSuccess: () => setTitle("") });
+          }}
+        >
+          <Plus aria-hidden className="size-4 shrink-0" />
+          <input
+            aria-label={`Add item to checklist of ${task.title}`}
+            placeholder="Add item"
+            value={title}
+            maxLength={200}
+            readOnly={pending}
+            onChange={(e) => setTitle(e.target.value)}
+            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground lg:text-[13px]"
+          />
+        </form>
+      )}
+    </div>
+  );
+}
+
 /** One task row: state box (a menu for editors), plan step, title, owner and state label. */
 function TaskRow({
   task,
@@ -169,6 +230,8 @@ function TaskRow({
   const [reason, setReason] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
+  const [checksOpen, setChecksOpen] = useState(false);
+  const checksDone = task.checks.filter((c) => c.done).length;
   // The drafts are prefilled when a dialog opens, from the event handler.
   const openBlock = () => {
     setReason(task.blockedReason ?? "");
@@ -183,125 +246,156 @@ function TaskRow({
   const label = STATE_LABEL[task.state];
 
   return (
-    <li className="flex min-h-12 items-center gap-3 border-t px-4 py-2 sm:px-[18px] lg:min-h-0 lg:py-2.5" aria-busy={pending}>
-      {canEdit ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild disabled={pending}>
-            <button
-              type="button"
-              aria-label={`Task state: ${label}. Change state of ${task.title}`}
-              className={cn(boxClass(task.state), "outline-none focus-visible:ring-3 focus-visible:ring-ring/50")}
-            >
-              <StateGlyph state={task.state} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>State</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={task.state}
-              onValueChange={(v) => {
-                if (v !== "blocked") update.mutate({ id: task.id, patch: { state: v as TaskState } });
-              }}
-            >
-              {TASK_STATES.map((s) => (
-                <DropdownMenuRadioItem key={s} value={s} disabled={locked(s)} onSelect={s === "blocked" ? openBlock : undefined}>
-                  <CategoryDot category={STATE_CATEGORY[s]} />
-                  {s === "blocked" ? "Blocked…" : STATE_LABEL[s]}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            {!planningComplete && (
-              <p className="flex gap-2 px-1.5 py-1 text-xs leading-normal text-cat-planning">
-                <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-                Tasks can start once planning is complete.
-              </p>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <UserRound />
-                Owner
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-52">
-                <DropdownMenuRadioGroup
-                  value={task.ownerUserId ?? ""}
-                  onValueChange={(v) => {
-                    const name = members.find((m) => m.userId === v)?.name;
-                    update.mutate(
-                      { id: task.id, patch: { ownerUserId: v || null } },
-                      { onSuccess: () => toast.success(name ? `${name} owns “${task.title}”` : `“${task.title}” has no owner`) },
-                    );
-                  }}
-                >
-                  <DropdownMenuRadioItem value="">Nobody</DropdownMenuRadioItem>
-                  {members.map((m) => (
-                    <DropdownMenuRadioItem key={m.userId} value={m.userId}>
-                      {m.name}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Gauge />
-                Estimate
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-40">
-                <DropdownMenuRadioGroup
-                  value={task.estimate ?? ""}
-                  onValueChange={(v) => update.mutate({ id: task.id, patch: { estimate: (v || null) as TaskEstimate | null } })}
-                >
-                  <DropdownMenuRadioItem value="">None</DropdownMenuRadioItem>
-                  {TASK_ESTIMATES.map((e) => (
-                    <DropdownMenuRadioItem key={e} value={e}>
-                      {e}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuItem onSelect={openNotes}>
-              <StickyNote />
-              Notes
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-              <TrashIcon />
-              Delete task
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        <span role="img" aria-label={`Task state: ${label}`} className={boxClass(task.state)}>
-          <StateGlyph state={task.state} />
+    <li className="flex flex-col border-t px-4 sm:px-[18px]" aria-busy={pending}>
+      <div className="flex min-h-12 items-center gap-3 py-2 lg:min-h-0 lg:py-2.5">
+        {canEdit ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild disabled={pending}>
+              <button
+                type="button"
+                aria-label={`Task state: ${label}. Change state of ${task.title}`}
+                className={cn(boxClass(task.state), "outline-none focus-visible:ring-3 focus-visible:ring-ring/50")}
+              >
+                <StateGlyph state={task.state} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>State</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={task.state}
+                onValueChange={(v) => {
+                  if (v !== "blocked")
+                    update.mutate({
+                      id: task.id,
+                      patch: { state: v as TaskState },
+                    });
+                }}
+              >
+                {TASK_STATES.map((s) => (
+                  <DropdownMenuRadioItem key={s} value={s} disabled={locked(s)} onSelect={s === "blocked" ? openBlock : undefined}>
+                    <CategoryDot category={STATE_CATEGORY[s]} />
+                    {s === "blocked" ? "Blocked…" : STATE_LABEL[s]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              {!planningComplete && (
+                <p className="flex gap-2 px-1.5 py-1 text-xs leading-normal text-cat-planning">
+                  <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+                  Tasks can start once planning is complete.
+                </p>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <UserRound />
+                  Owner
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-52">
+                  <DropdownMenuRadioGroup
+                    value={task.ownerUserId ?? ""}
+                    onValueChange={(v) => {
+                      const name = members.find((m) => m.userId === v)?.name;
+                      update.mutate(
+                        { id: task.id, patch: { ownerUserId: v || null } },
+                        {
+                          onSuccess: () => toast.success(name ? `${name} owns “${task.title}”` : `“${task.title}” has no owner`),
+                        },
+                      );
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="">Nobody</DropdownMenuRadioItem>
+                    {members.map((m) => (
+                      <DropdownMenuRadioItem key={m.userId} value={m.userId}>
+                        {m.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Gauge />
+                  Estimate
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-40">
+                  <DropdownMenuRadioGroup
+                    value={task.estimate ?? ""}
+                    onValueChange={(v) =>
+                      update.mutate({
+                        id: task.id,
+                        patch: { estimate: (v || null) as TaskEstimate | null },
+                      })
+                    }
+                  >
+                    <DropdownMenuRadioItem value="">None</DropdownMenuRadioItem>
+                    {TASK_ESTIMATES.map((e) => (
+                      <DropdownMenuRadioItem key={e} value={e}>
+                        {e}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              {task.checks.length === 0 && (
+                <DropdownMenuItem onSelect={() => setChecksOpen(true)}>
+                  <ListChecks />
+                  Add checklist
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={openNotes}>
+                <StickyNote />
+                Notes
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                <TrashIcon />
+                Delete task
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span role="img" aria-label={`Task state: ${label}`} className={boxClass(task.state)}>
+            <StateGlyph state={task.state} />
+          </span>
+        )}
+        <span className="hidden w-[26px] shrink-0 font-mono text-[11.5px] text-muted-foreground sm:inline">
+          {task.planStep !== null ? `#${task.planStep}` : ""}
         </span>
-      )}
-      <span className="hidden w-[26px] shrink-0 font-mono text-[11.5px] text-muted-foreground sm:inline">
-        {task.planStep !== null ? `#${task.planStep}` : ""}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className={cn("text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
-        {task.state === "blocked" && task.blockedReason && <span className="text-xs text-cat-blocked">{task.blockedReason}</span>}
-      </span>
-      {task.notes && (
-        <button
-          type="button"
-          aria-label={`Notes for ${task.title}`}
-          onClick={openNotes}
-          className="flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <StickyNote aria-hidden className="size-4" />
-        </button>
-      )}
-      {task.estimate && (
-        <span title={`Estimate ${task.estimate}`} className="shrink-0 border px-1.5 font-mono text-[11px] text-fg-2">
-          {task.estimate}
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className={cn("text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
+          {task.state === "blocked" && task.blockedReason && <span className="text-xs text-cat-blocked">{task.blockedReason}</span>}
         </span>
-      )}
-      <span className="hidden size-[22px] shrink-0 sm:inline-flex" title={task.ownerName ?? "No owner"}>
-        {task.ownerName && <PersonAvatar name={task.ownerName} size="sm" />}
-      </span>
-      <span className={cn("hidden w-14 shrink-0 text-right text-xs font-semibold sm:inline", CATEGORY_TEXT[category])}>{label}</span>
+        {task.checks.length > 0 && (
+          <button
+            type="button"
+            aria-label={`Checklist of ${task.title}, ${checksDone} of ${task.checks.length} done`}
+            aria-expanded={checksOpen}
+            onClick={() => setChecksOpen((v) => !v)}
+            className="shrink-0 border px-1.5 font-mono text-[11px] text-fg-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {checksDone}/{task.checks.length}
+          </button>
+        )}
+        {task.notes && (
+          <button
+            type="button"
+            aria-label={`Notes for ${task.title}`}
+            onClick={openNotes}
+            className="flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <StickyNote aria-hidden className="size-4" />
+          </button>
+        )}
+        {task.estimate && (
+          <span title={`Estimate ${task.estimate}`} className="shrink-0 border px-1.5 font-mono text-[11px] text-fg-2">
+            {task.estimate}
+          </span>
+        )}
+        <span className="hidden size-[22px] shrink-0 sm:inline-flex" title={task.ownerName ?? "No owner"}>
+          {task.ownerName && <PersonAvatar name={task.ownerName} size="sm" />}
+        </span>
+        <span className={cn("hidden w-14 shrink-0 text-right text-xs font-semibold sm:inline", CATEGORY_TEXT[category])}>{label}</span>
+      </div>
+      {checksOpen && <Checklist task={task} canEdit={canEdit} />}
       {canEdit && (
         <TextDialog
           open={blockOpen}
@@ -314,7 +408,15 @@ function TaskRow({
           maxLength={300}
           required
           saving={update.isPending}
-          onSave={() => update.mutate({ id: task.id, patch: { state: "blocked", blockedReason: reason.trim() } }, { onSuccess: () => setBlockOpen(false) })}
+          onSave={() =>
+            update.mutate(
+              {
+                id: task.id,
+                patch: { state: "blocked", blockedReason: reason.trim() },
+              },
+              { onSuccess: () => setBlockOpen(false) },
+            )
+          }
         />
       )}
       <TextDialog
@@ -422,7 +524,8 @@ export function TaskList({
         ))}
         {tasks.length === 0 && (
           <li className="border-t px-4 py-6 text-center text-[13px] text-fg-2 sm:px-[18px]">
-            No tasks yet. They come from the implementation plan{canEdit ? ", or add one below" : ""}.
+            No tasks yet. They come from the implementation plan
+            {canEdit ? ", or add one below" : ""}.
           </li>
         )}
       </ul>
@@ -434,7 +537,11 @@ export function TaskList({
             e.preventDefault();
             if (pending || !title.trim()) return;
             add.mutate(
-              { project: projectSlug, system: systemSlug, task: { title: title.trim() } },
+              {
+                project: projectSlug,
+                system: systemSlug,
+                task: { title: title.trim() },
+              },
               {
                 onSuccess: () => {
                   setTitle("");

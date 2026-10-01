@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, max, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, max, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import {
   board,
@@ -11,6 +11,7 @@ import {
   PRIORITIES,
   system,
   task,
+  taskCheck,
   user,
   type ColumnCategory,
   type Priority,
@@ -106,6 +107,7 @@ export interface TaskItem {
   blockedReason: string | null;
   estimate: TaskEstimate | null;
   planStep: number | null;
+  checks: { id: string; title: string; done: boolean }[];
 }
 
 /** One system with its board, column, structure, owner and tasks. */
@@ -305,7 +307,7 @@ export async function getSystem(db: Executor, actor: Actor, projectSlug: string,
   const column = currentBoard.columns.find((c) => c.id === row.columnId) as BoardColumnRow;
   const [domainRow] = row.domainId ? await db.select().from(domain).where(eq(domain.id, row.domainId)) : [];
   const [phaseRow] = row.phaseId ? await db.select().from(phase).where(eq(phase.id, row.phaseId)) : [];
-  const tasks = await db
+  const taskRows = await db
     .select({
       id: task.id,
       title: task.title,
@@ -322,6 +324,17 @@ export async function getSystem(db: Executor, actor: Actor, projectSlug: string,
     .leftJoin(user, eq(user.id, task.ownerUserId))
     .where(eq(task.systemId, row.id))
     .orderBy(asc(task.sortOrder), asc(task.id));
+  const checkRows = taskRows.length
+    ? await db
+        .select({ id: taskCheck.id, taskId: taskCheck.taskId, title: taskCheck.title, done: taskCheck.done })
+        .from(taskCheck)
+        .where(inArray(taskCheck.taskId, taskRows.map((t) => t.id)))
+        .orderBy(asc(taskCheck.sortOrder))
+    : [];
+  const tasks = taskRows.map((t) => ({
+    ...t,
+    checks: checkRows.filter((c) => c.taskId === t.id).map(({ id, title, done }) => ({ id, title, done })),
+  }));
   return {
     ...found,
     system: row,

@@ -1,13 +1,17 @@
 import "server-only";
 import { z } from "zod";
 import { listBlockedTasks } from "@/lib/ops/blocked";
-import { dbInt } from "@/lib/ops/params";
+import { addCheck, addCheckInput, deleteCheck, updateCheck, updateCheckInput } from "@/lib/ops/checks";
+import { dbInt, entityId } from "@/lib/ops/params";
 import { addTask, addTaskInput, deleteTask, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { protectedProcedure, router } from "../init";
 import { P, S } from "./shared";
 
 /** A task by its id. */
 const TASK = { id: dbInt };
+
+/** A check by its id. */
+const CHECK = { id: entityId };
 
 /** Tasks of a system; they are read through `systems.overview`, except the blocked ones. */
 export const tasksRouter = router({
@@ -26,4 +30,15 @@ export const tasksRouter = router({
 
   /** Deletes a task. */
   delete: protectedProcedure.input(z.object(TASK)).mutation(({ ctx, input }) => deleteTask(ctx.db, ctx.actor, input.id)),
+
+  /** Checklist items inside a task. */
+  checks: router({
+    add: protectedProcedure
+      .input(z.object({ taskId: dbInt, check: addCheckInput }))
+      .mutation(async ({ ctx, input }) => void (await addCheck(ctx.db, ctx.actor, input.taskId, input.check))),
+    update: protectedProcedure
+      .input(z.object({ ...CHECK, patch: updateCheckInput }))
+      .mutation(({ ctx, input }) => updateCheck(ctx.db, ctx.actor, input.id, input.patch)),
+    delete: protectedProcedure.input(z.object(CHECK)).mutation(({ ctx, input }) => deleteCheck(ctx.db, ctx.actor, input.id)),
+  }),
 });

@@ -50,6 +50,13 @@
       "when": 1790814642171,
       "tag": "0006_task-estimate",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790814991141,
+      "tag": "0007_task-checks",
+      "breakpoints": true
     }
   ]
 }

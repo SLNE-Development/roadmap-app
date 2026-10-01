@@ -38,7 +38,7 @@ function logNote(note: string): string {
 }
 
 /** Loads a task with its system, locking both rows, and checks the actor's role in its project. */
-async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
+export async function taskAccess(tx: Executor, actor: Actor, taskId: number) {
   const unknown = () => new NotFoundError(`Unknown task ${taskId}.`);
   const [found] = await tx.select({ systemId: task.systemId }).from(task).where(eq(task.id, taskId)).limit(1);
   if (!found) throw unknown();

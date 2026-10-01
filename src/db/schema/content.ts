@@ -92,6 +92,21 @@ export const task = pgTable(
   ],
 );
 
+/** Checklist items inside a task. */
+export const taskCheck = pgTable(
+  "task_check",
+  {
+    id: text("id").primaryKey(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => task.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    done: boolean("done").notNull().default(false),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (t) => [index("task_check_task_id_idx").on(t.taskId, t.sortOrder)],
+);
+
 /** Append-only versions of a system's spec and plan. */
 export const systemDocument = pgTable(
   "system_document",

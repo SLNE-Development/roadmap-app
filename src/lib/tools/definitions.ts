@@ -55,6 +55,7 @@ import {
   updateSystem,
   updateSystemInput,
 } from "@/lib/ops/systems";
+import { setTaskChecks, setTaskChecksInput } from "@/lib/ops/checks";
 import { addTask, addTaskInput, updateTask, updateTaskInput } from "@/lib/ops/tasks";
 import { listUpdates, postUpdate, postUpdateInput } from "@/lib/ops/updates";
 import { defineTool, register, registeredTools, type ToolDef } from "./registry";
@@ -394,6 +395,15 @@ register(
     method: "PATCH",
     path: "/tasks/:id",
     run: (db, actor, { id, ...patch }) => updateTask(db, actor, id, patch),
+  }),
+  defineTool({
+    name: "set_task_checks",
+    description: "Replace a task's checklist; items matched by title keep their state unless done is given.",
+    input: { id: intParam("Task id."), ...setTaskChecksInput.shape },
+    write: true,
+    method: "PUT",
+    path: "/tasks/:id/checks",
+    run: (db, actor, { id, ...rest }) => setTaskChecks(db, actor, id, rest),
   }),
 
   defineTool({
