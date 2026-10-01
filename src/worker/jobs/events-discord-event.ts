@@ -170,7 +170,7 @@ export async function syncDiscordEvent(deps: WorkerDeps, raw: unknown): Promise<
   if (result.kind === "retry") {
     const n = retry + 1;
     if (n > MAX_RETRIES) throw new Error(`Discord rate-limited the event ${action} ${n} times in a row.`);
-    await deps.queue("deliver").add("events.discord-event", { requestId, action, retry: n }, { jobId: `event-dev-${requestId}-${action}-r${n}-${Math.floor(deps.now().getTime() / 60_000)}`, delayMs: result.delayMs, attempts: 3, backoffMs: 10_000 });
+    await deps.queue("deliver").add("events.discord-event", { requestId, action, retry: n }, { jobId: `event-dev-${requestId}-${action}-r${n}-${deps.now().getTime()}`, delayMs: result.delayMs, attempts: 3, backoffMs: 10_000 });
     return;
   }
   throw result.error;

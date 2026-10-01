@@ -235,13 +235,14 @@ describe("keeping the event in sync", () => {
   const later = () => new Date(Date.now() + 40 * 86_400_000);
   const jobs = (s: { deps: ReturnType<typeof testDeps> }) => s.deps.queues.deliver.jobs.filter((j) => j.jobName === "events.discord-event");
 
-  it("enqueues one update when the date changes and an event exists, deduped within the minute", async () => {
+  it("enqueues an update per saved change, also within one minute", async () => {
     const s = await botWorld();
     await s.setEventId();
     const queue = s.deps.queue("deliver");
     await updateRequest(s.db, s.manager, s.request.id, { startsAt: later() }, queue);
     await updateRequest(s.db, s.manager, s.request.id, { where: "Spawn" }, queue);
-    expect(jobs(s)).toHaveLength(1);
+    expect(jobs(s)).toHaveLength(2);
+    expect(jobs(s)[1].opts.jobId).not.toBe(jobs(s)[0].opts.jobId);
     expect(jobs(s)[0].data).toEqual({ requestId: s.request.id, action: "update" });
     expect(jobs(s)[0].opts).toMatchObject({ attempts: 3, backoffMs: 10_000 });
     expect(jobs(s)[0].opts.jobId).toMatch(new RegExp(`^event-dev-${s.request.id}-update-\\d+$`));

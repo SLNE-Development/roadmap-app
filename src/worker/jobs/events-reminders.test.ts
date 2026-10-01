@@ -56,7 +56,7 @@ describe("events.reminders", () => {
     await runJob("maintenance", "events.reminders", {}, deps);
 
     const created = await w.db.select().from(notification);
-    expect(created.some((n) => n.sourceKey === `req:${w.request.id}:post:announcement:late`)).toBe(true);
+    expect(created.some((n) => n.sourceKey.startsWith(`req:${w.request.id}:post:announcement:`) && n.sourceKey.endsWith(":late"))).toBe(true);
     expect(fetchStub).not.toHaveBeenCalled();
     for (const queue of Object.values(deps.queues)) expect(queue.jobs).toHaveLength(0);
     expect(await w.db.select().from(eventPost)).toEqual(postsBefore);

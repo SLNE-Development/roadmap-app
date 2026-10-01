@@ -104,15 +104,14 @@ export async function onDateChanged(tx: Tx, actor: Actor, request: EventRequestR
 
 /**
  * Queues the job that brings the request's Discord event in line (`update`) or removes it (`delete`), once the change is
- * committed. Only a request with a stored event id on a server with a bot token and guild id has one; a minute's changes
- * share one job. A queue that is down never fails the change that was already saved: the event is brought in line by the
+ * committed. Only a request with a stored event id on a server with a bot token and guild id has one; the job id follows
+ * the request's last change, so every saved change queues its own job (completed jobs are kept, a minute bucket would drop a second edit). A queue that is down never fails the change that was already saved: the event is brought in line by the
  * next change.
  */
-async function queueDiscordEventSync(db: Db, queue: JobQueue | undefined, request: Pick<EventRequestRow, "id" | "discordEventId">, action: "update" | "delete"): Promise<void> {
+async function queueDiscordEventSync(db: Db, queue: JobQueue | undefined, request: Pick<EventRequestRow, "id" | "discordEventId" | "updatedAt">, action: "update" | "delete"): Promise<void> {
   if (!queue || !request.discordEventId || !(await botConfigured(db))) return;
-  const minute = Math.floor(Date.now() / 60_000);
   try {
-    await addWithTimeout(queue, "events.discord-event", { requestId: request.id, action }, { jobId: `event-dev-${request.id}-${action}-${minute}`, attempts: 3, backoffMs: 10_000 });
+    await addWithTimeout(queue, "events.discord-event", { requestId: request.id, action }, { jobId: `event-dev-${request.id}-${action}-${request.updatedAt.getTime()}`, attempts: 3, backoffMs: 10_000 });
   } catch (error) {
     console.error(`could not queue the Discord event ${action} of request ${request.id}: ${error instanceof Error ? error.message : "unknown error"}`);
   }

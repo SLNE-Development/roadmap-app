@@ -45,6 +45,9 @@ async function openRound(db: World["db"], requestId: string, ageMs: number, numb
   return ids;
 }
 
+/** `at` as `YYYY-MM-DD` in the event time zone (Europe/Berlin), the date a reminder key carries. */
+const berlinDay = (at: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+
 /** The last `:`-separated part of a source key. */
 const tail = (key: string) => key.split(":").pop();
 
@@ -195,8 +198,8 @@ describe("late and soon to-dos", () => {
     const late = await w.notices("request.todo_due");
     expect(late.map((n) => [n.userId, n.sourceKey]).sort()).toEqual(
       [
-        [w.D.userId, `req:${r.id}:todo:${t.id}:late`],
-        [w.R.userId, `req:${r.id}:todo:${t.id}:late`],
+        [w.D.userId, `req:${r.id}:todo:${t.id}:${berlinDay(t.dueAt)}:late`],
+        [w.R.userId, `req:${r.id}:todo:${t.id}:${berlinDay(t.dueAt)}:late`],
       ].sort(),
     );
     expect(late[0].title).toContain("Book the stage");
@@ -223,7 +226,21 @@ describe("late and soon to-dos", () => {
     await todo(w.db, r.id, w.D.userId, later(36 * HOUR));
     await runRequestReminders(w.db, NOW);
     await runRequestReminders(w.db, later(HOUR));
-    expect((await w.notices("request.todo_due")).map((n) => n.sourceKey)).toEqual([`req:${r.id}:todo:${t.id}:soon`, `req:${r.id}:todo:${t.id}:soon`]);
+    expect((await w.notices("request.todo_due")).map((n) => n.sourceKey)).toEqual([`req:${r.id}:todo:${t.id}:${berlinDay(t.dueAt)}:soon`, `req:${r.id}:todo:${t.id}:${berlinDay(t.dueAt)}:soon`]);
+  });
+
+  it("reminds again after the to-do is moved to a new due date", async () => {
+    const w = await world();
+    const r = await w.request({ status: "accepted" });
+    const t = await todo(w.db, r.id, w.D.userId, ago(2 * HOUR));
+    await runRequestReminders(w.db, NOW);
+    const first = (await w.notices("request.todo_due")).length;
+    expect(first).toBeGreaterThan(0);
+    await w.db.update(eventTodo).set({ dueAt: ago(2 * HOUR + 5 * DAY) }).where(eq(eventTodo.id, t.id));
+    await runRequestReminders(w.db, NOW);
+    const keys = new Set((await w.notices("request.todo_due")).map((n) => n.sourceKey));
+    expect(keys.size).toBeGreaterThan(1);
+    expect(await w.notices("request.todo_due")).toHaveLength(first * 2);
   });
 
   it("ignores done to-dos and requests that are not accepted or in event week", async () => {
@@ -253,7 +270,7 @@ describe("a post that is due", () => {
   it("tells the requester and the managers about an overdue announcement and links to Messages", async () => {
     const w = await dueWorld(6);
     await runRequestReminders(w.db, NOW);
-    const late = (await w.posts()).filter((n) => n.sourceKey.endsWith(":announcement:late"));
+    const late = (await w.posts()).filter((n) => /:announcement:\d{4}-\d{2}-\d{2}:late$/.test(n.sourceKey));
     expect(late.map((n) => n.userId).sort()).toEqual([w.R.userId, w.A.userId, w.M.userId].sort());
     expect(late[0].title).toMatch(/^Post the announcement for Lantern night \(due /);
     expect(late[0].href).toBe(`/requests/${w.r.id}?tab=messages`);
@@ -264,7 +281,7 @@ describe("a post that is due", () => {
     await w.db.update(eventTodo).set({ ownerUserId: w.D.userId }).where(and(eq(eventTodo.requestId, w.r.id), eq(eventTodo.templateKey, "announcement")));
     await runRequestReminders(w.db, NOW);
     await runRequestReminders(w.db, later(HOUR));
-    const late = (await w.posts()).filter((n) => n.sourceKey.endsWith(":announcement:late"));
+    const late = (await w.posts()).filter((n) => /:announcement:\d{4}-\d{2}-\d{2}:late$/.test(n.sourceKey));
     expect(late.map((n) => n.userId).sort()).toEqual([w.R.userId, w.D.userId, w.A.userId, w.M.userId].sort());
   });
 
@@ -272,7 +289,16 @@ describe("a post that is due", () => {
     // The announcement is due 7 days before the event at 09:00 Berlin: here about 22 hours after NOW.
     const w = await dueWorld(8);
     await runRequestReminders(w.db, NOW);
-    expect((await w.posts()).filter((n) => n.sourceKey.includes(":announcement:")).map((n) => [n.userId, n.sourceKey])).toEqual([[w.R.userId, `req:${w.r.id}:post:announcement:soon`]]);
+    expect((await w.posts()).filter((n) => n.sourceKey.includes(":announcement:")).map((n) => [n.userId, n.sourceKey])).toEqual([[w.R.userId, expect.stringMatching(new RegExp(`^req:${w.r.id}:post:announcement:\\d{4}-\\d{2}-\\d{2}:soon$`))]]);
+  });
+
+  it("reminds again about a message after the event moved", async () => {
+    const w = await dueWorld(6);
+    await runRequestReminders(w.db, NOW);
+    const before = (await w.posts()).length;
+    await w.db.update(eventRequest).set({ startsAt: later(5 * DAY) }).where(eq(eventRequest.id, w.r.id));
+    await runRequestReminders(w.db, NOW);
+    expect((await w.posts()).length).toBeGreaterThan(before);
   });
 
   it("does not notify before the 24-hour window or once the post is posted", async () => {

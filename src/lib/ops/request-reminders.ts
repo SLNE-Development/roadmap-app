@@ -24,7 +24,8 @@ export interface ReminderResult {
 
 /**
  * Creates the reminders that are due at `now` and returns how many notices it made. It only writes notifications through
- * `notifyRequest`, each deduplicated by its `sourceKey`, so a second run creates nothing new. It never posts, never
+ * `notifyRequest`, each deduplicated by its `sourceKey` (the to-do and message reminders carry their due date, so a re-dated
+ * one reminds again), so a second run creates nothing new. It never posts, never
  * changes a status or a post and never calls Discord. `submitted` requests are considered for the pickup reminder; only
  * `accepted` and `event_week` requests for the others.
  */
@@ -124,7 +125,8 @@ export async function runRequestReminders(db: Db, now: Date): Promise<ReminderRe
     const untilDue = todo.dueAt.getTime() - now.getTime();
     const sinceDue = -untilDue;
     const recipients = [todo.ownerUserId, r.requesterId].filter((id): id is string => id !== null);
-    const base = `req:${r.id}:todo:${todo.id}`;
+    // The due date is part of the key: a to-do that is moved to a new date reminds again.
+    const base = `req:${r.id}:todo:${todo.id}:${localDate(todo.dueAt, zone)}`;
     const send = async (key: "requestTodoLate" | "requestTodoSoon", suffix: string) => {
       created += await notifyRequest(db, {
         requestId: r.id,
@@ -169,7 +171,7 @@ export async function runRequestReminders(db: Db, now: Date): Promise<ReminderRe
           ...(overdue ? managers : []),
         ],
         title: { key: postTitle[kind], values: { title: r.title, date: localDate(dueAt, zone) } },
-        sourceKey: `req:${r.id}:post:${kind}:${overdue ? "late" : "soon"}`,
+        sourceKey: `req:${r.id}:post:${kind}:${localDate(dueAt, zone)}:${overdue ? "late" : "soon"}`,
         tab: "messages",
         actor: null,
       });
