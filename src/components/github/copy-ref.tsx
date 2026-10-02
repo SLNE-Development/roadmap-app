@@ -12,10 +12,12 @@ export function CopyRef({ refText, className }: { refText: string; className?: s
       type="button"
       aria-label={t("copyRef", { ref: refText })}
       onClick={() => {
-        navigator.clipboard.writeText(refText).then(
-          () => toast.success(t("refCopied", { ref: refText })),
-          () => toast.error(t("refCopyFailed")),
-        );
+        Promise.resolve()
+          .then(() => navigator.clipboard.writeText(refText))
+          .then(
+            () => toast.success(t("refCopied", { ref: refText })),
+            () => toast.error(t("refCopyFailed")),
+          );
       }}
       className={cn(
         "inline-flex cursor-pointer items-center font-mono text-[11.5px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
