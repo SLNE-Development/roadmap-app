@@ -60,5 +60,10 @@
     "empty": "Noch keine Aufgaben. Sie kommen aus dem Umsetzungsplan.",
     "addTask": "Aufgabe hinzufügen",
     "enter": "Eingabe"
+  },
+  "ref": {
+    "copyRef": "{ref} kopieren, um es auf GitHub zu verknüpfen",
+    "refCopied": "{ref} kopiert. Füge es in den Titel oder die Beschreibung eines Pull Requests ein, um es zu verknüpfen.",
+    "refCopyFailed": "Kopieren in die Zwischenablage fehlgeschlagen."
   }
 }

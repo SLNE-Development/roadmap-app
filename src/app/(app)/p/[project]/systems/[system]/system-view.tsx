@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { formatTokens } from "@/components/agents/run-list";
 import { ArchivedBanner } from "@/components/archive-banner";
 import { PriorityTag } from "@/components/chips";
+import { CopyRef } from "@/components/github/copy-ref";
 import { DocumentDiff } from "@/components/document-diff";
 import { DocumentSection, SpecPreview } from "@/components/document-section";
 import { CodeLinks } from "@/components/github/code-links";
@@ -215,6 +216,9 @@ export function SystemView({
       >
         <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-fg-2 lg:flex">
           <PriorityTag priority={o.system.priority} />
+          <Sep />
+          <CopyRef refText={`roadmap:${systemSlug}`} />
+          <Sep />
           {o.domain && (
             <>
               <span>{o.domain.name}</span>

@@ -60,5 +60,10 @@
     "empty": "No tasks yet. They come from the implementation plan.",
     "addTask": "Add a task",
     "enter": "Enter"
+  },
+  "ref": {
+    "copyRef": "Copy {ref} to link it from GitHub",
+    "refCopied": "Copied {ref}. Put it in a pull request title or description to link it.",
+    "refCopyFailed": "Could not copy to the clipboard."
   }
 }

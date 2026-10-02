@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { CopyRef } from "@/components/github/copy-ref";
 import { MoveTaskDialog } from "@/components/move-task-dialog";
 import { ProgressBar } from "@/components/page";
 import {
@@ -462,7 +463,10 @@ function TaskRow({
           {task.planStep !== null ? `#${task.planStep}` : ""}
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className={cn("text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
+          <span className="flex items-baseline gap-2">
+            <span className={cn("text-sm lg:text-[13.5px]", task.state === "done" && "text-muted-foreground line-through")}>{task.title}</span>
+            <CopyRef refText={`roadmap#${task.id}`} className="hidden sm:inline-flex" />
+          </span>
           {task.state === "blocked" && task.blockedReason && <span className="text-xs text-cat-blocked">{task.blockedReason}</span>}
           {code.length > 0 && (
             <span className="mt-0.5 flex flex-wrap gap-1.5">
