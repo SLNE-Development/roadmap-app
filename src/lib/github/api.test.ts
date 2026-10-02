@@ -4,6 +4,7 @@ import type { GitHubAppConfig } from "@/lib/ops/github-app";
 import { ConflictError } from "@/lib/ops/errors";
 import { octokitGitHubApi, type RepoInfo } from "./api";
 import { fakeGitHubApi } from "./fake";
+import { REQUIRED_EVENTS, REQUIRED_PERMISSIONS } from "./manifest";
 
 interface Recorded {
   url: string;
@@ -117,6 +118,69 @@ describe("octokitGitHubApi", () => {
     expect(await octokitGitHubApi(testConfig(), fetchImpl).getInstallation(9)).toBeNull();
   });
 
+  describe("pull requests and comments", () => {
+    const tokenReply = { status: 201, json: { token: "ghs_test", expires_at: new Date(Date.now() + 3_600_000).toISOString() } };
+    const isToken = (url: string, method: string) => method === "POST" && url.endsWith("/access_tokens");
+    const setup = (respond: (url: string, method: string) => Reply) => {
+      const { fetchImpl, requests } = stubFetch((url, method) => (isToken(url, method) ? tokenReply : respond(url, method)));
+      return { api: octokitGitHubApi(testConfig(), fetchImpl), requests: () => requests.filter((r) => !isToken(r.url, r.method)) };
+    };
+
+    it("reads a pull request", async () => {
+      const t = setup(() => ({
+        json: { title: "T", body: null, state: "open", html_url: "https://github.com/o/r/pull/3" },
+      }));
+      expect(await t.api.getPullRequest(42, "o/r", 3)).toEqual({
+        title: "T",
+        body: "",
+        state: "open",
+        merged: false,
+        htmlUrl: "https://github.com/o/r/pull/3",
+      });
+      expect(t.requests()[0]).toMatchObject({ url: "https://api.github.com/repos/o/r/pulls/3", method: "GET" });
+    });
+
+    it("returns null for an unknown pull request", async () => {
+      const t = setup(() => ({ status: 404, json: { message: "Not Found" } }));
+      expect(await t.api.getPullRequest(42, "o/r", 3)).toBeNull();
+    });
+
+    it("patches a pull request", async () => {
+      const t = setup(() => ({ json: {} }));
+      await t.api.updatePullRequest(42, "o/r", 3, { body: "B" });
+      expect(t.requests()[0]).toMatchObject({ url: "https://api.github.com/repos/o/r/pulls/3", method: "PATCH", body: { body: "B" } });
+    });
+
+    it("finds the first comment with the marker across pages", async () => {
+      const t = setup((url) =>
+        url.includes("page=2")
+          ? { json: [{ id: 2, body: "has <!-- m --> inside" }] }
+          : {
+              json: [{ id: 1, body: "other" }],
+              headers: { link: '<https://api.github.com/repos/o/r/issues/3/comments?per_page=100&page=2>; rel="next"' },
+            },
+      );
+      expect(await t.api.findComment(42, "o/r", 3, "<!-- m -->")).toEqual({ id: 2, body: "has <!-- m --> inside" });
+      expect(await t.api.findComment(42, "o/r", 3, "absent")).toBeNull();
+      expect(t.requests()[0]).toMatchObject({ method: "GET" });
+      expect(t.requests()[0].url).toContain("/repos/o/r/issues/3/comments");
+    });
+
+    it("creates and updates a comment", async () => {
+      const t = setup((_url, method) => (method === "POST" ? { status: 201, json: { id: 9, body: "hi" } } : { json: {} }));
+      expect(await t.api.createComment(42, "o/r", 3, "hi")).toEqual({ id: 9, body: "hi" });
+      await t.api.updateComment(42, "o/r", 9, "yo");
+      expect(t.requests()[0]).toMatchObject({ url: "https://api.github.com/repos/o/r/issues/3/comments", method: "POST", body: { body: "hi" } });
+      expect(t.requests()[1]).toMatchObject({ url: "https://api.github.com/repos/o/r/issues/comments/9", method: "PATCH", body: { body: "yo" } });
+    });
+
+    it("reads the App's permissions and events", async () => {
+      const t = setup(() => ({ json: { permissions: { checks: "read" }, events: ["push"] } }));
+      expect(await t.api.getAppPermissions()).toEqual({ permissions: { checks: "read" }, events: ["push"] });
+      expect(t.requests()[0]).toMatchObject({ url: "https://api.github.com/app", method: "GET" });
+    });
+  });
+
   it("refuses app calls until the App is set up", async () => {
     await expect(octokitGitHubApi(null).listInstallations()).rejects.toBeInstanceOf(ConflictError);
   });
@@ -128,5 +192,21 @@ describe("fakeGitHubApi", () => {
     const api = fakeGitHubApi({ repos: { 42: [r1] } });
     expect(await api.listInstallationRepos(42)).toEqual([r1]);
     expect(api.calls).toEqual([{ method: "listInstallationRepos", args: [42] }]);
+  });
+
+  it("handles pull requests, comments and permissions", async () => {
+    const api = fakeGitHubApi({
+      pulls: { "o/r#1": { title: "T", body: "", state: "open", merged: false, htmlUrl: "u" } },
+      failWith: { createComment: 403 },
+    });
+    await api.updatePullRequest(1, "o/r", 1, { body: "B" });
+    expect((await api.getPullRequest(1, "o/r", 1))?.body).toBe("B");
+    expect(await api.getPullRequest(1, "o/r", 2)).toBeNull();
+    await expect(api.createComment(1, "o/r", 1, "x")).rejects.toMatchObject({ status: 403 });
+    api.seed.failWith = {};
+    expect(await api.createComment(1, "o/r", 1, "x")).toEqual({ id: 1000, body: "x" });
+    await api.updateComment(1, "o/r", 1000, "y");
+    expect(await api.findComment(1, "o/r", 1, "y")).toEqual({ id: 1000, body: "y" });
+    expect(await api.getAppPermissions()).toEqual({ permissions: REQUIRED_PERMISSIONS, events: REQUIRED_EVENTS });
   });
 });

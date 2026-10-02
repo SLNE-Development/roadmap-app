@@ -3,6 +3,17 @@ export { manifestActionUrl } from "./urls";
 /** GitHub's limit on an App name. */
 const MAX_NAME = 34;
 
+/** The permissions the App needs; the manifest requests them and the setup check compares against them. */
+export const REQUIRED_PERMISSIONS: Record<string, "read" | "write"> = {
+  metadata: "read",
+  contents: "read",
+  pull_requests: "write",
+  checks: "read",
+};
+
+/** The webhook events the App needs; the manifest subscribes to them and the setup check compares against them. */
+export const REQUIRED_EVENTS: string[] = ["pull_request", "push", "check_suite", "issue_comment"];
+
 /** The App manifest GitHub registers a new App from. */
 export interface AppManifest {
   name: string;
@@ -25,7 +36,8 @@ export function defaultAppName(baseUrl: URL): string {
 
 /**
  * Builds the manifest of a new App for the instance at `baseUrl`. `installation` and `installation_repositories`
- * are delivered to every App and must not be listed among the events.
+ * are delivered to every App and must not be listed among the events. The App is public: any account may install
+ * it, which is needed to install it on more than one account or organization.
  *
  * @param name the App name; blank means {@link defaultAppName}; cut to 34 characters
  */
@@ -39,9 +51,9 @@ export function buildManifest(baseUrl: URL, name: string): AppManifest {
     callback_urls: [`${origin}/api/github/oauth/callback`],
     setup_url: `${origin}/api/github/setup`,
     setup_on_update: true,
-    public: false,
+    public: true,
     request_oauth_on_install: false,
-    default_permissions: { metadata: "read", contents: "read", pull_requests: "read", checks: "read" },
-    default_events: ["pull_request", "push", "check_suite"],
+    default_permissions: REQUIRED_PERMISSIONS,
+    default_events: REQUIRED_EVENTS,
   };
 }
