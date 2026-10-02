@@ -97,6 +97,8 @@ export interface GitHubApi {
    * through the installation; permission "none" or a 404 gives false.
    */
   canUserReadRepo(installationId: number, fullName: string, login: string): Promise<boolean>;
+  /** The current login of the GitHub user with this numeric id, or null when GitHub does not know it. */
+  loginOf(githubId: number): Promise<string | null>;
   /** Returns the permissions and events the App is configured with, read with the App's own credentials. */
   getAppPermissions(): Promise<AppPermissions>;
 }
@@ -285,7 +287,7 @@ export function octokitGitHubApi(config: GitHubAppConfig | null, fetchImpl?: typ
           repo,
           username: login,
         });
-        return data.permission !== "none";
+        return ["admin", "maintain", "write", "triage", "read"].includes(data.permission as string);
       } catch (error) {
         if ((error as { status?: unknown }).status === 404) return false;
         throw error;
@@ -318,6 +320,17 @@ export function octokitGitHubApi(config: GitHubAppConfig | null, fetchImpl?: typ
       const octokit = await (await requireApp()).getInstallationOctokit(installationId);
       const { owner, repo } = splitFullName(fullName);
       await octokit.request("PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}", { owner, repo, comment_id: commentId, body });
+    },
+
+    async loginOf(githubId) {
+      const a = await requireApp();
+      try {
+        const { data } = await a.octokit.request("GET /user/{account_id}", { account_id: githubId });
+        return data.login;
+      } catch (error) {
+        if ((error as { status?: unknown }).status === 404) return null;
+        throw error;
+      }
     },
 
     async getAppPermissions() {

@@ -151,6 +151,9 @@ describe("octokitGitHubApi", () => {
       expect(await none.api.canUserReadRepo(42, "o/r", "alice")).toBe(false);
       expect(none.requests()[0]).toMatchObject({ url: "https://api.github.com/repos/o/r/collaborators/alice/permission", method: "GET" });
       expect(await permission("read").api.canUserReadRepo(42, "o/r", "alice")).toBe(true);
+      expect(await permission("triage").api.canUserReadRepo(42, "o/r", "alice")).toBe(true);
+      expect(await permission("surprise").api.canUserReadRepo(42, "o/r", "alice")).toBe(false);
+      expect(await setup(() => ({ json: {} })).api.canUserReadRepo(42, "o/r", "alice")).toBe(false);
       const unknown = setup(() => ({ status: 404, json: { message: "Not Found" } }));
       expect(await unknown.api.canUserReadRepo(42, "o/r", "alice")).toBe(false);
     });

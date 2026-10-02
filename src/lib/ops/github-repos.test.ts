@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLog, codeLink, githubAccount, githubApp, githubInstallation, githubRepo } from "@/db/schema";
 import type { Db } from "@/db/types";
@@ -64,6 +65,7 @@ async function setup(): Promise<World> {
       ],
     },
     readers: { "Org/a": ["admin", "o", "o2"] },
+    logins: { 901: "admin", 902: "o", 903: "o2" },
   });
   return { db, kv: memoryKv(), api, admin, o, o2 };
 }
@@ -297,6 +299,7 @@ describe("github repos visible to the person", () => {
       { id: 23, fullName: "org/hidden", ownerLogin: "org", private: true },
     ];
     w.api.seed.readers = { "org/priv": ["alice"] };
+    w.api.seed.logins = { ...w.api.seed.logins, 911: "alice", 912: "bob" };
     const alice = await addMemberFixture(w.db, w.o, "p", "owner", "Alice");
     await linkGitHub(w.db, alice, "alice", 911);
     const bob = await insertUser(w.db, { name: "Bob", isAdmin: true });
@@ -343,6 +346,34 @@ describe("github repos visible to the person", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(names(await availableRepos(db, kv, api, alice, "p"))).toEqual(["org/pub"]);
     expect(error).toHaveBeenCalled();
+  });
+
+  it("checks a renamed account by its current login and stores it", async () => {
+    const { db, kv, api } = await visibility();
+    const carol = await insertUser(db, { name: "Carol" });
+    await linkGitHub(db, carol, "alice-old", 913);
+    api.seed.logins = { ...api.seed.logins, 913: "alice" };
+    expect(names(await pickableRepos(db, kv, api, carol))).toEqual(["org/priv", "org/pub"]);
+    expect(api.calls.filter((c) => c.method === "canUserReadRepo").every((c) => c.args[2] === "alice")).toBe(true);
+    const [row] = await db.select().from(githubAccount).where(eq(githubAccount.userId, carol.userId));
+    expect(row.login).toBe("alice");
+  });
+
+  it("shows only public repos when the login cannot be resolved", async () => {
+    const { db, kv, api, alice } = await visibility();
+    api.seed.failWith = { loginOf: 500 };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const picker = await availableRepos(db, kv, api, alice, "p");
+    expect(names(picker)).toEqual(["org/pub"]);
+    expect(picker.githubLinked).toBe(true);
+    expect(api.calls.filter((c) => c.method === "canUserReadRepo")).toHaveLength(0);
+  });
+
+  it("caches the resolved login within the TTL", async () => {
+    const { db, kv, api, alice } = await visibility();
+    await availableRepos(db, kv, api, alice, "p");
+    await availableRepos(db, kv, api, alice, "p");
+    expect(api.calls.filter((c) => c.method === "loginOf")).toHaveLength(1);
   });
 
   it("links only repos the person can see", async () => {

@@ -23,6 +23,8 @@ export interface FakeSeed {
   comments: Record<string, CommentInfo[]>;
   /** Repo `fullName` to the GitHub logins that can read it; defaults to none. */
   readers?: Record<string, string[]>;
+  /** GitHub user id to current login; unknown ids answer null. */
+  logins?: Record<number, string>;
   /** The App's permissions and events; defaults to exactly what the App requires. */
   appPermissions?: AppPermissions;
   /** Method name to HTTP status: that method throws an error carrying the status, like a GitHub 403. */
@@ -115,6 +117,10 @@ export function fakeGitHubApi(
     async canUserReadRepo(installationId, fullName, login) {
       record("canUserReadRepo", installationId, fullName, login);
       return state.readers?.[fullName]?.includes(login) ?? false;
+    },
+    async loginOf(githubId) {
+      record("loginOf", githubId);
+      return state.logins?.[githubId] ?? null;
     },
     async getAppPermissions() {
       record("getAppPermissions");

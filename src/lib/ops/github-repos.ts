@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { githubAccount, githubApp, githubInstallation, githubRepo, user, type RepoRules } from "@/db/schema";
+import { githubAccount, githubApp, githubInstallation, githubRepo, user, type GitHubAccountRow, type RepoRules } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { GitHubApi, RepoInfo } from "@/lib/github/api";
@@ -228,6 +228,45 @@ async function insertRepo(db: Db, actor: Actor, values: typeof githubRepo.$infer
 const READ_CHECK_LIMIT = 8;
 
 /**
+ * The account's current GitHub login, from the Kv cache or GitHub (a rename is written back to the stored account,
+ * best effort). Null when it cannot be resolved; the failure is logged.
+ */
+async function currentLogin(db: Db, kv: Kv, api: GitHubApi, account: GitHubAccountRow): Promise<string | null> {
+  const key = `gh:login:${account.githubId}`;
+  let login: string | null = null;
+  try {
+    login = (await kv.get(key)) || null;
+  } catch (error) {
+    console.error("github login cache could not be read", key, error);
+  }
+  if (!login) {
+    try {
+      login = await api.loginOf(account.githubId);
+    } catch (error) {
+      console.error("github login could not be resolved", account.githubId, error instanceof Error ? error.message : "unknown error");
+      return null;
+    }
+    if (!login) {
+      console.error("github login could not be resolved", account.githubId, "unknown account");
+      return null;
+    }
+    try {
+      await kv.set(key, login, REPO_CACHE_TTL);
+    } catch (error) {
+      console.error("github login cache could not be written", key, error);
+    }
+  }
+  if (login !== account.login) {
+    try {
+      await db.update(githubAccount).set({ login }).where(eq(githubAccount.userId, account.userId));
+    } catch (error) {
+      console.error("github login could not be stored", account.userId, error);
+    }
+  }
+  return login;
+}
+
+/**
  * Keeps the repositories the actor may see on GitHub: public ones always, private ones only when the actor's linked
  * GitHub account can read them (asked through the installation, cached in Kv). Without a linked account the private
  * ones are dropped; a GitHub error for one repository drops it too. Kv errors are logged and ignored.
@@ -241,7 +280,9 @@ async function visibleTo<T extends { repo: RepoInfo; installationId: number }>(
 ): Promise<{ visible: T[]; githubLinked: boolean }> {
   const [account] = await db.select().from(githubAccount).where(eq(githubAccount.userId, actor.userId));
   const allowed = new Set<T>(found.filter((f) => !f.repo.private));
-  const priv = account ? found.filter((f) => f.repo.private) : [];
+  const login = account && found.some((f) => f.repo.private) ? await currentLogin(db, kv, api, account) : null;
+  const priv = login ? found.filter((f) => f.repo.private) : [];
+  if (!account || !login) return { visible: found.filter((f) => allowed.has(f)), githubLinked: Boolean(account) };
   let next = 0;
   const worker = async () => {
     while (next < priv.length) {
@@ -256,7 +297,7 @@ async function visibleTo<T extends { repo: RepoInfo; installationId: number }>(
       }
       if (can === null) {
         try {
-          can = await api.canUserReadRepo(item.installationId, item.repo.fullName, account.login);
+          can = await api.canUserReadRepo(item.installationId, item.repo.fullName, login);
         } catch (error) {
           console.error("github repository access could not be checked", item.repo.fullName, error instanceof Error ? error.message : "unknown error");
           continue;

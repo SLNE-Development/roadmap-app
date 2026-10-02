@@ -49,7 +49,7 @@ export function RepoCombobox({
 }: {
   id?: string;
   describedBy?: string;
-  repos: UseQueryResult<AvailableRepo[], { message: string }>;
+  repos: Pick<UseQueryResult<AvailableRepo[], { message: string }>, "isPending" | "isError" | "isSuccess" | "data" | "error">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (repo: AvailableRepo) => void;
@@ -82,7 +82,7 @@ export function RepoCombobox({
           <CommandInput placeholder={t("picker.search")} />
           <CommandList>
             {repos.isPending && <p className="px-3 py-4 text-[13px] text-muted-foreground">{t("picker.loading")}</p>}
-            {repos.isError && <p className="px-3 py-4 text-[13px] text-destructive">{repos.error.message}</p>}
+            {repos.isError && <p className="px-3 py-4 text-[13px] text-destructive">{repos.error?.message}</p>}
             {repos.isSuccess && <CommandEmpty>{t("picker.noMatch")}</CommandEmpty>}
             {owners.map((owner) => (
               <CommandGroup key={owner} heading={owner}>
