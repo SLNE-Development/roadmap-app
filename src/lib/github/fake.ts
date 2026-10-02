@@ -11,6 +11,12 @@ import type {
 } from "./api";
 import { REQUIRED_EVENTS, REQUIRED_PERMISSIONS } from "./manifest";
 
+/** The login the fake gives the comments it creates; `findComment` only matches comments by it. */
+const APP_AUTHOR = "app[bot]";
+
+/** A seeded comment: a {@link CommentInfo} with its author, which the real API reads from the comment's user. */
+type FakeComment = CommentInfo & { author?: string };
+
 /** What {@link fakeGitHubApi} answers with. */
 export interface FakeSeed {
   installations: InstallationInfo[];
@@ -20,7 +26,7 @@ export interface FakeSeed {
   /** Pull requests keyed `fullName#number`. */
   pulls: Record<string, PullRequestInfo>;
   /** Comments on issues and pull requests, keyed `fullName#number`. */
-  comments: Record<string, CommentInfo[]>;
+  comments: Record<string, FakeComment[]>;
   /** Repo `fullName` to the GitHub logins that can read it; defaults to none. */
   readers?: Record<string, string[]>;
   /** GitHub user id to current login; unknown ids answer null. */
@@ -99,19 +105,20 @@ export function fakeGitHubApi(
     },
     async findComment(installationId, fullName, number, marker) {
       record("findComment", installationId, fullName, number, marker);
-      return (state.comments[`${fullName}#${number}`] ?? []).find((c) => c.body.includes(marker)) ?? null;
+      const hit = (state.comments[`${fullName}#${number}`] ?? []).find((c) => c.body.includes(marker) && c.author === APP_AUTHOR);
+      return hit ? { id: hit.id, body: hit.body } : null;
     },
     async createComment(installationId, fullName, number, body) {
       record("createComment", installationId, fullName, number, body);
       const comment = { id: nextCommentId++, body };
-      (state.comments[`${fullName}#${number}`] ??= []).push(comment);
+      (state.comments[`${fullName}#${number}`] ??= []).push({ ...comment, author: APP_AUTHOR });
       return comment;
     },
     async updateComment(installationId, fullName, commentId, body) {
       record("updateComment", installationId, fullName, commentId, body);
       for (const list of Object.values(state.comments)) {
         const at = list.findIndex((c) => c.id === commentId);
-        if (at >= 0) list[at] = { id: commentId, body };
+        if (at >= 0) list[at] = { ...list[at], body };
       }
     },
     async canUserReadRepo(installationId, fullName, login) {

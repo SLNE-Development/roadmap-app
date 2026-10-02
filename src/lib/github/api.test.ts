@@ -164,12 +164,16 @@ describe("octokitGitHubApi", () => {
       expect(t.requests()[0]).toMatchObject({ url: "https://api.github.com/repos/o/r/pulls/3", method: "PATCH", body: { body: "B" } });
     });
 
-    it("finds the first comment with the marker across pages", async () => {
+    it("finds the App's own comment with the marker across pages, skipping other authors", async () => {
       const t = setup((url) =>
         url.includes("page=2")
-          ? { json: [{ id: 2, body: "has <!-- m --> inside" }] }
+          ? { json: [{ id: 2, body: "has <!-- m --> inside", user: { login: "Roadmap-X[bot]", type: "Bot" } }] }
           : {
-              json: [{ id: 1, body: "other" }],
+              json: [
+                { id: 1, body: "other" },
+                { id: 3, body: "<!-- m --> planted", user: { login: "mallory", type: "User" } },
+                { id: 4, body: "<!-- m --> impostor", user: { login: "roadmap-x[bot]", type: "User" } },
+              ],
               headers: { link: '<https://api.github.com/repos/o/r/issues/3/comments?per_page=100&page=2>; rel="next"' },
             },
       );
@@ -220,6 +224,8 @@ describe("fakeGitHubApi", () => {
     expect(await api.createComment(1, "o/r", 1, "x")).toEqual({ id: 1000, body: "x" });
     await api.updateComment(1, "o/r", 1000, "y");
     expect(await api.findComment(1, "o/r", 1, "y")).toEqual({ id: 1000, body: "y" });
+    api.seed.comments["o/r#2"] = [{ id: 5, body: "<!-- m -->", author: "mallory" }];
+    expect(await api.findComment(1, "o/r", 2, "<!-- m -->")).toBeNull();
     expect(await api.getAppPermissions()).toEqual({ permissions: REQUIRED_PERMISSIONS, events: REQUIRED_EVENTS });
   });
 });

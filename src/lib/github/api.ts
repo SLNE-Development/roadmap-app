@@ -56,7 +56,7 @@ export interface PullRequestInfo {
   htmlUrl: string;
 }
 
-/** A comment on an issue or pull request. */
+/** A comment on an issue or pull request, as `findComment` returns it: the App's own comment. */
 export interface CommentInfo {
   id: number;
   body: string;
@@ -86,7 +86,7 @@ export interface GitHubApi {
   getPullRequest(installationId: number, fullName: string, number: number): Promise<PullRequestInfo | null>;
   /** Writes the given pull request fields. */
   updatePullRequest(installationId: number, fullName: string, number: number, patch: { title?: string; body?: string }): Promise<void>;
-  /** The first comment on the issue/PR whose body contains `marker`, or null. */
+  /** The App's own first comment on the issue/PR whose body contains `marker`, or null; comments by anyone else are skipped. */
   findComment(installationId: number, fullName: string, number: number, marker: string): Promise<CommentInfo | null>;
   /** Posts a comment on the issue/PR. */
   createComment(installationId: number, fullName: string, number: number, body: string): Promise<CommentInfo>;
@@ -297,9 +297,11 @@ export function octokitGitHubApi(config: GitHubAppConfig | null, fetchImpl?: typ
     async findComment(installationId, fullName, number, marker) {
       const octokit = await (await requireApp()).getInstallationOctokit(installationId);
       const { owner, repo } = splitFullName(fullName);
+      if (!config) throw new ConflictError("The GitHub App is not set up yet.");
+      const botLogin = `${config.slug}[bot]`.toLowerCase();
       let found: CommentInfo | null = null;
       await octokit.paginate("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", { owner, repo, issue_number: number, per_page: 100 }, (response, done) => {
-        const hit = response.data.find((c) => (c.body ?? "").includes(marker));
+        const hit = response.data.find((c) => (c.body ?? "").includes(marker) && c.user?.type === "Bot" && c.user.login.toLowerCase() === botLogin);
         if (hit) {
           found = { id: Number(hit.id), body: hit.body ?? "" };
           done();
