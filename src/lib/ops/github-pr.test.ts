@@ -113,6 +113,31 @@ describe("linkPullRequest", () => {
     expect(updates(w.api)).toHaveLength(1);
   });
 
+  it("puts a system ref in the body even when closes is set", async () => {
+    const w = await setup();
+    await linkPullRequest(w.db, w.api, w.editor, "p", { repoId: "r1", number: 7, target: { systemSlug: "search" }, closes: true });
+    const patch = updates(w.api)[0].args[3] as { title?: string; body?: string };
+    expect(patch.title).toBeUndefined();
+    expect(patch.body).toContain("roadmap:search");
+  });
+
+  it("changes nothing for a ref already in the body, with or without closes", async () => {
+    const w = await setup();
+    const target = { taskId: w.t1 };
+    expect(await linkPullRequest(w.db, w.api, w.editor, "p", { repoId: "r1", number: 7, target })).toEqual({ changed: false, ref: `roadmap#${w.t1}` });
+    expect(await linkPullRequest(w.db, w.api, w.editor, "p", { repoId: "r1", number: 7, target, closes: true })).toEqual({ changed: false, ref: `roadmap#${w.t1}` });
+    expect(updates(w.api)).toHaveLength(0);
+  });
+
+  it("explains a 403 from GitHub and lets other errors through", async () => {
+    const w = await setup();
+    w.api.seed.failWith = { updatePullRequest: 403 };
+    await expect(linkPullRequest(w.db, w.api, w.editor, "p", { repoId: "r1", number: 7, target: { taskId: w.t2 } })).rejects.toThrow(/pull requests: read and write/);
+    await expect(linkPullRequest(w.db, w.api, w.editor, "p", { repoId: "r1", number: 7, target: { taskId: w.t2 } })).rejects.toBeInstanceOf(ConflictError);
+    w.api.seed.failWith = { updatePullRequest: 500 };
+    await expect(linkPullRequest(w.db, w.api, w.editor, "p", { repoId: "r1", number: 7, target: { taskId: w.t2 } })).rejects.toThrow(/500/);
+  });
+
   it("rejects a viewer and does not call GitHub", async () => {
     const w = await setup();
     await expect(linkPullRequest(w.db, w.api, w.viewer, "p", { repoId: "r1", number: 7, target: { taskId: w.t2 } })).rejects.toBeInstanceOf(ForbiddenError);

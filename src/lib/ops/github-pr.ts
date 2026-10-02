@@ -27,6 +27,20 @@ export interface PrLinkContext {
   systems: { slug: string; title: string; tasks: { id: number; title: string; state: string }[] }[];
 }
 
+/** The numeric HTTP `status` a GitHub error carries, if any. */
+function statusOf(error: unknown): number | undefined {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === "number" ? status : undefined;
+}
+
+/** Turns a GitHub 403 into a ConflictError that explains the missing permission; other errors pass through. */
+function refused(error: unknown): unknown {
+  if (statusOf(error) !== 403) return error;
+  return new ConflictError(
+    "GitHub refused to update the pull request. An admin may need to accept the App's new permissions (pull requests: read and write).",
+  );
+}
+
 /**
  * Loads the repository (it must belong to the project and be linked through the App with access) and its pull request.
  *
@@ -45,7 +59,10 @@ async function loadPullRequest(
   if (repo.mode !== "app" || repo.installationId === null || repo.access !== "ok") {
     throw new ConflictError("This repository isn't linked through the GitHub App.");
   }
-  const pr = await api.getPullRequest(repo.installationId, repo.fullName, number);
+  const pr = await api.getPullRequest(repo.installationId, repo.fullName, number).catch((error: unknown) => {
+    if (statusOf(error) === 404) return null;
+    throw refused(error);
+  });
   if (!pr) throw new NotFoundError("Unknown pull request.");
   return { repo: { id: repo.id, fullName: repo.fullName, installationId: repo.installationId }, pr };
 }
@@ -124,9 +141,14 @@ export async function linkPullRequest(
     if (!row) throw new NotFoundError("Unknown system.");
     ref = `roadmap:${row.slug}`;
   }
-  const patch = withRef(pr, ref, input.closes);
+  // Only a task can be closed by a merge; a whole system never is.
+  const patch = withRef(pr, ref, "taskId" in input.target && input.closes);
   if (!patch) return { changed: false, ref };
-  await api.updatePullRequest(repo.installationId, repo.fullName, input.number, patch);
+  try {
+    await api.updatePullRequest(repo.installationId, repo.fullName, input.number, patch);
+  } catch (error) {
+    throw refused(error);
+  }
   return { changed: true, ref };
 }
 
