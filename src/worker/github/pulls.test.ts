@@ -190,6 +190,45 @@ describe("the roadmap comment", () => {
     expect(String(callsOf("updateComment")[0].args[3])).toContain("no longer linked");
   });
 
+  describe("task titles in the comment", () => {
+    /** Opens a PR with both tasks of P referenced, by an author with `association` on a repo that is `isPrivate`. */
+    async function openWith(association: string, isPrivate: boolean) {
+      const { db, t1, t2 } = await setup();
+      const payload = { ...pullRequest("opened", "feat", `roadmap#${t1} roadmap#${t2}`, { author_association: association }), repository: { ...repository, private: isPrivate } };
+      await deliver(db, "pull_request", payload);
+      return { body: String(callsOf("createComment")[0].args[3]), t1, t2 };
+    }
+
+    it("lists only the refs for a stranger on a public repo", async () => {
+      const { body, t1, t2 } = await openWith("NONE", false);
+      expect(body).toContain(`roadmap#${t1}`);
+      expect(body).toContain(`roadmap#${t2}`);
+      expect(body).not.toContain("Results");
+      expect(body).not.toContain("Ranking");
+      expect(body).not.toContain("Search index");
+    });
+
+    it("shows the titles on a private repo", async () => {
+      const { body } = await openWith("NONE", true);
+      expect(body).toContain("Results");
+      expect(body).toContain("Ranking");
+    });
+
+    it("shows the titles for a member on a public repo", async () => {
+      const { body } = await openWith("MEMBER", false);
+      expect(body).toContain("Results");
+    });
+  });
+
+  it("stores at most 20 refs per pull request and says so", async () => {
+    const { db, p } = await setup();
+    const ids: number[] = [];
+    for (let i = 0; i < 25; i += 1) ids.push((await addTask(db, p.owner, "p", "search-index", { title: `Bulk ${i}` })).id);
+    const outcome = await deliver(db, "pull_request", pullRequest("opened", "feat", ids.map((id) => `roadmap#${id}`).join(" ")));
+    expect(await links(db)).toHaveLength(20);
+    expect(outcome.detail).toBe("linked 20 tasks, 0 systems; refs capped at 20");
+  });
+
   it("makes no comment calls without refs", async () => {
     const { db } = await setup();
     await deliver(db, "pull_request", pullRequest("opened", "plain title", ""));

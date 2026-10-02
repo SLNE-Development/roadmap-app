@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { githubDelivery, githubInstallation, githubRepo } from "@/db/schema";
+import { codeLink, githubDelivery, githubInstallation, githubRepo } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { fakeGitHubApi } from "@/lib/github/fake";
 import { createSystem } from "@/lib/ops/systems";
@@ -10,6 +10,7 @@ import { createProjectFixture } from "@/test/fixtures";
 import { testDeps } from "../deps";
 import { handleGitHubEvent } from "./events";
 import "./comments";
+import "./pulls";
 
 const repository = { id: 42, full_name: "Org/App" };
 let seq = 0;
@@ -53,6 +54,14 @@ function comment(body: string, extra: { association?: string; user?: Record<stri
   };
 }
 
+/** Runs one `pull_request` delivery through the registered handler. */
+async function deliverPull(db: Db, api: Api, payload: unknown): Promise<void> {
+  seq += 1;
+  const deliveryId = `00000000-0000-4000-8000-${String(seq + 5000).padStart(12, "0")}`;
+  await db.insert(githubDelivery).values({ deliveryId, source: "app", event: "pull_request" });
+  await handleGitHubEvent({ deliveryId, event: "pull_request", source: "app", repoId: null, payload }, testDeps(db), async () => api);
+}
+
 const methods = (api: Api) => api.calls.map((c) => c.method);
 const createdBody = (api: Api) => String(api.calls.find((c) => c.method === "createComment")?.args[3]);
 
@@ -67,7 +76,7 @@ describe("/roadmap comments", () => {
 
   it("adds the ref of a unique title match to the body", async () => {
     const { db, api, t1 } = await setup();
-    expect(await deliver(db, api, comment("/roadmap Results"))).toEqual({ status: "done", detail: "added 1 refs" });
+    expect(await deliver(db, api, comment("/roadmap Results"))).toEqual({ status: "done", detail: "added 1 ref" });
     const updates = api.calls.filter((c) => c.method === "updatePullRequest");
     expect(updates).toHaveLength(1);
     expect((updates[0].args[3] as { body: string }).body.endsWith(`Roadmap: roadmap#${t1}`)).toBe(true);
@@ -135,11 +144,59 @@ describe("/roadmap comments", () => {
     expect(api.calls).toEqual([]);
   });
 
+  it("runs /roadmap, then the resulting edit, to exactly one comment and stable links", async () => {
+    const { db, api, t1 } = await setup();
+    await deliver(db, api, comment(`/roadmap roadmap#${t1} roadmap:search-index`));
+    expect(methods(api)).not.toContain("createComment");
+    const body = api.seed.pulls["Org/App#7"].body;
+    expect(body).toBe(`Roadmap: roadmap#${t1} roadmap:search-index`);
+
+    const edited = { action: "edited", repository: { ...repository, private: true }, pull_request: { number: 7, title: "feat: search", body, html_url: "https://github.com/Org/App/pull/7", state: "open", merged: false, head: { sha: "abc" }, user: { login: "octo" } } };
+    await deliverPull(db, api, edited);
+    const creates = api.calls.filter((c) => c.method === "createComment");
+    expect(creates).toHaveLength(1);
+    const text = String(creates[0].args[3]);
+    expect(text).toContain(`roadmap#${t1}`);
+    expect(text).toContain("roadmap:search-index");
+    expect(text).not.toContain("no longer linked");
+    expect(await db.select().from(codeLink)).toHaveLength(2);
+
+    api.calls.length = 0;
+    await deliverPull(db, api, edited);
+    expect(methods(api)).not.toContain("createComment");
+    expect(methods(api)).not.toContain("updateComment");
+    expect(await db.select().from(codeLink)).toHaveLength(2);
+  });
+
+  it("says no new refs when nothing changed", async () => {
+    const { db, api, t1 } = await setup();
+    api.seed.pulls["Org/App#7"].body = `Roadmap: roadmap#${t1}`;
+    expect(await deliver(db, api, comment(`/roadmap roadmap#${t1}`))).toEqual({ status: "done", detail: "no new refs" });
+  });
+
+  it("counts only the refs it added", async () => {
+    const { db, api, t1, t2 } = await setup();
+    api.seed.pulls["Org/App#7"].body = `Roadmap: roadmap#${t1}`;
+    expect(await deliver(db, api, comment(`/roadmap roadmap#${t1} roadmap#${t2}`))).toEqual({ status: "done", detail: "added 1 ref" });
+  });
+
+  it("gives an untrusted PR author only the picker link, whatever the query", async () => {
+    const { db, api, t1 } = await setup();
+    const author = { association: "NONE", user: { id: 1, type: "User" } };
+    expect(await deliver(db, api, comment("/roadmap Results", author))).toEqual({ status: "done", detail: "picker offered" });
+    expect(await deliver(db, api, comment(`/roadmap roadmap#${t1 + 999}`, author))).toEqual({ status: "done", detail: "picker offered" });
+    expect(methods(api)).not.toContain("updatePullRequest");
+    expect(methods(api)).not.toContain("getPullRequest");
+    expect(createdBody(api)).toContain("/p/p/link-pr?repo=");
+    expect(createdBody(api)).not.toContain("Results");
+    expect(createdBody(api)).not.toContain("isn't a task");
+  });
+
   it("ends done with the note when GitHub refuses the edit", async () => {
     const { db, api } = await setup();
     api.seed.failWith = { updatePullRequest: 403 };
     const outcome = await deliver(db, api, comment("/roadmap Results"));
     expect(outcome.status).toBe("done");
-    expect(outcome.detail).toContain("GitHub refused (403)");
+    expect(outcome.detail).toBe("pull request edit skipped: GitHub refused (403)");
   });
 });

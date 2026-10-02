@@ -8,13 +8,14 @@ import { refKeyOf, resolveRefs, targetKeyOf, upsertCodeLink, type CodeLinkInput 
 import { logChange } from "@/lib/ops/log";
 import { plural } from "@/lib/text";
 import { onGitHubEvent, type DeliveryOutcome } from "./events";
-import { syncPrComment } from "./pr-comment";
+import { isTrustedAssociation, syncPrComment } from "./pr-comment";
 import { automationActor, NO_ACTOR_NOTE, runPullRequestRules } from "./rules";
 
 /** The parts of `payload.repository` the handlers read. */
 export interface RepositoryPayload {
   id?: number;
   full_name?: string;
+  private?: boolean;
 }
 
 /** The parts of a `pull_request` payload the handler reads. */
@@ -31,6 +32,7 @@ interface PullRequestPayload {
     draft?: boolean | null;
     head?: { sha?: string };
     user?: { login?: string; id?: number } | null;
+    author_association?: string;
   };
 }
 
@@ -61,6 +63,8 @@ type UpsertResult = Awaited<ReturnType<typeof upsertCodeLink>>;
 const HANDLED_ACTIONS = new Set(["opened", "reopened", "edited", "synchronize", "ready_for_review", "closed"]);
 const MAX_COMMITS = 100;
 const MAX_TITLE = 200;
+/** The most roadmap targets stored for one pull request, so a body full of refs can't flood the links. */
+const MAX_PR_REFS = 20;
 export const NOT_LINKED: DeliveryOutcome = { status: "ignored", detail: "repository not linked" };
 const LINKED_BY_HAND: DeliveryOutcome = { status: "ignored", detail: "linked by hand" };
 const GITHUB_URL = "https://github.com/";
@@ -140,7 +144,8 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
     const fromTitle = await targetsOf(tx, repo.projectId, parseRefs(pr.title), true);
     const titleKeys = new Set(fromTitle.map(targetKeyOf));
     const fromBody = (await targetsOf(tx, repo.projectId, parseRefs(pr.body ?? ""), false)).filter((t) => !titleKeys.has(targetKeyOf(t)));
-    const targets = [...fromTitle, ...fromBody];
+    const all = [...fromTitle, ...fromBody];
+    const targets = all.slice(0, MAX_PR_REFS);
 
     const stored: PullRequestLink[] = [];
     for (const target of targets) {
@@ -178,17 +183,19 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
         .returning({ id: codeLink.id });
       removed = deleted.length;
     }
-    return { stored, removed };
+    return { stored, removed, capped: all.length > targets.length };
   });
   const links = result.stored;
 
   const notes = await runPullRequestRules(job, deps, api, links);
   if (links.some((l) => l.created) || result.removed > 0 || (action === "opened" && links.length > 0)) {
-    const note = await syncPrComment(deps, api, repo, pr.number);
+    const note = await syncPrComment(deps, api, repo, pr.number, null, {
+      showTitles: payload.repository?.private === true || isTrustedAssociation(pr.author_association),
+    });
     if (note) notes.push(note);
   }
   const tasks = links.filter((l) => l.taskId !== null).length;
-  const detail = [linkedDetail(tasks, links.length - tasks), ...notes].join("; ");
+  const detail = [linkedDetail(tasks, links.length - tasks), ...(result.capped ? [`refs capped at ${MAX_PR_REFS}`] : []), ...notes].join("; ");
   return { status: notes.includes(NO_ACTOR_NOTE) ? "skipped" : "done", detail };
 });
 

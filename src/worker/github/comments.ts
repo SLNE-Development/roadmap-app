@@ -5,16 +5,17 @@ import { withRef } from "@/lib/github/pr-text";
 import { parseRefs } from "@/lib/github/refs";
 import { resolveRefs } from "@/lib/ops/github-links";
 import { searchOpenTasks } from "@/lib/ops/github-pr";
+import { plural } from "@/lib/text";
 import type { WorkerDeps } from "../deps";
 import { onGitHubEvent, type DeliveryOutcome } from "./events";
-import { escapeMarkdown, pickUrlOf, syncPrComment } from "./pr-comment";
+import { escapeMarkdown, isTrustedAssociation, pickUrlOf, syncPrComment } from "./pr-comment";
 import { findRepo, handBlocked, NOT_LINKED, type RepositoryPayload } from "./pulls";
 
 /** The parts of an `issue_comment` payload the handler reads. */
 interface IssueCommentPayload {
   action?: string;
   repository?: RepositoryPayload;
-  issue?: { number: number; pull_request?: object; user?: { id?: number } | null };
+  issue?: { number: number; pull_request?: object; user?: { id?: number } | null; author_association?: string };
   comment?: {
     body?: string;
     author_association?: string;
@@ -23,7 +24,6 @@ interface IssueCommentPayload {
   };
 }
 
-const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const SEARCH_LIMIT = 6;
 const LISTED = 5;
 const MAX_QUERY = 80;
@@ -69,7 +69,8 @@ onGitHubEvent("issue_comment", async (job, deps, api): Promise<DeliveryOutcome> 
   if (!command) return { status: "ignored", detail: "no command" };
   if (comment.user?.type === "Bot" || comment.performed_via_github_app) return { status: "ignored", detail: "bot comment" };
   const isAuthor = typeof comment.user?.id === "number" && comment.user.id === issue.user?.id;
-  if (!TRUSTED.has(comment.author_association ?? "") && !isAuthor) return { status: "ignored", detail: "not allowed" };
+  const trustedCommenter = isTrustedAssociation(comment.author_association);
+  if (!trustedCommenter && !isAuthor) return { status: "ignored", detail: "not allowed" };
 
   const repo = await findRepo(deps.db, job, payload.repository);
   if (!repo) return NOT_LINKED;
@@ -82,10 +83,12 @@ onGitHubEvent("issue_comment", async (job, deps, api): Promise<DeliveryOutcome> 
   const number = issue.number;
   const [owner] = await deps.db.select({ slug: project.slug }).from(project).where(eq(project.id, repo.projectId));
   const pickUrl = pickUrlOf(owner?.slug ?? "", repo.id, number);
-  const query = command.query.trim();
+  // An untrusted PR author only gets the picker link: no search and no ref resolution, which would be an oracle for task titles and ids.
+  const query = trustedCommenter ? command.query.trim() : "";
+  const syncOptions = { showTitles: payload.repository?.private === true || isTrustedAssociation(issue.author_association) };
 
   if (query === "") {
-    const note = await syncPrComment(deps, api, repo, number, `Pick the task for this pull request: [open the roadmap picker](${pickUrl}).`);
+    const note = await syncPrComment(deps, api, repo, number, `Pick the task for this pull request: [open the roadmap picker](${pickUrl}).`, syncOptions);
     return { status: "done", detail: ["picker offered", ...(note ? [note] : [])].join("; ") };
   }
 
@@ -114,23 +117,22 @@ onGitHubEvent("issue_comment", async (job, deps, api): Promise<DeliveryOutcome> 
         detail = "pull request not found";
       } else {
         const current = { title: pr.title, body: pr.body ?? "" };
-        let changed = false;
+        let applied = 0;
         for (const ref of refs) {
           const patch = withRef(current, ref, false);
           if (!patch) continue;
           Object.assign(current, patch);
-          changed = true;
+          applied += 1;
         }
-        if (changed) await api.updatePullRequest(installationId, repo.fullName, number, { body: current.body });
-        detail = `added ${refs.length} refs`;
+        if (applied > 0) await api.updatePullRequest(installationId, repo.fullName, number, { body: current.body });
+        detail = applied > 0 ? `added ${plural(applied, "ref")}` : "no new refs";
       }
     } catch (error) {
       notes.push(failureNote("pull request edit", error));
-      detail = `added ${refs.length} refs`;
     }
   }
   if (notice) {
-    const note = await syncPrComment(deps, api, repo, number, notice);
+    const note = await syncPrComment(deps, api, repo, number, notice, syncOptions);
     if (note) notes.push(note);
     if (!detail) detail = "notice posted";
   }

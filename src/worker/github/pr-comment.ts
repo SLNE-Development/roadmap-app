@@ -10,6 +10,13 @@ export const COMMENT_MARKER = "<!-- roadmap-app:links -->";
 
 const MAX_ERROR = 120;
 
+const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+
+/** Whether a GitHub `author_association` is trusted: the author is an owner, member or collaborator of the repo. */
+export function isTrustedAssociation(association?: string): boolean {
+  return TRUSTED.has(association ?? "");
+}
+
 /** One roadmap task or system a pull request is linked to, as listed in the comment. */
 export interface CommentLink {
   ref: string;
@@ -30,15 +37,24 @@ export function escapeMarkdown(text: string): string {
   return text.replace(/[\\`\[\]*_<>]/g, "\\$&").replace(/@/g, "@\u200b");
 }
 
-/** Renders the comment body: always starts with {@link COMMENT_MARKER}. English only, as GitHub content has no viewer locale. */
-export function renderPrComment(input: { links: CommentLink[]; notice: string | null; pickUrl: string }): string {
+/**
+ * Renders the comment body: always starts with {@link COMMENT_MARKER}. English only, as GitHub content has no viewer locale.
+ *
+ * @param input.showTitles when false, the comment lists only each ref, linked to its roadmap page, and no task or system title
+ */
+export function renderPrComment(input: { links: CommentLink[]; notice: string | null; pickUrl: string; showTitles: boolean }): string {
   const lines = [COMMENT_MARKER];
   if (input.links.length > 0) {
     lines.push("**Linked on the roadmap**", "");
     for (const l of input.links) {
-      lines.push(`- [${escapeMarkdown(l.title)}](${l.url}) · \`${l.ref}\`${l.systemTitle ? ` · ${escapeMarkdown(l.systemTitle)}` : ""}${l.closes ? " · closes on merge" : ""}${l.done ? " · ✓ done" : ""}`);
+      const flags = `${l.closes ? " · closes on merge" : ""}${l.done ? " · ✓ done" : ""}`;
+      lines.push(
+        input.showTitles
+          ? `- [${escapeMarkdown(l.title)}](${l.url}) · \`${l.ref}\`${l.systemTitle ? ` · ${escapeMarkdown(l.systemTitle)}` : ""}${flags}`
+          : `- [\`${l.ref}\`](${l.url})${flags}`,
+      );
     }
-  } else {
+  } else if (!input.notice) {
     lines.push("_This pull request is no longer linked to the roadmap._");
   }
   if (input.notice) lines.push("", input.notice);
@@ -50,8 +66,18 @@ export function renderPrComment(input: { links: CommentLink[]; notice: string | 
  * Brings the App's comment on the PR in line with its stored links. Does nothing for repos that aren't App-linked
  * with access, and creates no comment when there are no links and no notice. Never throws for GitHub errors;
  * returns a note for the delivery detail instead (null when nothing worth noting happened).
+ *
+ * @param options.showTitles whether the comment may show task and system titles; false (the default) lists only
+ *   the refs, so titles of a private roadmap don't leak into a public repo
  */
-export async function syncPrComment(deps: WorkerDeps, api: GitHubApi, repo: GitHubRepoRow, number: number, notice: string | null = null): Promise<string | null> {
+export async function syncPrComment(
+  deps: WorkerDeps,
+  api: GitHubApi,
+  repo: GitHubRepoRow,
+  number: number,
+  notice: string | null = null,
+  options: { showTitles: boolean } = { showTitles: false },
+): Promise<string | null> {
   if (repo.mode !== "app" || repo.installationId === null || repo.access !== "ok") return null;
   const rows = await deps.db
     .select({
@@ -80,7 +106,7 @@ export async function syncPrComment(deps: WorkerDeps, api: GitHubApi, repo: GitH
   });
   links.sort((a, b) => Number(a.systemTitle === null) - Number(b.systemTitle === null) || a.ref.localeCompare(b.ref));
   const projectSlug = rows[0]?.projectSlug ?? (await deps.db.select({ slug: project.slug }).from(project).where(eq(project.id, repo.projectId)))[0]?.slug ?? "";
-  const body = renderPrComment({ links, notice, pickUrl: pickUrlOf(projectSlug, repo.id, number) });
+  const body = renderPrComment({ links, notice, pickUrl: pickUrlOf(projectSlug, repo.id, number), showTitles: options.showTitles });
 
   try {
     const existing = await api.findComment(repo.installationId, repo.fullName, number, COMMENT_MARKER);
