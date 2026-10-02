@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { githubApp, githubInstallation, githubRepo, user, type RepoRules } from "@/db/schema";
+import { githubAccount, githubApp, githubInstallation, githubRepo, user, type GitHubAccountRow, type RepoRules } from "@/db/schema";
 import type { Db, Executor } from "@/db/types";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { GitHubApi, RepoInfo } from "@/lib/github/api";
@@ -224,21 +224,112 @@ async function insertRepo(db: Db, actor: Actor, values: typeof githubRepo.$infer
   }
 }
 
+/** The most GitHub permission lookups {@link visibleTo} has in flight at once. */
+const READ_CHECK_LIMIT = 8;
+
+/**
+ * The account's current GitHub login, from the Kv cache or GitHub (a rename is written back to the stored account,
+ * best effort). Null when it cannot be resolved; the failure is logged.
+ */
+async function currentLogin(db: Db, kv: Kv, api: GitHubApi, account: GitHubAccountRow): Promise<string | null> {
+  const key = `gh:login:${account.githubId}`;
+  let login: string | null = null;
+  try {
+    login = (await kv.get(key)) || null;
+  } catch (error) {
+    console.error("github login cache could not be read", key, error);
+  }
+  if (!login) {
+    try {
+      login = await api.loginOf(account.githubId);
+    } catch (error) {
+      console.error("github login could not be resolved", account.githubId, error instanceof Error ? error.message : "unknown error");
+      return null;
+    }
+    if (!login) {
+      console.error("github login could not be resolved", account.githubId, "unknown account");
+      return null;
+    }
+    try {
+      await kv.set(key, login, REPO_CACHE_TTL);
+    } catch (error) {
+      console.error("github login cache could not be written", key, error);
+    }
+  }
+  if (login !== account.login) {
+    try {
+      await db.update(githubAccount).set({ login }).where(eq(githubAccount.userId, account.userId));
+    } catch (error) {
+      console.error("github login could not be stored", account.userId, error);
+    }
+  }
+  return login;
+}
+
+/**
+ * Keeps the repositories the actor may see on GitHub: public ones always, private ones only when the actor's linked
+ * GitHub account can read them (asked through the installation, cached in Kv). Without a linked account the private
+ * ones are dropped; a GitHub error for one repository drops it too. Kv errors are logged and ignored.
+ */
+async function visibleTo<T extends { repo: RepoInfo; installationId: number }>(
+  db: Db,
+  kv: Kv,
+  api: GitHubApi,
+  actor: Actor,
+  found: T[],
+): Promise<{ visible: T[]; githubLinked: boolean }> {
+  const [account] = await db.select().from(githubAccount).where(eq(githubAccount.userId, actor.userId));
+  const allowed = new Set<T>(found.filter((f) => !f.repo.private));
+  const login = account && found.some((f) => f.repo.private) ? await currentLogin(db, kv, api, account) : null;
+  const priv = login ? found.filter((f) => f.repo.private) : [];
+  if (!account || !login) return { visible: found.filter((f) => allowed.has(f)), githubLinked: Boolean(account) };
+  let next = 0;
+  const worker = async () => {
+    while (next < priv.length) {
+      const item = priv[next++];
+      const key = `gh:read:${item.repo.id}:${account.githubId}`;
+      let can: boolean | null = null;
+      try {
+        const raw = await kv.get(key);
+        if (raw === "1" || raw === "0") can = raw === "1";
+      } catch (error) {
+        console.error("github read cache could not be read", key, error);
+      }
+      if (can === null) {
+        try {
+          can = await api.canUserReadRepo(item.installationId, item.repo.fullName, login);
+        } catch (error) {
+          console.error("github repository access could not be checked", item.repo.fullName, error instanceof Error ? error.message : "unknown error");
+          continue;
+        }
+        try {
+          await kv.set(key, can ? "1" : "0", REPO_CACHE_TTL);
+        } catch (error) {
+          console.error("github read cache could not be written", key, error);
+        }
+      }
+      if (can) allowed.add(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(READ_CHECK_LIMIT, priv.length) }, worker));
+  return { visible: found.filter((f) => allowed.has(f)), githubLinked: Boolean(account) };
+}
+
 /**
  * The repositories the App's active installations can see, sorted by owner then name, with where each is linked.
  * With a `projectId`, a repository linked there is `here`; with null none is. A repository linked to a project the
  * actor cannot see shows no project name. Without an App the list is empty; an installation GitHub cannot list is
  * left out.
  */
-async function appRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectId: string | null): Promise<AvailableRepo[]> {
-  if (!(await hasApp(db))) return [];
+async function appRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectId: string | null): Promise<PickerRepos> {
+  if (!(await hasApp(db))) return { repos: [], githubLinked: false };
   const lists = await Promise.all(
     (await activeInstallations(db)).map(async (installationId) =>
       ((await installationReposOrNull(db, kv, api, installationId)) ?? []).map((repo) => ({ repo, installationId })),
     ),
   );
-  const found = lists.flat();
-  if (found.length === 0) return [];
+  const { visible: found, githubLinked } = await visibleTo(db, kv, api, actor, lists.flat());
+  if (found.length === 0) return { repos: [], githubLinked };
   const links = await db
     .select({ projectId: githubRepo.projectId, fullNameKey: githubRepo.fullNameKey })
     .from(githubRepo)
@@ -254,7 +345,7 @@ async function appRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectId:
       names.set(linkedId, null);
     }
   }
-  return found
+  const repos = found
     .map(({ repo, installationId }): AvailableRepo => {
       const linkedTo = projectOf.get(repo.fullName.toLowerCase());
       return {
@@ -267,17 +358,24 @@ async function appRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectId:
       };
     })
     .sort((a, b) => a.ownerLogin.localeCompare(b.ownerLogin) || a.fullName.localeCompare(b.fullName));
+  return { repos, githubLinked };
+}
+
+/** The repositories a picker lists, and whether the actor has linked a GitHub account (without one, private repositories stay hidden). */
+export interface PickerRepos {
+  repos: AvailableRepo[];
+  githubLinked: boolean;
 }
 
 /**
- * Lists the repositories the App's active installations can see, sorted by owner then name, and where each is
- * linked. A repository linked to a project the actor cannot see shows no project name. Without an App the list is
+ * Lists the repositories the App's active installations can see and the actor can see on GitHub, sorted by owner then
+ * name, and where each is linked. A repository linked to a project the actor cannot see shows no project name. Without an App the list is
  * empty; an installation GitHub cannot list is left out. Same permission as linking.
  *
  * @throws NotFoundError if the actor cannot see the project
  * @throws ForbiddenError if the actor may not link there
  */
-export async function availableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectSlug: string): Promise<AvailableRepo[]> {
+export async function availableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectSlug: string): Promise<PickerRepos> {
   const { project } = await linkerAccess(db, actor, { slug: projectSlug });
   return appRepos(db, kv, api, actor, project.id);
 }
@@ -286,6 +384,7 @@ export async function availableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Acto
 export interface PickableRepos {
   canLink: boolean;
   repos: AvailableRepo[];
+  githubLinked: boolean;
 }
 
 /**
@@ -298,8 +397,8 @@ export interface PickableRepos {
 export async function pickableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectSlug?: string): Promise<PickableRepos> {
   const projectId = projectSlug ? (await projectAccess(db, actor, projectSlug, "viewer")).project.id : null;
   const [app] = await db.select({ linkPolicy: githubApp.linkPolicy }).from(githubApp).where(eq(githubApp.id, "default"));
-  if (!app || (!actor.isAdmin && app.linkPolicy === "admins")) return { canLink: false, repos: [] };
-  return { canLink: true, repos: await appRepos(db, kv, api, actor, projectId) };
+  if (!app || (!actor.isAdmin && app.linkPolicy === "admins")) return { canLink: false, repos: [], githubLinked: false };
+  return { canLink: true, ...(await appRepos(db, kv, api, actor, projectId)) };
 }
 
 /** Lists the project's linked repositories by name. Viewer or higher. */
@@ -351,7 +450,9 @@ export async function linkAppRepo(
   const { fullName } = parse(linkRepoInput, raw);
   const { project } = await linkerAccess(db, actor, { slug: projectSlug });
   const found = await findAppRepo(db, kv, api, fullName);
-  if (!found) throw new InvalidError(`The GitHub App can't see ${fullName}. Install it on that repository first, or add it by hand.`);
+  const unseen = new InvalidError(`The GitHub App can't see ${fullName}. Install it on that repository first, or add it by hand.`);
+  if (!found) throw unseen;
+  if (found.repo.private && (await visibleTo(db, kv, api, actor, [found])).visible.length === 0) throw unseen;
   const id = newId();
   await insertRepo(db, actor, {
     id,

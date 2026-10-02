@@ -57,6 +57,7 @@ export function RepoField({
       id={id}
       describedBy={describedBy}
       repos={repos}
+      githubLinked={pickable.data?.githubLinked}
       open={open}
       onOpenChange={setOpen}
       triggerText={value || placeholder}

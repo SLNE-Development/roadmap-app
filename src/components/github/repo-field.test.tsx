@@ -52,7 +52,7 @@ function setup() {
 
 describe("RepoField", () => {
   it("renders a URL input when the actor cannot link", async () => {
-    handlers["github.pickableRepos"] = () => ({ canLink: false, repos: [] });
+    handlers["github.pickableRepos"] = () => ({ canLink: false, repos: [], githubLinked: true });
     setup();
     const input = await screen.findByPlaceholderText(PLACEHOLDER);
     expect(input.tagName).toBe("INPUT");
@@ -60,12 +60,20 @@ describe("RepoField", () => {
   });
 
   it("renders a combobox and reports the picked repository", async () => {
-    handlers["github.pickableRepos"] = () => ({ canLink: true, repos: [repo("org/app")] });
+    handlers["github.pickableRepos"] = () => ({ canLink: true, repos: [repo("org/app")], githubLinked: true });
     const onChange = setup();
     fireEvent.click(await screen.findByRole("button", { name: "Repository" }));
     expect(screen.getByRole("button", { name: "Repository" }).getAttribute("aria-describedby")).toBe("help");
     fireEvent.click(await screen.findByText("org/app"));
     expect(onChange).toHaveBeenCalledWith("https://github.com/org/app", "org/app");
+  });
+
+  it("hints at linking a GitHub account when none is linked", async () => {
+    handlers["github.pickableRepos"] = () => ({ canLink: true, repos: [repo("org/app")], githubLinked: false });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Repository" }));
+    const hint = await screen.findByText("Link your GitHub account to see private repositories.");
+    expect(hint.closest("a")?.getAttribute("href")).toBe("/settings/connections");
   });
 
   it("disables a repository linked elsewhere", async () => {
@@ -82,7 +90,7 @@ describe("RepoField", () => {
   });
 
   it("switches to the URL input and keeps typing", async () => {
-    handlers["github.pickableRepos"] = () => ({ canLink: true, repos: [repo("org/app")] });
+    handlers["github.pickableRepos"] = () => ({ canLink: true, repos: [repo("org/app")], githubLinked: true });
     const onChange = setup();
     fireEvent.click(await screen.findByRole("button", { name: "Repository" }));
     fireEvent.click(await screen.findByRole("button", { name: "Enter URL by hand" }));

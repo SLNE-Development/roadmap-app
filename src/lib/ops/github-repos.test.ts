@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { changeLog, codeLink, githubApp, githubInstallation, githubRepo } from "@/db/schema";
+import { changeLog, codeLink, githubAccount, githubApp, githubInstallation, githubRepo } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { fakeGitHubApi } from "@/lib/github/fake";
 import { memoryKv, type Kv } from "@/lib/kv";
@@ -26,6 +27,11 @@ const appInput = {
   webhookSecret: "whsec",
 };
 
+/** Links the actor to the GitHub account `login`. */
+async function linkGitHub(db: Db, actor: Actor, login: string, githubId: number): Promise<void> {
+  await db.insert(githubAccount).values({ userId: actor.userId, githubId, login });
+}
+
 interface World {
   db: Db;
   kv: Kv;
@@ -35,7 +41,10 @@ interface World {
   o2: Actor;
 }
 
-/** Installation 11 sees `Org/a` and `Org/b`; O owns project P, O2 owns project Q without O. */
+/**
+ * Installation 11 sees the private `Org/a` and the public `Org/b`; O owns project P, O2 owns project Q without O.
+ * Admin, O and O2 have linked GitHub accounts that can read `Org/a`.
+ */
 async function setup(): Promise<World> {
   const db = await createTestDb();
   const admin = await insertUser(db, { name: "Admin", isAdmin: true });
@@ -45,6 +54,9 @@ async function setup(): Promise<World> {
   const o2 = await insertUser(db, { name: "O2" });
   await createProject(db, o, { slug: "p", name: "P" });
   await createProject(db, o2, { slug: "q", name: "Q" });
+  await linkGitHub(db, admin, "admin", 901);
+  await linkGitHub(db, o, "o", 902);
+  await linkGitHub(db, o2, "o2", 903);
   const api = fakeGitHubApi({
     repos: {
       11: [
@@ -52,6 +64,8 @@ async function setup(): Promise<World> {
         { id: 1, fullName: "Org/a", ownerLogin: "Org", private: true },
       ],
     },
+    readers: { "Org/a": ["admin", "o", "o2"] },
+    logins: { 901: "admin", 902: "o", 903: "o2" },
   });
   return { db, kv: memoryKv(), api, admin, o, o2 };
 }
@@ -69,7 +83,7 @@ describe("github repos", () => {
 
   it("lists the repos the App can see, sorted, none linked", async () => {
     const { db, kv, api, o } = await setup();
-    const repos = await availableRepos(db, kv, api, o, "p");
+    const { repos } = await availableRepos(db, kv, api, o, "p");
     expect(repos.map((r) => [r.fullName, r.linked])).toEqual([
       ["Org/a", null],
       ["Org/b", null],
@@ -80,13 +94,13 @@ describe("github repos", () => {
   it("hides the name of a project the actor cannot see", async () => {
     const { db, kv, api, o, o2 } = await setup();
     await linkAppRepo(db, kv, api, o2, "q", { fullName: "Org/b" });
-    const forO = await availableRepos(db, kv, api, o, "p");
+    const forO = (await availableRepos(db, kv, api, o, "p")).repos;
     expect(forO.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: false, projectName: null });
     const adminMember = await insertUser(db, { name: "Admin member", isAdmin: true });
     await setMember(db, o2, "q", { userId: adminMember.userId, role: "viewer" });
-    const forAdmin = await availableRepos(db, kv, api, adminMember, "p");
+    const forAdmin = (await availableRepos(db, kv, api, adminMember, "p")).repos;
     expect(forAdmin.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: false, projectName: "Q" });
-    const forO2 = await availableRepos(db, kv, api, o2, "q");
+    const forO2 = (await availableRepos(db, kv, api, o2, "q")).repos;
     expect(forO2.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: true });
   });
 
@@ -119,10 +133,10 @@ describe("github repos", () => {
   it("offers no pickable repos under the admins policy for a non-admin, or without an App", async () => {
     const { db, kv, api, admin, o } = await setup();
     await setLinkPolicy(db, admin, "admins");
-    expect(await pickableRepos(db, kv, api, o)).toEqual({ canLink: false, repos: [] });
+    expect(await pickableRepos(db, kv, api, o)).toEqual({ canLink: false, repos: [], githubLinked: false });
     expect((await pickableRepos(db, kv, api, admin)).canLink).toBe(true);
     await db.delete(githubApp);
-    expect(await pickableRepos(db, kv, api, admin)).toEqual({ canLink: false, repos: [] });
+    expect(await pickableRepos(db, kv, api, admin)).toEqual({ canLink: false, repos: [], githubLinked: false });
   });
 
   it("refuses a repo linked to another project, naming only the repo", async () => {
@@ -217,7 +231,7 @@ describe("github repos", () => {
       return list(id);
     };
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect((await availableRepos(db, kv, api, o, "p")).map((r) => r.fullName)).toEqual(["Other/x"]);
+    expect((await availableRepos(db, kv, api, o, "p")).repos.map((r) => r.fullName)).toEqual(["Other/x"]);
     expect(error).toHaveBeenCalledWith(expect.any(String), 11, "installation 11 is gone");
     const linked = await linkAppRepo(db, kv, api, o, "p", { fullName: "Other/x" });
     expect(linked.fullName).toBe("Other/x");
@@ -263,5 +277,109 @@ describe("github repos", () => {
     });
     await unlinkRepo(db, o, repo.id);
     expect(await db.select().from(codeLink)).toEqual([]);
+  });
+});
+
+describe("github repos visible to the person", () => {
+  beforeEach(() => {
+    vi.stubEnv("ENCRYPTION_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("BETTER_AUTH_URL", "https://roadmap.example.test");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  /** Installation 11 sees the public `org/pub` and the private `org/priv` and `org/hidden`; only alice reads `org/priv`. */
+  async function visibility() {
+    const w = await setup();
+    w.api.seed.repos[11] = [
+      { id: 21, fullName: "org/pub", ownerLogin: "org", private: false },
+      { id: 22, fullName: "org/priv", ownerLogin: "org", private: true },
+      { id: 23, fullName: "org/hidden", ownerLogin: "org", private: true },
+    ];
+    w.api.seed.readers = { "org/priv": ["alice"] };
+    w.api.seed.logins = { ...w.api.seed.logins, 911: "alice", 912: "bob" };
+    const alice = await addMemberFixture(w.db, w.o, "p", "owner", "Alice");
+    await linkGitHub(w.db, alice, "alice", 911);
+    const bob = await insertUser(w.db, { name: "Bob", isAdmin: true });
+    await linkGitHub(w.db, bob, "bob", 912);
+    const nobody = await insertUser(w.db, { name: "Nobody", isAdmin: true });
+    return { ...w, alice, bob, nobody };
+  }
+  const names = (r: { repos: { fullName: string }[] }) => r.repos.map((x) => x.fullName);
+
+  it("shows public repos and the private ones the linked account can read", async () => {
+    const { db, kv, api, alice } = await visibility();
+    const picker = await availableRepos(db, kv, api, alice, "p");
+    expect(names(picker)).toEqual(["org/priv", "org/pub"]);
+    expect(picker.githubLinked).toBe(true);
+  });
+
+  it("shows only public repos without a linked account", async () => {
+    const { db, kv, api, nobody } = await visibility();
+    const picker = await pickableRepos(db, kv, api, nobody);
+    expect(names(picker)).toEqual(["org/pub"]);
+    expect(picker.githubLinked).toBe(false);
+    expect(api.calls.filter((c) => c.method === "canUserReadRepo")).toHaveLength(0);
+  });
+
+  it("filters admins like everyone else", async () => {
+    const { db, kv, api, bob } = await visibility();
+    const picker = await pickableRepos(db, kv, api, bob);
+    expect(names(picker)).toEqual(["org/pub"]);
+    expect(picker.githubLinked).toBe(true);
+  });
+
+  it("caches the answers within the TTL", async () => {
+    const { db, kv, api, alice } = await visibility();
+    await availableRepos(db, kv, api, alice, "p");
+    const asked = api.calls.filter((c) => c.method === "canUserReadRepo").length;
+    expect(asked).toBe(2);
+    await availableRepos(db, kv, api, alice, "p");
+    expect(api.calls.filter((c) => c.method === "canUserReadRepo")).toHaveLength(asked);
+  });
+
+  it("drops a private repo when GitHub fails, without throwing", async () => {
+    const { db, kv, api, alice } = await visibility();
+    api.seed.failWith = { canUserReadRepo: 500 };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(names(await availableRepos(db, kv, api, alice, "p"))).toEqual(["org/pub"]);
+    expect(error).toHaveBeenCalled();
+  });
+
+  it("checks a renamed account by its current login and stores it", async () => {
+    const { db, kv, api } = await visibility();
+    const carol = await insertUser(db, { name: "Carol" });
+    await linkGitHub(db, carol, "alice-old", 913);
+    api.seed.logins = { ...api.seed.logins, 913: "alice" };
+    expect(names(await pickableRepos(db, kv, api, carol))).toEqual(["org/priv", "org/pub"]);
+    expect(api.calls.filter((c) => c.method === "canUserReadRepo").every((c) => c.args[2] === "alice")).toBe(true);
+    const [row] = await db.select().from(githubAccount).where(eq(githubAccount.userId, carol.userId));
+    expect(row.login).toBe("alice");
+  });
+
+  it("shows only public repos when the login cannot be resolved", async () => {
+    const { db, kv, api, alice } = await visibility();
+    api.seed.failWith = { loginOf: 500 };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const picker = await availableRepos(db, kv, api, alice, "p");
+    expect(names(picker)).toEqual(["org/pub"]);
+    expect(picker.githubLinked).toBe(true);
+    expect(api.calls.filter((c) => c.method === "canUserReadRepo")).toHaveLength(0);
+  });
+
+  it("caches the resolved login within the TTL", async () => {
+    const { db, kv, api, alice } = await visibility();
+    await availableRepos(db, kv, api, alice, "p");
+    await availableRepos(db, kv, api, alice, "p");
+    expect(api.calls.filter((c) => c.method === "loginOf")).toHaveLength(1);
+  });
+
+  it("links only repos the person can see", async () => {
+    const { db, kv, api, alice } = await visibility();
+    await expect(linkAppRepo(db, kv, api, alice, "p", { fullName: "org/hidden" })).rejects.toThrow(InvalidError);
+    await expect(linkAppRepo(db, kv, api, alice, "p", { fullName: "org/hidden" })).rejects.toThrow("can't see");
+    expect((await linkAppRepo(db, kv, api, alice, "p", { fullName: "org/priv" })).fullName).toBe("org/priv");
   });
 });
