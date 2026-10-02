@@ -56,7 +56,8 @@
     "public": "public",
     "notListed": "Not listed?",
     "installMore": "Install on more repos ↗",
-    "enterByHand": "Enter owner/repo by hand"
+    "enterByHand": "Enter owner/repo by hand",
+    "enterUrlByHand": "Enter URL by hand"
   },
   "webhooks": {
     "title": "Discord webhooks",

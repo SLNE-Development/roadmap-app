@@ -26,6 +26,7 @@ import {
   linkManualRepo,
   linkRepoInput,
   listLinkedRepos,
+  pickableRepos,
   repoLinkStatus,
   repoRulesInput,
   revealRepoSecret,
@@ -98,6 +99,11 @@ export const githubRouter = router({
   availableRepos: protectedProcedure
     .input(z.object(P))
     .query(async ({ ctx, input }) => availableRepos(ctx.db, ctx.kv, await getGitHubApi(ctx.db), ctx.actor, input.project)),
+
+  /** The repositories the App can see for a project form (the project's own are `here`), and whether the actor may link one. */
+  pickableRepos: protectedProcedure
+    .input(z.object({ project: P.project.optional() }))
+    .query(async ({ ctx, input }) => pickableRepos(ctx.db, ctx.kv, await getGitHubApi(ctx.db), ctx.actor, input.project)),
 
   /** Links a repository the App can see. */
   linkAppRepo: protectedProcedure

@@ -1,10 +1,11 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
+import { RepoField } from "@/components/github/repo-field";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useTRPC } from "@/trpc/client";
+import { useTRPC, useTRPCClient } from "@/trpc/client";
 
 /** Label style shared by the settings forms. */
 const LABEL = "text-[12.5px] font-semibold text-fg-2";
@@ -62,8 +63,13 @@ export function ProjectSettings({
 /** The editable General panel. */
 function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name: string; description: string; repoUrl: string | null }) {
   const t = useTranslations("settings");
+  const ti = useTranslations("integrations");
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
   const update = useMutation(trpc.projects.update.mutationOptions());
+  const pickable = useQuery({ ...trpc.github.pickableRepos.queryOptions({ project: slug }), staleTime: 60_000 });
+  const [picked, setPicked] = useState<string | null>(null);
   const pending = update.isPending;
   const [draft, setDraft] = useState({ name, description, repoUrl: repoUrl ?? "" });
   const dirty = draft.name !== name || draft.description !== description || draft.repoUrl !== (repoUrl ?? "");
@@ -75,7 +81,23 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
         e.preventDefault();
         update.mutate(
           { project: slug, patch: { ...draft, repoUrl: draft.repoUrl.trim() || null } },
-          { onSuccess: () => toast.success(t("general.saved")) },
+          {
+            onSuccess: async () => {
+              toast.success(t("general.saved"));
+              // Only a repo that was picked in this edit and is not linked anywhere yet gets linked.
+              const repo = picked && pickable.data?.repos.find((r) => r.fullName === picked);
+              setPicked(null);
+              if (!repo || repo.linked) return;
+              try {
+                const linked = await trpcClient.github.linkAppRepo.mutate({ project: slug, repo: { fullName: repo.fullName } });
+                toast.success(ti("github.linked", { name: linked.fullName }));
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : String(error));
+              }
+              await queryClient.invalidateQueries({ queryKey: trpc.github.repos.queryKey({ project: slug }) });
+              await queryClient.invalidateQueries({ queryKey: trpc.github.pickableRepos.queryKey() });
+            },
+          },
         );
       }}
     >
@@ -109,13 +131,16 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
         <Label htmlFor="settings-repo" className={LABEL}>
           {t("general.repository")}
         </Label>
-        <Input
+        <RepoField
           id="settings-repo"
-          type="url"
           placeholder={t("general.repositoryPlaceholder")}
-          aria-describedby="settings-repo-help"
+          describedBy="settings-repo-help"
+          project={slug}
           value={draft.repoUrl}
-          onChange={(e) => setDraft({ ...draft, repoUrl: e.target.value })}
+          onChange={(repoUrl, pickedName) => {
+            setDraft({ ...draft, repoUrl });
+            setPicked(pickedName);
+          }}
         />
         <p id="settings-repo-help" className="text-xs text-muted-foreground">
           {t("general.repositoryHelp")}

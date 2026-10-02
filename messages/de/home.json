@@ -37,6 +37,7 @@
     "slugHint": "Wird in URLs, in surf-roadmap.json und von Agenten verwendet. Kleinbuchstaben, Ziffern und Bindestriche.",
     "descriptionLabel": "Beschreibung",
     "repoUrl": "Repository-URL",
+    "repoLinkFailed": "Das Projekt wurde erstellt, aber {name} konnte nicht verknüpft werden. Verknüpfe es unter Einstellungen → GitHub.",
     "repoHint": "Commit-Hashes in Fortschrittsmeldungen verlinken hierhin.",
     "submit": "Projekt erstellen",
     "created": "Projekt {name} erstellt"

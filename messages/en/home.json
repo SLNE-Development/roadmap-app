@@ -37,6 +37,7 @@
     "slugHint": "Used in URLs, surf-roadmap.json and by agents. Lowercase letters, digits and dashes.",
     "descriptionLabel": "Description",
     "repoUrl": "Repository URL",
+    "repoLinkFailed": "The project was created, but {name} couldn't be linked. Link it under Settings → GitHub.",
     "repoHint": "Commit hashes in progress updates link here.",
     "submit": "Create project",
     "created": "Project {name} created"
