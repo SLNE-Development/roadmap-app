@@ -86,7 +86,7 @@
 ## Execution order
 
 - **Wave A (parallel):** Task 1 and Task 2 share no files.
-- **Wave B (parallel, after Wave A is merged):** Tasks 3, 5 and 6. Task 5 edits `routers/github.ts` and `messages/*/integrations.json`, which Task 2 also edits, so Task 5 must start from the merged Wave A.
+- **Wave B (parallel, after Wave A is merged):** Tasks 3, 5, 6 and 8. Task 5 edits `routers/github.ts` and `messages/*/integrations.json`, which Task 2 also edits, so Task 5 must start from the merged Wave A.
 - **Wave C:** Task 4 needs Task 3's `syncPrComment` and Task 5's `searchOpenTasks`. Task 7 runs next to it (it touches `github-repos.ts`, `api.ts`, `fake.ts`, the combobox and `integrations.json`; Task 4 touches only worker files).
 
 ---
@@ -524,6 +524,42 @@ export interface PickerRepos { repos: AvailableRepo[]; githubLinked: boolean } /
 - [ ] Step 1: write the failing tests, then run them
 - [ ] Step 2: implement; run until green, then typecheck, lint and the existing repo-picker/repo-field tests
 - [ ] Step 3: commit `feat(github): only offer repositories the person can see on github`
+
+---
+
+### Task 8: Show and copy the roadmap ref of tasks and systems
+
+The user asked on 2026-10-02 how to find a task id. The UI never shows it.
+
+**Files:**
+- Create: `src/components/github/copy-ref.tsx`, `src/components/github/copy-ref.test.tsx`
+- Modify: `src/components/task-list.tsx` (the task row), `src/app/(app)/p/[project]/systems/[system]/system-view.tsx` (the system header), `messages/{en,de}/tasks.json` and `system.json` (or wherever the touched components' namespaces live)
+
+**Interfaces (Produces):**
+
+```ts
+/** A small mono chip showing `refText` that copies it to the clipboard on click and toasts. */
+export function CopyRef(props: { refText: string; className?: string }): JSX.Element;
+```
+
+**Directions:**
+- `CopyRef` renders a `<button type="button">` with font-mono, about `text-[11.5px]`, `text-muted-foreground`, `hover:text-foreground`, and no border, so it reads like the muted metadata already in the row.
+  - Its text is the ref, e.g. `roadmap#188`.
+  - `aria-label` = `t("copyRef", { ref })`: English "Copy {ref} to link it from GitHub", German "{ref} kopieren, um es auf GitHub zu verknüpfen".
+  - On click, `navigator.clipboard.writeText(ref)`, then `toast.success(t("refCopied", { ref }))` (English "Copied {ref}. Put it in a pull request title or description to link it."). If writing fails, `toast.error(t("refCopyFailed"))`.
+  - Put these keys in the namespace that suits a shared component (`integrations.ref.*`) in both languages.
+- Task row: render `<CopyRef refText={`roadmap#${task.id}`} />` in the row's main line after the title, for everyone who can see the task (viewers too). Hide it below `sm` if the row gets crowded (`hidden sm:inline-flex`).
+- System page header: render `<CopyRef refText={`roadmap:${systemSlug}`} />` next to the system's title or slug metadata.
+- Don't change anything else in those components.
+
+**Tests (`copy-ref.test.tsx`, jsdom with a stubbed `navigator.clipboard.writeText`):**
+- Renders `roadmap#188`.
+- A click calls `writeText("roadmap#188")`.
+- A rejected `writeText` → `toast.error` is called. Mock `sonner` the way other component tests do; check with `grep -rn "vi.mock(\"sonner\"" src`.
+
+- [ ] Step 1: write the failing test, then run it
+- [ ] Step 2: implement and place the chips; run until green, then typecheck and lint
+- [ ] Step 3: commit `feat(tasks): show the roadmap ref of tasks and systems with a copy button`
 
 ## Final checks (after all tasks)
 
