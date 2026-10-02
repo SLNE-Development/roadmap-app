@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
-import { codeLink, githubAccount, githubDelivery, githubRepo } from "@/db/schema";
+import { beforeEach, describe, expect, it } from "vitest";
+import { codeLink, githubAccount, githubDelivery, githubInstallation, githubRepo } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { fakeGitHubApi } from "@/lib/github/fake";
 import { linksForSystem } from "@/lib/ops/github-links";
@@ -38,7 +38,10 @@ async function setup() {
   const { id: t2 } = await addTask(db, p.owner, "p", "search-index", { title: "Ranking" });
   await createSystem(db, q.owner, "q", { slug: "other", title: "Other" });
   const { id: q1 } = await addTask(db, q.owner, "q", "other", { title: "Secret" });
-  await db.insert(githubRepo).values({ id: "r1", projectId: p.projectId, fullName: "Org/App", fullNameKey: "org/app", mode: "app", githubRepoId: 42 });
+  await db.insert(githubInstallation).values({ id: 7, accountLogin: "Org", accountType: "Organization", repositorySelection: "all" });
+  await db
+    .insert(githubRepo)
+    .values({ id: "r1", projectId: p.projectId, fullName: "Org/App", fullNameKey: "org/app", mode: "app", githubRepoId: 42, installationId: 7, access: "ok" });
   return { db, p, q, systemId: system.id, t1, t2, q1 };
 }
 
@@ -146,6 +149,71 @@ describe("pull_request events", () => {
     const first = await links(db);
     await deliver(db, "pull_request", payload);
     expect((await links(db)).map((r) => r.id)).toEqual(first.map((r) => r.id));
+  });
+});
+
+const callsOf = (method: string) => api.calls.filter((c) => c.method === method);
+
+describe("the roadmap comment", () => {
+  beforeEach(() => {
+    api.calls.length = 0;
+    api.seed.comments = {};
+    api.seed.failWith = undefined;
+  });
+
+  it("comments once on open, then stays quiet while nothing changes", async () => {
+    const { db, t1 } = await setup();
+    await deliver(db, "pull_request", pullRequest("opened", `roadmap#${t1}`, ""));
+    expect(callsOf("createComment")).toHaveLength(1);
+    expect(String(callsOf("createComment")[0].args[3])).toContain(`roadmap#${t1}`);
+    await deliver(db, "pull_request", pullRequest("edited", `roadmap#${t1}`, ""));
+    expect(callsOf("createComment")).toHaveLength(1);
+    expect(callsOf("updateComment")).toHaveLength(0);
+  });
+
+  it("skips the write when a re-delivered open finds a matching comment", async () => {
+    const { db, t1 } = await setup();
+    const payload = pullRequest("opened", `roadmap#${t1}`, "");
+    await deliver(db, "pull_request", payload);
+    api.calls.length = 0;
+    await deliver(db, "pull_request", payload);
+    expect(callsOf("findComment")).toHaveLength(1);
+    expect(callsOf("createComment")).toHaveLength(0);
+    expect(callsOf("updateComment")).toHaveLength(0);
+  });
+
+  it("updates the comment when the ref is removed", async () => {
+    const { db, t1 } = await setup();
+    await deliver(db, "pull_request", pullRequest("opened", `roadmap#${t1}`, ""));
+    await deliver(db, "pull_request", pullRequest("edited", "plain title", ""));
+    expect(callsOf("updateComment")).toHaveLength(1);
+    expect(String(callsOf("updateComment")[0].args[3])).toContain("no longer linked");
+  });
+
+  it("makes no comment calls without refs", async () => {
+    const { db } = await setup();
+    await deliver(db, "pull_request", pullRequest("opened", "plain title", ""));
+    expect(api.calls.filter((c) => c.method.endsWith("Comment"))).toEqual([]);
+  });
+
+  it("ends done with a note when GitHub refuses the comment, keeping the link", async () => {
+    const { db, t1 } = await setup();
+    api.seed.failWith = { createComment: 403 };
+    const outcome = await deliver(db, "pull_request", pullRequest("opened", `roadmap#${t1}`, ""));
+    expect(outcome.status).toBe("done");
+    expect(outcome.detail).toContain("comment skipped: GitHub refused (403)");
+    expect(await links(db)).toHaveLength(1);
+  });
+
+  it("doesn't call GitHub for a repository linked by hand", async () => {
+    const { db, t1 } = await setup();
+    await db.update(githubRepo).set({ mode: "webhook", webhookSecretEnc: "x" }).where(eq(githubRepo.id, "r1"));
+    seq += 1;
+    const deliveryId = `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`;
+    await db.insert(githubDelivery).values({ deliveryId, source: "repo", event: "pull_request" });
+    await handleGitHubEvent({ deliveryId, event: "pull_request", source: "repo", repoId: "r1", payload: pullRequest("opened", `roadmap#${t1}`, "") }, testDeps(db), getApi);
+    expect(await links(db)).toHaveLength(1);
+    expect(callsOf("findComment")).toEqual([]);
   });
 });
 
