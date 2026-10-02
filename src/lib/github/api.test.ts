@@ -145,6 +145,16 @@ describe("octokitGitHubApi", () => {
       expect(await t.api.getPullRequest(42, "o/r", 3)).toBeNull();
     });
 
+    it("tells whether a user can read a repo", async () => {
+      const permission = (value: string) => setup(() => ({ json: { permission: value } }));
+      const none = permission("none");
+      expect(await none.api.canUserReadRepo(42, "o/r", "alice")).toBe(false);
+      expect(none.requests()[0]).toMatchObject({ url: "https://api.github.com/repos/o/r/collaborators/alice/permission", method: "GET" });
+      expect(await permission("read").api.canUserReadRepo(42, "o/r", "alice")).toBe(true);
+      const unknown = setup(() => ({ status: 404, json: { message: "Not Found" } }));
+      expect(await unknown.api.canUserReadRepo(42, "o/r", "alice")).toBe(false);
+    });
+
     it("patches a pull request", async () => {
       const t = setup(() => ({ json: {} }));
       await t.api.updatePullRequest(42, "o/r", 3, { body: "B" });

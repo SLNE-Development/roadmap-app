@@ -57,7 +57,8 @@
     "notListed": "Nicht aufgeführt?",
     "installMore": "Auf weiteren Repos installieren ↗",
     "enterByHand": "inhaber/repo von Hand eingeben",
-    "enterUrlByHand": "URL von Hand eingeben"
+    "enterUrlByHand": "URL von Hand eingeben",
+    "linkGitHubHint": "Verknüpfe dein GitHub-Konto, um private Repositories zu sehen."
   },
   "webhooks": {
     "title": "Discord-Webhooks",

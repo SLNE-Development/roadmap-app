@@ -20,7 +20,9 @@ export function RepoPicker({ slug, onManual }: { slug: string; onManual: () => v
   const [open, setOpen] = useState(false);
   // Set when the popover closes towards the manual form, which then gets the focus instead of the trigger.
   const toManual = useRef(false);
-  const repos = useQuery({ ...trpc.github.availableRepos.queryOptions({ project: slug }), enabled: open });
+  const options = { ...trpc.github.availableRepos.queryOptions({ project: slug }), enabled: open };
+  const picker = useQuery(options);
+  const repos = useQuery({ ...options, select: (data) => data.repos });
   const queryClient = useQueryClient();
   const link = useMutation(
     trpc.github.linkAppRepo.mutationOptions({
@@ -34,6 +36,7 @@ export function RepoPicker({ slug, onManual }: { slug: string; onManual: () => v
   return (
     <RepoCombobox
       repos={repos}
+      githubLinked={picker.data?.githubLinked}
       open={open}
       onOpenChange={setOpen}
       disabled={link.isPending}

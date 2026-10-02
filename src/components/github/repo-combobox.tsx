@@ -3,6 +3,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { ChevronsUpDownIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { Tag } from "@/components/chips";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,6 +29,7 @@ function linkedLabel(linked: AvailableRepo["linked"], t: ReturnType<typeof useTr
  * @param props.triggerText the placeholder, or the picked repository's name
  * @param props.triggerMuted true while the trigger shows a placeholder
  * @param props.disabled disables the trigger
+ * @param props.githubLinked false when the person has no linked GitHub account: the footer then hints at linking one
  * @param props.footer rendered under a separator below the list
  * @param props.onCloseAutoFocus called when the popover closes, to take over the focus
  */
@@ -41,6 +43,7 @@ export function RepoCombobox({
   triggerText,
   triggerMuted,
   disabled,
+  githubLinked,
   footer,
   onCloseAutoFocus,
 }: {
@@ -53,6 +56,7 @@ export function RepoCombobox({
   triggerText: string;
   triggerMuted: boolean;
   disabled?: boolean;
+  githubLinked?: boolean;
   footer?: React.ReactNode;
   onCloseAutoFocus?: (e: Event) => void;
 }) {
@@ -97,9 +101,16 @@ export function RepoCombobox({
               </CommandGroup>
             ))}
           </CommandList>
-          {footer ? (
+          {githubLinked === false || footer ? (
             <>
               <CommandSeparator />
+              {githubLinked === false ? (
+                <p className="px-3 py-2 text-[12.5px] text-muted-foreground">
+                  <Link href="/settings/connections" className="font-medium text-brand-strong hover:underline">
+                    {t("picker.linkGitHubHint")}
+                  </Link>
+                </p>
+              ) : null}
               {footer}
             </>
           ) : null}

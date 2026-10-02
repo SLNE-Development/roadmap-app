@@ -92,6 +92,11 @@ export interface GitHubApi {
   createComment(installationId: number, fullName: string, number: number, body: string): Promise<CommentInfo>;
   /** Replaces the body of a comment. */
   updateComment(installationId: number, fullName: string, commentId: number, body: string): Promise<void>;
+  /**
+   * Whether the GitHub user `login` can read the repo: GET /repos/{owner}/{repo}/collaborators/{username}/permission
+   * through the installation; permission "none" or a 404 gives false.
+   */
+  canUserReadRepo(installationId: number, fullName: string, login: string): Promise<boolean>;
   /** Returns the permissions and events the App is configured with, read with the App's own credentials. */
   getAppPermissions(): Promise<AppPermissions>;
 }
@@ -269,6 +274,22 @@ export function octokitGitHubApi(config: GitHubAppConfig | null, fetchImpl?: typ
       const octokit = await (await requireApp()).getInstallationOctokit(installationId);
       const { owner, repo } = splitFullName(fullName);
       await octokit.request("PATCH /repos/{owner}/{repo}/pulls/{pull_number}", { owner, repo, pull_number: number, ...patch });
+    },
+
+    async canUserReadRepo(installationId, fullName, login) {
+      const octokit = await (await requireApp()).getInstallationOctokit(installationId);
+      const { owner, repo } = splitFullName(fullName);
+      try {
+        const { data } = await octokit.request("GET /repos/{owner}/{repo}/collaborators/{username}/permission", {
+          owner,
+          repo,
+          username: login,
+        });
+        return data.permission !== "none";
+      } catch (error) {
+        if ((error as { status?: unknown }).status === 404) return false;
+        throw error;
+      }
     },
 
     async findComment(installationId, fullName, number, marker) {
