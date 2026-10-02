@@ -12,6 +12,7 @@ import { PriorityTag } from "@/components/chips";
 import { DocumentDiff } from "@/components/document-diff";
 import { DocumentSection, SpecPreview } from "@/components/document-section";
 import { CodeLinks } from "@/components/github/code-links";
+import { CopyRef } from "@/components/github/copy-ref";
 import { type StepStates } from "@/components/markdown";
 import { Page, PageHeader } from "@/components/page";
 import { PersonName } from "@/components/person-avatar";
@@ -213,6 +214,7 @@ export function SystemView({
           </>
         }
       >
+        <CopyRef refText={`roadmap:${systemSlug}`} className="w-fit" />
         <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-fg-2 lg:flex">
           <PriorityTag priority={o.system.priority} />
           {o.domain && (
