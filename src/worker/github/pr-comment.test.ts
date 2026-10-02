@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { COMMENT_MARKER, renderPrComment, type CommentLink } from "./pr-comment";
+import { siteUrl } from "@/lib/site";
+import { COMMENT_MARKER, pickUrlOf, renderPrComment, type CommentLink } from "./pr-comment";
 
 const pickUrl = "https://roadmap.example/p/p/link-pr?repo=r1&pr=419";
 const task: CommentLink = { ref: "roadmap#7", title: "Results", systemTitle: "Search index", url: "https://roadmap.example/p/p/systems/search-index#task-7", closes: true, done: false };
@@ -22,6 +23,16 @@ describe("renderPrComment", () => {
 
   it("says so when nothing is linked", () => {
     expect(renderPrComment({ links: [], notice: null, pickUrl })).toContain("no longer linked");
+  });
+
+  it("escapes markdown and mentions in titles", () => {
+    const body = renderPrComment({ links: [{ ...task, title: "Fix [x] for @alice *now*" }], notice: null, pickUrl });
+    expect(body).toContain("[Fix \\[x\\] for @​alice \\*now\\*](");
+    expect(body).not.toContain("@alice");
+  });
+
+  it("builds the picker url", () => {
+    expect(pickUrlOf("p", "r 1", 7)).toBe(new URL("/p/p/link-pr?repo=r%201&pr=7", siteUrl()).toString());
   });
 
   it("renders a notice", () => {

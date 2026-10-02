@@ -171,6 +171,17 @@ describe("the roadmap comment", () => {
     expect(callsOf("updateComment")).toHaveLength(0);
   });
 
+  it("skips the write when a re-delivered open finds a matching comment", async () => {
+    const { db, t1 } = await setup();
+    const payload = pullRequest("opened", `roadmap#${t1}`, "");
+    await deliver(db, "pull_request", payload);
+    api.calls.length = 0;
+    await deliver(db, "pull_request", payload);
+    expect(callsOf("findComment")).toHaveLength(1);
+    expect(callsOf("createComment")).toHaveLength(0);
+    expect(callsOf("updateComment")).toHaveLength(0);
+  });
+
   it("updates the comment when the ref is removed", async () => {
     const { db, t1 } = await setup();
     await deliver(db, "pull_request", pullRequest("opened", `roadmap#${t1}`, ""));

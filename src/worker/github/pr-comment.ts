@@ -25,13 +25,18 @@ export function pickUrlOf(projectSlug: string, repoId: string, number: number): 
   return new URL(`/p/${projectSlug}/link-pr?repo=${encodeURIComponent(repoId)}&pr=${number}`, siteUrl()).toString();
 }
 
+/** Escapes markdown syntax in `text` and breaks `@mentions` with a zero-width space so a title can't format or ping anyone. */
+export function escapeMarkdown(text: string): string {
+  return text.replace(/[\\`\[\]*_<>]/g, "\\$&").replace(/@/g, "@\u200b");
+}
+
 /** Renders the comment body: always starts with {@link COMMENT_MARKER}. English only, as GitHub content has no viewer locale. */
 export function renderPrComment(input: { links: CommentLink[]; notice: string | null; pickUrl: string }): string {
   const lines = [COMMENT_MARKER];
   if (input.links.length > 0) {
     lines.push("**Linked on the roadmap**", "");
     for (const l of input.links) {
-      lines.push(`- [${l.title}](${l.url}) · \`${l.ref}\`${l.systemTitle ? ` · ${l.systemTitle}` : ""}${l.closes ? " · closes on merge" : ""}${l.done ? " · ✓ done" : ""}`);
+      lines.push(`- [${escapeMarkdown(l.title)}](${l.url}) · \`${l.ref}\`${l.systemTitle ? ` · ${escapeMarkdown(l.systemTitle)}` : ""}${l.closes ? " · closes on merge" : ""}${l.done ? " · ✓ done" : ""}`);
     }
   } else {
     lines.push("_This pull request is no longer linked to the roadmap._");
