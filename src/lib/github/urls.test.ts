@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPublicOrigin } from "./urls";
+import { appSettingsUrl, isPublicOrigin } from "./urls";
 
 describe("isPublicOrigin", () => {
   it.each([
@@ -30,5 +30,17 @@ describe("isPublicOrigin", () => {
     "https://notlocal.com",
   ])("treats %s as public", (url) => {
     expect(isPublicOrigin(new URL(url))).toBe(true);
+  });
+});
+
+describe("appSettingsUrl", () => {
+  const app = { slug: "roadmap-x", ownerLogin: "SLNE-Development" };
+
+  it("links the organization's page for an org owner", () => {
+    expect(appSettingsUrl(app, true)).toBe("https://github.com/organizations/SLNE-Development/settings/apps/roadmap-x/permissions");
+  });
+
+  it("links the user's page otherwise", () => {
+    expect(appSettingsUrl(app, false)).toBe("https://github.com/settings/apps/roadmap-x/permissions");
   });
 });

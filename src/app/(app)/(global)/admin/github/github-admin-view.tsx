@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { appSettingsUrl } from "@/lib/github/urls";
 import type { AppSummary, InstallationView } from "@/lib/ops/github-app";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -307,6 +308,8 @@ function ConnectedApp({ app }: { app: AppSummary }) {
   const rotate = useMutation(trpc.github.rotateSecret.mutationOptions({ onSuccess: () => toast.success(t("secretRotated")) }));
   const policy = useMutation(trpc.github.setLinkPolicy.mutationOptions({ onSuccess: () => toast.success(tc("saved")) }));
   const onError = (err: { message: string }) => toast.error(err.message);
+  // The owner's type isn't stored; it's an organization when an installation on that login says so.
+  const ownerIsOrg = installations.some((i) => i.accountType === "Organization" && i.accountLogin.toLowerCase() === app.ownerLogin.toLowerCase());
   const counted = installations.filter((i) => i.status === "active" && i.repoCount !== null);
   const repos = counted.length === 0 ? "—" : counted.reduce((sum, i) => sum + (i.repoCount ?? 0), 0);
   const lastWebhook = health.data ? (health.data.lastWebhookAt ? format.relativeTime(health.data.lastWebhookAt, now) : t("never")) : "…";
@@ -392,7 +395,7 @@ function ConnectedApp({ app }: { app: AppSummary }) {
           {health.data && health.data.missing.length > 0 && (
             <p className="text-[12.5px] text-destructive">
               {t("missingPermissions", { list: health.data.missing.join(", ") })}{" "}
-              <a href={app.htmlUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
+              <a href={appSettingsUrl(app, ownerIsOrg)} target="_blank" rel="noreferrer" className="font-semibold underline">
                 {t("view")}
               </a>
             </p>

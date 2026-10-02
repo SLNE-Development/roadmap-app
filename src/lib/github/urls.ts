@@ -28,6 +28,17 @@ export function installationManageUrl(i: { id: number; accountLogin: string; acc
 }
 
 /**
+ * Returns the App's permissions page on GitHub: under the organization when the owner is one, else under the user.
+ *
+ * @param ownerIsOrg whether the App's owner is an organization
+ */
+export function appSettingsUrl(app: { slug: string; ownerLogin: string }, ownerIsOrg: boolean): string {
+  return ownerIsOrg
+    ? `https://github.com/organizations/${app.ownerLogin}/settings/apps/${app.slug}/permissions`
+    : `https://github.com/settings/apps/${app.slug}/permissions`;
+}
+
+/**
  * Whether GitHub can reach the URL from the internet: false for localhost and `*.localhost`, `*.local`, loopback
  * (127.0.0.0/8, ::1), 0.0.0.0 and the private or link-local IPv4 ranges (10/8, 172.16/12, 192.168/16, 169.254/16).
  */
