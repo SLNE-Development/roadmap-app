@@ -13,5 +13,6 @@ import "../github/events";
 import "../github/prune";
 import "../github/installations";
 import "../github/pulls";
+import "../github/comments";
 import "../github/checks";
 import "./realtime";
