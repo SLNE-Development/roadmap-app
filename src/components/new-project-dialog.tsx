@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
+import { RepoField } from "@/components/github/repo-field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useTRPC } from "@/trpc/client";
+import { useTRPC, useTRPCClient } from "@/trpc/client";
 
 /** A repository address as the placeholder shows it; the same in every language. */
 const REPO_PLACEHOLDER = "https://github.com/org/repo";
@@ -35,13 +36,23 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   // The follow-up sits on the mutation, not on `mutate`: the first project replaces an empty state
   // that holds this dialog, which unmounts before the mutation settles.
+  const [pickedRepo, setPickedRepo] = useState<string | null>(null);
   const create = useMutation(
     trpc.projects.create.mutationOptions({
-      onSuccess: ({ slug: created }, { name: createdName }) => {
+      onSuccess: async ({ slug: created }, { name: createdName }) => {
         setOpen(false);
         toast.success(t("created", { name: createdName.trim() }));
+        if (pickedRepo) {
+          // The vanilla client, so the link does not depend on this dialog staying mounted.
+          try {
+            await trpcClient.github.linkAppRepo.mutate({ project: created, repo: { fullName: pickedRepo } });
+          } catch {
+            toast.error(t("repoLinkFailed", { name: pickedRepo }));
+          }
+        }
         router.push(`/p/${created}`);
       },
     }),
@@ -113,7 +124,15 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
             </Field>
             <Field>
               <FieldLabel htmlFor="project-repo">{t("repoUrl")}</FieldLabel>
-              <Input id="project-repo" placeholder={REPO_PLACEHOLDER} value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />
+              <RepoField
+                id="project-repo"
+                placeholder={REPO_PLACEHOLDER}
+                value={repoUrl}
+                onChange={(value, picked) => {
+                  setRepoUrl(value);
+                  setPickedRepo(picked);
+                }}
+              />
               <FieldDescription>{t("repoHint")}</FieldDescription>
             </Field>
           </FieldGroup>

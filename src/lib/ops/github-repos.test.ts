@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { changeLog, codeLink, githubInstallation, githubRepo } from "@/db/schema";
+import { changeLog, codeLink, githubApp, githubInstallation, githubRepo } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { fakeGitHubApi } from "@/lib/github/fake";
 import { memoryKv, type Kv } from "@/lib/kv";
@@ -9,7 +9,7 @@ import { addMemberFixture, insertUser } from "@/test/fixtures";
 import type { Actor } from "./actor";
 import { ConflictError, ForbiddenError, InvalidError } from "./errors";
 import { saveAppCredentials, setLinkPolicy } from "./github-app";
-import { availableRepos, linkAppRepo, linkManualRepo, listLinkedRepos, revealRepoSecret, setRepoRules, unlinkRepo } from "./github-repos";
+import { availableRepos, linkAppRepo, linkManualRepo, listLinkedRepos, pickableRepos, revealRepoSecret, setRepoRules, unlinkRepo } from "./github-repos";
 import { setMember } from "./members";
 import { createProject } from "./projects";
 import { createSystem } from "./systems";
@@ -88,6 +88,31 @@ describe("github repos", () => {
     expect(forAdmin.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: false, projectName: "Q" });
     const forO2 = await availableRepos(db, kv, api, o2, "q");
     expect(forO2.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: true });
+  });
+
+  it("lists the pickable repos for a form without a project, none linked here", async () => {
+    const { db, kv, api, admin, o, o2 } = await setup();
+    await linkAppRepo(db, kv, api, o2, "q", { fullName: "Org/b" });
+    const forAdmin = await pickableRepos(db, kv, api, admin);
+    expect(forAdmin.canLink).toBe(true);
+    expect(forAdmin.repos.map((r) => [r.fullName, r.linked])).toEqual([
+      ["Org/a", null],
+      ["Org/b", { here: false, projectName: "Q" }],
+    ]);
+    const forO = await pickableRepos(db, kv, api, o);
+    expect(forO.canLink).toBe(true);
+    expect(forO.repos.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: false, projectName: null });
+    const forO2 = await pickableRepos(db, kv, api, o2);
+    expect(forO2.repos.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: false, projectName: "Q" });
+  });
+
+  it("offers no pickable repos under the admins policy for a non-admin, or without an App", async () => {
+    const { db, kv, api, admin, o } = await setup();
+    await setLinkPolicy(db, admin, "admins");
+    expect(await pickableRepos(db, kv, api, o)).toEqual({ canLink: false, repos: [] });
+    expect((await pickableRepos(db, kv, api, admin)).canLink).toBe(true);
+    await db.delete(githubApp);
+    expect(await pickableRepos(db, kv, api, admin)).toEqual({ canLink: false, repos: [] });
   });
 
   it("refuses a repo linked to another project, naming only the repo", async () => {

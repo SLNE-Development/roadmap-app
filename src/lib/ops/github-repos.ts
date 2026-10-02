@@ -225,15 +225,12 @@ async function insertRepo(db: Db, actor: Actor, values: typeof githubRepo.$infer
 }
 
 /**
- * Lists the repositories the App's active installations can see, sorted by owner then name, and where each is
- * linked. A repository linked to a project the actor cannot see shows no project name. Without an App the list is
- * empty; an installation GitHub cannot list is left out. Same permission as linking.
- *
- * @throws NotFoundError if the actor cannot see the project
- * @throws ForbiddenError if the actor may not link there
+ * The repositories the App's active installations can see, sorted by owner then name, with where each is linked.
+ * With a `projectId`, a repository linked there is `here`; with null none is. A repository linked to a project the
+ * actor cannot see shows no project name. Without an App the list is empty; an installation GitHub cannot list is
+ * left out.
  */
-export async function availableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectSlug: string): Promise<AvailableRepo[]> {
-  const { project } = await linkerAccess(db, actor, { slug: projectSlug });
+async function appRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectId: string | null): Promise<AvailableRepo[]> {
   if (!(await hasApp(db))) return [];
   const lists = await Promise.all(
     (await activeInstallations(db)).map(async (installationId) =>
@@ -248,13 +245,13 @@ export async function availableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Acto
     .where(inArray(githubRepo.fullNameKey, found.map((f) => f.repo.fullName.toLowerCase())));
   const projectOf = new Map(links.map((l) => [l.fullNameKey, l.projectId]));
   const names = new Map<string, string | null>();
-  for (const projectId of new Set(links.map((l) => l.projectId))) {
-    if (projectId === project.id) continue;
+  for (const linkedId of new Set(links.map((l) => l.projectId))) {
+    if (linkedId === projectId) continue;
     try {
-      names.set(projectId, (await projectAccessById(db, actor, projectId, "viewer")).project.name);
+      names.set(linkedId, (await projectAccessById(db, actor, linkedId, "viewer")).project.name);
     } catch (error) {
       if (!(error instanceof NotFoundError)) throw error;
-      names.set(projectId, null);
+      names.set(linkedId, null);
     }
   }
   return found
@@ -266,10 +263,39 @@ export async function availableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Acto
         private: repo.private,
         installationId,
         githubRepoId: repo.id,
-        linked: linkedTo === undefined ? null : linkedTo === project.id ? { here: true } : { here: false, projectName: names.get(linkedTo) ?? null },
+        linked: linkedTo === undefined ? null : linkedTo === projectId ? { here: true } : { here: false, projectName: names.get(linkedTo) ?? null },
       };
     })
     .sort((a, b) => a.ownerLogin.localeCompare(b.ownerLogin) || a.fullName.localeCompare(b.fullName));
+}
+
+/**
+ * Lists the repositories the App's active installations can see, sorted by owner then name, and where each is
+ * linked. A repository linked to a project the actor cannot see shows no project name. Without an App the list is
+ * empty; an installation GitHub cannot list is left out. Same permission as linking.
+ *
+ * @throws NotFoundError if the actor cannot see the project
+ * @throws ForbiddenError if the actor may not link there
+ */
+export async function availableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectSlug: string): Promise<AvailableRepo[]> {
+  const { project } = await linkerAccess(db, actor, { slug: projectSlug });
+  return appRepos(db, kv, api, actor, project.id);
+}
+
+/** The repositories a project form can offer, and whether the actor may link one. */
+export interface PickableRepos {
+  canLink: boolean;
+  repos: AvailableRepo[];
+}
+
+/**
+ * Lists the repositories the App can see for forms without a project yet, so none is `linked.here`. `canLink` is true
+ * when an App is set up and the actor is an admin or the link policy is not `admins`; otherwise `repos` is empty.
+ */
+export async function pickableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor): Promise<PickableRepos> {
+  const [app] = await db.select({ linkPolicy: githubApp.linkPolicy }).from(githubApp).where(eq(githubApp.id, "default"));
+  if (!app || (!actor.isAdmin && app.linkPolicy === "admins")) return { canLink: false, repos: [] };
+  return { canLink: true, repos: await appRepos(db, kv, api, actor, null) };
 }
 
 /** Lists the project's linked repositories by name. Viewer or higher. */
