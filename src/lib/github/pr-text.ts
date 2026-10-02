@@ -21,11 +21,12 @@ export function withRef(
   const present = new RegExp(`${escapeRegExp(ref)}(?![\\w-])`, "i");
   if (present.test(pr.title) || present.test(pr.body)) return null;
   if (closes) return { title: `${pr.title} ${ref}` };
-  const lines = pr.body.split("\n");
+  const eol = pr.body.includes("\r\n") ? "\r\n" : "\n";
+  const lines = pr.body.split(/\r?\n/);
   const at = lines.findIndex((l) => l.trim().startsWith(ROADMAP_LINE));
   if (at >= 0) {
     lines[at] = `${lines[at]} ${ref}`;
-    return { body: lines.join("\n") };
+    return { body: lines.join(eol) };
   }
-  return { body: pr.body.trim() === "" ? `${ROADMAP_LINE} ${ref}` : `${pr.body}\n\n${ROADMAP_LINE} ${ref}` };
+  return { body: pr.body.trim() === "" ? `${ROADMAP_LINE} ${ref}` : `${pr.body}${eol}${eol}${ROADMAP_LINE} ${ref}` };
 }

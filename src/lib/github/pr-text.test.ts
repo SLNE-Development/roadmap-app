@@ -16,6 +16,16 @@ describe("withRef", () => {
     });
   });
 
+  it("keeps CRLF line endings when extending a Roadmap line", () => {
+    expect(withRef({ title: "Fix", body: "a\r\nRoadmap: roadmap#1\r\nb" }, "roadmap#5", false)).toEqual({
+      body: "a\r\nRoadmap: roadmap#1 roadmap#5\r\nb",
+    });
+  });
+
+  it("appends the Roadmap paragraph with CRLF to a CRLF body", () => {
+    expect(withRef({ title: "Fix", body: "a\r\nb" }, "roadmap#5", false)).toEqual({ body: "a\r\nb\r\n\r\nRoadmap: roadmap#5" });
+  });
+
   it("puts the ref in the title when it closes the item", () => {
     expect(withRef({ title: "Fix", body: "" }, "roadmap#5", true)).toEqual({ title: "Fix roadmap#5" });
   });

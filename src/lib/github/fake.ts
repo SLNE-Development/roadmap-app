@@ -112,7 +112,7 @@ export function fakeGitHubApi(
     },
     async getAppPermissions() {
       record("getAppPermissions");
-      return state.appPermissions ?? { permissions: REQUIRED_PERMISSIONS, events: REQUIRED_EVENTS };
+      return state.appPermissions ?? { permissions: { ...REQUIRED_PERMISSIONS }, events: [...REQUIRED_EVENTS] };
     },
   };
 }

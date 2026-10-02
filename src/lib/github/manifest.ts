@@ -4,15 +4,15 @@ export { manifestActionUrl } from "./urls";
 const MAX_NAME = 34;
 
 /** The permissions the App needs; the manifest requests them and the setup check compares against them. */
-export const REQUIRED_PERMISSIONS: Record<string, "read" | "write"> = {
+export const REQUIRED_PERMISSIONS: Readonly<Record<string, "read" | "write">> = Object.freeze({
   metadata: "read",
   contents: "read",
   pull_requests: "write",
   checks: "read",
-};
+});
 
 /** The webhook events the App needs; the manifest subscribes to them and the setup check compares against them. */
-export const REQUIRED_EVENTS: string[] = ["pull_request", "push", "check_suite", "issue_comment"];
+export const REQUIRED_EVENTS: readonly string[] = Object.freeze(["pull_request", "push", "check_suite", "issue_comment"]);
 
 /** The App manifest GitHub registers a new App from. */
 export interface AppManifest {
@@ -53,7 +53,7 @@ export function buildManifest(baseUrl: URL, name: string): AppManifest {
     setup_on_update: true,
     public: true,
     request_oauth_on_install: false,
-    default_permissions: REQUIRED_PERMISSIONS,
-    default_events: REQUIRED_EVENTS,
+    default_permissions: { ...REQUIRED_PERMISSIONS },
+    default_events: [...REQUIRED_EVENTS],
   };
 }
