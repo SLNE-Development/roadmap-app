@@ -1,4 +1,15 @@
-import type { CheckSuiteInfo, FailedDelivery, GitHubApi, InstallationInfo, ManifestConversion, RepoInfo } from "./api";
+import type {
+  AppPermissions,
+  CheckSuiteInfo,
+  CommentInfo,
+  FailedDelivery,
+  GitHubApi,
+  InstallationInfo,
+  ManifestConversion,
+  PullRequestInfo,
+  RepoInfo,
+} from "./api";
+import { REQUIRED_EVENTS, REQUIRED_PERMISSIONS } from "./manifest";
 
 /** What {@link fakeGitHubApi} answers with. */
 export interface FakeSeed {
@@ -6,6 +17,14 @@ export interface FakeSeed {
   repos: Record<number, RepoInfo[]>;
   /** Check suites keyed `fullName@sha`. */
   suites: Record<string, CheckSuiteInfo[]>;
+  /** Pull requests keyed `fullName#number`. */
+  pulls: Record<string, PullRequestInfo>;
+  /** Comments on issues and pull requests, keyed `fullName#number`. */
+  comments: Record<string, CommentInfo[]>;
+  /** The App's permissions and events; defaults to exactly what the App requires. */
+  appPermissions?: AppPermissions;
+  /** Method name to HTTP status: that method throws an error carrying the status, like a GitHub 403. */
+  failWith?: Partial<Record<string, number>>;
   conversion?: ManifestConversion;
   oauthUser?: { id: number; login: string };
   failedDeliveries?: FailedDelivery[];
@@ -18,9 +37,15 @@ export interface FakeSeed {
 export function fakeGitHubApi(
   seed: Partial<FakeSeed> = {},
 ): GitHubApi & { calls: { method: string; args: unknown[] }[]; seed: FakeSeed } {
-  const state: FakeSeed = { installations: [], repos: {}, suites: {}, ...seed };
+  const state: FakeSeed = { installations: [], repos: {}, suites: {}, pulls: {}, comments: {}, ...seed };
   const calls: { method: string; args: unknown[] }[] = [];
-  const record = (method: string, ...args: unknown[]) => calls.push({ method, args });
+  let nextCommentId = 1000;
+  /** Records the call, then throws when `failWith` names the method. */
+  const record = (method: string, ...args: unknown[]) => {
+    calls.push({ method, args });
+    const status = state.failWith?.[method];
+    if (status !== undefined) throw Object.assign(new Error(`fake GitHub: ${status}`), { status });
+  };
 
   return {
     calls,
@@ -57,6 +82,37 @@ export function fakeGitHubApi(
       record("exchangeOAuthCode", code);
       if (!state.oauthUser) throw new Error(`fake GitHub: no OAuth user for code ${code}`);
       return state.oauthUser;
+    },
+    async getPullRequest(installationId, fullName, number) {
+      record("getPullRequest", installationId, fullName, number);
+      return state.pulls[`${fullName}#${number}`] ?? null;
+    },
+    async updatePullRequest(installationId, fullName, number, patch) {
+      record("updatePullRequest", installationId, fullName, number, patch);
+      const key = `${fullName}#${number}`;
+      const pr = state.pulls[key];
+      if (pr) state.pulls[key] = { ...pr, ...patch };
+    },
+    async findComment(installationId, fullName, number, marker) {
+      record("findComment", installationId, fullName, number, marker);
+      return (state.comments[`${fullName}#${number}`] ?? []).find((c) => c.body.includes(marker)) ?? null;
+    },
+    async createComment(installationId, fullName, number, body) {
+      record("createComment", installationId, fullName, number, body);
+      const comment = { id: nextCommentId++, body };
+      (state.comments[`${fullName}#${number}`] ??= []).push(comment);
+      return comment;
+    },
+    async updateComment(installationId, fullName, commentId, body) {
+      record("updateComment", installationId, fullName, commentId, body);
+      for (const list of Object.values(state.comments)) {
+        const at = list.findIndex((c) => c.id === commentId);
+        if (at >= 0) list[at] = { id: commentId, body };
+      }
+    },
+    async getAppPermissions() {
+      record("getAppPermissions");
+      return state.appPermissions ?? { permissions: { ...REQUIRED_PERMISSIONS }, events: [...REQUIRED_EVENTS] };
     },
   };
 }

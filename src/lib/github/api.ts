@@ -47,6 +47,27 @@ export interface CheckSuiteInfo {
   conclusion: string | null;
 }
 
+/** A pull request on GitHub. */
+export interface PullRequestInfo {
+  title: string;
+  body: string;
+  state: "open" | "closed";
+  merged: boolean;
+  htmlUrl: string;
+}
+
+/** A comment on an issue or pull request. */
+export interface CommentInfo {
+  id: number;
+  body: string;
+}
+
+/** The permissions and webhook events the App is configured with on GitHub. */
+export interface AppPermissions {
+  permissions: Record<string, string>;
+  events: string[];
+}
+
 /** The GitHub calls the app makes; production uses {@link octokitGitHubApi}, tests use `fakeGitHubApi`. */
 export interface GitHubApi {
   /** Exchanges the code from the App manifest flow for the new App's credentials; needs no App. */
@@ -61,6 +82,18 @@ export interface GitHubApi {
   listCheckSuites(installationId: number, fullName: string, sha: string): Promise<CheckSuiteInfo[]>;
   /** Exchanges an OAuth code for the GitHub user who signed in; the access token is discarded. */
   exchangeOAuthCode(code: string): Promise<{ id: number; login: string }>;
+  /** Returns the pull request, or null when GitHub does not know it. */
+  getPullRequest(installationId: number, fullName: string, number: number): Promise<PullRequestInfo | null>;
+  /** Writes the given pull request fields. */
+  updatePullRequest(installationId: number, fullName: string, number: number, patch: { title?: string; body?: string }): Promise<void>;
+  /** The first comment on the issue/PR whose body contains `marker`, or null. */
+  findComment(installationId: number, fullName: string, number: number, marker: string): Promise<CommentInfo | null>;
+  /** Posts a comment on the issue/PR. */
+  createComment(installationId: number, fullName: string, number: number, body: string): Promise<CommentInfo>;
+  /** Replaces the body of a comment. */
+  updateComment(installationId: number, fullName: string, commentId: number, body: string): Promise<void>;
+  /** Returns the permissions and events the App is configured with, read with the App's own credentials. */
+  getAppPermissions(): Promise<AppPermissions>;
 }
 
 interface GhInstallation {
@@ -212,6 +245,64 @@ export function octokitGitHubApi(config: GitHubAppConfig | null, fetchImpl?: typ
         per_page: 100,
       });
       return rows.map((s) => ({ status: s.status ?? "", conclusion: s.conclusion ?? null }));
+    },
+
+    async getPullRequest(installationId, fullName, number) {
+      const octokit = await (await requireApp()).getInstallationOctokit(installationId);
+      const { owner, repo } = splitFullName(fullName);
+      try {
+        const { data } = await octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", { owner, repo, pull_number: number });
+        return {
+          title: data.title,
+          body: data.body ?? "",
+          state: data.state === "open" ? "open" : "closed",
+          merged: data.merged ?? false,
+          htmlUrl: data.html_url,
+        };
+      } catch (error) {
+        if ((error as { status?: unknown }).status === 404) return null;
+        throw error;
+      }
+    },
+
+    async updatePullRequest(installationId, fullName, number, patch) {
+      const octokit = await (await requireApp()).getInstallationOctokit(installationId);
+      const { owner, repo } = splitFullName(fullName);
+      await octokit.request("PATCH /repos/{owner}/{repo}/pulls/{pull_number}", { owner, repo, pull_number: number, ...patch });
+    },
+
+    async findComment(installationId, fullName, number, marker) {
+      const octokit = await (await requireApp()).getInstallationOctokit(installationId);
+      const { owner, repo } = splitFullName(fullName);
+      let found: CommentInfo | null = null;
+      await octokit.paginate("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", { owner, repo, issue_number: number, per_page: 100 }, (response, done) => {
+        const hit = response.data.find((c) => (c.body ?? "").includes(marker));
+        if (hit) {
+          found = { id: Number(hit.id), body: hit.body ?? "" };
+          done();
+        }
+        return [];
+      });
+      return found;
+    },
+
+    async createComment(installationId, fullName, number, body) {
+      const octokit = await (await requireApp()).getInstallationOctokit(installationId);
+      const { owner, repo } = splitFullName(fullName);
+      const { data } = await octokit.request("POST /repos/{owner}/{repo}/issues/{issue_number}/comments", { owner, repo, issue_number: number, body });
+      return { id: Number(data.id), body: data.body ?? "" };
+    },
+
+    async updateComment(installationId, fullName, commentId, body) {
+      const octokit = await (await requireApp()).getInstallationOctokit(installationId);
+      const { owner, repo } = splitFullName(fullName);
+      await octokit.request("PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}", { owner, repo, comment_id: commentId, body });
+    },
+
+    async getAppPermissions() {
+      const a = await requireApp();
+      const { data } = await a.octokit.request("GET /app");
+      return { permissions: (data?.permissions ?? {}) as Record<string, string>, events: data?.events ?? [] };
     },
 
     async exchangeOAuthCode(code) {

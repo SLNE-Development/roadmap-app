@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildManifest, defaultAppName, manifestActionUrl } from "./manifest";
+import { buildManifest, defaultAppName, manifestActionUrl, REQUIRED_EVENTS, REQUIRED_PERMISSIONS } from "./manifest";
 
 const BASE = new URL("https://roadmap.example.com");
 
@@ -14,12 +14,14 @@ describe("buildManifest", () => {
     expect(m.setup_on_update).toBe(true);
   });
 
-  it("asks for a private app with read-only permissions", () => {
+  it("asks for a public app with the required permissions and events", () => {
     const m = buildManifest(BASE, "Roadmap");
-    expect(m.public).toBe(false);
+    expect(m.public).toBe(true);
     expect(m.request_oauth_on_install).toBe(false);
-    expect(m.default_permissions).toEqual({ metadata: "read", contents: "read", pull_requests: "read", checks: "read" });
-    expect(m.default_events).toEqual(["pull_request", "push", "check_suite"]);
+    expect(m.default_permissions).toEqual({ metadata: "read", contents: "read", pull_requests: "write", checks: "read" });
+    expect(m.default_permissions).toEqual(REQUIRED_PERMISSIONS);
+    expect(m.default_events).toEqual(["pull_request", "push", "check_suite", "issue_comment"]);
+    expect(m.default_events).toEqual(REQUIRED_EVENTS);
     expect(m.default_events).not.toContain("installation");
   });
 
