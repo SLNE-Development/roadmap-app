@@ -6,7 +6,7 @@ import type { Db, Executor } from "@/db/types";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { GitHubApi } from "@/lib/github/api";
-import { buildManifest } from "@/lib/github/manifest";
+import { buildManifest, REQUIRED_EVENTS, REQUIRED_PERMISSIONS } from "@/lib/github/manifest";
 import { installationManageUrl, installUrl, isPublicOrigin, manifestActionUrl, unreachableOriginMessage } from "@/lib/github/urls";
 import { newId } from "@/lib/id";
 import type { Kv } from "@/lib/kv";
@@ -442,6 +442,22 @@ export interface AppHealth {
   lastWebhookAt: Date | null;
   failedLast24h: number;
   recentErrors: { deliveryId: string; event: string; detail: string | null; receivedAt: Date }[];
+  /** Permissions and events the App lacks on GitHub, like `pull_requests: write` and `event issue_comment`. */
+  missing: string[];
+}
+
+/** Permission levels from weakest to strongest. */
+const LEVELS = ["read", "write", "admin"];
+
+/** Lists what the App's GitHub settings lack of the required permissions and events. */
+function missingOf({ permissions, events }: { permissions: Record<string, string>; events: string[] }): string[] {
+  const rank = (level: string | undefined) => (level === undefined ? -1 : LEVELS.indexOf(level));
+  return [
+    ...Object.entries(REQUIRED_PERMISSIONS)
+      .filter(([name, level]) => rank(permissions[name]) < rank(level))
+      .map(([name, level]) => `${name}: ${level}`),
+    ...REQUIRED_EVENTS.filter((event) => !events.includes(event)).map((event) => `event ${event}`),
+  ];
 }
 
 /**
@@ -454,7 +470,7 @@ export async function appHealth(db: Db, api: GitHubApi, actor: Actor, now: Date)
   const since = new Date(now.getTime() - 86_400_000);
   const fromApp = eq(githubDelivery.source, "app");
   const failed = and(fromApp, eq(githubDelivery.status, "failed"));
-  const [[last], [ours], recentErrors, theirs] = await Promise.all([
+  const [[last], [ours], recentErrors, theirs, missing] = await Promise.all([
     db.select({ at: max(githubDelivery.receivedAt) }).from(githubDelivery).where(fromApp),
     db.select({ n: count() }).from(githubDelivery).where(and(failed, gt(githubDelivery.receivedAt, since))),
     db
@@ -464,8 +480,12 @@ export async function appHealth(db: Db, api: GitHubApi, actor: Actor, now: Date)
       .orderBy(desc(githubDelivery.receivedAt))
       .limit(5),
     api.listFailedDeliveries(since),
+    api.getAppPermissions().then(missingOf, (error: unknown) => {
+      console.error("github app permissions could not be read", error);
+      return [];
+    }),
   ]);
-  return { lastWebhookAt: last?.at ?? null, failedLast24h: ours.n + theirs.length, recentErrors };
+  return { lastWebhookAt: last?.at ?? null, failedLast24h: ours.n + theirs.length, recentErrors, missing };
 }
 
 /**
