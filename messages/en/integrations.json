@@ -109,5 +109,26 @@
     "deleteTitle": "Delete webhook {name}?",
     "deleteDescription": "The channel gets no more notifications from this project; pending ones are dropped.",
     "keep": "Keep"
+  },
+  "linkPr": {
+    "title": "Link pull request",
+    "description": "Pick the task this pull request belongs to. The reference is added to the pull request on GitHub.",
+    "state": {
+      "open": "Open",
+      "closed": "Closed",
+      "merged": "Merged"
+    },
+    "linkedTitle": "Already linked",
+    "linkedNone": "Nothing linked yet.",
+    "system": "System",
+    "wholeSystem": "The whole system",
+    "search": "Search tasks",
+    "noMatch": "No open task matches.",
+    "closes": "Close the task when this PR is merged (adds the ref to the title)",
+    "submit": "Link",
+    "added": "Added {ref} to the pull request. GitHub will update it in a moment.",
+    "already": "{ref} is already on the pull request.",
+    "noSystems": "This project has no active systems yet.",
+    "target": "Link to"
   }
 }
