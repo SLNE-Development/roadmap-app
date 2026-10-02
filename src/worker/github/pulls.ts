@@ -8,6 +8,7 @@ import { refKeyOf, resolveRefs, targetKeyOf, upsertCodeLink, type CodeLinkInput 
 import { logChange } from "@/lib/ops/log";
 import { plural } from "@/lib/text";
 import { onGitHubEvent, type DeliveryOutcome } from "./events";
+import { syncPrComment } from "./pr-comment";
 import { automationActor, NO_ACTOR_NOTE, runPullRequestRules } from "./rules";
 
 /** The parts of `payload.repository` the handlers read. */
@@ -134,7 +135,7 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
   const resetChecks = repo.mode === "app" && (action === "opened" || action === "synchronize");
   const actor = await automationActor(deps.db, repo, pr.user?.id ?? null);
 
-  const links = await deps.db.transaction(async (tx) => {
+  const result = await deps.db.transaction(async (tx) => {
     // A reference in both the title and the body counts as the title's.
     const fromTitle = await targetsOf(tx, repo.projectId, parseRefs(pr.title), true);
     const titleKeys = new Set(fromTitle.map(targetKeyOf));
@@ -162,9 +163,10 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
       await logLink(tx, actor, input, result);
       stored.push({ ...target, ...result });
     }
+    let removed = 0;
     if (action === "edited") {
       const kept = targets.map(targetKeyOf);
-      await tx
+      const deleted = await tx
         .delete(codeLink)
         .where(
           and(
@@ -172,12 +174,19 @@ onGitHubEvent("pull_request", async (job, deps, api) => {
             eq(codeLink.refKey, refKeyOf({ kind: "pr", number: pr.number, sha: null })),
             ...(kept.length > 0 ? [notInArray(codeLink.targetKey, kept)] : []),
           ),
-        );
+        )
+        .returning({ id: codeLink.id });
+      removed = deleted.length;
     }
-    return stored;
+    return { stored, removed };
   });
+  const links = result.stored;
 
   const notes = await runPullRequestRules(job, deps, api, links);
+  if (links.some((l) => l.created) || result.removed > 0 || (action === "opened" && links.length > 0)) {
+    const note = await syncPrComment(deps, api, repo, pr.number);
+    if (note) notes.push(note);
+  }
   const tasks = links.filter((l) => l.taskId !== null).length;
   const detail = [linkedDetail(tasks, links.length - tasks), ...notes].join("; ");
   return { status: notes.includes(NO_ACTOR_NOTE) ? "skipped" : "done", detail };
