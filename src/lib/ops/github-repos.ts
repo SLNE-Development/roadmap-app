@@ -289,13 +289,17 @@ export interface PickableRepos {
 }
 
 /**
- * Lists the repositories the App can see for forms without a project yet, so none is `linked.here`. `canLink` is true
+ * Lists the repositories the App can see for project forms; without a project none is `linked.here`. `canLink` is true
  * when an App is set up and the actor is an admin or the link policy is not `admins`; otherwise `repos` is empty.
+ * With `projectSlug`, that project's own repositories are `linked.here`; this needs viewer access only.
+ *
+ * @throws NotFoundError if `projectSlug` is given and the actor cannot see the project
  */
-export async function pickableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor): Promise<PickableRepos> {
+export async function pickableRepos(db: Db, kv: Kv, api: GitHubApi, actor: Actor, projectSlug?: string): Promise<PickableRepos> {
+  const projectId = projectSlug ? (await projectAccess(db, actor, projectSlug, "viewer")).project.id : null;
   const [app] = await db.select({ linkPolicy: githubApp.linkPolicy }).from(githubApp).where(eq(githubApp.id, "default"));
   if (!app || (!actor.isAdmin && app.linkPolicy === "admins")) return { canLink: false, repos: [] };
-  return { canLink: true, repos: await appRepos(db, kv, api, actor, null) };
+  return { canLink: true, repos: await appRepos(db, kv, api, actor, projectId) };
 }
 
 /** Lists the project's linked repositories by name. Viewer or higher. */

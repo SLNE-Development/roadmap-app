@@ -19,6 +19,8 @@ function linkedLabel(linked: AvailableRepo["linked"], t: ReturnType<typeof useTr
  * A popover combobox of repositories grouped by owner. A repository linked to a project cannot be picked. The caller
  * owns the open state and decides what picking does.
  *
+ * @param props.id id of the trigger button; when given, a form label names it instead of the default label
+ * @param props.describedBy id of the element describing the trigger
  * @param props.repos the query of the repositories to list
  * @param props.open whether the popover is open
  * @param props.onOpenChange called when the popover opens or closes
@@ -30,6 +32,8 @@ function linkedLabel(linked: AvailableRepo["linked"], t: ReturnType<typeof useTr
  * @param props.onCloseAutoFocus called when the popover closes, to take over the focus
  */
 export function RepoCombobox({
+  id,
+  describedBy,
   repos,
   open,
   onOpenChange,
@@ -40,6 +44,8 @@ export function RepoCombobox({
   footer,
   onCloseAutoFocus,
 }: {
+  id?: string;
+  describedBy?: string;
   repos: UseQueryResult<AvailableRepo[], { message: string }>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -57,7 +63,9 @@ export function RepoCombobox({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={t("picker.label")}
+          id={id}
+          aria-describedby={describedBy}
+          aria-label={id ? undefined : t("picker.label")}
           disabled={disabled}
           className="flex h-[34px] w-full max-w-md items-center gap-2 border border-input bg-background px-2.5 text-left text-[13.5px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
         >

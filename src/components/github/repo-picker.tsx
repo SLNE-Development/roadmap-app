@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -21,7 +21,15 @@ export function RepoPicker({ slug, onManual }: { slug: string; onManual: () => v
   // Set when the popover closes towards the manual form, which then gets the focus instead of the trigger.
   const toManual = useRef(false);
   const repos = useQuery({ ...trpc.github.availableRepos.queryOptions({ project: slug }), enabled: open });
-  const link = useMutation(trpc.github.linkAppRepo.mutationOptions({ onSuccess: (repo) => toast.success(t("github.linked", { name: repo.fullName })) }));
+  const queryClient = useQueryClient();
+  const link = useMutation(
+    trpc.github.linkAppRepo.mutationOptions({
+      onSuccess: async (repo) => {
+        toast.success(t("github.linked", { name: repo.fullName }));
+        await queryClient.invalidateQueries({ queryKey: trpc.github.pickableRepos.queryKey() });
+      },
+    }),
+  );
   const installMore = useMutation(trpc.github.installMoreUrl.mutationOptions({ onSuccess: ({ url }) => window.location.assign(url) }));
   return (
     <RepoCombobox

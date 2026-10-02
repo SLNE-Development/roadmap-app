@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
+import { RepoField } from "@/components/github/repo-field";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { RepoField } from "@/components/github/repo-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,7 +68,7 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const update = useMutation(trpc.projects.update.mutationOptions());
-  const pickable = useQuery({ ...trpc.github.pickableRepos.queryOptions(), staleTime: 60_000 });
+  const pickable = useQuery({ ...trpc.github.pickableRepos.queryOptions({ project: slug }), staleTime: 60_000 });
   const [picked, setPicked] = useState<string | null>(null);
   const pending = update.isPending;
   const [draft, setDraft] = useState({ name, description, repoUrl: repoUrl ?? "" });
@@ -86,6 +86,7 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
               toast.success(t("general.saved"));
               // Only a repo that was picked in this edit and is not linked anywhere yet gets linked.
               const repo = picked && pickable.data?.repos.find((r) => r.fullName === picked);
+              setPicked(null);
               if (!repo || repo.linked) return;
               try {
                 const linked = await trpcClient.github.linkAppRepo.mutate({ project: slug, repo: { fullName: repo.fullName } });
@@ -93,8 +94,8 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
               } catch (error) {
                 toast.error(error instanceof Error ? error.message : String(error));
               }
-              setPicked(null);
               await queryClient.invalidateQueries({ queryKey: trpc.github.repos.queryKey({ project: slug }) });
+              await queryClient.invalidateQueries({ queryKey: trpc.github.pickableRepos.queryKey() });
             },
           },
         );
@@ -134,6 +135,7 @@ function GeneralForm({ slug, name, description, repoUrl }: { slug: string; name:
           id="settings-repo"
           placeholder={t("general.repositoryPlaceholder")}
           describedBy="settings-repo-help"
+          project={slug}
           value={draft.repoUrl}
           onChange={(repoUrl, pickedName) => {
             setDraft({ ...draft, repoUrl });

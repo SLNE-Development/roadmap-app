@@ -16,6 +16,7 @@ import { useTRPC } from "@/trpc/client";
  * @param props.onChange called with the new text and the picked `owner/repo`, or null when the text was typed
  * @param props.placeholder shown while the field is empty
  * @param props.describedBy id of the element describing the input
+ * @param props.project slug of the edited project, so its own repositories show as linked here
  */
 export function RepoField({
   id,
@@ -23,18 +24,20 @@ export function RepoField({
   onChange,
   placeholder,
   describedBy,
+  project,
 }: {
   id: string;
   value: string;
   onChange: (value: string, picked: string | null) => void;
   placeholder: string;
   describedBy?: string;
+  project?: string;
 }) {
   const t = useTranslations("integrations");
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
   const [manual, setManual] = useState(false);
-  const options = { ...trpc.github.pickableRepos.queryOptions(), staleTime: 60_000 };
+  const options = { ...trpc.github.pickableRepos.queryOptions({ project }), staleTime: 60_000 };
   const pickable = useQuery(options);
   const repos = useQuery({ ...options, select: (data) => data.repos });
   if (manual || !pickable.data?.canLink) {
@@ -51,6 +54,8 @@ export function RepoField({
   }
   return (
     <RepoCombobox
+      id={id}
+      describedBy={describedBy}
       repos={repos}
       open={open}
       onOpenChange={setOpen}

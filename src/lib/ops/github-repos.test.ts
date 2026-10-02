@@ -7,7 +7,7 @@ import { memoryKv, type Kv } from "@/lib/kv";
 import { createTestDb } from "@/test/db";
 import { addMemberFixture, insertUser } from "@/test/fixtures";
 import type { Actor } from "./actor";
-import { ConflictError, ForbiddenError, InvalidError } from "./errors";
+import { ConflictError, ForbiddenError, InvalidError, NotFoundError } from "./errors";
 import { saveAppCredentials, setLinkPolicy } from "./github-app";
 import { availableRepos, linkAppRepo, linkManualRepo, listLinkedRepos, pickableRepos, revealRepoSecret, setRepoRules, unlinkRepo } from "./github-repos";
 import { setMember } from "./members";
@@ -104,6 +104,16 @@ describe("github repos", () => {
     expect(forO.repos.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: false, projectName: null });
     const forO2 = await pickableRepos(db, kv, api, o2);
     expect(forO2.repos.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: false, projectName: "Q" });
+  });
+
+  it("marks the project's own repos as linked here when a project is given", async () => {
+    const { db, kv, api, o, o2 } = await setup();
+    await linkAppRepo(db, kv, api, o2, "q", { fullName: "Org/b" });
+    const forQ = await pickableRepos(db, kv, api, o2, "q");
+    expect(forQ.repos.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: true });
+    await expect(pickableRepos(db, kv, api, o, "q")).rejects.toThrow(NotFoundError);
+    const viewer = await addMemberFixture(db, o2, "q", "viewer");
+    expect((await pickableRepos(db, kv, api, viewer, "q")).repos.find((r) => r.fullName === "Org/b")?.linked).toEqual({ here: true });
   });
 
   it("offers no pickable repos under the admins policy for a non-admin, or without an App", async () => {

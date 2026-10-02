@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -37,6 +37,7 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
   const [open, setOpen] = useState(false);
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
   // The follow-up sits on the mutation, not on `mutate`: the first project replaces an empty state
   // that holds this dialog, which unmounts before the mutation settles.
   const [pickedRepo, setPickedRepo] = useState<string | null>(null);
@@ -49,6 +50,7 @@ export function NewProjectDialog({ variant = "button" }: { variant?: "button" | 
           // The vanilla client, so the link does not depend on this dialog staying mounted.
           try {
             await trpcClient.github.linkAppRepo.mutate({ project: created, repo: { fullName: pickedRepo } });
+            await queryClient.invalidateQueries({ queryKey: trpc.github.pickableRepos.queryKey() });
           } catch {
             toast.error(t("repoLinkFailed", { name: pickedRepo }));
           }

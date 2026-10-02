@@ -42,7 +42,8 @@ function setup() {
   render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={en} timeZone="UTC">
-        <RepoField id="repo" value="" onChange={onChange} placeholder={PLACEHOLDER} />
+        <label htmlFor="repo">Repository</label>
+        <RepoField id="repo" value="" onChange={onChange} placeholder={PLACEHOLDER} describedBy="help" />
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
@@ -55,13 +56,14 @@ describe("RepoField", () => {
     setup();
     const input = await screen.findByPlaceholderText(PLACEHOLDER);
     expect(input.tagName).toBe("INPUT");
-    expect(screen.queryByRole("button", { name: "Link a repository" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Repository" })).toBeNull();
   });
 
   it("renders a combobox and reports the picked repository", async () => {
     handlers["github.pickableRepos"] = () => ({ canLink: true, repos: [repo("org/app")] });
     const onChange = setup();
-    fireEvent.click(await screen.findByRole("button", { name: "Link a repository" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Repository" }));
+    expect(screen.getByRole("button", { name: "Repository" }).getAttribute("aria-describedby")).toBe("help");
     fireEvent.click(await screen.findByText("org/app"));
     expect(onChange).toHaveBeenCalledWith("https://github.com/org/app", "org/app");
   });
@@ -72,7 +74,7 @@ describe("RepoField", () => {
       repos: [repo("org/app"), repo("org/taken", { here: false, projectName: "Q" })],
     });
     const onChange = setup();
-    fireEvent.click(await screen.findByRole("button", { name: "Link a repository" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Repository" }));
     const taken = (await screen.findByText("org/taken")).closest("[cmdk-item]");
     expect(taken?.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(taken as Element);
@@ -82,7 +84,7 @@ describe("RepoField", () => {
   it("switches to the URL input and keeps typing", async () => {
     handlers["github.pickableRepos"] = () => ({ canLink: true, repos: [repo("org/app")] });
     const onChange = setup();
-    fireEvent.click(await screen.findByRole("button", { name: "Link a repository" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Repository" }));
     fireEvent.click(await screen.findByRole("button", { name: "Enter URL by hand" }));
     fireEvent.change(await screen.findByPlaceholderText(PLACEHOLDER), { target: { value: "https://x.test/a" } });
     expect(onChange).toHaveBeenCalledWith("https://x.test/a", null);
