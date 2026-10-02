@@ -155,7 +155,7 @@
     "dismiss": "Dismiss",
     "settingsTitle": "App settings",
     "permissions": "Permissions",
-    "permissionsHint": "Metadata, contents and checks read; pull requests read and write (to comment and add roadmap refs). Events: pull requests, pushes, check suites and comments.",
+    "permissionsHint": "Metadata, contents and checks read; pull requests read and write (to comment and add roadmap refs); issues read (to receive comments). Events: pull requests, pushes, check suites and comments.",
     "missingPermissions": "The App on GitHub lacks {list}. Add them under the App's settings → Permissions & events, then accept the new permissions on every installation.",
     "installOtherAccounts": "To install on other accounts or organizations, the App must be public: App settings → Advanced → Make public.",
     "rotatedOn": "Rotated {date}",

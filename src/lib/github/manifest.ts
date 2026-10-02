@@ -8,6 +8,7 @@ export const REQUIRED_PERMISSIONS: Readonly<Record<string, "read" | "write">> = 
   metadata: "read",
   contents: "read",
   pull_requests: "write",
+  issues: "read",
   checks: "read",
 });
 

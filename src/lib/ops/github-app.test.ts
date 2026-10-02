@@ -248,7 +248,7 @@ describe("github app health", () => {
         events: ["pull_request", "push", "check_suite"],
       },
     });
-    expect((await appHealth(db, api, admin, NOW)).missing).toEqual(["pull_requests: write", "event issue_comment"]);
+    expect((await appHealth(db, api, admin, NOW)).missing).toEqual(["pull_requests: write", "issues: read", "event issue_comment"]);
   });
 
   it("keeps the panel working when the permissions cannot be read", async () => {

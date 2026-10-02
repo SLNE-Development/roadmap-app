@@ -18,7 +18,7 @@ describe("buildManifest", () => {
     const m = buildManifest(BASE, "Roadmap");
     expect(m.public).toBe(true);
     expect(m.request_oauth_on_install).toBe(false);
-    expect(m.default_permissions).toEqual({ metadata: "read", contents: "read", pull_requests: "write", checks: "read" });
+    expect(m.default_permissions).toEqual({ metadata: "read", contents: "read", pull_requests: "write", issues: "read", checks: "read" });
     expect(m.default_permissions).toEqual(REQUIRED_PERMISSIONS);
     expect(m.default_events).toEqual(["pull_request", "push", "check_suite", "issue_comment"]);
     expect(m.default_events).toEqual(REQUIRED_EVENTS);

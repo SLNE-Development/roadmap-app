@@ -155,7 +155,7 @@
     "dismiss": "Verwerfen",
     "settingsTitle": "App-Einstellungen",
     "permissions": "Berechtigungen",
-    "permissionsHint": "Metadaten, Inhalte und Checks lesen; Pull Requests lesen und schreiben (um zu kommentieren und Roadmap-Refs hinzuzufügen). Ereignisse: Pull Requests, Pushes, Check-Suites und Kommentare.",
+    "permissionsHint": "Metadaten, Inhalte und Checks lesen; Pull Requests lesen und schreiben (um zu kommentieren und Roadmap-Refs hinzuzufügen); Issues lesen (um Kommentare zu empfangen). Ereignisse: Pull Requests, Pushes, Check-Suites und Kommentare.",
     "missingPermissions": "Der App auf GitHub fehlen {list}. Füge sie in den App-Einstellungen unter Permissions & events hinzu und nimm die neuen Berechtigungen dann bei jeder Installation an.",
     "installOtherAccounts": "Um die App auf anderen Konten oder Organisationen zu installieren, muss sie öffentlich sein: App-Einstellungen → Advanced → Make public.",
     "rotatedOn": "Erneuert am {date}",
