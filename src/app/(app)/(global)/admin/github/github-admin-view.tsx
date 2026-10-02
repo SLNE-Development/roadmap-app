@@ -380,6 +380,7 @@ function ConnectedApp({ app }: { app: AppSummary }) {
             ))}
           </ul>
         )}
+        <p className="px-4 pb-4 text-[12.5px] text-fg-2 sm:px-5 sm:pb-5">{t("installOtherAccounts")}</p>
       </Panel>
 
       <Panel title={t("settingsTitle")} bodyClassName="px-4 pb-4 sm:px-5 sm:pb-5 gap-4">
@@ -388,6 +389,14 @@ function ConnectedApp({ app }: { app: AppSummary }) {
           <span className="text-[12.5px] text-fg-2">
             {t("permissionsHint")}
           </span>
+          {health.data && health.data.missing.length > 0 && (
+            <p className="text-[12.5px] text-destructive">
+              {t("missingPermissions", { list: health.data.missing.join(", ") })}{" "}
+              <a href={app.htmlUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
+                {t("view")}
+              </a>
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-[12.5px] text-fg-2">

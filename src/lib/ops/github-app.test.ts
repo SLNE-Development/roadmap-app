@@ -7,6 +7,7 @@ import { memoryKv } from "@/lib/kv";
 import { createTestDb } from "@/test/db";
 import { insertUser } from "@/test/fixtures";
 import {
+  appHealth,
   completeManifest,
   getAppSummary,
   loadAppConfig,
@@ -222,5 +223,39 @@ describe("github app setup", () => {
     await saveAppCredentials(db, admin, input);
     await setLinkPolicy(db, admin, "admins");
     expect((await getAppSummary(db, admin))?.linkPolicy).toBe("admins");
+  });
+});
+
+describe("github app health", () => {
+  const NOW = new Date("2026-10-01T12:00:00Z");
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reports nothing missing when the app has the required permissions", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    expect(await appHealth(db, fakeGitHubApi(), admin, NOW)).toMatchObject({ missing: [], failedLast24h: 0 });
+  });
+
+  it("names the permissions and events the app lacks", async () => {
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const api = fakeGitHubApi({
+      appPermissions: {
+        permissions: { pull_requests: "read", metadata: "read", contents: "read", checks: "read" },
+        events: ["pull_request", "push", "check_suite"],
+      },
+    });
+    expect((await appHealth(db, api, admin, NOW)).missing).toEqual(["pull_requests: write", "event issue_comment"]);
+  });
+
+  it("keeps the panel working when the permissions cannot be read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const db = await createTestDb();
+    const admin = await insertUser(db, { isAdmin: true });
+    const api = fakeGitHubApi({ failWith: { getAppPermissions: 500 } });
+    expect(await appHealth(db, api, admin, NOW)).toMatchObject({ missing: [], lastWebhookAt: null, failedLast24h: 0, recentErrors: [] });
   });
 });
