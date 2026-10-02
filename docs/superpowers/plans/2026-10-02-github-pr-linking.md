@@ -87,7 +87,7 @@
 
 - **Wave A (parallel):** Task 1 and Task 2 share no files.
 - **Wave B (parallel, after Wave A is merged):** Tasks 3, 5 and 6. Task 5 edits `routers/github.ts` and `messages/*/integrations.json`, which Task 2 also edits, so Task 5 must start from the merged Wave A.
-- **Wave C:** Task 4 needs Task 3's `syncPrComment` and Task 5's `searchOpenTasks`.
+- **Wave C:** Task 4 needs Task 3's `syncPrComment` and Task 5's `searchOpenTasks`. Task 7 runs next to it (it touches `github-repos.ts`, `api.ts`, `fake.ts`, the combobox and `integrations.json`; Task 4 touches only worker files).
 
 ---
 
@@ -475,6 +475,55 @@ export async function searchOpenTasks(db: Executor, projectId: string, query: st
 - [ ] Step 3: commit `feat(github): warn admins about missing app permissions`
 
 ---
+
+### Task 7: Picker only shows repos the person can see on GitHub
+
+The user asked for this on 2026-10-02, after the plan was written. Decisions:
+- With no linked GitHub account, the picker shows public repos only, plus a hint to link one.
+- Admins are filtered like everyone else.
+
+**Files:**
+- Modify: `src/lib/github/api.ts`, `src/lib/github/fake.ts`, `src/lib/github/api.test.ts`, `src/lib/ops/github-repos.ts`, `src/lib/ops/github-repos.test.ts`, `src/components/github/repo-combobox.tsx`, `src/server/trpc/routers/github.ts` (only if a response shape changes), `messages/{en,de}/integrations.json`
+
+**Interfaces (Produces):**
+
+```ts
+// GitHubApi
+/** Whether the GitHub user `login` can read the repo: GET /repos/{owner}/{repo}/collaborators/{username}/permission through the installation; permission "none" or a 404 → false. */
+canUserReadRepo(installationId: number, fullName: string, login: string): Promise<boolean>;
+// fake seed: readers?: Record<string, string[]>  // fullName → logins that can read it; default none
+// github-repos.ts
+export interface PickerRepos { repos: AvailableRepo[]; githubLinked: boolean } // returned by availableRepos (was AvailableRepo[])
+// PickableRepos gains githubLinked: boolean
+```
+
+**Directions:**
+- Add a private `visibleTo(db, kv, api, actor, found: { repo: RepoInfo; installationId: number }[])` in `github-repos.ts`.
+  - It loads the actor's `githubAccount` row.
+  - Public repos (`!repo.private`) always stay in.
+  - With no linked account, private repos are dropped.
+  - Otherwise each private repo is checked with `api.canUserReadRepo(installationId, fullName, account.login)`, cached in Kv under `gh:read:<githubRepoId>:<githubId>` (value `"1"`/`"0"`, TTL `REPO_CACHE_TTL`), at most 8 GitHub calls in flight.
+  - A GitHub error for one repo is logged and the repo is dropped (fail closed). Kv read/write errors are logged and ignored, like `cachedRepos`.
+- The shared repo listing that `availableRepos` and `pickableRepos` use (the `appRepos` helper Task 2 introduced) filters through `visibleTo` before the link lookup.
+- `availableRepos` now returns `{ repos, githubLinked }`; update `RepoPicker` and its tests to match. `pickableRepos` adds `githubLinked`.
+- `linkAppRepo` must enforce the same rule, so a hidden repo can't be linked by typing its name. After `findAppRepo` succeeds, when the repo is private and `visibleTo` drops it, throw the same InvalidError as for a repo the App can't see. Don't reveal that it exists.
+- Clear the cached answers when someone links or unlinks their GitHub account? Not needed: the key includes `githubId`, so a new account gets new keys.
+- `RepoCombobox`: when `githubLinked` is false, the footer shows `integrations.picker.linkGitHubHint` ("Link your GitHub account to see private repositories.") with a link to `/settings/connections`. German: "Verknüpfe dein GitHub-Konto, um private Repositories zu sehen."
+- Admins get no bypass.
+
+**Tests (input → expected):**
+- One installation with `org/pub` (public), `org/priv` (private) and `org/hidden` (private); fake `readers: { "org/priv": ["alice"] }`.
+  - Actor linked as alice → `org/pub` and `org/priv`.
+  - Actor without a linked account → `org/pub` only, `githubLinked: false`.
+  - An admin linked as bob → `org/pub` only.
+- A second call within the TTL makes no new `canUserReadRepo` calls.
+- `failWith: { canUserReadRepo: 500 }` → `org/priv` is dropped, and nothing throws.
+- `linkAppRepo` for `org/hidden` as alice → InvalidError. For `org/priv` as alice → linked.
+- `api.test.ts`: the permission endpoint answering `{ permission: "none" }` → false, `{ permission: "read" }` → true, 404 → false.
+
+- [ ] Step 1: write the failing tests, then run them
+- [ ] Step 2: implement; run until green, then typecheck, lint and the existing repo-picker/repo-field tests
+- [ ] Step 3: commit `feat(github): only offer repositories the person can see on github`
 
 ## Final checks (after all tasks)
 
