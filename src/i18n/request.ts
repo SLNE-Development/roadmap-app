@@ -23,11 +23,11 @@ export type Messages = typeof import("../../messages/en").default;
  * @param opts.acceptLanguage the `Accept-Language` request header
  */
 export async function loadRequestConfig(opts: {
-  db: Db;
+  db: Db | null;
   userId: string | null;
   acceptLanguage: string | null;
 }): Promise<{ locale: Locale; timeZone: string; messages: Messages }> {
-  const [localePref, timeZonePref] = opts.userId
+  const [localePref, timeZonePref] = opts.db && opts.userId
     ? await Promise.all([getPref(opts.db, opts.userId, "locale"), getPref(opts.db, opts.userId, "timeZone")])
     : [null, null];
   const locale = resolveLocale(localePref, opts.acceptLanguage);
@@ -38,7 +38,8 @@ export async function loadRequestConfig(opts: {
 export default getRequestConfig(async () => {
   const actor = await sessionActor();
   const config = await loadRequestConfig({
-    db: getDb(),
+    // Only a signed-in user has stored preferences; a prerender has no database.
+    db: actor ? getDb() : null,
     userId: actor?.userId ?? null,
     acceptLanguage: (await headers()).get("accept-language"),
   });

@@ -1,5 +1,6 @@
 import "server-only";
 import { defaultKeyHasher } from "@better-auth/api-key";
+import { getSessionCookie } from "better-auth/cookies";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -15,7 +16,10 @@ import { getAuth } from "./server";
 
 /** Returns the signed-in actor of the current request and the id of its session, or `null` without a valid, provisioned session. */
 export async function sessionAuth(): Promise<{ actor: Actor; sessionId: string } | null> {
-  const found = await getAuth().api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  // No session cookie, no session: skips auth and the database, which a build's prerender does not have.
+  if (!getSessionCookie(requestHeaders)) return null;
+  const found = await getAuth().api.getSession({ headers: requestHeaders });
   if (!found) return null;
   const actor = await loadActor(getDb(), found.user.id);
   return actor ? { actor, sessionId: found.session.id } : null;
