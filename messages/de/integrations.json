@@ -109,5 +109,26 @@
     "deleteTitle": "Webhook {name} löschen?",
     "deleteDescription": "Der Kanal erhält keine Benachrichtigungen mehr von diesem Projekt; ausstehende werden verworfen.",
     "keep": "Behalten"
+  },
+  "linkPr": {
+    "title": "Pull Request verknüpfen",
+    "description": "Wähle die Aufgabe, zu der dieser Pull Request gehört. Der Verweis wird dem Pull Request auf GitHub hinzugefügt.",
+    "state": {
+      "open": "Offen",
+      "closed": "Geschlossen",
+      "merged": "Gemergt"
+    },
+    "linkedTitle": "Bereits verknüpft",
+    "linkedNone": "Noch nichts verknüpft.",
+    "system": "System",
+    "wholeSystem": "Das ganze System",
+    "search": "Aufgaben suchen",
+    "noMatch": "Keine offene Aufgabe passt.",
+    "closes": "Aufgabe schließen, wenn dieser PR gemergt wird (fügt den Verweis zum Titel hinzu)",
+    "submit": "Verknüpfen",
+    "added": "{ref} zum Pull Request hinzugefügt. GitHub aktualisiert ihn gleich.",
+    "already": "{ref} steht schon im Pull Request.",
+    "noSystems": "Dieses Projekt hat noch keine aktiven Systeme.",
+    "target": "Verknüpfen mit"
   }
 }

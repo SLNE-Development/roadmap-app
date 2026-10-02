@@ -33,6 +33,7 @@ import {
   setRepoRules,
   unlinkRepo,
 } from "@/lib/ops/github-repos";
+import { linkPullRequest, linkPullRequestInput, pullRequestLinkContext } from "@/lib/ops/github-pr";
 import { entityId } from "@/lib/ops/params";
 import { protectedProcedure, router } from "../init";
 import { P } from "./shared";
@@ -134,6 +135,19 @@ export const githubRouter = router({
     configured: await githubAppConfigured(ctx.db),
     account: await myGitHubAccount(ctx.db, ctx.actor),
   })),
+
+  /** The pull request, what it links and the open tasks to pick from, for the PR link picker. Editor or higher. */
+  pullRequestContext: protectedProcedure
+    .input(z.object({ ...P, repoId: z.string().min(1), number: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => pullRequestLinkContext(ctx.db, await getGitHubApi(ctx.db), ctx.actor, input.project, input.repoId, input.number)),
+
+  /** Adds a task's or system's roadmap ref to a pull request. Editor or higher. */
+  linkPullRequest: protectedProcedure
+    .input(z.object({ ...P, ...linkPullRequestInput.shape }))
+    .mutation(async ({ ctx, input }) => {
+      const { project, ...rest } = input;
+      return linkPullRequest(ctx.db, await getGitHubApi(ctx.db), ctx.actor, project, rest);
+    }),
 
   /** Starts linking the actor's GitHub login; the browser opens `url`. */
   startLink: protectedProcedure.mutation(({ ctx }) => startGitHubLink(ctx.db, ctx.kv, ctx.actor)),
