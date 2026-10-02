@@ -61,7 +61,7 @@ type UpsertResult = Awaited<ReturnType<typeof upsertCodeLink>>;
 const HANDLED_ACTIONS = new Set(["opened", "reopened", "edited", "synchronize", "ready_for_review", "closed"]);
 const MAX_COMMITS = 100;
 const MAX_TITLE = 200;
-const NOT_LINKED: DeliveryOutcome = { status: "ignored", detail: "repository not linked" };
+export const NOT_LINKED: DeliveryOutcome = { status: "ignored", detail: "repository not linked" };
 const LINKED_BY_HAND: DeliveryOutcome = { status: "ignored", detail: "linked by hand" };
 const GITHUB_URL = "https://github.com/";
 
