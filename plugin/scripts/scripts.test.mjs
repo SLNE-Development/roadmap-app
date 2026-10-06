@@ -191,6 +191,14 @@ test("CLI prints JSON and exits 0 on success", () => {
   assert.ok(audit.json.findings.every((f) => f.kind === "conforming"));
 });
 
+test("CLI has no whoami: the roadmap is reached through the MCP server, never the script", () => {
+  const out = run("whoami");
+  assert.equal(out.status, 1);
+  assert.equal(out.json.ok, false);
+  assert.match(out.json.error, /^usage: /);
+  assert.doesNotMatch(out.json.error, /whoami/);
+});
+
 test("CLI reports failures as JSON with a non-zero exit", () => {
   const missing = join(tmpdir(), "surf-roadmap-does-not-exist");
   for (const args of [

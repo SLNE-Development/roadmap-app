@@ -21,13 +21,16 @@ and never continue as if it had worked.
 
 ## Step 1 — Connection
 
-Run `whoami`. If `ok` is false, tell the user exactly what the error says and how
-to fix it, then stop:
+Call the `whoami` tool of the surf-roadmap MCP server. The server signs in through
+the browser (OAuth); there is no script or REST fallback, so never call the API any
+other way. If the tool is missing or fails, tell the user exactly what happened and
+how to fix it, then stop:
 
-- missing variable: set `ROADMAP_URL` and `ROADMAP_API_KEY` (the app's account
-  menu → API keys shows both lines), then restart Claude Code;
-- 401: the key is wrong, expired or revoked; create a new one;
-- unreachable: check the URL.
+- needs authentication: run `/mcp`, pick surf-roadmap and sign in with Discord in
+  the browser, then retry;
+- the account is refused: an admin has to add the user's Discord account;
+- unreachable or wrong server: check the plugin's Roadmap URL (`/config`, default
+  `https://roadmap.slne.dev`).
 
 On success, remember `name` and `projects`.
 

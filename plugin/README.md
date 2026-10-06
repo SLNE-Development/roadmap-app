@@ -20,15 +20,17 @@ project it:
 /plugin install surf-roadmap@surf-roadmap
 ```
 
-Create an API key in the app (account menu → API keys) and set the two lines it
-shows as environment variables before starting Claude Code:
+The plugin asks for the roadmap URL when it is enabled (default
+`https://roadmap.slne.dev`; change it later in `/config`, without a trailing slash).
+The MCP server signs in through the browser: on first use Claude Code opens the
+roadmap, you sign in with Discord and allow access once. If a tool reports that it
+needs authentication, run `/mcp` and sign in. Connected apps can be disconnected
+in the app under API keys.
 
-```
-ROADMAP_URL=https://roadmap.example.com
-ROADMAP_API_KEY=rmk_…
-```
-
-`ROADMAP_URL` must not end with a slash.
+Optional: the session hooks name agent runs and report token usage over the REST
+API, which takes only API keys. To enable that, create a key in the app (account
+menu → API keys) and set `ROADMAP_API_KEY=rmk_…` before starting Claude Code.
+`ROADMAP_URL` is still honoured when the plugin option is unset.
 
 Then, in each repository: `/surf-roadmap:setup`.
 

@@ -20,7 +20,7 @@ function linkedRepo() {
 
 /** Runs a hook script with `stdin` and returns its exit code and stdout. */
 function run(script, stdin) {
-  const env = { ...process.env, ROADMAP_URL: "", ROADMAP_API_KEY: "" };
+  const env = { ...process.env, ROADMAP_URL: "", ROADMAP_API_KEY: "", CLAUDE_PLUGIN_OPTION_ROADMAP_URL: "" };
   const result = spawnSync(process.execPath, [join(here, script)], { input: stdin, encoding: "utf8", env });
   return { status: result.status, stdout: result.stdout };
 }
@@ -93,7 +93,20 @@ test("session-start adds context in a linked repo", () => {
   const out = run("session-start.mjs", JSON.stringify({ cwd: root, hook_event_name: "SessionStart" }));
   assert.equal(out.status, 0);
   const ctx = JSON.parse(out.stdout).hookSpecificOutput.additionalContext;
-  assert.match(ctx, /ROADMAP_URL or ROADMAP_API_KEY is not set/);
+  assert.match(ctx, /signs in through the browser/);
+  assert.doesNotMatch(ctx, /is not set/);
+});
+
+test("session-start and stop use the plugin's roadmap_url option before ROADMAP_URL", async () => {
+  const roadmap = await fakeRoadmap();
+  try {
+    const env = { CLAUDE_PLUGIN_OPTION_ROADMAP_URL: `${roadmap.url}/`, ROADMAP_URL: "http://127.0.0.1:9", ROADMAP_API_KEY: "key" };
+    const out = await runAsync("session-start.mjs", JSON.stringify({ cwd: linkedRepo(), session_id: "sess-7" }), env);
+    assert.match(JSON.parse(out.stdout).hookSpecificOutput.additionalContext, /Signed in to the roadmap as Ammo/);
+    assert.ok(roadmap.requests.some((r) => r.method === "POST" && r.url === "/api/v1/agent-runs"));
+  } finally {
+    roadmap.close();
+  }
 });
 
 test("treats in-repo names starting with two dots as inside the repo", () => {

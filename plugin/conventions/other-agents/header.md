@@ -14,12 +14,14 @@ in this repository. Where this file is silent, other instructions apply.
 and are read and written through its MCP server. Add it to your agent:
 
 - URL: `${ROADMAP_URL}/api/mcp` (streamable HTTP)
-- Header: `Authorization: Bearer ${ROADMAP_API_KEY}`
+- Sign-in: OAuth in the browser, for agents that support it; otherwise the header
+  `Authorization: Bearer ${ROADMAP_API_KEY}`
 
-Create the API key in the app's account menu (API keys). Codex, in
-`~/.codex/config.toml`: a `[mcp_servers.roadmap]` entry with that URL and
+Codex, in `~/.codex/config.toml`: a `[mcp_servers.roadmap]` entry with that URL,
+then `codex mcp login roadmap`; without OAuth, add
 `bearer_token_env_var = "ROADMAP_API_KEY"`. Cursor, in `.cursor/mcp.json`: a
-`roadmap` server with that URL and the Authorization header.
+`roadmap` server with that URL (Cursor signs in itself). API keys are created in
+the app's account menu (API keys).
 
 ## Without the plugin
 

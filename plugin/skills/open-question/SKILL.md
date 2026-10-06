@@ -1,6 +1,6 @@
 ---
 name: open-question
-description: Record something that cannot be decided now as an open question in the roadmap, tied to a system when it concerns one, and resolve it when answered. Use when blocked on a human decision, when an answer is needed from someone who is not here, or when a planning interview surfaces a question outside the current system. Not for questions to the event planner of an event request: those go to ask_requester.
+description: Record something that cannot be decided now as an open question in the roadmap, tied to a system when it concerns one, and resolve it when answered. Use when blocked on a human decision, when an answer is needed from someone who is not here, or when a planning interview surfaces a question outside the current system. Not for questions to the event planner of an event request, which go to ask_requester.
 argument-hint: "[the question]"
 ---
 

@@ -1,12 +1,18 @@
-import { findLinkedRoot, gitInfo, postJson, readInput, readLink, runNames, sessionContext } from "./lib.mjs";
+import { findLinkedRoot, gitInfo, postJson, readInput, readLink, roadmapUrl, runNames, sessionContext } from "./lib.mjs";
 
-/** Returns a one-line description of the API key's user, or why it could not be checked. */
+/** Line for a session without an API key: the MCP server signs in on its own. */
+const OAUTH_ONLY = "The surf-roadmap MCP server signs in through the browser on first use; if a tool asks for authentication, run /mcp and sign in.";
+
+/**
+ * Returns a one-line description of the API key's user, or why it could not be checked. Without
+ * an API key the MCP server still works through its browser sign-in, so that is not a problem.
+ */
 async function whoami() {
-  const url = process.env.ROADMAP_URL;
+  const url = roadmapUrl();
   const key = process.env.ROADMAP_API_KEY;
-  if (!url || !key) return "ROADMAP_URL or ROADMAP_API_KEY is not set; the surf-roadmap MCP server cannot connect. Run /surf-roadmap:setup.";
+  if (!url || !key) return OAUTH_ONLY;
   try {
-    const response = await fetch(`${url.replace(/\/+$/, "")}/api/v1/whoami`, {
+    const response = await fetch(`${url}/api/v1/whoami`, {
       headers: { authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(3000),
     });

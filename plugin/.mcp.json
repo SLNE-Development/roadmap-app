@@ -2,8 +2,7 @@
   "mcpServers": {
     "surf-roadmap": {
       "type": "http",
-      "url": "${ROADMAP_URL}/api/mcp",
-      "headers": { "Authorization": "Bearer ${ROADMAP_API_KEY}" }
+      "url": "${user_config.roadmap_url}/api/mcp"
     }
   }
 }

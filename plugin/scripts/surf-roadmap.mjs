@@ -100,18 +100,6 @@ async function main() {
   const globalFile = f.file ?? join(homedir(), ".claude", "CLAUDE.md");
 
   switch (command) {
-    case "whoami": {
-      const url = process.env.ROADMAP_URL;
-      const key = process.env.ROADMAP_API_KEY;
-      if (!url || !key) done({ ok: false, error: `Missing ${!url ? "ROADMAP_URL" : "ROADMAP_API_KEY"}. Set both, then restart Claude Code.` }, 1);
-      const response = await fetch(`${url.replace(/\/+$/, "")}/api/v1/whoami`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(5000) }).catch((error) => {
-        done({ ok: false, error: `Could not reach ${url}: ${error.message}` }, 1);
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) done({ ok: false, status: response.status, error: body.error ?? response.statusText }, 1);
-      done({ ok: true, ...body });
-      break;
-    }
     case "detect-global": {
       const found = detectRestrictions(readOr(globalFile));
       const view = (s) => (s ? { heading: s.heading, text: s.text } : null);
@@ -178,7 +166,7 @@ async function main() {
       break;
     }
     default:
-      throw new UsageError("usage: surf-roadmap.mjs <whoami|detect-global|remove-global|apply|other-agents|audit> [flags]");
+      throw new UsageError("usage: surf-roadmap.mjs <detect-global|remove-global|apply|other-agents|audit> [flags]");
   }
 }
 

@@ -194,13 +194,25 @@ export async function sumTranscriptUsage(path, maxBytes = 50 * 1024 * 1024) {
   return total;
 }
 
-/** POSTs `body` as JSON to the roadmap REST API; resolves false on any failure and never throws. */
+/**
+ * Returns the roadmap's base URL without trailing slashes: the plugin's `roadmap_url` option,
+ * else `ROADMAP_URL`, else null.
+ */
+export function roadmapUrl() {
+  const url = (process.env.CLAUDE_PLUGIN_OPTION_ROADMAP_URL || process.env.ROADMAP_URL || "").replace(/\/+$/, "");
+  return url || null;
+}
+
+/**
+ * POSTs `body` as JSON to the roadmap REST API with `ROADMAP_API_KEY`; resolves false on any
+ * failure and never throws. The REST API takes only API keys, so without one nothing is sent.
+ */
 export async function postJson(path, body, timeoutMs) {
-  const url = process.env.ROADMAP_URL;
+  const url = roadmapUrl();
   const key = process.env.ROADMAP_API_KEY;
   if (!url || !key) return false;
   try {
-    const response = await fetch(`${url.replace(/\/+$/, "")}/api/v1${path}`, {
+    const response = await fetch(`${url}/api/v1${path}`, {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify(body),
