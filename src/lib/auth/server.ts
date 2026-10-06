@@ -90,6 +90,28 @@ export function isBlockedAuthRequest(path: string, hasRequest: boolean): boolean
   return hasRequest && BLOCKED_AUTH_PATH.test(path);
 }
 
+/** Whether `uri` is an `http:` redirect to this machine, as native apps such as Claude Code use (RFC 8252). */
+function isLoopbackRedirect(uri: unknown): boolean {
+  try {
+    const url = new URL(String(uri));
+    return url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Marks a dynamic client registration as a native app when it names no `application_type`
+ * and only loopback redirect URIs. The provider otherwise defaults to `web`, which refuses
+ * loopback redirects, so MCP clients that omit the field (Claude Code) could not register.
+ */
+export function withNativeDefault(body: unknown): unknown {
+  if (!body || typeof body !== "object" || "application_type" in body) return body;
+  const uris = (body as { redirect_uris?: unknown }).redirect_uris;
+  if (!Array.isArray(uris) || uris.length === 0 || !uris.every(isLoopbackRedirect)) return body;
+  return { ...body, application_type: "native" };
+}
+
 /**
  * Builds the Better Auth instance: Discord sign-in for provisioned accounts,
  * the first account as admin, per-user API keys with the `rmk_` prefix, and an
@@ -125,6 +147,7 @@ function createAuth() {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (isBlockedAuthRequest(ctx.path, !!ctx.request)) throw new APIError("NOT_FOUND");
+        if (ctx.path === "/oauth2/register") return { context: { body: withNativeDefault(ctx.body) } };
       }),
       after: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== "/oauth2/consent" || ctx.context.returned instanceof Error) return;
