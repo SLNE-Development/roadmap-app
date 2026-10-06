@@ -14,8 +14,10 @@ app turns an accepted request into a project and system; you build it with the d
 - Never change a task in state `done`. Add or change work, never delete done work.
 - Never answer for the requester. Only their answers, read through `get_request`, count.
 - Never post to Discord. The app does that from its own buttons.
-- Questions about the event go to the requester with `ask_requester`; technical questions
-  go to the developer (the user) in the conversation.
+- Questions about the event go to the requester with `ask_requester` on this request, also
+  inside `surf-roadmap:plan-system` and when the planner is "not here". Never put them in
+  `add_question`, a planning round answered by the user, or the project. Technical
+  questions go to the developer (the user) in the conversation.
 
 ## Steps
 

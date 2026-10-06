@@ -68,6 +68,11 @@ Loop until the gate passes:
 2. `add_planning_round` with the items: `area` and `isRisk: true` for anything
    that is a way to fail.
 3. Roast, then ask them with the question tool in one call.
+   **Event systems** (the system belongs to an event request, see `get_request`): split
+   the round. Questions about the event itself (date, schedule, audience, rules, content,
+   prizes, staff, moderation) go to the requester with `ask_requester` on that request,
+   never to the user, the question tool or `add_question`. Only technical questions go to
+   the user. Record the requester's answers from the next `get_request`.
 4. `answer_planning_items` with the user's answers, verbatim or faithfully condensed.
    A vague answer is recorded, and its sharper follow-up goes into the next round.
 5. After each round, say in one line what is still open.

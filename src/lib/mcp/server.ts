@@ -20,7 +20,7 @@ export const MCP_INSTRUCTIONS = [
   "4. Accepted ADRs are immutable: supersede_adr instead of editing. Column entry rules (list_boards) may refuse a move_system.",
   "5. Pass agent with your name on writes; it defaults to Claude Code. Batch tools (up to 50 items) apply all or nothing.",
   "6. get_system, list_adrs and list_activity are brief by default; use get_document or get_adr for full text.",
-  "7. Event requests: read with get_request, ask the planner with ask_requester.",
+  "7. Event requests: read with get_request. Every question for the event planner goes to ask_requester on that request, never to add_question or the project; only technical questions go to the developer.",
 ].join("\n");
 
 /** Wraps a tool result, or an error message, as MCP text content. */

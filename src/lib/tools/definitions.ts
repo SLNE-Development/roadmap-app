@@ -728,7 +728,7 @@ register(
   }),
   defineTool({
     name: "add_question",
-    description: "Add an open question, optionally for a system (e.g. when blocked). Priority blocking holds the planning gate.",
+    description: "Add an open question for the team, optionally for a system; blocking priority holds the planning gate. Not for event planners: use ask_requester.",
     input: { ...P, ...addQuestionInput.shape },
     write: true,
     method: "POST",
@@ -816,7 +816,7 @@ register(
 
   defineTool({
     name: "ask_requester",
-    description: "Ask the event planner up to 5 typed questions about a request; answers come back through get_request.",
+    description: "Ask the event planner up to 5 typed questions on the request itself (not add_question); answers come back via get_request.",
     input: { request: z.string().min(1).max(64), ...askRoundInput.shape },
     write: true,
     method: "POST",
