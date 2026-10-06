@@ -10,21 +10,22 @@ export interface ConsentRequest {
   clientId: string;
   /** The client's registered name, or its id when it gave none. */
   clientName: string;
-  /** Host of the client's first redirect URI, where the grant is sent. */
-  redirectHost: string | null;
+  /** Host of the redirect URI this authorization sends its code to. */
+  redirectHost: string;
 }
 
 /**
  * Reads the authorization request the OAuth provider redirected to the consent page with.
- * The query is signed by the provider; a missing, forged or expired signature, or an
- * unknown client, yields `null` and nothing may be granted.
+ * The query is signed by the provider; a missing, forged or expired signature, or an unknown
+ * client, yields `null` and nothing may be granted.
  *
  * @param search the page's query string, without the leading `?`
  */
 export async function consentRequest(search: string): Promise<ConsentRequest | null> {
   const { secret } = await getAuth().$context;
   if (!(await verifyOAuthQueryParams(search, secret))) return null;
-  const clientId = new URLSearchParams(search).get("client_id");
+  const query = new URLSearchParams(search);
+  const clientId = query.get("client_id");
   if (!clientId) return null;
   const [client] = await getDb()
     .select({ name: oauthClient.name, redirectUris: oauthClient.redirectUris })
@@ -32,11 +33,16 @@ export async function consentRequest(search: string): Promise<ConsentRequest | n
     .where(eq(oauthClient.clientId, clientId))
     .limit(1);
   if (!client) return null;
-  let redirectHost: string | null = null;
+  // The host shown is where this authorization's code goes: the request's own redirect_uri, which a
+  // client with several registered URIs chooses per request, never simply the first one registered.
+  // The provider matched it against the registered URIs (any port for loopback) before signing the query.
+  const redirectUri = query.get("redirect_uri") ?? (client.redirectUris.length === 1 ? client.redirectUris[0] : null);
+  if (!redirectUri) return null;
+  let redirectHost: string;
   try {
-    redirectHost = new URL(client.redirectUris[0]).host;
+    redirectHost = new URL(redirectUri).host;
   } catch {
-    redirectHost = null;
+    return null;
   }
   return { clientId, clientName: client.name || clientId, redirectHost };
 }

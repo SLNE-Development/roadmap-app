@@ -9,3 +9,12 @@ export function mcpResource(): string {
   if (!base) throw new Error("BETTER_AUTH_URL is not set; see .env.example.");
   return `${base.replace(/\/+$/, "")}/api/mcp`;
 }
+
+/**
+ * Returns where the MCP endpoint reads the access-token signing keys: this server's own JWKS
+ * endpoint over loopback (`PORT`, default 3000, as the Docker image binds). Going through the
+ * public URL instead would depend on the container reaching its own public hostname.
+ */
+export function internalJwksUrl(): string {
+  return `http://127.0.0.1:${process.env.PORT || 3000}/api/auth/jwks`;
+}

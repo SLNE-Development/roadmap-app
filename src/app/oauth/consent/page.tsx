@@ -39,7 +39,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
           <>
             <h1 className="font-display text-[22px] leading-tight font-semibold text-balance">{t("heading", { client: request.clientName })}</h1>
             <p className="text-sm text-muted-foreground">{t("body")}</p>
-            {request.redirectHost && <p className="text-sm text-muted-foreground">{t("redirect", { host: request.redirectHost })}</p>}
+            <p className="text-sm text-muted-foreground">{t("redirect", { host: request.redirectHost })}</p>
             <ConsentButtons />
             <p className="text-xs text-muted-foreground">{t("revokeHint")}</p>
           </>

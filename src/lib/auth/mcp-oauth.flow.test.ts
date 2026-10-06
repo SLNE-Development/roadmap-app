@@ -48,10 +48,10 @@ describe("MCP OAuth sign-in end to end", () => {
     ({ owner, slug } = await createProjectFixture(db));
     auth = (await import("./server")).getAuth() as unknown as typeof auth;
     ({ POST } = await import("@/app/api/mcp/route"));
-    // The resource server fetches the JWKS from the app's own URL; serve it from the handler.
+    // The resource server fetches the JWKS from this server over loopback; serve it from the handler.
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
-      return request.url.startsWith(BASE) ? auth.handler(request) : realFetch(input, init);
+      return request.url.startsWith("http://127.0.0.1:3000/") ? auth.handler(request) : realFetch(input, init);
     });
   });
 
@@ -152,6 +152,46 @@ describe("MCP OAuth sign-in end to end", () => {
     const revoked = await mcp(accessToken, "tools/call", { name: "list_projects", arguments: {} });
     expect(revoked.status).toBe(401);
     expect(revoked.headers.get("www-authenticate")).toContain("resource_metadata=");
+  });
+
+  it("names, on the consent page, the host the code will actually be sent to", async () => {
+    const other = "http://localhost:7777/elsewhere";
+    const register = await auth.handler(
+      new Request(`${BASE}/api/auth/oauth2/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ client_name: "Claude", redirect_uris: [REDIRECT, other], token_endpoint_auth_method: "none" }),
+      }),
+    );
+    await expectStatus(register, 201);
+    const { client_id: clientId } = await register.json();
+    const authorize = new URL(`${BASE}/api/auth/oauth2/authorize`);
+    for (const [k, v] of Object.entries({
+      response_type: "code",
+      client_id: clientId,
+      redirect_uri: other,
+      code_challenge: b64url(createHash("sha256").update("v".repeat(43)).digest()),
+      code_challenge_method: "S256",
+      resource: `${BASE}/api/mcp`,
+    }))
+      authorize.searchParams.set(k, v);
+    const { consentRequest } = await import("./consent");
+    const cookie = await sessionCookie();
+    /** The consent request the page sees for an authorization redirecting to `uri`. */
+    const consentFor = async (uri: string) => {
+      authorize.searchParams.set("redirect_uri", uri);
+      const toConsent = await auth.handler(new Request(authorize, { headers: { cookie } }));
+      return consentRequest(new URL(toConsent.headers.get("location") ?? "", BASE).search.slice(1));
+    };
+    expect(await consentFor(other)).toMatchObject({ clientId, clientName: "Claude", redirectHost: "localhost:7777" });
+    // Loopback redirects may use any port (RFC 8252); the page names the one in use.
+    expect(await consentFor("http://127.0.0.1:6111/callback")).toMatchObject({ redirectHost: "127.0.0.1:6111" });
+  });
+
+  it("hands no session JWT to the browser", async () => {
+    const response = await auth.handler(new Request(`${BASE}/api/auth/get-session`, { headers: { cookie: await sessionCookie() } }));
+    await expectStatus(response, 200);
+    expect(response.headers.get("set-auth-jwt")).toBeNull();
   });
 
   it("challenges a forged token with the protected resource metadata", async () => {

@@ -129,7 +129,8 @@ function createAuth() {
         ...{ oauthClient, oauthResource, oauthClientResource, oauthRefreshToken, oauthAccessToken, oauthConsent, oauthClientAssertion },
       },
     }),
-    // The JWT plugin's own token endpoint would hand out session JWTs to anyone with a cookie; MCP clients use /oauth2/token.
+    // The JWT plugin only signs OAuth access tokens here: its session-JWT endpoint is off, and so is the
+    // header it would add to every session check (see `jwt()` below). MCP clients use /oauth2/token.
     disabledPaths: ["/token"],
     socialProviders: {
       discord: {
@@ -192,7 +193,7 @@ function createAuth() {
     },
     plugins: [
       apiKey({ defaultPrefix: "rmk_", rateLimit: { enabled: true, ...API_KEY_RATE_LIMIT } }),
-      jwt(),
+      jwt({ disableSettingJwtHeader: true }),
       // Sign-in reuses the Discord login page; the provider resumes the authorization once a session exists.
       // Clients identify through a metadata document (CIMD) or, for clients predating it, dynamic registration.
       mcp({

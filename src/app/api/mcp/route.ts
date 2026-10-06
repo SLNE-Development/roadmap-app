@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { bearerAuth } from "@/lib/auth/actor";
 import { bearerToken } from "@/lib/auth/bearer";
 import { oauthCredential } from "@/lib/auth/mcp-auth";
-import { mcpResource } from "@/lib/auth/mcp-resource";
+import { internalJwksUrl, mcpResource } from "@/lib/auth/mcp-resource";
 import { ApiKeyRateLimitedError, rateLimitedResponse } from "@/lib/auth/rate-limit";
 import { getAuth } from "@/lib/auth/server";
 import { createMcpServer } from "@/lib/mcp/server";
@@ -70,8 +70,8 @@ function revokedResponse(): Response {
 let oauthHandler: ((request: Request) => Promise<Response>) | undefined;
 
 /**
- * Serves a request carrying an OAuth access token: Better Auth verifies it against its JWKS
- * (signature, issuer, audience, expiry) and challenges anything else with `WWW-Authenticate`
+ * Serves a request carrying an OAuth access token: Better Auth verifies it against its JWKS,
+ * read from this server over loopback (signature, issuer, audience, expiry) and challenges anything else with `WWW-Authenticate`
  * so MCP clients start the sign-in.
  */
 function withAccessToken(request: Request): Promise<Response> {
@@ -81,7 +81,7 @@ function withAccessToken(request: Request): Promise<Response> {
       const credential = await oauthCredential(getDb(), claims);
       return credential ? serve(verified, credential.actor, credential.credentialId) : revokedResponse();
     },
-    { resource: mcpResource() },
+    { resource: mcpResource(), jwksUrl: internalJwksUrl() },
   );
   return oauthHandler(request);
 }

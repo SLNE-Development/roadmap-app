@@ -12,8 +12,10 @@ vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: { verifyApiKey } })
  * Stand-in for Better Auth's MCP token check: `Bearer jwt-<userId>` verifies as a token of client
  * `cli-1` for that user; anything else gets the challenge the real check sends.
  */
+const { mcpAuthOptions } = vi.hoisted(() => ({ mcpAuthOptions: [] as unknown[] }));
 vi.mock("@better-auth/mcp", () => ({
-  requireMcpAuth: (_auth: unknown, handler: (request: Request, claims: Record<string, unknown>) => Promise<Response>) => async (request: Request) => {
+  requireMcpAuth: (_auth: unknown, handler: (request: Request, claims: Record<string, unknown>) => Promise<Response>, opts: unknown) => async (request: Request) => {
+    mcpAuthOptions.push(opts);
     const token = /^Bearer jwt-(\S+)$/.exec(request.headers.get("authorization") ?? "");
     if (token) return handler(request, { sub: token[1], client_id: "cli-1" });
     return new Response(null, { status: 401, headers: { "www-authenticate": 'Bearer resource_metadata="from-better-auth"' } });
@@ -164,6 +166,11 @@ describe("MCP route", () => {
       expect(response.status).toBe(401);
       expect(response.headers.get("www-authenticate")).toContain("resource_metadata");
       expect(verifyApiKey).not.toHaveBeenCalled();
+    });
+
+    it("verifies tokens for the MCP resource with keys read from this server over loopback", async () => {
+      await POST(new Request("http://test/api/mcp", { method: "POST", body: "{}" }));
+      expect(mcpAuthOptions.at(-1)).toEqual({ resource: "http://test/api/mcp", jwksUrl: "http://127.0.0.1:3000/api/auth/jwks" });
     });
 
     it("serves tools as the token's user while their consent stands", async () => {
