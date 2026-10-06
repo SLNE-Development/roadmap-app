@@ -3,6 +3,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import { ApiKeyManager, type ApiKeyItem } from "@/components/api-key-manager";
+import { ConnectedApps } from "@/components/connected-apps";
 import { useShortDate } from "@/components/account/short-date";
 import { useNow } from "@/components/clock";
 import { Page, PageHeader } from "@/components/page";
@@ -12,7 +13,8 @@ import { useTRPC } from "@/trpc/client";
 const SOON_MS = 7 * 86_400_000;
 
 /**
- * The API keys page body: the user's keys with formatted dates and the form creating one.
+ * The API keys page body: the user's keys with formatted dates, the form creating one, and
+ * the apps connected through OAuth sign-in.
  *
  * @param props.appUrl the app's public URL, shown in the environment lines of a new key
  */
@@ -21,6 +23,8 @@ export function ApiKeysView({ appUrl }: { appUrl: string }) {
   const format = useFormatter();
   const trpc = useTRPC();
   const { data } = useSuspenseQuery(trpc.account.apiKeys.queryOptions());
+  const { data: connected } = useSuspenseQuery(trpc.account.connectedApps.queryOptions());
+  const tc = useTranslations("account.connectedApps");
   const now = useNow();
   const shortDate = useShortDate(now);
   const keys = data.map((k): ApiKeyItem => {
@@ -43,6 +47,14 @@ export function ApiKeysView({ appUrl }: { appUrl: string }) {
     <Page width="medium">
       <PageHeader crumbs={[{ label: t("crumb") }]} title={t("title")} description={t("description")} />
       <ApiKeyManager keys={keys} appUrl={appUrl} />
+      <ConnectedApps
+        apps={connected.map((a) => ({
+          clientId: a.clientId,
+          name: a.name,
+          granted: shortDate(a.grantedAt),
+          lastUsed: a.lastUsedAt ? format.relativeTime(a.lastUsedAt, now) : tc("neverUsed"),
+        }))}
+      />
     </Page>
   );
 }

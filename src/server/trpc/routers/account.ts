@@ -14,6 +14,7 @@ import { setPref } from "@/lib/ops/prefs";
 import { requestRights } from "@/lib/ops/requests";
 import { myWork, myWorkSeenAt, markMyWorkSeen } from "@/lib/ops/my-work";
 import { createApiKeyInput, listApiKeys, revokeApiKey, rotateApiKey } from "@/lib/ops/api-keys";
+import { listConnectedApps, revokeConnectedApp } from "@/lib/ops/oauth-apps";
 import { addAllowedAccount, addAllowedAccountInput, listAllowedAccounts, listUsers, removeAllowedAccount, setAdmin } from "@/lib/ops/users";
 import { teamWorkload, workloadProjects } from "@/lib/ops/workload";
 import { plural } from "@/lib/text";
@@ -97,6 +98,15 @@ export const accountRouter = router({
       await audit(ctx, { kind: "key-rotated", apiKeyId: input.id, detail: newId ? `Replaced by ${newId}` : null });
       return result;
     }),
+
+  /** The OAuth clients (MCP clients) the actor connected, newest first. */
+  connectedApps: protectedProcedure.query(({ ctx }) => listConnectedApps(ctx.db, ctx.actor)),
+
+  /** Disconnects one of the actor's connected apps; its tokens stop working at once. */
+  revokeConnectedApp: protectedProcedure.input(z.object({ clientId: z.string().min(1).max(2048) })).mutation(async ({ ctx, input }) => {
+    await revokeConnectedApp(ctx.db, ctx.actor, input.clientId);
+    await audit(ctx, { kind: "oauth-revoked", apiKeyId: input.clientId });
+  }),
 
   /** The actor's signed-in sessions, the current one first. */
   sessions: protectedProcedure.query(({ ctx }) => listSessions(ctx.db, ctx.actor, ctx.sessionId)),

@@ -79,5 +79,19 @@
       "github": "GitHub did not answer as expected. Try again in a moment.",
       "other": "Something went wrong with GitHub. Try again."
     }
+  },
+  "connectedApps": {
+    "title": "Connected apps",
+    "description": "Signed in through the browser",
+    "app": "App",
+    "granted": "Connected",
+    "lastUsed": "Last used",
+    "neverUsed": "Not used yet",
+    "actions": "Actions",
+    "revoke": "Disconnect",
+    "revokeTitle": "Disconnect {name}?",
+    "revokeDescription": "It loses access at once and has to ask you again to reconnect.",
+    "keep": "Keep",
+    "revoked": "App disconnected"
   }
 }

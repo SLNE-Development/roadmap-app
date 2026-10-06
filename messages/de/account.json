@@ -79,5 +79,19 @@
       "github": "GitHub hat nicht wie erwartet geantwortet. Versuche es gleich noch einmal.",
       "other": "Bei GitHub ist etwas schiefgelaufen. Versuche es erneut."
     }
+  },
+  "connectedApps": {
+    "title": "Verbundene Apps",
+    "description": "Über den Browser angemeldet",
+    "app": "App",
+    "granted": "Verbunden",
+    "lastUsed": "Zuletzt genutzt",
+    "neverUsed": "Noch nicht genutzt",
+    "actions": "Aktionen",
+    "revoke": "Trennen",
+    "revokeTitle": "{name} trennen?",
+    "revokeDescription": "Die App verliert sofort den Zugriff und muss dich erneut fragen, um sich zu verbinden.",
+    "keep": "Behalten",
+    "revoked": "App getrennt"
   }
 }
