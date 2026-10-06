@@ -50,7 +50,10 @@
       "key-revoked": "Schlüssel widerrufen",
       "key-rotated": "Schlüssel erneuert",
       "key-rejected": "Schlüssel abgelehnt",
-      "key-rate-limited": "Schlüssel gedrosselt"
+      "key-rate-limited": "Schlüssel gedrosselt",
+      "oauth-consented": "App verbunden",
+      "oauth-denied": "App abgelehnt",
+      "oauth-revoked": "App getrennt"
     }
   },
   "users": {

@@ -11,6 +11,9 @@ export const AUTH_EVENT_KINDS = [
   "key-rotated",
   "key-rejected",
   "key-rate-limited",
+  "oauth-consented",
+  "oauth-denied",
+  "oauth-revoked",
 ] as const;
 
 /** A kind of {@link authEvent}. */
@@ -28,7 +31,7 @@ export const authEvent = pgTable(
     kind: text("kind", { enum: AUTH_EVENT_KINDS }).notNull(),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     discordId: text("discord_id"),
-    /** The key involved; no foreign key, since events outlive revoked keys. */
+    /** The key involved, or the OAuth client id for `oauth-*` events; no foreign key, since events outlive revoked keys. */
     apiKeyId: text("api_key_id"),
     ip: text("ip"),
     userAgent: text("user_agent"),

@@ -126,6 +126,21 @@ function createAuth() {
       before: createAuthMiddleware(async (ctx) => {
         if (isBlockedAuthRequest(ctx.path, !!ctx.request)) throw new APIError("NOT_FOUND");
       }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/oauth2/consent" || ctx.context.returned instanceof Error) return;
+        const userId = ctx.context.session?.user.id;
+        if (!userId) return;
+        const clientId = new URLSearchParams(String(ctx.body?.oauth_query ?? "")).get("client_id");
+        await recordAuthEvent(db, {
+          kind: ctx.body?.accept ? "oauth-consented" : "oauth-denied",
+          userId,
+          discordId: null,
+          apiKeyId: clientId,
+          ip: ctx.request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+          userAgent: ctx.request?.headers.get("user-agent") ?? null,
+          detail: null,
+        });
+      }),
     },
     databaseHooks: {
       session: {

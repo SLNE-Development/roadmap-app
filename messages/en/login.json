@@ -19,5 +19,16 @@
     "restart": "The sign-in took too long or was started in another tab. Please try again.",
     "noUserInfo": "Discord didn’t send your account details. Please try again.",
     "generic": "Sign-in failed. Please try again, or ask an admin if it keeps happening."
+  },
+  "consent": {
+    "title": "Connect an app",
+    "heading": "{client} wants to use your roadmap",
+    "body": "It will act as you: read and change projects, systems, tasks, specs and decisions you can access, through the MCP tools.",
+    "redirect": "After you allow it, you return to {host}.",
+    "allow": "Allow",
+    "deny": "Deny",
+    "revokeHint": "You can disconnect it any time under API keys → Connected apps.",
+    "invalid": "This request is invalid or has expired. Start the connection again from your app.",
+    "failed": "Could not complete the request."
   }
 }

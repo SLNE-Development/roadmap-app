@@ -50,7 +50,10 @@
       "key-revoked": "Key revoked",
       "key-rotated": "Key rotated",
       "key-rejected": "Key rejected",
-      "key-rate-limited": "Key rate-limited"
+      "key-rate-limited": "Key rate-limited",
+      "oauth-consented": "App connected",
+      "oauth-denied": "App refused",
+      "oauth-revoked": "App disconnected"
     }
   },
   "users": {

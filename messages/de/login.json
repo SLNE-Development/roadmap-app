@@ -19,5 +19,16 @@
     "restart": "Die Anmeldung hat zu lange gedauert oder wurde in einem anderen Tab gestartet. Bitte versuche es erneut.",
     "noUserInfo": "Discord hat deine Kontodaten nicht übermittelt. Bitte versuche es erneut.",
     "generic": "Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut oder frage einen Admin, falls das Problem bleibt."
+  },
+  "consent": {
+    "title": "App verbinden",
+    "heading": "{client} möchte deine Roadmap nutzen",
+    "body": "Sie handelt in deinem Namen: Sie liest und ändert über die MCP-Tools Projekte, Systeme, Aufgaben, Specs und Entscheidungen, auf die du Zugriff hast.",
+    "redirect": "Nach dem Erlauben geht es zurück zu {host}.",
+    "allow": "Erlauben",
+    "deny": "Ablehnen",
+    "revokeHint": "Du kannst sie jederzeit unter API-Schlüssel → Verbundene Apps trennen.",
+    "invalid": "Diese Anfrage ist ungültig oder abgelaufen. Starte die Verbindung erneut aus deiner App.",
+    "failed": "Die Anfrage konnte nicht abgeschlossen werden."
   }
 }
