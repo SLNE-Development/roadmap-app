@@ -17,11 +17,11 @@ export function proxy(request: NextRequest) {
 }
 
 /**
- * Guards everything except the login page, the API (bearer or Better Auth), static assets,
+ * Guards everything except the login page, the API (bearer or Better Auth), OAuth discovery, static assets,
  * icons, the manifest, the service worker, the share image and the crawler files.
  */
 export const config = {
   matcher: [
-    "/((?!login|api/|_next/static|_next/image|favicon.ico|icon.svg|icon-\\d+\\.png|apple-icon.png|manifest.webmanifest|sw.js|opengraph-image|robots.txt).*)",
+    "/((?!login|api/|\\.well-known/|_next/static|_next/image|favicon.ico|icon.svg|icon-\\d+\\.png|apple-icon.png|manifest.webmanifest|sw.js|opengraph-image|robots.txt).*)",
   ],
 };

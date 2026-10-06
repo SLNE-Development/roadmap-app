@@ -1,15 +1,34 @@
 import "server-only";
 import { apiKey } from "@better-auth/api-key";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
+import { mcp } from "@better-auth/mcp";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
+import { jwt } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { account, apikey, session, user, verification } from "@/db/schema";
+import {
+  account,
+  apikey,
+  jwks,
+  oauthAccessToken,
+  oauthClient,
+  oauthClientAssertion,
+  oauthClientResource,
+  oauthConsent,
+  oauthRefreshToken,
+  oauthResource,
+  session,
+  user,
+  verification,
+} from "@/db/schema";
 import type { Db } from "@/db/types";
 import { recordAuthEvent } from "@/lib/ops/audit";
 import { isAllowed, linkDiscordAccount } from "@/lib/ops/users";
+import { mcpResource } from "./mcp-resource";
 import { API_KEY_RATE_LIMIT } from "./rate-limit";
 import { clearRejectedAccount, rememberRejectedAccount } from "./rejected-account";
 
@@ -73,14 +92,23 @@ export function isBlockedAuthRequest(path: string, hasRequest: boolean): boolean
 
 /**
  * Builds the Better Auth instance: Discord sign-in for provisioned accounts,
- * the first account as admin, and per-user API keys with the `rmk_` prefix.
+ * the first account as admin, per-user API keys with the `rmk_` prefix, and an
+ * OAuth 2.1 authorization server through which MCP clients sign in as their user.
  */
 function createAuth() {
   const db = getDb();
   return betterAuth({
     baseURL: requireEnv("BETTER_AUTH_URL"),
     secret: requireEnv("BETTER_AUTH_SECRET"),
-    database: drizzleAdapter(db, { provider: "pg", schema: { user, session, account, verification, apikey } }),
+    database: drizzleAdapter(db, {
+      provider: "pg",
+      schema: {
+        ...{ user, session, account, verification, apikey, jwks },
+        ...{ oauthClient, oauthResource, oauthClientResource, oauthRefreshToken, oauthAccessToken, oauthConsent, oauthClientAssertion },
+      },
+    }),
+    // The JWT plugin's own token endpoint would hand out session JWTs to anyone with a cookie; MCP clients use /oauth2/token.
+    disabledPaths: ["/token"],
     socialProviders: {
       discord: {
         clientId: requireEnv("DISCORD_CLIENT_ID"),
@@ -124,7 +152,21 @@ function createAuth() {
         },
       },
     },
-    plugins: [apiKey({ defaultPrefix: "rmk_", rateLimit: { enabled: true, ...API_KEY_RATE_LIMIT } }), nextCookies()],
+    plugins: [
+      apiKey({ defaultPrefix: "rmk_", rateLimit: { enabled: true, ...API_KEY_RATE_LIMIT } }),
+      jwt(),
+      // Sign-in reuses the Discord login page; the provider resumes the authorization once a session exists.
+      // Clients identify through a metadata document (CIMD) or, for clients predating it, dynamic registration.
+      mcp({
+        loginPage: "/login",
+        consentPage: "/oauth/consent",
+        resource: mcpResource(),
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+      }),
+      cimd({ fetchClientMetadataResource, metadataProfile: "mcp-2026-07-28" }),
+      nextCookies(),
+    ],
   });
 }
 
