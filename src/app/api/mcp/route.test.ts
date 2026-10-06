@@ -1,11 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "@/test/db";
+import { oauthClient, oauthConsent } from "@/db/schema";
 import { createProjectFixture } from "@/test/fixtures";
 import { DELETE, GET, POST } from "./route";
 
 /** Stand-in for Better Auth's `verifyApiKey`, so tests choose the verification result. */
 const { verifyApiKey } = vi.hoisted(() => ({ verifyApiKey: vi.fn() }));
 vi.mock("@/lib/auth/server", () => ({ getAuth: () => ({ api: { verifyApiKey } }) }));
+
+/**
+ * Stand-in for Better Auth's MCP token check: `Bearer jwt-<userId>` verifies as a token of client
+ * `cli-1` for that user; anything else gets the challenge the real check sends.
+ */
+vi.mock("@better-auth/mcp", () => ({
+  requireMcpAuth: (_auth: unknown, handler: (request: Request, claims: Record<string, unknown>) => Promise<Response>) => async (request: Request) => {
+    const token = /^Bearer jwt-(\S+)$/.exec(request.headers.get("authorization") ?? "");
+    if (token) return handler(request, { sub: token[1], client_id: "cli-1" });
+    return new Response(null, { status: 401, headers: { "www-authenticate": 'Bearer resource_metadata="from-better-auth"' } });
+  },
+}));
 
 /**
  * Stand-ins for auth event recording; the database finds the rate-limited key as `k1`,
@@ -34,8 +47,18 @@ function failure(code: string, message: string, details?: unknown) {
   return { valid: false, error: { message, code, ...(details === undefined ? {} : { details }) }, key: null };
 }
 
+/** A tools/call request for `list_projects` with the given bearer token. */
+function listProjects(token: string): Request {
+  return new Request("http://test/api/mcp", {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_projects", arguments: {} } }),
+  });
+}
+
 describe("MCP route", () => {
   beforeEach(() => {
+    vi.stubEnv("BETTER_AUTH_URL", "http://test");
     verifyApiKey.mockReset();
     recordThrottled.mockReset();
     testDb.current = null;
@@ -133,5 +156,39 @@ describe("MCP route", () => {
     expect(JSON.parse(result.content[0].text).map((p: { slug: string }) => p.slug)).toEqual([slug]);
     expect(error).toHaveBeenCalled();
     error.mockRestore();
+  });
+
+  describe("with an OAuth access token", () => {
+    it("challenges a request without a bearer with Better Auth's WWW-Authenticate header", async () => {
+      const response = await POST(new Request("http://test/api/mcp", { method: "POST", body: "{}" }));
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toContain("resource_metadata");
+      expect(verifyApiKey).not.toHaveBeenCalled();
+    });
+
+    it("serves tools as the token's user while their consent stands", async () => {
+      const db = await createTestDb();
+      const { owner, slug } = await createProjectFixture(db);
+      testDb.current = db;
+      await db.insert(oauthClient).values({ id: "c1", clientId: "cli-1", redirectUris: ["http://127.0.0.1/cb"], createdAt: new Date(), updatedAt: new Date() });
+      await db.insert(oauthConsent).values({ id: "k1", clientId: "cli-1", userId: owner.userId, scopes: [], createdAt: new Date(), updatedAt: new Date() });
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const response = await POST(listProjects(`jwt-${owner.userId}`));
+      error.mockRestore();
+      expect(response.status).toBe(200);
+      const { result } = await response.json();
+      expect(JSON.parse(result.content[0].text).map((p: { slug: string }) => p.slug)).toEqual([slug]);
+    });
+
+    it("challenges a valid token whose consent was revoked", async () => {
+      const db = await createTestDb();
+      const { owner } = await createProjectFixture(db);
+      testDb.current = db;
+      const response = await POST(listProjects(`jwt-${owner.userId}`));
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toBe(
+        'Bearer error="invalid_token", error_description="Access was revoked", resource_metadata="http://test/.well-known/oauth-protected-resource/api/mcp"',
+      );
+    });
   });
 });
