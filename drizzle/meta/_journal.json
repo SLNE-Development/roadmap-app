@@ -316,6 +316,13 @@
       "when": 1790890270100,
       "tag": "0044_event-avatar-summary-style",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1791257414858,
+      "tag": "0045_mcp-oauth",
+      "breakpoints": true
     }
   ]
 }

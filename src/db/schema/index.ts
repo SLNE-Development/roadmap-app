@@ -8,3 +8,4 @@ export * from "./audit";
 export * from "./notifications";
 export * from "./github";
 export * from "./events";
+export * from "./oauth";
